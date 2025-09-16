@@ -1,0 +1,665 @@
+---
+title: "DHIS2 Magic Glasses"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    theme:
+      version: 4
+      bootswatch: yeti
+params:
+  version: "December 11, 2023" 
+runtime: shiny
+resource_files:
+- renv.lock
+---
+
+<!-- For mapping, need to install the GDAL library.  On mac, use homebrew.  On windows ?  -->
+<!-- see : https://gitmemory.cn/index.php/repo/r-spatial/sf/issues/1848 -->
+<!-- remotes::install_github("r-spatial/sf", configure.args = "--with-gdal-config=/opt/homebrew/opt/gdal/bin/gdal-config --with-sqlite3-lib=/opt/homebrew/opt/sqlite3") -->
+```{r renv, include=FALSE , eval=FALSE}
+
+# Sys.setenv(RENV_DOWNLOAD_METHOD = "libcurl") # suggeted by M. Hainsworth
+# renv::restore()
+# renv::repair()
+# renv::snapshot()
+
+```
+
+```{r log_file, eval=FALSE }
+# output <- system2("R","-e \"rmarkdown::render('MagicGlasses2.Rmd')\"",
+#                   stdout = TRUE, stderr = TRUE)
+
+sink( "magicGlasses.log" , type = "message", append = FALSE, split = TRUE)
+
+rmarkdown::run('MagicGlasses2.Rmd')
+
+# Restore output to console
+# sink( type = "output")
+# sink(type="message") 
+
+
+# flog <- file( "magicGlasses.log" , open = "wt")
+# sink(file = flog, split = TRUE)
+
+# sink(con, append=TRUE, type="message")
+
+# This will echo all input and not truncate 150+ character lines...
+# source("script.R", echo=TRUE, max.deparse.length=10000)
+
+
+```
+
+```{r check_installed_libraries, eval=FALSE}
+
+
+libraries =  readLines( 'magicGlasses2Libraries.txt' ) 
+include = !( grepl( '#' , libraries ) | nchar( libraries ) == 0 ) 
+library.list = trimws( libraries[ include ] )
+
+installed = installed.packages()
+
+needed = setdiff( library.list , installed )
+
+if ( length( needed ) > 0 ){
+  message( 'please run installPackages.R' )
+  knitr::knit_exit()
+} 
+
+```
+
+```{r libraries , context="setup" , include=FALSE}
+
+options("menu.graphics" = FALSE)
+rstudioapi::writeRStudioPreference("console_max_lines", 2000L )
+
+library(conflicted) # For diagnosing function name conflicts
+library(tidyverse)
+library( stringr )
+library(data.table) # for clean install, run from clean session: 
+    # remove.packages("data.table")
+    # install.packages("data.table", type = "source",
+    # repos = "https://Rdatatable.gitlab.io/data.table")
+library( flexdashboard )
+library( bslib )
+library( shiny)
+library( shinyjs)
+library( shinydashboard)
+library( shinyBS)
+library( shinyLP)
+library( shinyFiles )
+library( rstudioapi )
+library(  leaflet)
+library( progressr )
+library( RColorBrewer)
+library( plotly)
+library( cowplot )
+library( ggrepel )
+library( ragg )
+library( scales)
+library( lemon ) # for reposition_legend() 
+# if ( 'summarytools' %in% installed.packages() )  library( summarytools ) # invokes Xquartz on mac.
+# library( describer )
+
+# library( tidyfast )
+# library( tidytable )
+# library(googleVis)
+
+library( zoo )
+library( knitr)
+library( rlang)
+library( stringi)
+library( tidyselect)
+library( geojsonsf)
+library( geojsonio)
+library( jsonlite)
+library( httr)
+library( curl)
+library( assertthat)
+
+library(futile.logger)
+# library(utils)
+library(DT)
+# library(textutils)
+library(readxl)
+library(openxlsx)
+# library(anytime)
+library(lubridate)
+library( tictoc )
+
+library(ipc)
+library(future)
+library( future.apply )
+library(furrr)
+library( purrr )
+library(promises)
+
+library( data.tree )
+library( igraph )
+
+# library( knitrProgressBar)
+# library( progressr )
+library( progress )
+library(sf)
+# library( mapview )
+library( leaflet )
+library( leaflegend )
+library( crosstalk )
+# library(rmapshaper)
+
+library( tsibble  )
+library( fable )
+library( fabletools )
+library( feasts )
+library( fable.prophet )
+# library( Metrics )
+library( forecast ) 
+
+
+# older package that may not be able to install on some machines (e.g. Mac ARM)
+# if ( 'fable.bsts' %in% installed.packages() ) library( fable.bsts )
+
+# busy spinner
+library(shinybusy)
+```
+
+```{r options, context="setup" , include=FALSE }
+
+options(shiny.trace=FALSE)
+options(shiny.reactlog=FALSE)
+knitr::opts_chunk$set(echo = FALSE)
+
+# add_busy_spinner(spin = "fading-circle", position = "bottom-right")
+
+# Avoid naming conflicts for functions found in more than 1 package...
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("last", "dplyr")
+conflict_prefer("first", "dplyr")
+conflict_prefer("year", "lubridate")
+conflict_prefer("month", "lubridate")
+conflict_prefer("week", "lubridate")
+conflict_prefer("runExample", "shiny")
+conflict_prefer(":=", "rlang")
+conflict_prefer( "validate", "jsonlite" )
+conflicts_prefer( base::match )
+conflicts_prefer( stats::mad )
+conflicts_prefer( stats::sd )
+conflicts_prefer( purrr::map )
+conflicts_prefer( shiny::isolate )
+
+# home = getActiveProject()
+# cat('\n ## getActiveProject():' , getActiveProject() )
+```
+
+```{r sources, context="setup" , include=FALSE}
+# Functions ####
+# source( "data_time_libraries.r")
+# source( "outlier.r" )
+source( "ingest_formula_data.R")
+source( 'TS_Modeling_Functions.R')
+source( "Summary_TS.R") # new version of summary_ts()
+source( 'TS_model_outlier_impute.R') # model_ts()
+source( 'Deviation_Expected_Functions.R')
+# source( 'theme_ppt.R')
+# source( 'clean_ts.r' )
+source( 'DToptions.R')
+source( 'model_ts2.R' )
+source( 'api_data.r' )
+source( 'dqa.r' )
+source( 'Cleaning.R' )
+source( 'prepareDataset.R' )
+source( 'cleaning_functions.R' )
+source( "data Functions.R" )
+source( "dqa_functions.R" )
+
+# source( "key.mpe.distribution.R" )
+# source( "pre_mable_fit.R")
+
+# source( 'API.r' )
+
+Month_Year = function( x ){ yearmonth( zoo::as.yearmon( x , "%Y%m") ) }
+
+Week_Year = function( x ){ tsibble::yearweek( x) }
+
+options(dplyr.summarise.inform = FALSE)
+
+useShinyjs()   # Set up shinyjs
+
+```
+
+```{css my-css , context="setup" , include = FALSE, eval = TRUE }
+
+# DT table elements on same line 
+form{
+   display:inline;
+}
+
+# Scroll within tabs
+# https://stackoverflow.com/questions/64777606/scrollable-tab-in-flexdashboard
+#section-notes-and-formulas
+  .chart-shim {
+    overflow-y: scroll;
+    }
+
+
+# customize flexdashboard titles
+
+.navbar {
+  background-color:red;
+  border-color:black;
+}
+.navbar-brand {
+color:black!important;
+}
+
+# ---
+
+.fluid-row {
+  font-size: 5.9vw;
+}
+
+.chart-title {
+     font-size: 10px;
+}
+
+.chart{
+    margin: 0px
+}
+
+.shiny-input-container{
+    margin: 0px
+}
+
+.checkbox{
+    margin: 0px
+}
+
+.selectize-input { 
+    font-size: 10pt; 
+    font-weight: bold;
+    margin: 0 0 0 0;
+    white-space: nowrap;
+    padding: 5px;
+    } 
+    
+.select-input { 
+    font-size: 10pt; 
+    font-weight: bold;
+    margin: 0 0 0 0;
+    white-space: nowrap;
+    padding: 5px;
+    } 
+    
+.checkbox-input { 
+    margin: 0px
+    }
+
+.value-box > .inner {
+  padding: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.value-box .value {
+  font-size: 10px;
+  font-weight: bold;
+  margin: 0 0 0 0;
+  white-space: nowrap;
+  padding: 0;
+}
+
+.value-box .caption {
+  font-size: 5px;
+}
+
+.section.sidebar {
+  position: fixed;
+  top: 51px; /* overridden by theme */
+  left: 0;
+  bottom: 0;
+  border-right: 1px solid #e2e2e2;
+  background-color: white; /* overridden by theme */
+  padding-left: 5px;
+  padding-right: 5px;
+  visibility: hidden;
+}
+
+.section.sidebar form p:first-child {
+  margin-top: 5px;
+}
+
+.storyboard-nav {
+    box-sizing: border-box;
+    width: 100% !important; /* This prevents JS transformation on width */
+    height: auto; /* This overrides the height */
+}
+
+.storyboard-nav .sbnext, .storyboard-nav .sbprev {
+    height: auto; /* This overrides the height */
+    font-size: 3rem;
+}
+
+.storyboard-nav .sbframelist {
+    height: auto; /* This overrides the height */
+}
+
+.storyboard-nav .sbframelist ul {
+    box-sizing: border-box;
+    width: 100% !important; /* This prevents JS transformation on width */
+    height: auto; /* This overrides the height */
+}
+
+.storyboard-nav .sbframelist ul li {
+    height: auto; /* This overrides the height */
+    width: auto; /* This overrides the width */
+}
+
+
+input[type="number"] {
+  max-width: 80%;
+}
+
+div.outer {
+  position: fixed;
+  top: 41px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  /*overflow: hidden;*/
+  padding: 0;
+}
+
+#controls {
+  /* Appearance */
+  background-color: white;
+  padding: 0 10px 10px 10px;
+  cursor: move;
+  /* Fade out while not hovering */
+  opacity: 0.65;
+  zoom: 0.9;
+  transition: opacity 500ms 1s;
+  overflow-y: auto;
+}
+
+#controls:hover {
+  /* Fade in while hovering */
+  opacity: 0.95;
+  transition-delay: 0;
+}
+
+/* Position and style citation */
+#cite {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  font-size: 12px;
+}
+
+/* If not using map tiles, show a white background */
+.leaflet-container {
+  background-color: white !important;
+}
+
+.tab-content {
+  overflow: visible;
+}
+
+.selectize-control .selectize-dropdown {
+  position: static !important;
+}
+
+.select-control .select-dropdown {
+  position: static !important;
+}
+
+/* Customize fonts */
+body, label, input, button, select { 
+  font-family: 'Helvetica Neue', Helvetica;
+  font-weight: 100;
+}
+
+h1, h2 { font-weight: 300; }
+
+h3, h4 { font-weight: 200; }
+
+#controls:hover {
+  /* Fade in while hovering */
+  opacity: 0.95;
+  transition-delay: 0;
+}
+
+# flexdashboard in rmarkdown (https://groups.google.com/g/shiny-discuss/c/N5N0PqcBvuY?pli=1)
+.chart-wrapper {
+  overflow-y: scroll;
+}
+
+/* Fix DT / Flexdashboard container cut off */
+.chart-stage-flex {
+  overflow: scroll !important;
+}
+```
+
+```{r theme , eval = FALSE }
+
+theme <- bs_theme(
+  bg = "#0b3d91", fg = "white", primary = "#FCC780",
+  base_font = font_google("Space Mono"),
+  code_font = font_google("Space Mono")
+)
+
+```
+
+<!-- Inputs {.sidebar data-width=300} -->
+<!-- ==================================== -->
+
+Welcome
+=======================
+
+    
+**An epidemiological look at DHIS2 data**
+
+*The goal is to make the analysis of routine data accessible, transparent, and repeatable.*
+
+The layout follows a research path using the pages (navigation at left) to
+
+* Understand which data are available \textcolor{blue}{Metadata}
+
+* Request data \textcolor{blue}{Data}
+
+* Get overview of data Quality \textcolor{blue}{DQA}
+
+* Define and remove outliers \textcolor{blue}{Outliers}
+
+* Evaluate trends and estimate intervention effectiveness \textcolor{blue}{Evaluation}
+
+**To begin, go to the Setup tab**
+
+(Note: The layout of each page depends on your browser. 
+You can adjust screen layout and text size by pressing ctrl- or ctrl+)
+
+Ver ( `r params$version` )
+
+Setup
+=======================
+
+Column
+-----------------------------------
+
+```{r directory_widget ,  echo = FALSE  }
+source( 'directory_widget.R' )
+directory_widget_ui( "directory1" )
+
+directory_widget_output = directory_widget_server( "directory1" )
+
+```
+
+Column
+-----------------------------------
+
+
+```{r login_widget ,  echo = FALSE  }
+source( 'login_widget.R' )
+login_widget_ui( "login1" )
+
+login_widget_output = login_widget_server( "login1" ,
+                                           directory_widget_output = directory_widget_output )
+
+```
+
+Metadata
+========================
+
+```{r metadata_widget ,  eval=TRUE}
+source( 'metadata_widget.R' )
+metadata_widget_ui( "metadata1" )
+
+metadata_widget_output =
+  metadata_widget_server( "metadata1" ,
+            login_widget_output  =  login_widget_output ,
+            directory_widget_output = directory_widget_output 
+            )
+```
+
+
+Data
+========================
+
+Column {data-width='30%'}
+-----------------------------------
+
+### Data (Dictionary/Formulas) {data-height='65%'}
+
+```{r data_widget,   echo = FALSE  }
+source( 'data_widget.r' )
+data_widget_ui( "data1" )
+
+data1_Widget_output = 
+  data_widget_server( "data1" , 
+                      directory_widget_output = directory_widget_output ,
+                      metadata_widget_output = metadata_widget_output  ,
+                      data_request_output = data_request_output
+                      )
+
+```
+
+### Request data from server {data-height='35%'}
+
+```{r data_request_widget ,  eval=TRUE}
+source( 'data_request_widget.R' )
+data_request_widget_ui( "data_request1" )
+
+data_request_output =
+  data_request_widget_server( "data_request1" ,
+            loginDetails  =  login_widget_output ,
+            dataDirectory = directory_widget_output ,
+            metadata_widget_output = metadata_widget_output , 
+            data_widget_output = data1_Widget_output
+            )
+```
+
+
+Column {data-width='70%'}
+-----------------------------------
+
+### Data Elements
+
+```{r formula_widget ,  echo = FALSE }
+### Data definitions (formulas)
+
+source( 'formula_widget.r' )
+
+formula_widget_ui( "formula1" )
+
+formula1_Widget_output =
+  formula_widget_server( "formula1" ,
+                      metadata_widget_output = metadata_widget_output ,
+                      data_Widget_output = data1_Widget_output ,
+                      directory_widget_output = directory_widget_output)
+
+```
+
+
+
+Data Quality
+========================
+
+
+```{r dqa_widget ,  eval = TRUE }
+source( 'dqa_widget.R' )
+dqa_widget_ui( "dqa1" )
+
+dqa_widget_output =
+  dqa_widget_server( "dqa1" ,
+                         directory_widget_output = directory_widget_output ,
+                         metadata_widget_output = metadata_widget_output ,
+                         data_widget_output = data1_Widget_output ,
+                         reporting_widget_output = reporting_widget_output ,
+                         cleaning_widget_output = cleaning_widget_output )
+```
+
+
+
+Reporting
+========================
+
+```{r reporting_widget ,  eval= TRUE }
+source( 'reporting_widget_app.r' )
+reporting_widget_ui( "reporting1" )
+
+reporting_widget_output = 
+  reporting_widget_server( "reporting1" ,
+                         dataDirectory = directory_widget_output ,
+                         metadata_widget_output = metadata_widget_output ,
+                         data_widget_output = data1_Widget_output ,
+                         cleaning_widget_output = cleaning_widget_output )
+```
+
+Outliers
+========================
+
+
+```{r cleaning_widget ,  eval= TRUE } 
+source( 'cleaning_widget.r' )
+
+cleaning_widget_ui( "cleaning1" )
+
+cleaning_widget_output = 
+  cleaning_widget_server( "cleaning1" , 
+                         directory_widget_output = directory_widget_output ,
+                         metadata_widget_output = metadata_widget_output ,
+                         data_widget_output = data1_Widget_output ,
+                         reporting_widget_output = reporting_widget_output 
+                         )
+```
+
+
+
+Evaluation
+========================
+
+```{r evaluation_widget ,  eval = TRUE }
+source( 'evaluation_widget.R' )
+evaluation_widget_ui( "evaluation1" )
+
+evaluation_widget_output =
+  evaluation_widget_server( "evaluation1" ,
+                         directory_widget_output = directory_widget_output ,
+                         metadata_widget_output = metadata_widget_output ,
+                         data_widget_output = data1_Widget_output ,
+                         reporting_widget_output = reporting_widget_output ,
+                         cleaning_widget_output = cleaning_widget_output )
+```
+
+
+
+About MagicGlasses2
+========================
+
+
+```{r README  }
+
+
+includeMarkdown( 'README.md' )
+```
