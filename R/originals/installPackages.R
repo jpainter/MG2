@@ -1,13 +1,10 @@
-
 install.packages("yaml")
 renv::dependencies()
 # renv::snapshot()
 
-
-
-if (!require( 'pacman' )){
-  install.packages( 'pacman' , dep=TRUE )
-  if( !require( 'pacman' ) ) stop("Package not found")
+if (!require('pacman')) {
+  install.packages('pacman', dep = TRUE)
+  if (!require('pacman')) stop("Package not found")
 }
 
 
@@ -25,17 +22,19 @@ remotes::install_github("davidtedfordholt/fable.bsts")
 # devtools::install_github("agstn/describer")
 
 # MagicGlasses2Libraries
-libraries =  readLines( 'magicGlasses2Libraries.txt' ) 
-include = !( grepl( '#' , libraries ) | nchar( libraries ) == 0 ) 
-library.list = trimws( libraries[ include ] )
+libraries = readLines('magicGlasses2Libraries.txt')
+include = !(grepl('#', libraries) | nchar(libraries) == 0)
+library.list = trimws(libraries[include])
 
 installed = installed.packages()
 
-needed = setdiff( library.list , installed )
+needed = setdiff(library.list, installed)
 
 # pacman::p_load( char = library.list , update = TRUE )
 
-if ( length( needed ) > 0 ) renv::install( packages = needed, type = "binary" )
+if (length(needed) > 0) {
+  renv::install(packages = needed, type = "binary")
+}
 
 # save libraries
 renv::snapshot()

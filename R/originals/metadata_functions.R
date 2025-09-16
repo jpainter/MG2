@@ -7,9 +7,11 @@
 .invalid_regex <- "(?:[\\p{Cc}&&[^\\t\\n\\r]]|[\\x{007F}-\\x{009F}]|\\u00AD|\\u200B|\\u200C|\\u200D|\\u2060|\\uFEFF)"
 
 clean_invalid_characters <- function(df) {
-  DT <- as.data.table(df)  # shallow; modifies by reference if df is already a data.table
+  DT <- as.data.table(df) # shallow; modifies by reference if df is already a data.table
   char_cols <- names(DT)[vapply(DT, is.character, logical(1))]
-  if (!length(char_cols)) return(DT)
+  if (!length(char_cols)) {
+    return(DT)
+  }
 
   for (col in char_cols) {
     x <- DT[[col]]
@@ -26,7 +28,7 @@ clean_invalid_characters <- function(df) {
 }
 
 truncate_df_chars <- function(df, limit = 500L, suffix = " …[TRUNC]") {
-  DT <- as.data.table(df)  # shallow wrapper; in-place if already a data.table
+  DT <- as.data.table(df) # shallow wrapper; in-place if already a data.table
   char_cols <- names(DT)[vapply(DT, is.character, logical(1))]
   if (!length(char_cols)) {
     message("No character columns found.")
@@ -34,10 +36,12 @@ truncate_df_chars <- function(df, limit = 500L, suffix = " …[TRUNC]") {
   }
 
   # normalize suffix
-  if (is.null(suffix)) suffix <- ""
+  if (is.null(suffix)) {
+    suffix <- ""
+  }
   suffix <- as.character(suffix[1L])
   suffix_len <- stri_length(suffix)
-  keep <- max(0L, as.integer(limit) - suffix_len)  # chars to keep before adding suffix
+  keep <- max(0L, as.integer(limit) - suffix_len) # chars to keep before adding suffix
 
   report <- vector("list", length(char_cols))
 
@@ -51,7 +55,11 @@ truncate_df_chars <- function(df, limit = 500L, suffix = " …[TRUNC]") {
 
     if (n_over) {
       # Truncate only those rows
-      head_part <- if (keep > 0L) stri_sub(x[over], 1L, keep) else rep("", n_over)
+      head_part <- if (keep > 0L) {
+        stri_sub(x[over], 1L, keep)
+      } else {
+        rep("", n_over)
+      }
       truncated <- if (suffix_len > 0L) paste0(head_part, suffix) else head_part
       # Ensure character vector (never NULL)
       truncated <- as.character(truncated)

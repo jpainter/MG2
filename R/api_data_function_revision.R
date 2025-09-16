@@ -7,13 +7,13 @@
 #' @param elements data elements
 #' @param baseurl DHIS2 instance url
 #' @param username user name
-#' @param password password 
+#' @param password password
 #' @param formula formula with data elements
 #' @param parallel make prallel requests
 #' @param print print messages
 #' @param update update
 #' @param check_previous_years if previous_dataset_file, number of years to check
-#' @param previous_dataset_file 
+#' @param previous_dataset_file
 #' @param prev.data .
 #' @param level1.id when comparing current data with previous
 #' @param dir directory where downloads saved
