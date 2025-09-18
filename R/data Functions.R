@@ -8,7 +8,7 @@
 #' @returns a yearmonth object
 #' @export
 #'
-#' @examples
+#' @examples as.yearmonth("Jan2020")
 as.yearmonth = function(date.string, fmt = "%B%Y") {
   if (is_yearmonth(date.string)) {
     return(date.string)

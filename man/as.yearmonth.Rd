@@ -2,13 +2,20 @@
 % Please edit documentation in R/data Functions.R
 \name{as.yearmonth}
 \alias{as.yearmonth}
-\title{Title}
+\title{functions for data manipulation
+as.yearmonth: convert character string to yearmonth object}
 \usage{
 as.yearmonth(date.string, fmt = "\%B\%Y")
 }
 \arguments{
-\item{fmt}{}
+\item{date.string}{character string representing a date}
+
+\item{fmt}{format of the date string, default is "\%B\%Y" (e.g. "January2020")}
+}
+\value{
+a yearmonth object
 }
 \description{
-Title
+functions for data manipulation
+as.yearmonth: convert character string to yearmonth object
 }

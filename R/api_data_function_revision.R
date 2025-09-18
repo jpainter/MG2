@@ -13,8 +13,8 @@
 #' @param print print messages
 #' @param update update
 #' @param check_previous_years if previous_dataset_file, number of years to check
-#' @param previous_dataset_file
-#' @param prev.data .
+#' @param previous_dataset_file file with previous data
+#' @param prev.data previous data if already loaded
 #' @param level1.id when comparing current data with previous
 #' @param dir directory where downloads saved
 #' @param shinyApp run in shine (FALSE)
@@ -24,10 +24,10 @@
 #' @importFrom stats filter
 #' @importFrom utils head
 #'
-#' @returns
+#' @returns data frame with data values
 #'
 #' @export
-#' @examples
+#' @examples api_data()
 api_data = function(
   periods = NA,
   periodType = 'Monthly',
