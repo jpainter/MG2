@@ -1,20 +1,11 @@
-# period = function( data , .cat = FALSE ){
-#       if ( .cat ) cat('\n* period: ')
-#
-#       weekly = any( map_lgl( data ,
-#                              ~any(class(.x) %in% 'yearweek'  )) )
-#
-#       period = ifelse( weekly, "Week", "Month" )
-#       if ( .cat ) cat( period )
-#       return( period  )
-#     }
+#' functions for data manipulation
 
-#' Title
+#' as.yearmonth: convert character string to yearmonth object
 #'
-#' @param date.string
-#' @param fmt
+#' @param date.string character string representing a date
+#' @param fmt format of the date string, default is "%B%Y" (e.g. "January2020")
 #'
-#' @returns
+#' @returns a yearmonth object
 #' @export
 #'
 #' @examples
