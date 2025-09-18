@@ -54,8 +54,6 @@ api_data(
 
 \item{check_previous_years}{if previous_dataset_file, number of years to check}
 
-\item{previous_dataset_file}{}
-
 \item{prev.data}{.}
 
 \item{level1.id}{when comparing current data with previous}

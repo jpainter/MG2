@@ -9,6 +9,15 @@
 #       return( period  )
 #     }
 
+#' Title
+#'
+#' @param date.string
+#' @param fmt
+#'
+#' @returns
+#' @export
+#'
+#' @examples
 as.yearmonth = function(date.string, fmt = "%B%Y") {
   if (is_yearmonth(date.string)) {
     return(date.string)
