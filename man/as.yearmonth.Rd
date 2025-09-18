@@ -19,3 +19,6 @@ a yearmonth object
 functions for data manipulation
 as.yearmonth: convert character string to yearmonth object
 }
+\examples{
+as.yearmonth("Jan2020")
+}

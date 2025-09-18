@@ -54,7 +54,9 @@ api_data(
 
 \item{check_previous_years}{if previous_dataset_file, number of years to check}
 
-\item{prev.data}{.}
+\item{previous_dataset_file}{file with previous data}
+
+\item{prev.data}{previous data if already loaded}
 
 \item{level1.id}{when comparing current data with previous}
 
@@ -66,6 +68,12 @@ api_data(
 
 \item{...}{}
 }
+\value{
+data frame with data values
+}
 \description{
 Title
+}
+\examples{
+api_data()
 }
