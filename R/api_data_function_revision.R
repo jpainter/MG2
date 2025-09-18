@@ -19,7 +19,7 @@
 #' @param dir directory where downloads saved
 #' @param shinyApp run in shine (FALSE)
 #' @param childOnly Data only from child facilities
-#' @param ...
+#' @param ... additional arguments
 #'
 #' @importFrom stats filter
 #' @importFrom utils head

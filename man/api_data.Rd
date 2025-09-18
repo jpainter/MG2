@@ -66,7 +66,7 @@ api_data(
 
 \item{childOnly}{Data only from child facilities}
 
-\item{...}{}
+\item{...}{additional arguments}
 }
 \value{
 data frame with data values
