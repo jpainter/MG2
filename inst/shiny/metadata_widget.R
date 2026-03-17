@@ -279,10 +279,7 @@ metadata_widget_server <- function(
           cat('\n metadata widget requesting system.info.resources \n')
 
           url = paste0(baseurl(), "api/system/info")
-          getInfo = GET(url)
-          getInfo.content = content(getInfo, "text")
-
-          info = jsonlite::fromJSON(getInfo.content)
+          info = dhis2_get(source_url = url, username = username(), password = password())
 
           info = info[map_dbl(info, length) == 1] %>%
             as_tibble() %>%
@@ -349,7 +346,7 @@ metadata_widget_server <- function(
             "&paging=false"
           )
 
-          x = get(source_url = url)[[1]]
+          x = dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
           cat('\n -dataElement() colnames(x) : ', colnames(x), '\n')
 
@@ -391,7 +388,7 @@ metadata_widget_server <- function(
 
           cols = c('id', 'name', 'dataElements')
 
-          dataElementGroups = get(source_url = url)[[1]] %>%
+          dataElementGroups = dhis2_get(source_url = url, username = username(), password = password())[[1]] %>%
             select(!!cols) %>%
             rename(dataElementGroups.id = id, dataElementGroup = name)
 
@@ -457,7 +454,7 @@ metadata_widget_server <- function(
             "&paging=false"
           )
 
-          x = get(source_url = url)[[1]]
+          x = dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
           if (!all(cols %in% colnames(x))) {
             return(data.frame())
@@ -541,7 +538,7 @@ metadata_widget_server <- function(
             "&paging=false"
           )
 
-          x = get(source_url = url)[[1]]
+          x = dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
           if (!all(cols %in% colnames(x))) {
             return(data.frame())
@@ -584,7 +581,7 @@ metadata_widget_server <- function(
             "&paging=false"
           )
 
-          x = get(source_url = url)[[1]]
+          x = dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
           if (!all(cols %in% colnames(x))) {
             return(data.frame())
@@ -931,7 +928,7 @@ metadata_widget_server <- function(
             "&paging=false"
           )
 
-          indicators = get(source_url = url)$indicators %>% select(!!cols)
+          indicators = dhis2_get(source_url = url, username = username(), password = password())$indicators %>% select(!!cols)
 
           removeModal()
         } else {
@@ -1131,7 +1128,7 @@ metadata_widget_server <- function(
           # saveRDS( get( url )[[1]] , "getOusLevels.rds")
           # saveRDS( cols , "cols.rds")
 
-          orgUnitLevels = get(source_url = url)[[1]] %>%
+          orgUnitLevels = dhis2_get(source_url = url, username = username(), password = password())[[1]] %>%
             select(!!cols) %>%
             arrange(level) %>%
             rename(levelName = name) |>
@@ -1272,7 +1269,7 @@ metadata_widget_server <- function(
             "&paging=false"
           )
 
-          ous = get(source_url = url)[[1]]
+          ous = dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
           cat('\n*joining ous with itself to get parent names')
 
@@ -1520,7 +1517,7 @@ metadata_widget_server <- function(
 
         cat('\n geoFeatures request:', url)
 
-        geo = content(GET(url), "text") # indirect?
+        geo = httr::content(httr::GET(url, httr::authenticate(username(), password())), "text")
 
         # print( 'geo glimpse') ;  print( glimpse( geo ))
 
@@ -1860,7 +1857,7 @@ metadata_widget_server <- function(
           )
 
           url = paste0(baseurl(), "api/resources.json")
-          resources = get(source_url = url)[[1]]
+          resources = dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
           cat('\n **class(resources)', class(resources), '\n')
           glimpse(resources)

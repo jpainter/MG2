@@ -169,16 +169,34 @@ run_mg2()
 
 ---
 
-### Phase 2 — Metadata Module (planned)
+### Phase 2 — Metadata Module (2026-03-17)
 
-**Goal:** Make the Metadata tab fully functional.
+**Status:** ✅ Complete
 
-**Tasks:**
-- [ ] Move metadata API functions from `R/originals/` to `R/metadata.R`
-- [ ] Update `inst/shiny/metadata_widget.R` to use package functions
-- [ ] Document all functions with roxygen2
-- [ ] Write unit tests for metadata functions
-- [ ] Commit and confirm functionality
+**Changes:**
+- Created `R/dhis2_api.R`:
+  - `dhis2_get()` — authenticated DHIS2 API GET with JSON parsing (replaces
+    the generic `get()` in originals that conflicted with base R)
+  - `ous_tree()` — builds wide-format org unit hierarchy from a flat API list
+    (migrated from `R/originals/prepareDataset.R`)
+- Created `R/metadata.R`:
+  - `clean_invalid_characters()` — strips invisible Unicode from data frames
+    before Excel export (migrated from `R/originals/metadata_functions.R`)
+  - `truncate_df_chars()` — truncates overlong strings for Excel compatibility
+    (migrated from `R/originals/metadata_functions.R`)
+- Updated `inst/shiny/metadata_widget.R`:
+  - Replaced all 9 bare `get(source_url = url)` calls with
+    `dhis2_get(source_url = url, username = username(), password = password())`
+  - Fixed `systemInfo` to use `dhis2_get()` instead of raw `GET()`
+  - Fixed `geoFeatures` to use explicit `httr::authenticate()` credentials
+- Updated `DESCRIPTION`: added `data.table`, `data.tree`, `igraph`, `stringi`
+  to `Imports`
+- Added tests in `tests/testthat/test-metadata.R` (11 passing)
+- Added tests in `tests/testthat/test-dhis2_auth.R`
+
+**Fixed bug:** `clean_invalid_characters()` now uses `which(bad)` instead of
+`bad` as subscript index, preventing NA-in-subscript errors on columns with
+missing values.
 
 ---
 
