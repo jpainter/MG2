@@ -1,0 +1,33 @@
+
+Select facilities ( startingMonth, num_missing )
+Select cleaning ( error )
+Select evaluation start ( evaluation_month , train.data )
+Fit models, estimate accuracy, select best fit 
+Forecast ( horizon, test.data )
+Impact ( agegrp, evaluation_period )
+
+IF select one initial eval month, then as if impact started then and continued.  
+  - Could change over time if impact wanes or increases (due to increased coverage )
+  - Forecast may become unreliable after 1st year - could impact one group more than another but
+    hopefully relative comparison ok
+    
+IF select 6 month windows for f/u
+  - model fit has more data to learn, so estimating impact in later periods should be more accurate
+  - may control for other interventions (bednets) as model fit adjusts to 
+  - model will incorporate previous impact, which may therefore mask subsequent impact, 
+  unless the intervention is changeing.
+
+
+Apparent impact could be due to random differences between groups.  
+Likelihood that association is causal would be increased when - 
+  - comparison with non targeted group ( older agegrp ) show less impact
+  - impact same when stratifying by other potential interventions ( bednets )
+  - Change in impact coincides iwth timing of intervention.   
+    - for fixed intervention, intial impact then sustained...
+    - for continuous intervention, impact associated with coverage
+    
+PLAN:
+6 month windows. Remodel-reTest
+Cluster then error (tsOitliers)
+Always reporting
+Random clusters within districts

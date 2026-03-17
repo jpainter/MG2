@@ -85,27 +85,13 @@ directory_widget_server <- function(id) {
 
       data.folder = reactive({
         cat('\n* data.folder:\n')
-        # req( input$country )
         req(input$data.directory)
-        data.dir = file.dir(
-          # country = input$country ,
-          dir.base = input$data.directory
-        )
-        has.slash.at.end = str_locate_all(data.dir, "/") %>%
-          unlist %in%
-          nchar(data.dir) %>%
-          any
 
-        if (!has.slash.at.end) {
-          OS <- .Platform$OS.type
-          cat('\n - OS is', OS)
-          if (OS == "unix") {
-            data.dir = paste0(data.dir, "/")
-          } else if (OS == "windows") {
-            data.dir = paste0(data.dir, "/")
-          } else {
-            message("ERROR: OS could not be identified")
-          }
+        data.dir <- input$data.directory
+
+        # Ensure path ends with a separator
+        if (!endsWith(data.dir, "/") && !endsWith(data.dir, "\\")) {
+          data.dir <- paste0(data.dir, "/")
         }
 
         cat('\n - data.folder is ', data.dir, '\n')

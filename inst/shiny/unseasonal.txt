@@ -1,0 +1,65 @@
+dt[, c("seasonal5") := {
+  current_percent <- floor((.GRP / n_groups) * 100)
+  
+  # Update when we cross a new percentage point
+  if (current_percent > last_percent) {
+    p(amount = current_percent - last_percent, 
+      message = sprintf("Group %d of %d", .GRP, n_groups))
+    last_percent <<- current_percent
+  }
+  
+  not_mad <- ifelse(!mad5, original, NA)
+  seasonal5 <- unseasonal_fast_claude(not_mad,
+                                      smallThreshold = .threshold,
+                                      deviation = 5,
+                                      logical = TRUE)
+  seasonal3 <- unseasonal_fast_claude(not_mad,
+                                      smallThreshold = .threshold,
+                                      deviation = 3,
+                                      logical = TRUE)
+  .(seasonal5)
+}, by = .(orgUnit, data.id)]
+
+unseasonal_fast_claude = function(
+    x,
+    smallThreshold = 100,
+    deviation      = 3,
+    logical        = FALSE,
+    interpolate    = FALSE,
+    .lambda        = 0.5,
+    freq           = 12
+){
+  # Stripped down version - no progress tracking at function level
+  n <- length(x)
+  if (n == 0L) return(if (logical) logical(0) else x)
+  
+  x_num <- as.numeric(x)
+  if (all(is.na(x_num))) return(if (logical) rep(NA, n) else x_num)
+  
+  # Fast small threshold check
+  if (!is.null(smallThreshold) && all(x_num <= smallThreshold | is.na(x_num))) {
+    return(if (logical) rep(NA, n) else x_num)
+  }
+  
+  # Core processing
+  x_clean <- as.numeric(forecast::tsclean(
+    stats::ts(x_num, frequency = freq),
+    replace.missing = interpolate,
+    lambda = .lambda
+  ))
+  
+  if (!logical) return(x_clean)
+  
+  # Fast outlier detection
+  MAD <- stats::mad(x_num, na.rm = TRUE)
+  if (!is.finite(MAD) || MAD == 0) {
+    MAD <- stats::IQR(x_num, na.rm = TRUE) * 0.741840695  # 1/1.349
+    if (!is.finite(MAD) || MAD == 0) {
+      MAD <- stats::sd(x_num, na.rm = TRUE)
+      if (!is.finite(MAD) || MAD == 0) MAD <- .Machine$double.eps
+    }
+  }
+  
+  z <- abs(x_clean - x_num) / MAD
+  return(ifelse(is.finite(z), z >= deviation, NA))
+}

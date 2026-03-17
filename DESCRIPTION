@@ -1,14 +1,77 @@
 Package: MG2
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
-Authors@R: 
+Title: Magic Glasses 2: Epidemiological Analysis of DHIS2 Health Data
+Version: 0.1.0
+Authors@R:
     person("John", "Painter", , "painter.ja@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "https://orcid.org/0000-0002-1750-8391"))
-Description: What the package does (one paragraph).
+Description: An interactive Shiny application and set of R functions for
+    exploring, assessing, and analyzing routine health data from DHIS2
+    information systems. Supports data quality assessment, outlier detection,
+    reporting bias analysis, and time-series trend evaluation. Functions can
+    also be used independently in standalone scripts and notebooks.
 License: GPL-3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-Suggests: 
-    testthat (>= 3.0.0)
+Imports:
+    assertthat,
+    bslib,
+    DT,
+    dplyr,
+    httr,
+    jsonlite,
+    lubridate,
+    magrittr,
+    purrr,
+    readxl,
+    rlang,
+    shiny (>= 1.7.0),
+    shinybusy,
+    shinyjs,
+    shinyWidgets,
+    stringr,
+    tibble,
+    tidyr,
+    tools,
+    tsibble,
+    zoo
+Suggests:
+    data.table,
+    dygraphs,
+    fable,
+    fable.prophet,
+    fabletools,
+    feasts,
+    flextable,
+    forecast,
+    fst,
+    furrr,
+    future,
+    GGally,
+    ggplot2,
+    ggrepel,
+    hrbrthemes,
+    igraph,
+    leaflet,
+    leaflegend,
+    lubridate,
+    mapview,
+    officer,
+    openxlsx,
+    patchwork,
+    plotly,
+    progress,
+    progressr,
+    prophet,
+    RColorBrewer,
+    rsconnect,
+    rvg,
+    scales,
+    sf,
+    slider,
+    sugrrants,
+    testthat (>= 3.0.0),
+    tictoc,
+    tidyfast,
+    tsbox
 Config/testthat/edition: 3
