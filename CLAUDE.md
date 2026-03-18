@@ -272,6 +272,25 @@ Data (formula + download), and DQA tabs all functional.
 
 ---
 
+### UI Responsiveness (2026-03-18)
+
+**Status:** ✅ Complete
+
+**Changes:**
+- `R/run_app.R`: Added `launch.browser = TRUE` default so app always opens in
+  system browser rather than the cramped Positron/RStudio viewer pane
+- `inst/shiny/app.R`: Replaced `fluidPage` + `navlistPanel` with
+  `bslib::page_navbar()` — full-width top nav bar with hamburger collapse on
+  small screens; "Data" tab converted to `bslib::nav_menu()` dropdown;
+  `shinyjs::useShinyjs()` moved to `header =` argument; `min-width: 1100px`
+  (reduced from 1200px since sidebar space is recovered)
+- `inst/shiny/metadata_widget.R`: Replaced `fillCol(height=600)` wrapper with
+  `tagList()` — removes 600px height cap
+- `inst/shiny/directory_widget.R`: Same `fillCol` → `tagList` fix
+- `inst/shiny/levels_widget.R`: Same `fillCol` → `tagList` fix
+
+---
+
 ### Future Phases (planned)
 
 - Phase 5: Reporting module

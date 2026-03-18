@@ -2,11 +2,7 @@ metadata_widget_ui <- function(id) {
   # Create a namespace function using the provided id
   ns <- NS(id)
 
-  fillCol(
-    height = 600,
-    flex = c(NA),
-
-    tagList(
+  tagList(
       shinybusy::add_busy_spinner(
         spin = "fading-circle", # "self-building-square",
         position = 'bottom-right'
@@ -150,8 +146,7 @@ metadata_widget_ui <- function(id) {
           tableOutput(ns('resource_table'))
         )
       )
-    )
-  ) # end fillColl
+  ) # end tagList
 } # ui
 
 # Server function ####

@@ -89,75 +89,66 @@ source("regions_widget.R")     # Tab: Regions
 # map_widget.R and facilities_widget.r are not standalone modules;
 # they are embedded within other widgets and sourced there when needed.
 
-shinyjs::useShinyjs()
-
 # User Interface ------------------------------------------------------------
-ui <- fluidPage(
+ui <- bslib::page_navbar(
+  title = span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
+  id    = "tabs",
   theme = bslib::bs_theme(bootswatch = "yeti"),
-  shinyWidgets::setBackgroundColor(color = "#F5F5F5"),
+  bg    = "#222222",
+  header = tagList(
+    shinyjs::useShinyjs(),
+    tags$head(tags$style("body { min-width: 1100px; }")),
+    shinyWidgets::setBackgroundColor(color = "#F5F5F5")
+  ),
 
-  titlePanel(h1(
-    "Magic Glasses 2",
-    style = "background-color:#61A1FA; padding-left:15px;"
-  )),
+  bslib::nav_panel(
+    "Welcome",
+    br(),
+    h2("An epidemiological look at DHIS2 data"),
+    br(),
+    h4("The goal is to make the analysis of routine data accessible, transparent, and repeatable."),
+    br(),
+    p("The layout follows a research path:"),
+    p("- Understand which data are available ", span("(Metadata)", style = "color:blue")),
+    p("- Request data ", span("(Data)", style = "color:blue")),
+    p("- Get an overview of data quality ", span("(DQA)", style = "color:blue")),
+    p("- Adjust for reporting bias ", span("(Reporting)", style = "color:blue")),
+    p("- Scan for outliers ", span("(Outliers)", style = "color:blue")),
+    p("- Evaluate trends and estimate intervention effectiveness ",
+      span("(Evaluation)", style = "color:blue")),
+    br(),
+    p("(Adjust screen layout and text size with Ctrl- or Ctrl+)"),
+    p(paste("MG2 package version", utils::packageVersion("MG2")))
+  ),
 
-  navlistPanel(
-    widths = c(1, 11),
-    id = "tabs",
+  bslib::nav_panel(
+    "Setup",
+    fluidRow(
+      column(6, directory_widget_ui("directory1")),
+      column(6, login_widget_ui("login1"))
+    )
+  ),
 
-    tabPanel(
-      "Welcome",
-      br(),
-      h2("An epidemiological look at DHIS2 data"),
-      br(),
-      h4("The goal is to make the analysis of routine data accessible, transparent, and repeatable."),
-      br(),
-      p("The layout follows a research path using the pages (navigation at left) to:"),
-      p("- Understand which data are available ", span("(Metadata)", style = "color:blue")),
-      p("- Request data ", span("(Data)", style = "color:blue")),
-      p("- Get an overview of data quality ", span("(DQA)", style = "color:blue")),
-      p("- Adjust for reporting bias ", span("(Reporting)", style = "color:blue")),
-      p("- Scan for outliers ", span("(Outliers)", style = "color:blue")),
-      p("- Evaluate trends and estimate intervention effectiveness ",
-        span("(Evaluation)", style = "color:blue")),
-      br(),
-      p("(Note: The layout of each page depends on your browser.",
-        "Adjust screen layout and text size with Ctrl- or Ctrl+)"),
-      p(paste("MG2 package version", utils::packageVersion("MG2")))
-    ),
+  bslib::nav_panel("Metadata", metadata_widget_ui("metadata1")),
 
-    tabPanel(
-      "Setup",
-      fluidPage(fluidRow(
-        column(6, directory_widget_ui("directory1")),
-        column(6, login_widget_ui("login1"))
-      ))
-    ),
+  bslib::nav_panel("Regions", regions_widget_ui("regions1")),
 
-    tabPanel("Metadata", metadata_widget_ui("metadata1")),
-
-    tabPanel("Regions", regions_widget_ui("regions1")),
-
-    tabPanel(
-      "Data",
-      tabsetPanel(
-        type = "tabs",
-        tabPanel(
-          "Formula",
-          fluidRow(
-            column(5, data_widget_ui("data1")),
-            column(7, formula_widget_ui("formula1"))
-          )
-        ),
-        tabPanel("Download", data_request_widget_ui("data_request1"))
+  bslib::nav_menu(
+    "Data",
+    bslib::nav_panel(
+      "Formula",
+      fluidRow(
+        column(5, data_widget_ui("data1")),
+        column(7, formula_widget_ui("formula1"))
       )
     ),
+    bslib::nav_panel("Download", data_request_widget_ui("data_request1"))
+  ),
 
-    tabPanel("DQA",       dqa_widget_ui("dqa1")),
-    tabPanel("Reporting", reporting_widget_ui("reporting1"),    value = "reporting"),
-    tabPanel("Outliers",  cleaning_widget_ui("cleaning1"),      value = "outliers"),
-    tabPanel("Evaluation",evaluation_widget_ui("evaluation1"),  value = "evaluation")
-  )
+  bslib::nav_panel("DQA",        dqa_widget_ui("dqa1")),
+  bslib::nav_panel("Reporting",  reporting_widget_ui("reporting1")),
+  bslib::nav_panel("Outliers",   cleaning_widget_ui("cleaning1")),
+  bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1"))
 )
 
 # Server --------------------------------------------------------------------

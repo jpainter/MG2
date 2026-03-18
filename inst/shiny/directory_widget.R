@@ -1,10 +1,7 @@
 directory_widget_ui = function(id) {
   ns <- NS(id)
 
-  fillCol(
-    height = "100%",
-    flex = c(NA),
-
+  tagList(
     hr(),
 
     h3('Step 1.  Provide directory for data files:'),
@@ -41,7 +38,7 @@ directory_widget_ui = function(id) {
     tableOutput(ns('folderInfo')),
 
     # hr()
-  ) # end fillColl
+  ) # end tagList
 } # ui
 
 

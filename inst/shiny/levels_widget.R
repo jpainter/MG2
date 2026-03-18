@@ -1,9 +1,6 @@
 reporting_widget_ui = function(id) {
   ns <- NS(id)
-  fillCol(
-    height = 600,
-    flex = c(NA),
-
+  tagList(
     add_busy_spinner(spin = "fading-circle", position = "bottom-right"),
 
     inputPanel(
