@@ -81,8 +81,8 @@ source("reporting_widget.r")   # Tab: Reporting
 source("cleaning_widget.r")    # Tab: Outliers
 source("evaluation_widget_2.R")# Tab: Evaluation
 source("regions_widget.R")     # Tab: Regions
-source("map_widget.R")         # Auxiliary: map display
-source("facilities_widget.r")  # Auxiliary: facility table
+# map_widget.R and facilities_widget.r are not standalone modules;
+# they are embedded within other widgets and sourced there when needed.
 
 shinyjs::useShinyjs()
 
