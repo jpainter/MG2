@@ -75,13 +75,8 @@ directory_widget_server <- function(id) {
         )
       })
 
-      shinyDirChoose(
-        input,
-        id = ns("folder"),
-        session = session,
-        roots = c(home = path.expand("~")),
-        filetypes = c('', 'txt')
-      )
+      # shinyDirChoose is omitted — the folder picker button is not in use.
+      # Directory is set via text input instead.
 
       data.folder = reactive({
         cat('\n* data.folder:\n')
