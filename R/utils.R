@@ -131,6 +131,100 @@ list_dir_files <- function(search = "All", type = "xlsx", other = "", dir = NULL
   return(matched[rev(order(matched))])
 }
 
+# DHIS2 period code generators ---------------------------------------------
+
+#' Generate DHIS2 Monthly Period Codes
+#'
+#' Returns a semicolon-separated string of DHIS2 monthly period codes
+#' (e.g. `"202001;202002;..."`), covering a range of months ending at the
+#' current month.
+#'
+#' @param years Integer vector of years. If `NULL`, computed from `YrsPrevious`.
+#' @param months Integer vector of months (1–12). Ignored when `years` is `NULL`.
+#' @param startPeriod Character. Explicit start period in `"YYYYMM"` format.
+#' @param YrsPrevious Integer. Number of full years prior to the current year
+#'   to start from (default: `1`).
+#' @param monthsPrevious Integer. Number of months prior to today to start from.
+#' @param currentMonth Logical. Include the current month (default: `TRUE`).
+#'
+#' @return A single character string of period codes separated by `";"`.
+#' @export
+date_code <- function(years = NULL,
+                      months = NULL,
+                      startPeriod = NULL,
+                      YrsPrevious = 1,
+                      monthsPrevious = NULL,
+                      currentMonth = TRUE) {
+  endMonth <- zoo::as.yearmon(Sys.Date())
+
+  if (!is.null(startPeriod)) {
+    startMonth <- zoo::as.yearmon(startPeriod, "%Y%m")
+  } else if (!is.null(monthsPrevious)) {
+    startMonth <- endMonth - monthsPrevious / 12
+  } else {
+    this.year  <- lubridate::year(Sys.Date())
+    start.year <- this.year - YrsPrevious
+    startMonth <- zoo::as.yearmon(start.year)
+  }
+
+  month_seq <- seq(
+    from = zoo::as.Date.yearmon(startMonth, frac = 0),
+    to   = zoo::as.Date.yearmon(endMonth,   frac = 1),
+    by   = "month"
+  )
+  codes <- format(zoo::as.yearmon(month_seq), "%Y%m")
+
+  if (!currentMonth) {
+    codes <- codes[-length(codes)]
+  }
+
+  paste(codes, collapse = ";")
+}
+
+#' Generate DHIS2 Weekly Period Codes
+#'
+#' Returns a semicolon-separated string of DHIS2 ISO weekly period codes
+#' (e.g. `"2023W01;2023W02;..."`), covering a range of weeks ending at the
+#' current week.
+#'
+#' @param startPeriod Character. Explicit start period in `"YYYYMM"` format.
+#' @param YrsPrevious Integer. Number of full years prior to the current year
+#'   to start from (default: `1`).
+#' @param monthsPrevious Integer. Number of months prior to today to start from.
+#' @param currentWeek Logical. Include the current week (default: `TRUE`).
+#'
+#' @return A single character string of period codes separated by `";"`.
+#' @export
+date_code_weekly <- function(startPeriod = NULL,
+                             YrsPrevious = 1,
+                             monthsPrevious = NULL,
+                             currentWeek = TRUE) {
+  endMonth <- zoo::as.yearmon(Sys.Date())
+
+  if (!is.null(startPeriod)) {
+    startMonth <- zoo::as.yearmon(startPeriod, "%Y%m")
+  } else if (!is.null(monthsPrevious)) {
+    startMonth <- endMonth - monthsPrevious / 12
+  } else {
+    this.year  <- lubridate::year(Sys.Date())
+    start.year <- this.year - YrsPrevious
+    startMonth <- zoo::as.yearmon(start.year)
+  }
+
+  week_seq <- seq(
+    from = zoo::as.Date.yearmon(startMonth, frac = 0),
+    to   = zoo::as.Date.yearmon(endMonth,   frac = 1),
+    by   = "1 week"
+  )
+  codes <- format(tsibble::yearweek(week_seq), "%YW%V")
+
+  if (!currentWeek) {
+    codes <- codes[-length(codes)]
+  }
+
+  paste(codes, collapse = ";")
+}
+
 # Internal helpers ----------------------------------------------------------
 
 #' Extract a Date from a Filename

@@ -5,21 +5,34 @@ directory_widget_ui = function(id) {
     height = "100%",
     flex = c(NA),
 
-    # shinyDirButton( ns('folder') , 'Folder select', 'Please select a folder', FALSE) ,
-
-    # br(),
-
-    # tags$blockquote(
-
     hr(),
 
     h3('Step 1.  Provide directory for data files:'),
 
-    textInput(
-      ns("data.directory"),
-      label = NULL,
-      value = path.expand("~"),
-      width = '95%'
+    fluidRow(
+      column(
+        9,
+        textInput(
+          ns("data.directory"),
+          label       = NULL,
+          value       = "",
+          placeholder = "Paste a path or use Browse...",
+          width       = '100%'
+        )
+      ),
+      column(
+        3,
+        tags$div(
+          style = "margin-top: 5px;",
+          shinyFiles::shinyDirButton(
+            ns("folder"),
+            label     = "Browse...",
+            title     = "Select data directory",
+            icon      = icon("folder-open"),
+            style     = "width: 100%"
+          )
+        )
+      )
     ),
 
     # hr() ,
@@ -36,47 +49,31 @@ directory_widget_server <- function(id) {
   moduleServer(
     id,
     function(input, output, session) {
-      ns <- session$ns # for shinyDirChoose (https://stackoverflow.com/questions/38747129/how-to-use-shinyfiles-package-within-shiny-modules-namespace-issue/)
+      ns <- session$ns
 
-      observe({
-        isolate(
-          if (dir.exists("../HMIS/Formulas/")) {
-            cat(
-              '\n directory_widget -setting JP data.directory to\n',
-              "../HMIS/Formulas/"
-            )
-            updateTextInput(
-              session,
-              "data.directory",
-              value = "../HMIS/Formulas/"
-            )
+      # Volumes available to the folder picker (cross-platform)
+      volumes <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
 
-            # updateSelectInput( session, "data.directory" ,
-            #                    choices  = "../HMIS/Formulas/" ,
-            #                    selected  = "../HMIS/Formulas/"
-            #                    )
+      # Add cloud storage roots if present on this machine
+      icloud <- file.path(path.expand("~"), "Library/Mobile Documents/com~apple~CloudDocs")
+      if (dir.exists(icloud)) volumes <- c("iCloud Drive" = icloud, volumes)
+
+      onedrive <- file.path(path.expand("~"), "OneDrive")
+      if (dir.exists(onedrive)) volumes <- c("OneDrive" = onedrive, volumes)
+
+      shinyFiles::shinyDirChoose(input, "folder", roots = volumes, session = session)
+
+      # When user picks a folder, write the path into the text box
+      observeEvent(input$folder, {
+        if (!is.integer(input$folder)) {
+          path <- shinyFiles::parseDirPath(volumes, input$folder)
+          if (length(path) > 0 && nchar(path) > 0) {
+            cat('\n directory_widget - folder chosen:', path, '\n')
+            updateTextInput(session, "data.directory", value = path)
           }
-        )
+        }
       })
 
-      observe({
-        isolate(
-          if (dir.exists("~/_Malaria/Projects/HMIS/Formulas")) {
-            cat(
-              '\n directory_widget -setting JP data.directory to:\n',
-              "~/OneDrive - CDC/_Malaria/Projects/HMIS/Formulas"
-            )
-            updateTextInput(
-              session,
-              "data.directory",
-              value = "~/_Malaria/Projects/HMIS/Formulas/"
-            )
-          }
-        )
-      })
-
-      # shinyDirChoose is omitted — the folder picker button is not in use.
-      # Directory is set via text input instead.
 
       data.folder = reactive({
         cat('\n* data.folder:\n')
@@ -108,8 +105,14 @@ directory_widget_server <- function(id) {
         # if available, use resources method
         cat('\n folder info : ', data.folder())
 
-        d = data.folder() # d = "../HMIS/Formulas/DRC/"
+        d = data.folder()
         data.dir.files = base::dir(d)
+
+        if (length(data.dir.files) == 0) {
+          return(tibble(`File type:` = c("Metadata", "Formula", "Data"),
+                        Number = 0L, `Most Recent` = "—"))
+        }
+
         finf = map_df(data.dir.files, ~ file.info(paste(d, .x, sep = "/")))
 
         # Testing
@@ -120,17 +123,18 @@ directory_widget_server <- function(id) {
         data.files = grepl("rds", data.dir.files, ignore.case = TRUE) &
           !grepl("metadata", data.dir.files, ignore.case = TRUE)
 
+        max_date <- function(times) {
+          if (length(times) == 0 || all(is.na(times))) return("—")
+          as.character(date(max(times, na.rm = TRUE)))
+        }
+
         info = tibble(
           `File type:` = c("Metadata", 'Formula', 'Data'),
           Number = c(sum(metadata.files), sum(formula.files), sum(data.files)),
           `Most Recent` = c(
-            max(finf$mtime[metadata.files], na.rm = T) %>%
-              date %>%
-              as.character(),
-            max(finf$mtime[formula.files], na.rm = T) %>%
-              date %>%
-              as.character(),
-            max(finf$mtime[data.files], na.rm = T) %>% date %>% as.character()
+            max_date(finf$mtime[metadata.files]),
+            max_date(finf$mtime[formula.files]),
+            max_date(finf$mtime[data.files])
           )
         )
 

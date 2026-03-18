@@ -224,6 +224,7 @@ data_request_widget_server <- function(
             modalDialog(
               title = "Please logon before requesting data",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
@@ -301,6 +302,7 @@ data_request_widget_server <- function(
             modalDialog(
               title = "Please load metadata before requesting data",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
@@ -456,6 +458,7 @@ data_request_widget_server <- function(
             modalDialog(
               title = "Finished downloading.  Now saving the raw data download",
               easyClose = TRUE,
+              fade = FALSE,
               size = 's',
               footer = cat(
                 nrow(x),
@@ -484,6 +487,7 @@ data_request_widget_server <- function(
             modalDialog(
               title = "Preparing raw data for analysis.  Just a moment...",
               easyClose = TRUE,
+              fade = FALSE,
               size = 's',
               footer = '(click anywhere to continue)'
             )
@@ -524,6 +528,7 @@ data_request_widget_server <- function(
           modalDialog(
             title = "Scanning data for extreme values data",
             easyClose = TRUE,
+            fade = FALSE,
             size = 'm',
             footer = "(click anywhere to close dialog box)"
           )
@@ -564,6 +569,7 @@ data_request_widget_server <- function(
           modalDialog(
             title = "Finished scanning for seasonal values; saving data",
             easyClose = TRUE,
+            fade = FALSE,
             size = 'm',
             footer = "(click anywhere to close dialog box)"
           )

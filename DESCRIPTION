@@ -30,6 +30,7 @@ Imports:
     rlang,
     shiny (>= 1.7.0),
     shinybusy,
+    shinyFiles,
     shinyjs,
     shinyWidgets,
     stringi,

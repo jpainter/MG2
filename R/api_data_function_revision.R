@@ -21,7 +21,6 @@
 #' @param childOnly Data only from child facilities
 #' @param ... additional arguments
 #'
-#' @importFrom stats filter
 #' @importFrom utils head
 #'
 #' @returns data frame with data values

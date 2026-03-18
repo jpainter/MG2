@@ -245,6 +245,7 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Please login before requesting metadata",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
@@ -324,10 +325,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of data elements",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
 
           cols = c(
             'id',
@@ -376,10 +379,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of data element groups",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
 
           url <- paste0(
             baseurl(),
@@ -435,10 +440,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of datasets",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
           cols = c(
             'id',
             'name',
@@ -523,10 +530,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of category combos",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
           # url<-paste0( baseurl() , "api/categoryCombos.json?fields=:all&paging=false")
 
           cols = c('id', 'name', 'categoryOptionCombos')
@@ -566,10 +575,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of category option combos",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
           # url<-paste0( baseurl() , "api/categoryOptionCombos.json?fields=:all&paging=false")
 
           cols = c('id', 'name', 'categoryCombo')
@@ -617,10 +628,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Collating categories",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
 
           cat("\n - cc.coc ")
 
@@ -713,10 +726,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Compiling data element dictionary",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
 
           # DSDE : create matrix of data elements within each dataset
           if (nrow(ds) > 0 && 'dataSetElements.id' %in% names(ds)) {
@@ -904,10 +919,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of indicators",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
 
           cols = c(
             'id',
@@ -1005,10 +1022,12 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Compiling indicator dictionary",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
           )
+          on.exit(removeModal(), add = TRUE)
 
           translated =
             indicators %>%
@@ -1046,7 +1065,7 @@ metadata_widget_server <- function(
 
             cat(' - reading from metadata')
             translated = metadata()$indicatorDictionary
-            cat('\n- Indicators has', nrow(Indicators), "rows")
+            cat('\n- Indicators has', nrow(translated), "rows")
 
             removeModal()
           } else {
@@ -1100,6 +1119,7 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of orgUnit levels",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
@@ -1234,6 +1254,7 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of organisation units",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
@@ -1406,6 +1427,7 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Compiling org unit tree",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )
@@ -1455,6 +1477,7 @@ metadata_widget_server <- function(
               modalDialog(
                 title = "Compiling org unit tree",
                 easyClose = TRUE,
+                fade = FALSE,
                 size = 'm',
                 footer = NULL
               )
@@ -1851,6 +1874,7 @@ metadata_widget_server <- function(
             modalDialog(
               title = "Downloading list of API resources",
               easyClose = TRUE,
+              fade = FALSE,
               size = 'm',
               footer = NULL
             )

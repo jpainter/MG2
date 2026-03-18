@@ -9,6 +9,7 @@
 library(shiny)
 library(shinyjs)
 library(shinybusy)
+library(shinyFiles)
 library(shinyWidgets)
 library(bslib)
 library(DT)
@@ -59,6 +60,10 @@ for (pkg in optional_pkgs) {
     )
   }
 }
+
+# Re-attach dplyr after optional packages to ensure its functions are not masked
+# (some optional packages, e.g. forecast, can mask dplyr::filter with stats::filter)
+suppressPackageStartupMessages(library(dplyr))
 
 # Options -------------------------------------------------------------------
 options(dplyr.summarise.inform = FALSE)

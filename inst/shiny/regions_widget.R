@@ -157,7 +157,7 @@ regions_widget_server <- function(
       observeEvent(orgUnits(), {
         cat('\n* regions_widget updating level2', levels()[2])
 
-        l2 = orgUnits() %>% filter(level %in% levels()[2]) %>% pull(name)
+        l2 = orgUnits() %>% dplyr::filter(level %in% levels()[2]) %>% pull(name)
 
         # TESTING
         # saveRDS( levels(), 'levels.rds')
@@ -172,7 +172,7 @@ regions_widget_server <- function(
         req(input$level2)
         cat('\n* regions_widget updating level3')
 
-        ls = orgUnits() %>% filter(parent %in% input$level2) %>% pull(name)
+        ls = orgUnits() %>% dplyr::filter(parent %in% input$level2) %>% pull(name)
 
         cat("\n - level3 update to:", paste(ls, collapse = ""))
 
@@ -184,7 +184,7 @@ regions_widget_server <- function(
         req(input$level3)
         cat('\n* regions_widget updating level4')
 
-        ls = orgUnits() %>% filter(parent %in% input$level3) %>% pull(name)
+        ls = orgUnits() %>% dplyr::filter(parent %in% input$level3) %>% pull(name)
 
         # cat( "\n - level4 update to:" , paste( ls , collapse = "" ) )
 
@@ -196,7 +196,7 @@ regions_widget_server <- function(
         req(input$level4)
         cat('\n* regions_widget updating level5')
 
-        ls = orgUnits() %>% filter(parent %in% input$level4) %>% pull(name)
+        ls = orgUnits() %>% dplyr::filter(parent %in% input$level4) %>% pull(name)
 
         # cat( "\n - level3 update to:" , paste( ls , collapse = "" ) )
 
@@ -231,8 +231,8 @@ regions_widget_server <- function(
         visited <- c(visited, node)
 
         # Find direct children of the node.
-        lower_parent <- stri_trim_both(stri_trans_tolower(df$parentName))
-        lower_node <- stri_trim_both(stri_trans_tolower(node))
+        lower_parent <- trimws(tolower(df$parentName))
+        lower_node <- trimws(tolower(node))
 
         children <- df$name[lower_parent %in% lower_node] %>% na.omit()
 
@@ -276,7 +276,7 @@ regions_widget_server <- function(
           nodesToKeep <- c(input$level2, descendants)
           # cat("\n - nodesToKeep: ", nodesToKeep )
 
-          gf.ous = gf.ous %>% filter(name %in% nodesToKeep)
+          gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
         }
 
         if (!is.null(input$level3) & is.null(input$level4)) {
@@ -285,7 +285,7 @@ regions_widget_server <- function(
           # Include the selected node itself
           nodesToKeep <- c(input$level3, descendants)
 
-          gf.ous = gf.ous %>% filter(name %in% nodesToKeep)
+          gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
         }
 
         if (!is.null(input$level4) & is.null(input$level5)) {
@@ -294,7 +294,7 @@ regions_widget_server <- function(
           # Include the selected node itself
           nodesToKeep <- c(input$level4, descendants)
 
-          gf.ous = gf.ous %>% filter(name %in% nodesToKeep)
+          gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
         }
 
         if (!is.null(input$level5)) {
@@ -303,7 +303,7 @@ regions_widget_server <- function(
           # Include the selected node itself
           nodesToKeep <- c(input$level5, descendants)
 
-          gf.ous = gf.ous %>% filter(name %in% nodesToKeep)
+          gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
         }
 
         # Testing
@@ -346,7 +346,7 @@ regions_widget_server <- function(
 
         # levels = names( split_geofeatures )
         levels = bind_rows(gf %>% st_drop_geometry()) %>%
-          filter(!is.na(level)) %>%
+          dplyr::filter(!is.na(level)) %>%
           distinct(level, levelName)
 
         cat('\n geoFeatures map for:', levels$levelName, '\n')
@@ -380,8 +380,8 @@ regions_widget_server <- function(
         split_gf = split_geofeatures[not_all_empty_geo]
 
         admins = gf %>%
-          filter(st_geometry_type(.) != 'POINT') %>%
-          filter(!st_is_empty(.))
+          dplyr::filter(st_geometry_type(.) != 'POINT') %>%
+          dplyr::filter(!st_is_empty(.))
         admin.levels = admins$levelName %>% unique
 
         gf.map =
@@ -421,7 +421,7 @@ regions_widget_server <- function(
         for (i in rev(seq_along(admin.levels))) {
           gf.map = gf.map %>%
             addPolygons(
-              data = admins %>% filter(levelName == admin.levels[i]),
+              data = admins %>% dplyr::filter(levelName == admin.levels[i]),
               group = admin.levels[i],
               label = ~ paste(name, ifelse(level < 3, '', paste('in', parent))),
               layerId = ~name,
@@ -445,7 +445,7 @@ regions_widget_server <- function(
         }
 
         # add points, if available
-        gf.points = gf %>% filter(st_geometry_type(.) == 'POINT')
+        gf.points = gf %>% dplyr::filter(st_geometry_type(.) == 'POINT')
 
         if (nrow(gf.points) > 0) {
           gf.map = gf.map %>%

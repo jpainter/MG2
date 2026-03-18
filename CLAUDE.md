@@ -200,12 +200,82 @@ missing values.
 
 ---
 
+### Phase 3 — Setup UX, Data Download, and Core Processing (2026-03-18)
+
+**Status:** ✅ Complete
+
+**Changes:**
+
+*Setup widgets:*
+- `inst/shiny/directory_widget.R`: Added `shinyFiles` browse button (cross-platform,
+  iCloud + OneDrive aware); text box now starts blank with placeholder; fixed empty-dir
+  and `max()` on empty vector warnings
+- `inst/shiny/login_widget.R`: Replaced static `Instances.xlsx` picker with live API
+  call to `https://api.im.dhis2.org/instances/public`; fixed login check bug
+  (`isTRUE(l)` not `class(l) == "logical"`); fixed `system.info` GET to include
+  credentials and handle non-JSON responses; added `ns <- session$ns`
+- Added `shinyFiles` to `DESCRIPTION` Imports
+
+*Modal dialog fix (metadata + data download widgets):*
+- Added `fade = FALSE` to all progress `modalDialog()` calls in `metadata_widget.R`
+  (15 modals) and `data_request_widget.R` (6 modals) — prevents Bootstrap CSS fade
+  animation queue from leaving modals stuck on screen
+
+*Namespace/filter conflict fix:*
+- Removed `@importFrom stats filter` from `api_data_function_revision.R`
+- Added `dplyr::filter()` explicit calls in `data_Functions.R` and `regions_widget.R`
+- Added `@import data.table` in new `R/zzz.R` (required for `:=` inside package)
+- Re-attach dplyr after optional packages in `app.R`
+
+*Migrated to `R/utils.R`:*
+- `date_code()` — DHIS2 monthly period code generator (fixed `zoo::as.Date.yearmon()`
+  dispatch with `frac=` argument for package namespace)
+- `date_code_weekly()` — DHIS2 weekly period code generator (fixed original bugs:
+  `currentMonth` → `currentWeek`, `months` → `weeks` in paste)
+
+*New `R/dhis2_api.R` functions:*
+- `api_url()` — builds DHIS2 dataValueSets / analytics API URL
+- `fetch_get()` — single data request with credential passing and NA fallback;
+  coerces `pmap.df[i,]` data frame columns to character
+
+*New `R/prepare_dataset.R`:*
+- `translate_dataset_2()` — matches downloaded data to formula elements
+- `data_leaves()` — determines effective reporting leaf per org unit × data element
+- `data_1()` — main wrapper: translates + joins hierarchy + calls `df_pre_ts`/`df_ts`
+- `df_pre_ts()` — adds `Month`/`Week` and `data`/`data.id` columns (data.table fast path)
+- `df_ts()` — converts to tsibble, deduplicates
+
+*New `R/outliers.R`:*
+- `extremely_mad()` — MAD-based outlier flag with trimmed-SD fallback
+- `unseasonal()` — seasonal outlier flag via `forecast::tsclean()`
+- `mad_outliers()` — applies `extremely_mad` at 15×, 10×, 5× across all series
+- `seasonal_outliers()` — applies `unseasonal` at 5× and 3× per series
+
+*New `R/outlier_summary.R`:*
+- `monthly.outlier.summary()` — monthly error counts/proportions by algorithm
+- `yearly.outlier.summary()` — annual rollup of combined flag
+- `outlier.summary.chart()` — faceted ggplot of monthly error rates
+
+*New `R/dqa_functions.R`:*
+- `dqa_reporting()`, `dqaPercentReporting()`, `dqa_reporting_plot()`
+- `dqa_outliers()`, `yearly.outlier.summary_plot()`
+- `abs_ae()`, `mase()` — custom MASE implementation (not `forecast::accuracy()`)
+- `mase_year()`, `dqa_mase()`, `dqa_mase_plot()` — MASE trend across years;
+  guards against missing `expected` column
+
+*Regions widget:*
+- Moved `regions_widget.R` from `R/originals/` to `inst/shiny/`
+- Replaced `stri_trim_both(stri_trans_tolower())` with `trimws(tolower())`
+
+**App state:** End-to-end flow working through DQA tab. Setup, Metadata, Regions,
+Data (formula + download), and DQA tabs all functional.
+
+---
+
 ### Future Phases (planned)
 
-- Phase 3: Data / Formula / Download modules
-- Phase 4: DQA module
 - Phase 5: Reporting module
 - Phase 6: Outlier/Cleaning module
 - Phase 7: Evaluation/Forecasting module
-- Phase 8: Map / Regions modules
+- Phase 8: Map module
 - Phase 9: Full `devtools::check()` pass, vignettes, CRAN prep

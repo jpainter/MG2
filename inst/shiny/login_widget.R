@@ -34,22 +34,19 @@ login_widget_ui <- function(id) {
       fluidRow(
         column(
           12,
-
-          h4("Or, choose from list of saved DHIS2 Instances**:"),
-
-          selectInput(ns('instance'), NULL, choices = NULL),
-
-          tags$blockquote(
-            "*Once data has been downloaded and saved to the directory (at left), 
-                                                   the app is fully functionaly without being connected to the DHIS2 server"
+          hr(),
+          h4("Or connect to a DHIS2 demo instance:"),
+          actionButton(
+            ns("demo_picker"),
+            label = "Choose Demo Instance",
+            icon  = icon("globe"),
+            class = "btn-info"
           ),
-
-          tags$blockquote(
-            "**the app provides links to the demo versions of DHIS2.  
-                                                   To add other instances, copy the excel file Instances.xlsx and save it as
-                                                   _Instances.xlsx within the MagicGlasses2 folder.  You can insert rows into this 
-                                                   spreadsheet following the same format as the demo instances.
-                                                   [if not saved with '_' prefix, it will be overwritten during the next GIT pull]"
+          tags$p(
+            tags$small(
+              "Once data has been downloaded, the app works fully offline without a server connection."
+            ),
+            style = "margin-top: 8px; color: #666;"
           )
         )
       )
@@ -62,6 +59,8 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
   moduleServer(
     id,
     function(input, output, session) {
+      ns <- session$ns
+
       data.folder = reactive({
         directory_widget_output$directory()
       })
@@ -71,104 +70,71 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
       # reactives to toggle login status
       login = reactiveVal(FALSE)
 
-      # hide instance choice list unless demo checked ####
-      shinyjs::hideElement(id = "instance", asis = TRUE)
-      # shinyjs::hideElement( id = "instancesFile" )
+      # Demo instance picker ####
+      # Fetches live list from https://api.im.dhis2.org/instances/public
+      # and shows a modal with instances grouped by category (Stable / Dev).
+      observeEvent(input$demo_picker, {
+        instances_data <- tryCatch({
+          resp <- GET("https://api.im.dhis2.org/instances/public")
+          jsonlite::fromJSON(content(resp, "text", encoding = "UTF-8"),
+                             simplifyVector = FALSE)
+        }, error = function(e) NULL)
 
-      observe({
-        # req( input$demo )
-        cat('\n observe demo and shinyjs hide/show')
-
-        if (!is.null(input$demo) && input$demo) {
-          cat("\n ** Show Instances\n")
-          showElement("instance", asis = TRUE)
-          # shinyjs::showElement( "instancesFile" )
-        } else {
-          cat("\n ** Hide Instances\n")
-          hideElement("instance", asis = TRUE)
-          # shinyjs::hideElement( "instancesFile" )
-        }
-      })
-
-      # update credentials after selecting instance ####
-
-      observe({
-        req(instances())
-        req(input$instance)
-
-        if (nchar(input$instance) > 0) {
-          cat("\n ** DEMO\n")
-
-          # cat( '\n instances()$Instance:' , instances()$Instance )
-          cat('\n input$instance:', input$instance, '\n')
-
-          i_row = instances()$Instance %in% input$instance
-
-          cat('\n i_row:', i_row)
-          cat('\n input$demo:', input$demo == TRUE)
-          ins = instances()[i_row, ]
-          # print( ins )
-
-          updateTextInput(session, "baseurl", value = ins$IPaddress)
-          updateTextInput(session, "username", value = ins$UserName)
-          updateTextInput(session, "password", value = ins$Password)
-        } else {
-          cat("\n ** NO DEMO\n")
-          updateTextInput(session, "baseurl", value = "")
-          updateTextInput(session, "username", value = "")
-          updateTextInput(session, "password", value = "")
-        }
-      })
-
-      # Instances tibble
-      instances = reactive({
-        cat('reactive instances \n')
-        iFile = "Instances.xlsx"
-
-        file.locations = c(paste0("./", '_Instances.xlsx'), '_Instances.xlsx')
-        cat("\n* instances.  file.locations", file.locations)
-
-        if (any(file.exists(file.locations))) {
-          iFilePrivate = file.locations[which(file.exists(file.locations))][1]
-          cat("\n - FilePrivate:", iFilePrivate)
-          i = read_excel(iFilePrivate)
-        } else {
-          i = read_excel(iFile)
+        if (is.null(instances_data)) {
+          showModal(modalDialog(
+            title = "Could not load demo instances",
+            "Check your internet connection and try again.",
+            footer = modalButton("Close"),
+            easyClose = TRUE
+          ))
+          return()
         }
 
-        cat('END: reactive instances \n')
-        return(i)
+        # Build named list for selectInput: list(Category = c(label = url, ...))
+        cats <- instances_data[[1]]$categories
+        choices <- lapply(cats, function(cat) {
+          urls   <- sapply(cat$instances, `[[`, "hostname")
+          labels <- sapply(cat$instances, `[[`, "description")
+          # Trim "DHIS 2 " / "DHIS2 " prefix for brevity
+          labels <- sub("^DHIS2? 2? ?", "", labels)
+          setNames(urls, labels)
+        })
+        names(choices) <- sapply(cats, `[[`, "label")
+
+        showModal(modalDialog(
+          title = "Choose a DHIS2 Demo Instance",
+          size  = "s",
+          selectInput(
+            ns("demo_instance_url"),
+            label   = "Instance:",
+            choices = choices,
+            width   = "100%"
+          ),
+          tags$p(
+            tags$small(icon("info-circle"), " Login: admin / district"),
+            style = "color:#666; margin-top:4px;"
+          ),
+          footer = tagList(
+            modalButton("Cancel"),
+            actionButton(ns("demo_connect"), "Connect", class = "btn-primary")
+          ),
+          easyClose = TRUE
+        ))
       })
 
-      # Update instance choices
-      observe({
-        req(instances())
-
-        updateSelectInput(
-          session,
-          "instance",
-          choices = c("", instances()$Instance)
-        )
+      observeEvent(input$demo_connect, {
+        req(input$demo_instance_url)
+        url <- input$demo_instance_url
+        if (!endsWith(url, "/")) url <- paste0(url, "/")
+        updateTextInput(session, "baseurl",   value = url)
+        updateTextInput(session, "username",  value = "admin")
+        updateTextInput(session, "password",  value = "district")
+        removeModal()
       })
 
-      # Instance--selection ####
-      # instance
+      # instance label for status display
       instance = reactive({
-        cat('\n* instances:')
-        if (nchar(input$instance) > 0) {
-          i_row = which(instances()$Instance %in% input$instance)
-
-          cat('\n - Instances:\n', instances()$Instance)
-          cat('\n - i_row:', i_row, '\n')
-
-          Instance = instances()$Instance[i_row]
-          cat('\n - Instance:', Instance)
-        } else {
-          Instance = input$baseurl
-        }
-
-        cat('\n - done ')
-        return(Instance)
+        input$baseurl
       })
 
       baseurl = reactive({
@@ -222,11 +188,7 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
 
         print(paste('try loginDHIS2 is', l, baseurl(), input$username, "...")) #
 
-        if (class(l) == "logical") {
-          login(TRUE)
-        } else {
-          login(FALSE)
-        }
+        login(isTRUE(l))
 
         print(paste('observe event input$password, login() is', login()))
       })
@@ -248,30 +210,34 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
 
           url = paste0(baseurl(), "api/system/info")
 
-          getInfo = GET(url)
+          getInfo = GET(url, authenticate(username(), password()))
 
-          #Testing
-          saveRDS(url, 'url.rds')
-          saveRDS(getInfo, 'getInfo.rds')
+          getInfo.content = content(getInfo, "text", encoding = "UTF-8")
 
-          getInfo.content = content(getInfo, "text")
+          info = tryCatch(
+            jsonlite::fromJSON(getInfo.content),
+            error = function(e) {
+              cat('\n - system.info: could not parse response as JSON (HTTP', status_code(getInfo), ')')
+              return(NULL)
+            }
+          )
 
-          info = jsonlite::fromJSON(getInfo.content)
+          if (is.null(info)) return(tibble(Attribute = "systemInfo", Value = "Could not retrieve"))
 
           info[map_dbl(info, length) == 1] %>%
             as_tibble() %>%
-            select(
-              systemName,
-              version,
-              lastAnalyticsTableSuccess,
-              intervalSinceLastAnalyticsTableSuccess,
-              lastAnalyticsTableRuntime,
-              buildTime,
-              serverDate,
-              contextPath,
-              calendar,
-              dateFormat
-            ) %>%
+            select(any_of(c(
+              "systemName",
+              "version",
+              "lastAnalyticsTableSuccess",
+              "intervalSinceLastAnalyticsTableSuccess",
+              "lastAnalyticsTableRuntime",
+              "buildTime",
+              "serverDate",
+              "contextPath",
+              "calendar",
+              "dateFormat"
+            ))) %>%
             gather(Attribute, Value)
         } else {
           tibble(connection = "Waiting for login")
@@ -285,35 +251,8 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
         paste0(baseurl(), "api/system/info")
       })
 
-      # Sytem Info Table ####
-      conditionalPanel(
-        condition = "$('html').hasClass('shiny-busy')",
-        tags$div("Loading...", id = "loadmessage")
-      )
-
       output$systemInfo = renderTable(
-        if (is.null(system.info())) {} else {
-          system.info()
-        }
-      )
-
-      ### output to Login tab  ####
-
-      output$connection = renderText({
-        req(baseurl())
-        # req( login() )
-        paste0(baseurl(), "api/system/info")
-      })
-
-      conditionalPanel(
-        condition = "$('html').hasClass('shiny-busy')",
-        tags$div("Loading...", id = "loadmessage")
-      )
-
-      output$systemInfo = renderTable(
-        if (is.null(system.info())) {} else {
-          system.info()
-        }
+        if (is.null(system.info())) {} else { system.info() }
       )
 
       # Return ####

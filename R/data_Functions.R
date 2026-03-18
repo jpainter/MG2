@@ -30,7 +30,7 @@ getLevelNames = function(orgUnits, .cat = FALSE) {
     cat('\n* levelNames:')
   }
   l = count(orgUnits %>% as_tibble, level, levelName) %>%
-    filter(!is.na(level)) %>%
+    dplyr::filter(!is.na(level)) %>%
     arrange(level) %>%
     pull(levelName) %>%
     unique
