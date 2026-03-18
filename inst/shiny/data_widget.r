@@ -103,7 +103,7 @@ data_widget_server <- function(
         req(data.folder())
         cat('\n* data_widget looking for formula files in', data.folder(), '\n')
 
-        ff = files(search = 'Formulas_', dir = data.folder(), type = 'xlsx|rds')
+        ff = list_dir_files(search = 'Formulas_', dir = data.folder(), type = 'xlsx|rds')
         if (is_empty(ff)) {
           cat('\n - no forumula files in directory')
           return()
@@ -129,7 +129,7 @@ data_widget_server <- function(
 
         cat('\n - looking for formula files in', aa, '\n')
 
-        ff = files(search = 'Formulas_', dir = aa, type = 'xlsx|rds')
+        ff = list_dir_files(search = 'Formulas_', dir = aa, type = 'xlsx|rds')
         if (is_empty(ff)) {
           cat('\n - no forumula files in directory')
           return()

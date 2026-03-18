@@ -204,11 +204,8 @@ server <- function(input, output, session) {
     directory_widget_output  = directory_widget_output
   )
 
-  reporting_trigger <- reactive({ input$tabs == "reporting" })
-
   reporting_widget_output <- reporting_widget_server(
     "reporting1",
-    trigger                  = reporting_trigger,
     dataDirectory            = directory_widget_output,
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,

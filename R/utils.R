@@ -89,6 +89,48 @@ read_file <- function(filename) {
   )
 }
 
+# Directory helpers ---------------------------------------------------------
+
+#' List Files in a Directory Matching a Pattern
+#'
+#' Returns filenames (not full paths) in `dir` that match all of `search`,
+#' `type`, and `other` patterns. Results are sorted in reverse alphabetical
+#' order so the most recently dated filename (by convention `_YYYY-MM-DD`)
+#' appears first.
+#'
+#' @param search Character. Case-insensitive substring the filename must
+#'   contain (default: `"All"` matches everything).
+#' @param type Character. Regex matched against the file extension, anchored
+#'   at end of string (default: `"xlsx"`). Use `"xlsx|rds"` for multiple types.
+#' @param other Character. Additional case-insensitive substring the filename
+#'   must contain (default: `""` matches everything).
+#' @param dir Character. Directory to search. Defaults to the current working
+#'   directory if `NULL`.
+#'
+#' @return Character vector of matching filenames, sorted reverse
+#'   alphabetically. `character(0)` if none match or `dir` does not exist.
+#' @export
+#'
+#' @examples
+#' list_dir_files(search = "Formulas_", type = "xlsx|rds", dir = tempdir())
+list_dir_files <- function(search = "All", type = "xlsx", other = "", dir = NULL) {
+  if (is.null(dir)) dir <- getwd()
+
+  if (!dir.exists(dir)) {
+    message("list_dir_files: directory not found: ", dir)
+    return(character(0))
+  }
+
+  all_files <- list.files(dir)
+
+  keep <- stringr::str_detect(all_files, stringr::fixed(search, ignore_case = TRUE)) &
+    grepl(paste0(type, "$"), all_files, ignore.case = TRUE) &
+    grepl(other, all_files, ignore.case = TRUE)
+
+  matched <- all_files[keep]
+  return(matched[rev(order(matched))])
+}
+
 # Internal helpers ----------------------------------------------------------
 
 #' Extract a Date from a Filename
