@@ -2724,9 +2724,9 @@ tsmodels = function(
         e  = fable::ETS(var),
         n  = fable::NNETAR(var),
         t  = fable::TSLM(var),
-        p1 = fable.prophet::prophet(var ~ fable.prophet::season("year", order = 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ fable.prophet::season("year", 4,     type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ fable.prophet::season("year", 8,     type = "multiplicative")),
+        p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
+        p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative")),
         .safely = TRUE
       )
   }
@@ -2737,10 +2737,10 @@ tsmodels = function(
         a  = fable::ARIMA(log(var + 1)),
         e  = fable::ETS(log(var + 1)),
         n  = fable::NNETAR(log(var + 1)),
-        t  = fable::TSLM(log(var) ~ fabletools::trend() + fabletools::season()),
-        p1 = fable.prophet::prophet(log(var + 1) ~ fable.prophet::season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var + 1) ~ fable.prophet::season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var + 1) ~ fable.prophet::season("year", 8, type = "multiplicative")),
+        t  = fable::TSLM(log(var) ~ trend() + season()),
+        p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
+        p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative")),
         .safely = TRUE
       )
   }
@@ -2752,10 +2752,10 @@ tsmodels = function(
         a  = fable::ARIMA(var ~ log(!!covariate)),
         e  = fable::ETS(var),
         n  = fable::NNETAR(var ~ !!covariate),
-        t  = fable::TSLM(var ~ fabletools::trend() + fabletools::season() + !!covariate),
-        p1 = fable.prophet::prophet(var ~ !!covariate + fable.prophet::season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ !!covariate + fable.prophet::season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ !!covariate + fable.prophet::season("year", 8, type = "multiplicative")),
+        t  = fable::TSLM(var ~ trend() + season() + !!covariate),
+        p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
+        p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative")),
         .safely = TRUE
       )
   }
@@ -2766,10 +2766,10 @@ tsmodels = function(
         a  = fable::ARIMA(log(var) ~ log(!!covariate)),
         e  = fable::ETS(log(var)),
         n  = fable::NNETAR(log(var) ~ !!covariate),
-        t  = fable::TSLM(log(var) ~ fabletools::trend() + fabletools::season() + !!covariate),
-        p1 = fable.prophet::prophet(log(var) ~ !!covariate + fable.prophet::season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var) ~ !!covariate + fable.prophet::season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var) ~ !!covariate + fable.prophet::season("year", 8, type = "multiplicative")),
+        t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
+        p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
+        p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative")),
         .safely = TRUE
       )
   }
@@ -2988,6 +2988,47 @@ diff.summary = function(
       sd     = stats::sd(WPE),
       median = stats::median(WPE),
       .groups = "drop"
+    )
+}
+
+
+#' Histogram of Weighted Percent Error Across Forecast Replicates
+#'
+#' Plots the distribution of WPE values from [forecast_diff()], with the
+#' median bin highlighted in blue.
+#'
+#' @param actual Tsibble of actual post-intervention values.
+#' @param predicted Fable object of post-intervention forecasts.
+#' @param xlimits Numeric vector of length 2. x-axis limits (default `c(NA, NA)`).
+#' @param ... Passed to [forecast_diff()] and [diff.summary()].
+#'
+#' @return A ggplot object.
+#' @export
+diffHistogram = function(actual, predicted, xlimits = c(NA, NA), ...) {
+  diffPredictedActual = forecast_diff(actual, predicted, ...)
+  n_forecasts = max(diffPredictedActual$.rep)
+  diffPredictedActual.summary = diff.summary(actual, predicted, ...)
+
+  d = diffPredictedActual %>%
+    dplyr::inner_join(diffPredictedActual.summary, by = dplyr::join_by(.model)) %>%
+    dplyr::mutate(.model = paste0("tsmodel = ", .model))
+
+  ggplot2::ggplot() +
+    ggplot2::geom_histogram(data = d, ggplot2::aes(WPE),
+                            color = "white", binwidth = 1) +
+    ggplot2::geom_histogram(
+      data = d %>% dplyr::filter(round(WPE) == round(median)),
+      ggplot2::aes(WPE), binwidth = 1, fill = "blue", alpha = 0.5
+    ) +
+    ggplot2::scale_x_continuous(limits = xlimits) +
+    ggplot2::facet_grid(Intervention ~ .model, scales = "fixed") +
+    ggplot2::labs(
+      subtitle = paste0(
+        "Each observation represents estimated difference from an individual forecast (n=",
+        n_forecasts, ")"
+      ),
+      caption = "Blue bar represents median value",
+      x = "Weighted Percent Change"
     )
 }
 
