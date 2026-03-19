@@ -5,21 +5,56 @@
 
 #' Convert a Date String to yearmonth
 #'
-#' Converts a character string to a [tsibble::yearmonth()] object using
-#' [zoo::as.yearmon()] for flexible date parsing.
+#' Converts a character string (or existing `yearmonth`) to a
+#' [tsibble::yearmonth()] object.  Multiple formats are tried automatically:
+#' * `"January2020"` / `"Jan2020"` (full or abbreviated month + year)
+#' * `"2025 Jan"` (tsibble's `as.character()` output)
+#' * `"202501"` / `"2025-01"` (DHIS2 / ISO numeric)
+#' * Any format recognised by [zoo::as.yearmon()] or [lubridate::ym()]
 #'
-#' @param date.string Character vector of date strings.
-#' @param fmt Character. Format string passed to [zoo::as.yearmon()]
-#'   (default: `"%B%Y"`, e.g., `"January2020"`).
+#' An explicit `fmt` can be supplied to skip auto-detection.
+#'
+#' @param date.string Character vector of date strings, or a `yearmonth` vector.
+#' @param fmt Character. Optional format string passed to [zoo::as.yearmon()].
+#'   When `NULL` (default) several common formats are tried in order.
 #'
 #' @return A `tsibble::yearmonth` vector.
 #' @export
 #'
 #' @examples
 #' as.yearmonth("January2020")
-#' as.yearmonth("201901", fmt = "%Y%m")
-as.yearmonth <- function(date.string, fmt = "%B%Y") {
-  zoo::as.yearmon(date.string, fmt) |> tsibble::yearmonth()
+#' as.yearmonth("2025 Jan")
+#' as.yearmonth("201901")
+as.yearmonth <- function(date.string, fmt = NULL) {
+  # Already the right type — return as-is
+  if (tsibble::is_yearmonth(date.string)) return(date.string)
+
+  # Explicit format supplied
+  if (!is.null(fmt)) {
+    return(zoo::as.yearmon(date.string, fmt) |> tsibble::yearmonth())
+  }
+
+  # Try formats in order of likelihood
+  fmts <- c("%B%Y", "%b%Y", "%Y %b", "%b %Y", "%Y%m", "%Y-%m")
+  for (f in fmts) {
+    result <- tryCatch(
+      zoo::as.yearmon(date.string, f) |> tsibble::yearmonth(),
+      warning = function(w) NULL,
+      error   = function(e) NULL
+    )
+    if (!is.null(result) && !anyNA(result)) return(result)
+  }
+
+  # Final fallback: zoo generic (tries its own set of formats)
+  result <- tryCatch(
+    zoo::as.yearmon(date.string) |> tsibble::yearmonth(),
+    warning = function(w) NULL,
+    error   = function(e) NULL
+  )
+  if (!is.null(result) && !anyNA(result)) return(result)
+
+  # lubridate fallback
+  tsibble::yearmonth(lubridate::ym(date.string))
 }
 
 #' Convert a DHIS2 Monthly Period Code to yearmonth

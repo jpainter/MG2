@@ -1,27 +1,5 @@
 #' functions for data manipulation
 
-#' as.yearmonth: convert character string to yearmonth object
-#'
-#' @param date.string character string representing a date
-#' @param fmt format of the date string, default is "%B%Y" (e.g. "January2020")
-#'
-#' @returns a yearmonth object
-#' @export
-#'
-#' @examples as.yearmonth("Jan2020")
-as.yearmonth = function(date.string, fmt = "%B%Y") {
-  if (is_yearmonth(date.string)) {
-    return(date.string)
-  }
-
-  if (!is.na(zoo::as.yearmon(date.string))) {
-    return(zoo::as.yearmon(date.string) %>% yearmonth)
-  }
-  if (!is.na(lubridate::ym(date.string))) {
-    return(lubridate::ym(date.string) %>% yearmonth)
-  }
-}
-
 getLevelNames = function(orgUnits, .cat = FALSE) {
   if ('sf' %in% class(orgUnits)) {
     orgUnits = orgUnits %>% st_drop_geometry()
