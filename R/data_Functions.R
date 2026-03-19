@@ -2353,6 +2353,194 @@ mable_data = function(
 }
 
 
+#' Split a Time Series into Training, Test, and Post-Intervention Windows
+#'
+#' Creates a list of tsibble subsets used for pre/post intervention analysis
+#' and model training/testing.
+#'
+#' @param data A tsibble aggregated by [mable_data()].
+#' @param startMonth Start of analysis window (yearmonth).
+#' @param startEvalMonth First month of the evaluation (intervention) period.
+#' @param numberTestMonths Number of months held out for model testing.
+#' @param endEvalMonth Last month of the evaluation period.
+#' @param unadjusted Logical. Use unadjusted values (currently unused).
+#' @param grouping Logical. Summarise by a grouping variable.
+#' @param groups Character. Column name to group by when `grouping = TRUE`.
+#'
+#' @return A named list with elements `fable.data`, `pre.intervention`,
+#'   `pre.intervention.train`, `pre.intervention.test`, `post.intervention`,
+#'   `post.intervention.yr1`, `post.intervention.yr2`, `post.intervention.yr3`.
+#' @export
+dataset = function(
+  data            = NULL,
+  startMonth      = tsibble::yearmonth("Jan 2015"),
+  startEvalMonth  = tsibble::yearmonth("Jan 2020"),
+  numberTestMonths = 12,
+  endEvalMonth    = tsibble::yearmonth("Dec 2022"),
+  unadjusted      = FALSE,
+  grouping        = FALSE,
+  groups          = "agegrp"
+) {
+  cat("\n * dataset")
+
+  if (!"tbl_ts" %in% class(data)) {
+    cat("\n - converting to tsibble")
+    data = tsibble::tsibble(data, index = "Month", key = groups)
+  }
+
+  if (grouping) {
+    cat("\n - grouping:", groups)
+    groups = rlang::syms(groups)
+    fable.data = data %>%
+      dplyr::filter(Month >= startMonth) %>%
+      dplyr::group_by({{ groups }}) %>%
+      dplyr::summarise(total = sum(total, na.rm = TRUE))
+  } else {
+    fable.data = data %>%
+      dplyr::filter(Month >= startMonth, Month <= endEvalMonth) %>%
+      dplyr::summarise(total = sum(total, na.rm = TRUE))
+  }
+
+  pre.intervention = fable.data %>%
+    dplyr::filter(Month < startEvalMonth)
+
+  pre.intervention.train = fable.data %>%
+    dplyr::filter(Month < startEvalMonth - numberTestMonths)
+
+  pre.intervention.test = fable.data %>%
+    dplyr::filter(
+      Month >= startEvalMonth - numberTestMonths &
+      Month <  startEvalMonth
+    )
+
+  post.intervention = fable.data %>%
+    dplyr::filter(Month >= startEvalMonth & Month <= endEvalMonth)
+
+  post.intervention.yr1 = fable.data %>%
+    dplyr::filter(Month >= startEvalMonth & Month < startEvalMonth + 12)
+
+  post.intervention.yr2 = fable.data %>%
+    dplyr::filter(Month >= startEvalMonth + 12 & Month < startEvalMonth + 24)
+
+  post.intervention.yr3 = fable.data %>%
+    dplyr::filter(Month >= startEvalMonth + 24 & Month < startEvalMonth + 36)
+
+  return(list(
+    fable.data              = fable.data,
+    pre.intervention        = pre.intervention,
+    pre.intervention.train  = pre.intervention.train,
+    pre.intervention.test   = pre.intervention.test,
+    post.intervention       = post.intervention,
+    post.intervention.yr1   = post.intervention.yr1,
+    post.intervention.yr2   = post.intervention.yr2,
+    post.intervention.yr3   = post.intervention.yr3
+  ))
+}
+
+
+#' Yearly Summary Table with Percent Change (Flextable)
+#'
+#' Creates a colour-coded flextable showing yearly totals and year-on-year
+#' percent change.  Increases are red, decreases are green.
+#'
+#' @param data A tsibble (output of [mable_data()]).
+#' @param date_col Character. Name of the date index column (default `"Month"`).
+#' @param value_col Character. Name of the value column (default `"total"`).
+#' @param country_col Character. Name of the country/national column (default `"National"`).
+#' @param table_title Character. Table title shown in the header.
+#' @param positive_color Character. Hex colour for positive changes (default red).
+#' @param negative_color Character. Hex colour for negative changes (default green).
+#'
+#' @return A `flextable` object.
+#' @export
+yearly_summary_table <- function(
+  data,
+  date_col       = "Month",
+  value_col      = "total",
+  country_col    = "National",
+  table_title    = "Yearly Summary with Percent Change",
+  positive_color = "#e74c3c",
+  negative_color = "#27ae60"
+) {
+  if (!inherits(data, "tbl_ts")) stop("Data must be a tsibble object")
+  if (!all(c(date_col, value_col) %in% colnames(data))) {
+    stop("Specified columns not found in data")
+  }
+
+  yearly_data <- data %>%
+    dplyr::ungroup() %>%
+    tsibble::index_by(Year = lubridate::year(!!tsibble::index(.))) %>%
+    dplyr::summarise(
+      Total        = sum(!!rlang::sym(value_col), na.rm = TRUE),
+      months_count = dplyr::n(),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(Year) %>%
+    dplyr::mutate(
+      `Percent Change`   = round((Total - dplyr::lag(Total)) / dplyr::lag(Total) * 100, 1),
+      `Change Direction` = dplyr::case_when(
+        is.na(`Percent Change`)  ~ "baseline",
+        `Percent Change` > 0    ~ "positive",
+        `Percent Change` < 0    ~ "negative",
+        TRUE                    ~ "zero"
+      ),
+      `Formatted Change` = dplyr::case_when(
+        is.na(`Percent Change`)  ~ "\u2014",
+        `Percent Change` > 0    ~ paste0("+", `Percent Change`, "%"),
+        TRUE                    ~ paste0(`Percent Change`, "%")
+      )
+    )
+
+  ft <- yearly_data %>%
+    dplyr::select(Year, Total, `Formatted Change`) %>%
+    flextable::flextable() %>%
+    flextable::set_header_labels(
+      Year              = "Year",
+      Total             = "Total",
+      `Formatted Change` = "% Change from Previous Year"
+    ) %>%
+    flextable::colformat_double(j = "Total", big.mark = ",", digits = 0) %>%
+    flextable::colformat_double(j = "Year",  big.mark = "",  digits = 0) %>%
+    flextable::bg(
+      i = which(yearly_data$`Change Direction` == "positive"),
+      j = "Formatted Change", bg = positive_color
+    ) %>%
+    flextable::bg(
+      i = which(yearly_data$`Change Direction` == "negative"),
+      j = "Formatted Change", bg = negative_color
+    ) %>%
+    flextable::bg(
+      i = which(yearly_data$`Change Direction` == "baseline"),
+      j = "Formatted Change", bg = "#95a5a6"
+    ) %>%
+    flextable::color(
+      i = which(yearly_data$`Change Direction` %in% c("positive", "negative", "baseline")),
+      j = "Formatted Change", color = "white"
+    ) %>%
+    flextable::theme_vanilla() %>%
+    flextable::bg(part = "header", bg = "#2c3e50") %>%
+    flextable::color(part = "header", color = "white") %>%
+    flextable::bold(part = "header") %>%
+    flextable::align(j = c("Total", "Formatted Change"), align = "center", part = "body") %>%
+    flextable::align(j = "Year", align = "left", part = "body") %>%
+    flextable::fontsize(part = "body", size = 11) %>%
+    flextable::width(j = "Year",             width = 1) %>%
+    flextable::width(j = "Total",            width = 1.5) %>%
+    flextable::width(j = "Formatted Change", width = 2) %>%
+    flextable::border_outer(
+      border = officer::fp_border(color = "#2c3e50", width = 2)
+    ) %>%
+    flextable::border_inner_h(
+      border = officer::fp_border(color = "#bdc3c7", width = 1)
+    ) %>%
+    flextable::border_inner_v(
+      border = officer::fp_border(color = "#bdc3c7", width = 1)
+    )
+
+  return(ft)
+}
+
+
 pre_impact_fit = function(
   ml.data = ml.data,
   startingMonth = "Jan 2015",
