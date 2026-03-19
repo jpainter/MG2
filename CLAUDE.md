@@ -291,10 +291,59 @@ Data (formula + download), and DQA tabs all functional.
 
 ---
 
+### Phase 5 — Reporting, Outliers, and Evaluation Modules (2026-03-19)
+
+**Status:** ✅ Substantially complete (some warnings remain, no blocking errors)
+
+**Changes:**
+
+*`as.yearmonth` consolidation:*
+- Removed duplicate `as.yearmonth` definition from `R/data_Functions.R`
+- Updated `R/utils.R` version to handle all formats automatically:
+  `"%B%Y"` (January2020), `"%b%Y"` (Jan2020), `"%Y %b"` (2025 Jan — tsibble
+  `as.character()` output), `"%Y%m"` (DHIS2 format), `"%Y-%m"`, plus zoo generic
+  and lubridate fallbacks
+- **Fixed bug:** `mostFrequentReportingOUs` returned 0 champion facilities because
+  `input$startingMonth` from `selectizeInput` uses tsibble's `"2025 Jan"` format
+  which the old `"%B%Y"`-only parser could not handle
+
+*New `R/outlier_summary.R` function:*
+- `outlier.summary.tibble()` — formatted display table of outlier flag counts,
+  totals, and percentages per detection algorithm; called by `cleaning_widget`
+
+*New functions in `R/data_Functions.R`:*
+- `mable_data()` — prepares aggregated time-series data for fable model fitting
+  (migrated from `R/originals/TS_Modeling_Functions.R`)
+- `dataset()` — splits a tsibble into pre/post-intervention windows (training,
+  test, post-yr1/2/3) for forecast evaluation
+- `yearly_summary_table()` — colour-coded flextable of yearly totals and
+  year-on-year percent change
+- `combination_forecasts()` — builds all pairwise/higher-order ensemble model
+  combinations from primary forecasts
+- `best_fables_accuracy()` — ranks forecast models by SWAPE or other metric
+- `tsmodels()` — fits ARIMA/ETS/NNETAR/TSLM/Prophet models and generates
+  sample-based forecast paths; optionally includes ensemble combinations
+- `model_metrics()` — computes out-of-sample SWAPE per model per replicate
+- `modelSelection()` — selects best model by `"synchronize"` or `"optimize"`
+- `forecast_diff()` — computes WPE (weighted percent error) per replicate
+  (renamed from `diff()` to avoid base R namespace conflict)
+- `diff.summary()` — summarises WPE across replicates (mean, SD, median)
+- `diffHistogram()` — histogram of WPE distribution with median bin highlighted
+
+*Bug fixes:*
+- `tsmodels()`: removed `fabletools::` and `fable.prophet::` qualifiers from
+  `trend()` and `season()` inside `model()` formulas — these are "model specials"
+  resolved by the fable fitting environment and fail with `::` qualification
+- Added `distributional` to `DESCRIPTION` Suggests (used by `combination_forecasts`)
+
+**App state:** End-to-end flow working through Evaluation tab. All major tabs
+functional: Setup, Metadata, Regions, Data, DQA, Reporting, Outliers, Evaluation.
+Forecast model fitting (ARIMA, ETS, NNETAR) working; TSLM and Prophet models
+degrade gracefully with `.safely = TRUE`.
+
+---
+
 ### Future Phases (planned)
 
-- Phase 5: Reporting module
-- Phase 6: Outlier/Cleaning module
-- Phase 7: Evaluation/Forecasting module
-- Phase 8: Map module
-- Phase 9: Full `devtools::check()` pass, vignettes, CRAN prep
+- Phase 6: Map module
+- Phase 7: Full `devtools::check()` pass, vignettes, CRAN prep
