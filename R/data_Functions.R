@@ -2212,6 +2212,147 @@ key.mape = function(
   return(e)
 }
 
+#' Prepare Aggregated Time-Series Data for Modelling
+#'
+#' Filters, aggregates, and optionally arranges data into a hierarchical
+#' time series (mts/hts) ready for fable model fitting.
+#'
+#' @param tibble.data A tsibble (output of [data_1()] after outlier detection).
+#' @param .orgUnit Logical. Group by org unit (default `TRUE`).
+#' @param .startingMonth Start of analysis period (yearmonth or character).
+#' @param .endingMonth End of analysis period (yearmonth or character).
+#' @param .missing_reports Integer. Allowed missing reports threshold.
+#' @param selected.only Logical. Champion facilities only (default `TRUE`).
+#' @param .error Character. Outlier filter level (e.g. `"mad15"`).
+#' @param covariates Character vector of covariate column names.
+#' @param .split Character. Column to split data by.
+#' @param aggregate_by_split Logical. Aggregate within split levels.
+#' @param levelNames Character vector of org unit level names.
+#' @param hts Logical. Build hierarchical time series (default `FALSE`).
+#' @param agg_level Character. Aggregation level name.
+#' @param remove.aggregate Logical. Remove aggregate row (default `TRUE`).
+#' @param .cat Logical. Print progress messages (default `FALSE`).
+#' @param testing Logical. Save intermediate objects for debugging.
+#' @param ... Passed to sub-functions.
+#'
+#' @return A tsibble aggregated to the requested level, ready for modelling.
+#' @export
+mable_data = function(
+  tibble.data = NULL,
+  .orgUnit = TRUE,
+  .startingMonth = NULL,
+  .endingMonth = NULL,
+  .missing_reports = NULL,
+  selected.only = TRUE,
+  .error = NULL,
+  covariates = NULL,
+  .split = NULL,
+  aggregate_by_split = TRUE,
+  levelNames = NULL,
+  hts = FALSE,
+  agg_level = NULL,
+  remove.aggregate = TRUE,
+  .cat = FALSE,
+  testing = FALSE,
+  ...
+) {
+  if (.cat) cat("\n* mable_data")
+
+  if (testing) {
+    saveRDS(tibble.data, "tibble.data.rds")
+    save(.orgUnit, hts, remove.aggregate, .error, .startingMonth, .endingMonth,
+         .missing_reports, agg_level, levelNames, .split, covariates,
+         file = "mable_data_parameters.rda")
+  }
+
+  d = tibble.data %>% error_factor
+
+  if (is_null(.error) || .error == "Original") {
+    if (.cat) cat("\n - source is original")
+    d = d %>% mutate(dataCol = original)
+  }
+
+  if (!is_null(.error) & "error" %in% names(d)) {
+    if (.cat) cat("\n - error level:", .error)
+    error.levels = levels(d$error)
+    error.factor.value = which(.error == error.levels)
+    d = d %>%
+      mutate(dataCol = ifelse(as.numeric(error) > error.factor.value, original, NA))
+  }
+
+  group_by_cols = groupByCols(
+    period     = dataPeriod(d),
+    selected   = FALSE,
+    dataset    = FALSE,
+    orgUnit    = .orgUnit,
+    hts        = hts,
+    agg_level  = agg_level,
+    levelNames = levelNames,
+    split      = .split,
+    .cat       = .cat
+  )
+
+  if (.cat) cat("\n - group_by_cols", group_by_cols)
+
+  num_facilities = mostFrequentReportingOUs(
+    d,
+    startingMonth  = .startingMonth,
+    endingMonth    = .endingMonth,
+    missing_reports = .missing_reports,
+    .cat           = .cat
+  ) %>% length()
+
+  if (.cat) cat("\n - num_facilities:", num_facilities)
+
+  .dataSets    = unique(d$dataSet)
+  num_datasets = length(.dataSets)
+  if (.cat) cat("\n - num_datasets:", num_datasets)
+
+  data.total = dataTotal(
+    data          = d,
+    group_by_cols = group_by_cols,
+    dataSets      = NULL,
+    covariates    = covariates,
+    .cat          = .cat
+  )
+
+  if (hts) {
+    if (.cat) cat("\n - hts")
+    hts_formula = htsFormula(
+      hts            = hts,
+      levelNames     = levelNames,
+      agg_level      = agg_level,
+      all.levels     = FALSE,
+      num_facilities = num_facilities,
+      num_datasets   = num_datasets,
+      split          = .split,
+      .cat           = .cat
+    )
+    data.agg.ts = htsData(
+      data          = data.total,
+      hts           = hts,
+      hts_formula   = hts_formula,
+      covariates    = covariates,
+      group_by_cols = group_by_cols,
+      .cat          = .cat
+    )
+  } else {
+    if (.cat) cat("\n - aggData")
+    data.agg.ts = aggData(
+      data.total    = data.total,
+      covariates    = covariates,
+      group_by_cols = group_by_cols,
+      .cat          = .cat
+    )
+  }
+
+  if (testing) saveRDS(data.agg.ts, "data.agg.ts.rds")
+
+  if (.cat) cat("\n - end mable_data")
+  return(data.agg.ts)
+}
+
+
 pre_impact_fit = function(
   ml.data = ml.data,
   startingMonth = "Jan 2015",
