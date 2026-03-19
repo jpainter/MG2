@@ -3,4 +3,5 @@
 ^\.Rproj\.user$
 ^R/originals$
 ^CLAUDE\.md$
+^CRAN_PLAN\.md$
 ^\.vscode$
