@@ -2541,6 +2541,457 @@ yearly_summary_table <- function(
 }
 
 
+#' Create Ensemble Forecast Combinations from Primary Forecasts
+#'
+#' Generates all pairwise and higher-order combinations of model forecasts,
+#' averaging sample paths within each combination.
+#'
+#' @param primary.forecasts A fable object of primary model forecasts.
+#' @param only.models A data frame with a `.model` column restricting which
+#'   combinations are returned.
+#'
+#' @return A fable object with all combination models appended.
+#' @export
+combination_forecasts = function(primary.forecasts, only.models = NULL) {
+  split_f = primary.forecasts %>% dplyr::group_by(.model) %>% dplyr::group_split()
+  model.names = unique(primary.forecasts$.model)
+  names(split_f) = model.names
+
+  allf = primary.forecasts
+
+  if (!is.null(only.models) && all(only.models$.model %in% model.names)) {
+    return(primary.forecasts %>% dplyr::inner_join(only.models, by = dplyr::join_by(.model)))
+  }
+
+  if (is.null(only.models)) {
+    all_combinations = unlist(lapply(seq_along(model.names), function(x) {
+      utils::combn(model.names, x, paste, collapse = "")
+    }))
+    combo.model.names = setdiff(all_combinations, model.names)
+  } else {
+    all_combinations  = unique(only.models$.model)
+    combo.model.names = setdiff(all_combinations, model.names)
+  }
+
+  if (length(combo.model.names) == 0) combo.model.names = only.models$.model
+
+  split_combination <- function(combination, original_values) {
+    pattern = paste(original_values, collapse = "|")
+    strsplit(combination, split = paste0("(?<=", pattern, ")"), perl = TRUE)[[1]]
+  }
+
+  join_vars = setdiff(
+    c(tsibble::index_var(primary.forecasts), tsibble::key_vars(primary.forecasts)),
+    ".model"
+  )
+
+  for (x in seq_along(combo.model.names)) {
+    nmodels = nchar(combo.model.names[x])
+    indiv.model.names = split_combination(combo.model.names[x], model.names)
+
+    joined_fables = purrr::reduce(split_f[indiv.model.names], dplyr::left_join, by = join_vars)
+    if (!"older.x" %in% names(joined_fables)) joined_fables$older.x = 0
+
+    sample.cols = colnames(joined_fables)[grep("sample", colnames(joined_fables))]
+
+    cf = joined_fables %>%
+      dplyr::mutate(
+        samples = purrr::pmap(dplyr::across(dplyr::starts_with("sample")),
+                              ~ purrr::reduce(list(...), `+`) / nmodels),
+        older   = older.x
+      ) %>%
+      dplyr::mutate(.model = combo.model.names[x]) %>%
+      dplyr::group_by(.model) %>%
+      dplyr::mutate(
+        .mean = purrr::map_dbl(samples, mean),
+        .sd   = purrr::map_dbl(samples, stats::sd),
+        var   = distributional::dist_normal(mean = .mean, sd = .sd)
+      ) %>%
+      dplyr::select(
+        tsibble::key_vars(primary.forecasts),
+        tsibble::index_var(primary.forecasts),
+        var, .mean, older, samples
+      )
+
+    dimnames(cf$var) = "var"
+    allf = dplyr::bind_rows(allf, cf)
+  }
+
+  if (!is.null(only.models)) {
+    allf = allf %>% dplyr::inner_join(only.models, by = dplyr::join_by(.model))
+  }
+  return(allf)
+}
+
+
+#' Rank Forecast Models by Accuracy Metric
+#'
+#' Returns accuracy rows ranked by a chosen metric, with percent difference
+#' from the best model and cross-replicate mean appended.
+#'
+#' @param fables_accuracy A data frame of model accuracy metrics (e.g. SWAPE).
+#' @param metric Character. Column name of the accuracy metric to rank by.
+#' @param top Integer. Maximum number of rows to return per group.
+#' @param grouping Logical. Rank within grouping variable.
+#' @param groups Character. Grouping variable column name.
+#'
+#' @return A data frame ranked by `metric`.
+#' @export
+best_fables_accuracy = function(
+  fables_accuracy,
+  metric   = "MAPE",
+  top      = 1000,
+  grouping = FALSE,
+  groups   = "Intervention"
+) {
+  .metric = rlang::sym(metric)
+
+  mean_model_metric = fables_accuracy %>%
+    dplyr::ungroup() %>%
+    dplyr::group_by(.model) %>%
+    dplyr::summarise(mean = mean({{ .metric }}))
+
+  out = fables_accuracy %>%
+    { if (grouping) dplyr::group_by(., !!rlang::sym(groups)) else . } %>%
+    dplyr::arrange({{ .metric }}) %>%
+    dplyr::mutate(
+      dplyr::across(where(is.numeric), \(x) round(x, digits = 3)),
+      `Intervention Rank` = dplyr::row_number(),
+      percent_diff = round(100 * (({{ .metric }} - dplyr::first({{ .metric }})) /
+                                    dplyr::first({{ .metric }})), digits = 3)
+    ) %>%
+    dplyr::filter(`Intervention Rank` <= top) %>%
+    dplyr::left_join(mean_model_metric, by = ".model")
+
+  return(out)
+}
+
+
+#' Fit Forecast Models and Generate Predictions
+#'
+#' Fits ARIMA, ETS, NNETAR, TSLM, and Prophet models to training data and
+#' produces sample-based forecast paths.  Optionally includes ensemble
+#' combination models.
+#'
+#' @param train_data A tsibble of pre-intervention training data.
+#' @param test_data A tsibble of hold-out test data (same keys as `train_data`).
+#' @param n_forecasts Integer. Number of sample paths to generate (default 2000).
+#' @param .var Character. Name of the variable to model (default `"total"`).
+#' @param numberForecastMonths Integer. Forecast horizon in months.
+#' @param type Character or NA. One of `"transform and covariate"`,
+#'   `"transform"`, `"covariate"`, or `NA` for plain models.
+#' @param covariate Character. Covariate column name (when `type` includes it).
+#' @param ensemble Logical. Also return ensemble combination forecasts.
+#' @param msg Logical. Print progress messages.
+#' @param .set.seed Logical. Set random seed for reproducibility.
+#'
+#' @return A fable object of forecasts (primary + ensemble if `ensemble = TRUE`).
+#' @export
+tsmodels = function(
+  train_data,
+  test_data,
+  n_forecasts          = 2000,
+  .var                 = "total",
+  numberForecastMonths = 12,
+  type                 = NA,
+  covariate            = NULL,
+  ensemble             = TRUE,
+  msg                  = TRUE,
+  .set.seed            = TRUE
+) {
+  valid_types = c("transform and covariate", "transform", "covariate")
+  if (!is.na(type) && !type %in% valid_types) {
+    cat("\n Must select one of three types:", valid_types)
+    return(NULL)
+  }
+
+  .var_sym    = rlang::sym(.var)
+  train_data  = train_data %>% dplyr::mutate(var = !!.var_sym)
+  test_data   = test_data  %>%
+    dplyr::mutate(var = !!.var_sym) %>%
+    dplyr::select(-!!.var_sym, -var)
+
+  if (!is.null(covariate)) covariate = rlang::sym(covariate)
+
+  if (msg) cat("\n - tsmodels: Preparing primary models")
+  tictoc::tic()
+  tictoc::tic()
+
+  if (is.na(type)) {
+    primary_models = train_data %>%
+      fabletools::model(
+        a  = fable::ARIMA(var),
+        e  = fable::ETS(var),
+        n  = fable::NNETAR(var),
+        t  = fable::TSLM(var),
+        p1 = fable.prophet::prophet(var ~ fable.prophet::season("year", order = 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(var ~ fable.prophet::season("year", 4,     type = "multiplicative")),
+        p8 = fable.prophet::prophet(var ~ fable.prophet::season("year", 8,     type = "multiplicative")),
+        .safely = TRUE
+      )
+  }
+
+  if (!is.na(type) && type == "transform") {
+    primary_models = train_data %>%
+      fabletools::model(
+        a  = fable::ARIMA(log(var + 1)),
+        e  = fable::ETS(log(var + 1)),
+        n  = fable::NNETAR(log(var + 1)),
+        t  = fable::TSLM(log(var) ~ fabletools::trend() + fabletools::season()),
+        p1 = fable.prophet::prophet(log(var + 1) ~ fable.prophet::season("year", 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(log(var + 1) ~ fable.prophet::season("year", 4, type = "multiplicative")),
+        p8 = fable.prophet::prophet(log(var + 1) ~ fable.prophet::season("year", 8, type = "multiplicative")),
+        .safely = TRUE
+      )
+  }
+
+  if (!is.na(type) && type == "covariate") {
+    if (.set.seed) set.seed(1432)
+    primary_models = train_data %>%
+      fabletools::model(
+        a  = fable::ARIMA(var ~ log(!!covariate)),
+        e  = fable::ETS(var),
+        n  = fable::NNETAR(var ~ !!covariate),
+        t  = fable::TSLM(var ~ fabletools::trend() + fabletools::season() + !!covariate),
+        p1 = fable.prophet::prophet(var ~ !!covariate + fable.prophet::season("year", 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(var ~ !!covariate + fable.prophet::season("year", 4, type = "multiplicative")),
+        p8 = fable.prophet::prophet(var ~ !!covariate + fable.prophet::season("year", 8, type = "multiplicative")),
+        .safely = TRUE
+      )
+  }
+
+  if (!is.na(type) && type == "transform and covariate") {
+    primary_models = train_data %>%
+      fabletools::model(
+        a  = fable::ARIMA(log(var) ~ log(!!covariate)),
+        e  = fable::ETS(log(var)),
+        n  = fable::NNETAR(log(var) ~ !!covariate),
+        t  = fable::TSLM(log(var) ~ fabletools::trend() + fabletools::season() + !!covariate),
+        p1 = fable.prophet::prophet(log(var) ~ !!covariate + fable.prophet::season("year", 1, type = "multiplicative")),
+        p4 = fable.prophet::prophet(log(var) ~ !!covariate + fable.prophet::season("year", 4, type = "multiplicative")),
+        p8 = fable.prophet::prophet(log(var) ~ !!covariate + fable.prophet::season("year", 8, type = "multiplicative")),
+        .safely = TRUE
+      )
+  }
+
+  t = tictoc::toc(quiet = TRUE)
+  if (msg) cat("\n - tsmodels: Primary models finished.", t$callback_msg,
+               "\n - tsmodels: Preparing primary forecasts...")
+
+  tictoc::tic()
+  if (.set.seed) set.seed(1432)
+
+  primary_forecasts = primary_models %>%
+    fabletools::forecast(h = numberForecastMonths, times = n_forecasts) %>%
+    dplyr::mutate(samples = fabletools::generate(var, n_forecasts))
+
+  t = tictoc::toc(quiet = TRUE)
+  if (msg) cat("\n - tsmodels: Primary forecasts finished.", t$callback_msg)
+
+  if (ensemble) {
+    cat("\n - tsmodels: Preparing ensemble forecasts...")
+    tictoc::tic()
+    if (.set.seed) set.seed(1432)
+    combo_forecasts = combination_forecasts(primary_forecasts)
+    t = tictoc::toc(quiet = TRUE)
+    if (msg) cat("\n - tsmodels: Ensemble forecasts finished.", t$callback_msg)
+    t = tictoc::toc(quiet = TRUE)
+    if (msg) cat("\n - tsmodels: Total time.", t$callback_msg)
+    return(combo_forecasts)
+  } else {
+    t = tictoc::toc(quiet = TRUE)
+    if (msg) cat("\n - tsmodels: Total time.", t$callback_msg)
+    return(primary_forecasts)
+  }
+}
+
+
+#' Compute Out-of-Sample Accuracy (SWAPE) for Forecast Models
+#'
+#' Joins test-set forecasts with actuals and computes SWAPE per model per
+#' replicate, then averages across replicates.
+#'
+#' @param test.forecasts Fable object of test-period forecasts.
+#' @param test.data Tsibble of held-out actuals.
+#' @param msg Logical. Print progress messages.
+#' @param .var Character. Variable name (default `"total"`).
+#' @param grouping Logical. Compute within grouping variable.
+#' @param groups Character. Grouping variable name.
+#'
+#' @return A data frame of mean SWAPE per model.
+#' @export
+model_metrics = function(
+  test.forecasts,
+  test.data,
+  msg      = TRUE,
+  .var     = "total",
+  grouping = FALSE,
+  groups   = "agegrp"
+) {
+  if (msg) cat("\n * model_metrics: Calculating monthly SWAPE")
+
+  var = rlang::sym(.var)
+
+  if (grouping) {
+    selectVars    = c(groups, .var, "Month")
+    byVars        = c(groups, "Month")
+    group_by_cols1 = c(groups, ".model", "Month")
+    group_by_cols2 = c(groups, ".model", ".id")
+    group_by_cols3 = c(groups, ".model")
+  } else {
+    selectVars    = c(.var, "Month")
+    byVars        = "Month"
+    group_by_cols1 = c(".model", "Month")
+    group_by_cols2 = c(".model", ".id")
+    group_by_cols3 = ".model"
+  }
+
+  accuracy_by_rep = test.forecasts %>%
+    dplyr::inner_join(
+      test.data %>%
+        dplyr::select(dplyr::all_of(selectVars)) %>%
+        dplyr::rename(actual = !!var),
+      by = byVars
+    ) %>%
+    tidyr::unnest(samples) %>%
+    dplyr::group_by(!!!rlang::syms(group_by_cols1)) %>%
+    dplyr::mutate(.id = dplyr::row_number(), ae = abs(actual - samples)) %>%
+    dplyr::group_by(!!!rlang::syms(group_by_cols2)) %>%
+    dplyr::summarise(
+      swape = 200 * sum(ae) / (sum(abs(actual)) + sum(abs(samples))),
+      .groups = "drop"
+    )
+
+  accuracy_by_rep %>%
+    dplyr::group_by(!!!rlang::syms(group_by_cols3)) %>%
+    dplyr::summarise(swape = mean(swape), .groups = "drop")
+}
+
+
+#' Select the Best Forecast Model
+#'
+#' Given a table of model accuracy metrics, returns the model name(s) that
+#' minimise the metric or that all series agree on (synchronize).
+#'
+#' @param modelMetrics Data frame output of [model_metrics()].
+#' @param type Character. `"synchronize"` picks the model with the lowest mean;
+#'   `"optimize"` picks the single best row.
+#' @param table Logical. Print a formatted flextable (default `FALSE`).
+#' @param grouping Logical. Select within grouping variable.
+#' @param groups Character. Grouping variable name.
+#'
+#' @return A data frame with a `.model` column.
+#' @export
+modelSelection = function(
+  modelMetrics,
+  type     = c("synchronize", "optimize"),
+  table    = FALSE,
+  grouping = FALSE,
+  groups   = "agegrp"
+) {
+  type = match.arg(type)
+  selectVars = if (grouping) c(groups, ".model") else ".model"
+
+  ranks = best_fables_accuracy(fables_accuracy = modelMetrics, metric = "swape")
+
+  if (type == "synchronize") {
+    return(ranks %>% dplyr::filter(mean == min(ranks$mean, na.rm = TRUE)) %>%
+             dplyr::select(dplyr::all_of(selectVars)))
+  }
+  if (type == "optimize") {
+    return(ranks %>% dplyr::filter(dplyr::row_number() == 1) %>%
+             dplyr::select(dplyr::all_of(selectVars)))
+  }
+}
+
+
+#' Compute Weighted Percent Error Between Actual and Forecast Samples
+#'
+#' For each replicate, sums `actual - samples` over the post-intervention
+#' period and divides by the sum of samples to give a WPE (%).
+#'
+#' @param actual Tsibble of actual post-intervention values.
+#' @param predicted Fable object of post-intervention forecasts.
+#' @param .var Character. Variable name (default `"total"`).
+#' @param grouping Logical. Compute within grouping variable.
+#' @param groups Character or character vector. Grouping variable name(s).
+#' @param ... Ignored.
+#'
+#' @return A data frame with columns `.model`, `.rep`, `WPE`.
+#' @export
+forecast_diff = function(
+  actual,
+  predicted,
+  .var     = "total",
+  grouping = TRUE,
+  groups   = "Intervention",
+  ...
+) {
+  var = rlang::sym(.var)
+
+  if (grouping) {
+    group_cols = c(groups, ".model")
+    selectVars = c(groups, "Month", .var)
+  } else {
+    group_cols = ".model"
+    selectVars = c("Month", .var)
+  }
+
+  predicted %>%
+    dplyr::inner_join(
+      dplyr::bind_rows(actual) %>%
+        dplyr::select(dplyr::all_of(selectVars)) %>%
+        dplyr::rename(actual = !!var),
+      by = setdiff(selectVars, .var)
+    ) %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(c(group_cols, "Month")))) %>%
+    tidyr::unnest(samples) %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(c(group_cols, "Month")))) %>%
+    dplyr::mutate(.rep = dplyr::row_number(), e = actual - samples) %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(c(group_cols, ".rep")))) %>%
+    dplyr::summarise(WPE = sum(e) / sum(samples) * 100, .groups = "drop")
+}
+
+
+#' Summarise Weighted Percent Error Across Replicates
+#'
+#' Computes mean, SD, median, and HDI of WPE from [forecast_diff()].
+#'
+#' @param actual Tsibble of actual post-intervention values.
+#' @param predicted Fable object of post-intervention forecasts.
+#' @param .var Character. Variable name (default `"total"`).
+#' @param grouping Logical. Compute within grouping variable.
+#' @param groups Character. Grouping variable name.
+#' @param ... Passed to [forecast_diff()].
+#'
+#' @return A data frame with WPE summary statistics per model.
+#' @export
+diff.summary = function(
+  actual,
+  predicted,
+  .var     = "total",
+  grouping = FALSE,
+  groups   = "Intervention",
+  ...
+) {
+  if (grouping) {
+    grp_cols = c("Intervention", ".model")
+  } else {
+    grp_cols = ".model"
+  }
+
+  forecast_diff(actual, predicted, .var, grouping = grouping, groups = groups) %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of(grp_cols))) %>%
+    dplyr::summarise(
+      n      = dplyr::n(),
+      mean   = mean(WPE),
+      sd     = stats::sd(WPE),
+      median = stats::median(WPE),
+      .groups = "drop"
+    )
+}
+
+
 pre_impact_fit = function(
   ml.data = ml.data,
   startingMonth = "Jan 2015",
