@@ -1,34 +1,42 @@
 login_widget_ui <- function(id) {
-  # Create a namespace function using the provided id
   ns <- NS(id)
 
-  # fillCol( height = 600, flex = c(NA ) ,
   tagList(
     shinybusy::add_busy_spinner(
-      spin = "fading-circle", # "self-building-square",
+      spin     = "fading-circle",
       position = 'bottom-right'
-      # , margins = c(70, 1200)
     ),
 
     fluidPage(
       hr(),
 
-      h3('Step 2. Login to DHIS2 server*'),
+      h3('Step 2. Login to DHIS2 server'),
+
+      tags$p(
+        tags$small(
+          "Once data has been downloaded, the app works fully offline without a server connection."
+        ),
+        style = "color: #666; margin-bottom: 12px;"
+      ),
+
+      # Saved credentials dropdown (shown when directory has saved credentials)
+      uiOutput(ns("saved_creds_ui")),
 
       h4('Enter address and credentials:'),
 
       inputPanel(
-        textInput(ns("baseurl"), label = "DHIS2 URL:", NULL), # "https://play.dhis2.org/2.33.1/"
-
-        textInput(ns("username"), label = "User name:", NULL), # "admin"
-
+        textInput(ns("baseurl"),  label = "DHIS2 URL:",  NULL),
+        textInput(ns("username"), label = "User name:",  NULL),
         passwordInput(ns("password"), label = "Password:", NULL)
       ),
 
       fluidRow(
-        column(4, h2(textOutput(ns("Status")))),
+        column(4, uiOutput(ns("status_ui"))),
+        column(4, uiOutput(ns("save_creds_ui")))
+      ),
 
-        column(8, tableOutput(ns('systemInfo')))
+      fluidRow(
+        column(12, tableOutput(ns('systemInfo')))
       ),
 
       fluidRow(
@@ -41,12 +49,6 @@ login_widget_ui <- function(id) {
             label = "Choose Demo Instance",
             icon  = icon("globe"),
             class = "btn-info"
-          ),
-          tags$p(
-            tags$small(
-              "Once data has been downloaded, the app works fully offline without a server connection."
-            ),
-            style = "margin-top: 8px; color: #666;"
           )
         )
       )
@@ -67,12 +69,184 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
 
       add_busy_spinner(spin = "fading-circle", position = "top-right")
 
-      # reactives to toggle login status
-      login = reactiveVal(FALSE)
+      # State ----
+      login         <- reactiveVal(FALSE)
+      loginAttempted <- reactiveVal(FALSE)
+      loginError    <- reactiveVal(FALSE)
+      loginTrigger  <- reactiveVal(0L)  # increment to force a login attempt
 
-      # Demo instance picker ####
-      # Fetches live list from https://api.im.dhis2.org/instances/public
-      # and shows a modal with instances grouped by category (Stable / Dev).
+      # Saved credentials ----
+
+      cred_file <- reactive({
+        req(data.folder())
+        file.path(data.folder(), "credentials.rds")
+      })
+
+      saved_credentials <- reactive({
+        req(cred_file())
+        if (file.exists(cred_file())) {
+          tryCatch(readRDS(cred_file()), error = function(e) NULL)
+        } else {
+          NULL
+        }
+      })
+
+      # Dropdown UI: only shown when saved credentials exist for this directory
+      output$saved_creds_ui <- renderUI({
+        creds <- saved_credentials()
+        if (is.null(creds) || nrow(creds) == 0) return(NULL)
+
+        # Build display labels: "username" or "username (domain)" if duplicates
+        hosts  <- sub("^https?://([^/]+).*", "\\1", creds$url)
+        labels <- if (anyDuplicated(creds$username)) {
+          paste0(creds$username, " (", hosts, ")")
+        } else {
+          creds$username
+        }
+        choices <- setNames(seq_len(nrow(creds)), labels)
+
+        tagList(
+          h4("Select saved credentials:"),
+          fluidRow(
+            column(
+              6,
+              selectizeInput(
+                ns("saved_cred_select"),
+                label   = NULL,
+                choices = c("-- select --" = "", choices),
+                width   = "100%"
+              )
+            )
+          ),
+          tags$hr(style = "border-top: 1px dashed #ccc;")
+        )
+      })
+
+      # Populate fields and trigger login when saved credential is chosen
+      observeEvent(input$saved_cred_select, {
+        req(input$saved_cred_select != "")
+        creds <- saved_credentials()
+        idx   <- as.integer(input$saved_cred_select)
+        row   <- creds[idx, ]
+        updateTextInput(session, "baseurl",  value = row$url)
+        updateTextInput(session, "username", value = row$username)
+        updateTextInput(session, "password", value = row$password)
+        # Force login attempt regardless of whether fields were already populated
+        loginTrigger(loginTrigger() + 1L)
+      })
+
+      # Save credentials button: shown after a new successful login
+      output$save_creds_ui <- renderUI({
+        req(login())
+        creds <- saved_credentials()
+        already_saved <- !is.null(creds) && nrow(creds) > 0 &&
+          any(creds$url == baseurl() & creds$username == input$username)
+        if (already_saved) return(NULL)
+        actionButton(
+          ns("save_credentials"),
+          label = "Save credentials",
+          icon  = icon("floppy-disk"),
+          class = "btn-success btn-sm",
+          style = "margin-top: 25px;"
+        )
+      })
+
+      observeEvent(input$save_credentials, {
+        req(login(), data.folder())
+        new_row <- tibble::tibble(
+          url      = baseurl(),
+          username = input$username,
+          password = input$password
+        )
+        existing <- saved_credentials()
+        if (!is.null(existing) && nrow(existing) > 0) {
+          # Replace any existing entry for same url + username
+          existing <- dplyr::filter(
+            existing,
+            !(url == baseurl() & username == input$username)
+          )
+          all_creds <- dplyr::bind_rows(existing, new_row)
+        } else {
+          all_creds <- new_row
+        }
+        saveRDS(all_creds, cred_file())
+        showNotification(
+          paste0("Credentials saved for ", input$username, "."),
+          type     = "message",
+          duration = 4
+        )
+      })
+
+      # Core login logic ----
+
+      attempt_login <- function() {
+        if (
+          is_empty(baseurl()) ||
+            is_empty(input$username) ||
+            is_empty(input$password)
+        ) {
+          login(FALSE)
+          return()
+        }
+        cat('\n* login attempt:', baseurl(), input$username)
+        loginAttempted(TRUE)
+        l <- try(loginDHIS2(baseurl(), input$username, input$password, timeout = 45))
+        result <- isTRUE(l)
+        login(result)
+        loginError(!result)
+        cat('\n - login result:', result)
+      }
+
+      # Auto-login when all fields become non-empty
+      credentialsProvided <- reactive({
+        !is_empty(baseurl()) &&
+          !is_empty(input$username) &&
+          !is_empty(input$password)
+      })
+
+      observeEvent(credentialsProvided(), {
+        if (credentialsProvided()) attempt_login()
+      })
+
+      # Force re-attempt from saved credential selector
+      observeEvent(loginTrigger(), {
+        req(loginTrigger() > 0L)
+        attempt_login()
+      }, ignoreInit = TRUE)
+
+      # Status display ----
+      output$status_ui <- renderUI({
+        if (login()) {
+          tags$h3(
+            style = "color: #3c763d;",
+            icon("circle-check"), " Logged in"
+          )
+        } else if (loginAttempted() && loginError()) {
+          tags$div(
+            tags$h3(style = "color: #a94442;", icon("circle-xmark"), " Login failed"),
+            tags$p(
+              style = "color: #a94442; font-size: 13px;",
+              "Check the URL, username, and password and try again."
+            )
+          )
+        } else {
+          tags$h3(style = "color: #888;", "Not logged in")
+        }
+      })
+
+      # instance label and base reactives ----
+      instance <- reactive({ input$baseurl })
+
+      baseurl <- reactive({
+        req(input$baseurl)
+        suffix.part <- "dhis-web"
+        strsplit(input$baseurl, suffix.part)[[1]][1]
+      })
+
+      username <- reactive({ input$username })
+      password <- reactive({ input$password })
+
+      # Demo instance picker ----
       observeEvent(input$demo_picker, {
         instances_data <- tryCatch({
           resp <- GET("https://api.im.dhis2.org/instances/public")
@@ -82,20 +256,18 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
 
         if (is.null(instances_data)) {
           showModal(modalDialog(
-            title = "Could not load demo instances",
+            title     = "Could not load demo instances",
             "Check your internet connection and try again.",
-            footer = modalButton("Close"),
+            footer    = modalButton("Close"),
             easyClose = TRUE
           ))
           return()
         }
 
-        # Build named list for selectInput: list(Category = c(label = url, ...))
-        cats <- instances_data[[1]]$categories
+        cats    <- instances_data[[1]]$categories
         choices <- lapply(cats, function(cat) {
           urls   <- sapply(cat$instances, `[[`, "hostname")
           labels <- sapply(cat$instances, `[[`, "description")
-          # Trim "DHIS 2 " / "DHIS2 " prefix for brevity
           labels <- sub("^DHIS2? 2? ?", "", labels)
           setNames(urls, labels)
         })
@@ -114,7 +286,7 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
             tags$small(icon("info-circle"), " Login: admin / district"),
             style = "color:#666; margin-top:4px;"
           ),
-          footer = tagList(
+          footer    = tagList(
             modalButton("Cancel"),
             actionButton(ns("demo_connect"), "Connect", class = "btn-primary")
           ),
@@ -126,117 +298,37 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
         req(input$demo_instance_url)
         url <- input$demo_instance_url
         if (!endsWith(url, "/")) url <- paste0(url, "/")
-        updateTextInput(session, "baseurl",   value = url)
-        updateTextInput(session, "username",  value = "admin")
-        updateTextInput(session, "password",  value = "district")
+        updateTextInput(session, "baseurl",  value = url)
+        updateTextInput(session, "username", value = "admin")
+        updateTextInput(session, "password", value = "district")
         removeModal()
       })
 
-      # instance label for status display
-      instance = reactive({
-        input$baseurl
-      })
-
-      baseurl = reactive({
-        req(input$baseurl)
-        # if url is from login or dashboard url, trimto get baseurl
-        # possible.suffixes:
-        suffix.part = "dhis-web"
-
-        strsplit(input$baseurl, suffix.part)[[1]][1]
-      })
-
-      username = reactive({
-        input$username
-      })
-
-      password = reactive({
-        input$password
-      })
-
-      credentialsProvided <- reactive({
-        req(baseurl())
-        req(input$username)
-
-        credentialsProvided = !is_empty(baseurl()) &&
-          !is_empty(input$username) &&
-          !is_empty(input$password)
-
-        print(paste('toLogin', credentialsProvided))
-
-        return(credentialsProvided)
-      })
-
-      # Login Status
-      observeEvent(credentialsProvided(), {
-        print(paste('login', baseurl(), input$username, "...")) #input$password
-
-        if (
-          is_empty(baseurl()) |
-            is_empty(input$username) |
-            is_empty(input$password)
-        ) {
-          login(FALSE)
-        }
-
-        l = try(loginDHIS2(
-          baseurl(),
-          input$username,
-          input$password,
-          timeout = 45
-        ))
-
-        print(paste('try loginDHIS2 is', l, baseurl(), input$username, "...")) #
-
-        login(isTRUE(l))
-
-        print(paste('observe event input$password, login() is', login()))
-      })
-
-      # Update logged in status
-      observeEvent(login(), {
-        if (login()) {
-          output$Status = renderText(paste('Logged in', instance()))
-        } else {
-          output$Status = renderText('Not logged in')
-        }
-      })
-
-      # system info  ####
-      system.info = reactive({
+      # System info table ----
+      system.info <- reactive({
         req(login())
         if (login()) {
           cat('\n *login_widget system.info')
-
-          url = paste0(baseurl(), "api/system/info")
-
-          getInfo = GET(url, authenticate(username(), password()))
-
-          getInfo.content = content(getInfo, "text", encoding = "UTF-8")
-
-          info = tryCatch(
+          url     <- paste0(baseurl(), "api/system/info")
+          getInfo <- GET(url, authenticate(username(), password()))
+          getInfo.content <- content(getInfo, "text", encoding = "UTF-8")
+          info <- tryCatch(
             jsonlite::fromJSON(getInfo.content),
             error = function(e) {
-              cat('\n - system.info: could not parse response as JSON (HTTP', status_code(getInfo), ')')
+              cat('\n - system.info: could not parse JSON (HTTP', status_code(getInfo), ')')
               return(NULL)
             }
           )
-
           if (is.null(info)) return(tibble(Attribute = "systemInfo", Value = "Could not retrieve"))
-
           info[map_dbl(info, length) == 1] %>%
             as_tibble() %>%
             select(any_of(c(
-              "systemName",
-              "version",
+              "systemName", "version",
               "lastAnalyticsTableSuccess",
               "intervalSinceLastAnalyticsTableSuccess",
               "lastAnalyticsTableRuntime",
-              "buildTime",
-              "serverDate",
-              "contextPath",
-              "calendar",
-              "dateFormat"
+              "buildTime", "serverDate", "contextPath",
+              "calendar", "dateFormat"
             ))) %>%
             gather(Attribute, Value)
         } else {
@@ -244,33 +336,19 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
         }
       })
 
-      # Status/connection  ####
-      output$connection = renderText({
-        req(baseurl())
-        # req( login() )
-        paste0(baseurl(), "api/system/info")
-      })
-
-      output$systemInfo = renderTable(
-        if (is.null(system.info())) {} else { system.info() }
+      output$systemInfo <- renderTable(
+        if (is.null(system.info())) {} else { system.info() },
+        align = "ll"
       )
 
       # Return ####
       return(list(
-        login = login,
-        baseurl = baseurl,
-        username = username,
-        password = password,
-        instance = instance,
+        login       = login,
+        baseurl     = baseurl,
+        username    = username,
+        password    = password,
+        instance    = instance,
         system.info = system.info
-        # uploaded_OrgUnitLevels = uploaded_OrgUnitLevels ,
-        # uploaded_OrgUnits = uploaded_OrgUnits ,
-        # uploaded_DataElements = uploaded_DataElements ,
-        # uploaded_DataElementGroups = uploaded_DataElementGroups ,
-        # uploaded_Categories = uploaded_Categories ,
-        # uploaded_DataSets = uploaded_DataSets ,
-        # uploaded_Indicators = uploaded_Indicators ,
-        # uploaded_dataDictionary = uploaded_dataDictionary
       ))
     }
   )
