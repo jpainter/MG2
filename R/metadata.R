@@ -57,7 +57,7 @@ clean_invalid_characters <- function(df) {
 #' @param df A data frame or data.table.
 #' @param limit Integer. Maximum number of characters to keep (default: 500).
 #' @param suffix Character. Text appended to truncated values
-#'   (default: `" …[TRUNC]"`). Set to `NULL` or `""` to omit.
+#'   (default: `" \u2026[TRUNC]"`). Set to `NULL` or `""` to omit.
 #'
 #' @return The input `df` with long strings truncated. Returns invisibly.
 #' @export
@@ -91,4 +91,127 @@ truncate_df_chars <- function(df, limit = 500L, suffix = " \u2026[TRUNC]") {
   }
 
   invisible(DT)
+}
+
+#' Fetch All Validation Rules from DHIS2
+#'
+#' Downloads every validation rule from a DHIS2 instance, handling paged
+#' responses automatically, and translates UID references in the left- and
+#' right-side expressions to human-readable names.
+#'
+#' @param baseurl Character. Base URL of the DHIS2 instance (with trailing `/`).
+#' @param username Character. DHIS2 username.
+#' @param password Character. DHIS2 password.
+#' @param id_names A data frame with columns `id` and `name` used to translate
+#'   UID references in expressions. Typically a combined table of data elements,
+#'   indicators, and category option combos. Pass `NULL` to skip translation.
+#'
+#' @return A tibble with one row per validation rule and columns:
+#'   `id`, `name`, `description`, `importance`, `operator`, `ruleType`,
+#'   `periodType`, `leftSide_description`, `leftSide_expression` (translated),
+#'   `rightSide_description`, `rightSide_expression` (translated),
+#'   `leftSide_expression_raw`, `rightSide_expression_raw` (original UIDs,
+#'   used internally for element-to-rule matching).
+#' @export
+fetch_validation_rules <- function(baseurl, username, password, id_names = NULL) {
+
+  fields <- paste(
+    "id", "name", "description", "importance", "operator",
+    "ruleType", "periodType",
+    "leftSide[expression,description]",
+    "rightSide[expression,description]",
+    sep = ","
+  )
+
+  page_size <- 100L
+  page      <- 1L
+  all_rules <- list()
+
+  repeat {
+    url <- paste0(
+      baseurl,
+      "api/validationRules.json?fields=", fields,
+      "&pageSize=", page_size,
+      "&page=",     page
+    )
+
+    resp <- dhis2_get(source_url = url, username = username, password = password)
+
+    if (is.null(resp)) {
+      message("fetch_validation_rules: no response from server")
+      break
+    }
+
+    rules_page <- resp$validationRules
+    if (is.null(rules_page) || (is.data.frame(rules_page) && nrow(rules_page) == 0)) break
+
+    all_rules[[length(all_rules) + 1L]] <- rules_page
+
+    total_pages <- resp$pager$pageCount
+    cat("\n - validation rules page", page, "of", total_pages)
+    if (is.null(total_pages) || page >= total_pages) break
+    page <- page + 1L
+  }
+
+  empty_tbl <- tibble::tibble(
+    id = character(), name = character(), description = character(),
+    importance = character(), operator = character(),
+    ruleType = character(), periodType = character(),
+    leftSide_description = character(), leftSide_expression = character(),
+    rightSide_description = character(), rightSide_expression = character(),
+    leftSide_expression_raw = character(), rightSide_expression_raw = character()
+  )
+
+  if (length(all_rules) == 0) return(empty_tbl)
+
+  combined <- dplyr::bind_rows(all_rules)
+
+  # leftSide / rightSide come as nested data-frame columns from jsonlite::fromJSON
+  ls_expr <- if (!is.null(combined$leftSide))  combined$leftSide$expression  else rep(NA_character_, nrow(combined))
+  ls_desc <- if (!is.null(combined$leftSide))  combined$leftSide$description else rep(NA_character_, nrow(combined))
+  rs_expr <- if (!is.null(combined$rightSide)) combined$rightSide$expression else rep(NA_character_, nrow(combined))
+  rs_desc <- if (!is.null(combined$rightSide)) combined$rightSide$description else rep(NA_character_, nrow(combined))
+
+  # Translate UID references to human-readable names if lookup provided
+  if (!is.null(id_names) && nrow(id_names) > 0) {
+    ls_expr_tr <- vapply(ls_expr, .translate_vr_expression, character(1L), lookup = id_names)
+    rs_expr_tr <- vapply(rs_expr, .translate_vr_expression, character(1L), lookup = id_names)
+  } else {
+    ls_expr_tr <- ls_expr
+    rs_expr_tr <- rs_expr
+  }
+
+  tibble::tibble(
+    id                       = combined$id,
+    name                     = combined$name,
+    description              = if ("description" %in% names(combined)) combined$description else NA_character_,
+    importance               = if ("importance"  %in% names(combined)) combined$importance  else NA_character_,
+    operator                 = if ("operator"    %in% names(combined)) combined$operator    else NA_character_,
+    ruleType                 = if ("ruleType"    %in% names(combined)) combined$ruleType    else NA_character_,
+    periodType               = if ("periodType"  %in% names(combined)) combined$periodType  else NA_character_,
+    leftSide_description     = ls_desc,
+    leftSide_expression      = ls_expr_tr,
+    rightSide_description    = rs_desc,
+    rightSide_expression     = rs_expr_tr,
+    leftSide_expression_raw  = ls_expr,
+    rightSide_expression_raw = rs_expr
+  )
+}
+
+# Internal: replace DHIS2 UID references in an expression string with
+# human-readable names. Handles #{uid}, #{uid.uid}, and I{uid} patterns.
+# DHIS2 UIDs are 11-character alphanumeric strings starting with a letter.
+.translate_vr_expression <- function(expr, lookup) {
+  if (is.null(expr) || is.na(expr) || !nzchar(expr)) return(as.character(expr))
+  uid_pattern <- "[A-Za-z][A-Za-z0-9]{10}"
+  uids <- unique(unlist(regmatches(expr, gregexpr(uid_pattern, expr))))
+  if (length(uids) == 0) return(expr)
+  result <- expr
+  for (uid in uids) {
+    idx <- match(uid, lookup$id)
+    if (!is.na(idx)) {
+      result <- gsub(uid, paste0("[", lookup$name[[idx]], "]"), result, fixed = TRUE)
+    }
+  }
+  result
 }

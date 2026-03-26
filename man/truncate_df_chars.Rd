@@ -12,7 +12,7 @@ truncate_df_chars(df, limit = 500L, suffix = " …[TRUNC]")
 \item{limit}{Integer. Maximum number of characters to keep (default: 500).}
 
 \item{suffix}{Character. Text appended to truncated values
-(default: \code{" …[TRUNC]"}). Set to \code{NULL} or \code{""} to omit.}
+(default: \code{" \\u2026[TRUNC]"}). Set to \code{NULL} or \code{""} to omit.}
 }
 \value{
 The input \code{df} with long strings truncated. Returns invisibly.

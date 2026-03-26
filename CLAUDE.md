@@ -343,7 +343,54 @@ degrade gracefully with `.safely = TRUE`.
 
 ---
 
+### Phase 6 — Validation Rules, README, and Metadata UX (2026-03-26)
+
+**Status:** ✅ Complete
+
+**Changes:**
+
+*Validation Rules tab (new):*
+- `R/metadata.R`: Added `fetch_validation_rules()` — fetches all rules from DHIS2
+  API with paging, translates UID references (`#{uid}`, `I{uid}`) in left/right
+  side expressions to human-readable names using a combined data element + indicator
+  + category option combo lookup; stores both translated and raw expressions
+- `R/metadata.R`: Added `.translate_vr_expression()` internal UID→name helper
+- `inst/shiny/metadata_widget.R`: Added `validationRules` reactive — downloads on
+  first fetch, loads preferentially from `.rds` on subsequent sessions
+- Added `element_rules_lookup` reactive — maps every UID in rule expressions to its
+  rule ID for badge lookup
+- Added **Validation Rules** tab with full DT display (all fields, raw expression
+  columns hidden)
+- Added **Rules badge** to Data Elements tab: elements with validation rules show a
+  "View rules" button; clicking opens a modal with all matching rules
+- Validation rules saved to metadata `.rds` list and to a new `ValidationRules`
+  sheet in the Excel export
+
+*API Resources tab fixes:*
+- Resources reactive now fetches on `login()` alone (no longer requires clicking
+  "Request Metadata") — fast single call, no modal
+- Falls back to saved `.rds` metadata when available (offline-capable)
+- Switched from `renderTable` to `DT::renderDT` with clickable `<a>` links
+- Resources saved to `.rds` metadata list for future sessions
+- Updated explanatory text
+
+*Metadata table display fixes:*
+- Removed `fillContainer = TRUE` from all `DT::datatable()` calls in
+  `metadata_widget.R` — was conflicting with `scrollY` and preventing proper sizing
+- Removed `scrollY` + `scrollCollapse` from all hardcoded DT options; switched to
+  `scrollY = "calc(100vh - 300px)"` with `paging = FALSE` so tables fill the
+  available viewport height without pagination overflow
+- Removed `autoWidth = TRUE` from `DToptions_no_buttons()` — was causing header/
+  column misalignment when `scrollX = TRUE` is set (DataTables known bug)
+- Standardised `dom = 'ti'` (table + info only) across all metadata tables
+
+*README:*
+- Full rewrite following R package GitHub conventions: installation section,
+  per-module descriptions, standalone usage example, badges, license
+
+---
+
 ### Future Phases (planned)
 
-- Phase 6: Map module
-- Phase 7: Full `devtools::check()` pass, vignettes, CRAN prep
+- Phase 7: Map module
+- Phase 8: Full `devtools::check()` pass, vignettes, CRAN prep

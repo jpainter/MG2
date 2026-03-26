@@ -121,29 +121,22 @@ metadata_widget_ui <- function(id) {
         # ) ,
 
         tabPanel(
+          "Validation Rules",
+
+          DTOutput(ns('validationRules'))
+        ),
+
+        tabPanel(
           "API Resources",
 
-          h4(
-            "The table below lists a link to retrieve metadata (not the data) for each DHIS2 attribute."
+          p(
+            "This tab lists every API endpoint available on the connected DHIS2 instance.",
+            "Each link opens the raw metadata for that resource directly in your browser.",
+            strong("You must be logged into the DHIS2 instance in that browser session to view the response."),
+            "Login to this app to load the table, or re-open after downloading metadata."
           ),
 
-          h5(
-            "Simply paste the link into a new brower window.  This is the mechanism used to retrieve all the information displayed in this app."
-          ),
-
-          h5(
-            "Note that the user will need to login into the DHIS2 in order to see the metadata."
-          ),
-
-          h5(
-            "- The href column lists a url (e.g. https://play.dhis2.org/2.32/api/categories) that will returns a short list of information for each attribute."
-          ),
-
-          h5(
-            "- Appending '?fields=:all&paging=false' (e.g. https://play.dhis2.org/2.32/api/categories?fields=:all&paging=false) to the url will provide all available information for that attribute. "
-          ),
-
-          tableOutput(ns('resource_table'))
+          DTOutput(ns('resource_table'))
         )
       )
   ) # end tagList
@@ -190,7 +183,8 @@ metadata_widget_server <- function(
         directory_widget_output$geofeatures.files()
       })
 
-      loginFetch = reactiveVal(FALSE)
+      loginFetch       = reactiveVal(FALSE)
+      rulesModalData   = reactiveVal(NULL)
 
       # Request Metatadata ####
       observeEvent(input$getMetadataButton, {
@@ -216,6 +210,8 @@ metadata_widget_server <- function(
           z = systemInfo()
           cat("\n--- login fetch resources")
           zz = resources()
+          cat("\n--- login fetch validationRules")
+          vr = validationRules()
 
           # also save as RDS
           meta = list(
@@ -230,7 +226,9 @@ metadata_widget_server <- function(
             categories = categories(),
             dataElementGroups = dataElementGroups(),
             ousTree = q,
-            geoFeatures = w
+            geoFeatures = w,
+            validationRules = vr,
+            resources = zz
           )
 
           cat("\n- Saving metadata.rds")
@@ -832,31 +830,91 @@ metadata_widget_server <- function(
       # output tables
 
       output$dataElementDictionary =
-        DT::renderDT(DT::datatable(
-          dataElementDictionary(),
+        DT::renderDT({
+          dict <- dataElementDictionary()
+          req(dict)
 
+          # Add Rules badge column showing which elements have validation rules
+          erl <- element_rules_lookup()
+          if (nrow(erl) > 0 && "dataElement.id" %in% names(dict)) {
+            has_rules_ids <- unique(erl$element_id)
+            dict$Rules <- ifelse(
+              dict$dataElement.id %in% has_rules_ids,
+              paste0('<button class="btn btn-xs btn-primary rules-btn" data-id="',
+                     dict$dataElement.id, '">View rules</button>'),
+              ""
+            )
+          } else {
+            dict$Rules <- ""
+          }
+          dict <- dplyr::select(dict, dataElement, Rules, dplyr::everything())
+
+          DT::datatable(
+            dict,
+            rownames  = FALSE,
+            filter    = 'top',
+            escape    = FALSE,  # allow HTML in Rules column (buttons are generated server-side)
+            callback  = DT::JS(sprintf(
+              "table.on('click', 'button.rules-btn', function() {
+                 var id = $(this).data('id');
+                 Shiny.setInputValue('%s', {id: id, nonce: Math.random()}, {priority: 'event'});
+               });",
+              session$ns("rulesClick")
+            )),
+            options = list(
+              scrollX        = TRUE,
+              scrollY        = "calc(100vh - 300px)",
+              scrollCollapse = FALSE,
+              paging         = FALSE,
+              searching      = TRUE,
+              info           = TRUE,
+              server         = TRUE,
+              dom            = 'ti'
+          )
+        )
+        })
+
+      # Validation rules modal DT (shown when a Rules badge is clicked)
+      output$validationRulesModal <- DT::renderDT({
+        req(rulesModalData())
+        DT::datatable(
+          rulesModalData(),
           rownames = FALSE,
-          filter = 'top',
-          # options = DToptions_no_buttons()
-          options = list(
-            # bPaginate = FALSE,
-            autoWidth = TRUE,
-            scrollY = "60vh",
-            scrollX = TRUE,
-            scrollCollapse = TRUE,
-            paging = TRUE,
-            searching = TRUE,
-            info = TRUE,
-            lengthMenu = list(
-              c(10, 25, 100, -1),
-              list('10', '25', '100', 'All')
-            ),
-            pageLength = 10,
-            server = TRUE,
-            dom = 'tilrp'
-          ),
-          fillContainer = TRUE
+          options  = list(
+            dom       = 't',
+            scrollX   = TRUE,
+            paging    = FALSE,
+            searching = FALSE
+          )
+        )
+      })
+
+      # Observer: open modal when a Rules badge is clicked in the data element table
+      observeEvent(input$rulesClick, {
+        req(input$rulesClick, validationRules())
+        de_id <- input$rulesClick$id
+
+        rule_ids <- element_rules_lookup() |>
+          dplyr::filter(element_id == de_id) |>
+          dplyr::pull(rule_id)
+
+        if (length(rule_ids) == 0) return()
+
+        matching_rules <- validationRules() |>
+          dplyr::filter(id %in% rule_ids) |>
+          dplyr::select(-dplyr::any_of(c("leftSide_expression_raw", "rightSide_expression_raw")))
+
+        rulesModalData(matching_rules)
+
+        showModal(modalDialog(
+          title     = paste("Validation Rules for selected data element"),
+          DTOutput(session$ns("validationRulesModal")),
+          easyClose = TRUE,
+          fade      = FALSE,
+          size      = 'xl',
+          footer    = modalButton("Close")
         ))
+      })
 
       output$dataElementGroups =
         DT::renderDT(DT::datatable(
@@ -877,21 +935,15 @@ metadata_widget_server <- function(
           options = list(
             # bPaginate = FALSE,
             # autoWidth = TRUE ,
-            scrollY = "60vh",
-            scrollX = TRUE,
-            scrollCollapse = TRUE,
-            paging = TRUE,
-            searching = TRUE,
-            info = TRUE,
-            lengthMenu = list(
-              c(10, 25, 100, -1),
-              list('10', '25', '100', 'All')
-            ),
-            pageLength = 10,
-            server = TRUE,
-            dom = 'tilrp'
-          ),
-          fillContainer = TRUE
+            scrollX        = TRUE,
+            scrollY        = "calc(100vh - 300px)",
+            scrollCollapse = FALSE,
+            paging         = FALSE,
+            searching      = TRUE,
+            info           = TRUE,
+            server         = TRUE,
+            dom            = 'ti'
+          )
         ))
 
       output$dataSets =
@@ -1074,6 +1126,83 @@ metadata_widget_server <- function(
         return(translated)
       })
 
+      ## Validation Rules ####
+
+      validationRules = reactive({
+        if (login() & loginFetch()) {
+          cat('\n* metadata_widget validationRules (downloading)\n')
+
+          showModal(modalDialog(
+            title = "Downloading validation rules",
+            easyClose = TRUE, fade = FALSE, size = 'm', footer = NULL
+          ))
+          on.exit(removeModal(), add = TRUE)
+
+          # Build id -> name lookup: data elements + indicators + category option combos
+          de  <- isolate(dataElements())
+          ind <- isolate(indicators())
+          coc <- isolate(categoryOptionCombos())
+
+          id_names <- dplyr::bind_rows(
+            if (!is.null(de))  dplyr::select(de,  id, name) else NULL,
+            if (!is.null(ind)) dplyr::select(ind, id, name) else NULL,
+            if (!is.null(coc)) dplyr::select(coc, id, name) else NULL
+          )
+
+          vr <- fetch_validation_rules(
+            baseurl  = baseurl(),
+            username = username(),
+            password = password(),
+            id_names = id_names
+          )
+
+          removeModal()
+        } else {
+          file <- paste0(dir(), metadata.files()[1])
+          if (file.exists(file) && !dir.exists(file)) {
+            cat(' - reading validationRules from metadata rds')
+            vr <- metadata()$validationRules
+            if (is.null(vr)) return(tibble::tibble())
+          } else {
+            return(tibble::tibble())
+          }
+        }
+
+        cat('\n -finished metadata_widget validationRules:', nrow(vr), 'rules\n')
+        removeModal()
+        return(vr)
+      })
+
+      # Lookup: which element/indicator UIDs appear in which rule IDs
+      # Used to add the Rules badge to the data element dictionary table.
+      element_rules_lookup <- reactive({
+        vr <- validationRules()
+        if (is.null(vr) || nrow(vr) == 0) {
+          return(tibble::tibble(element_id = character(), rule_id = character()))
+        }
+        if (!"leftSide_expression_raw" %in% names(vr)) {
+          return(tibble::tibble(element_id = character(), rule_id = character()))
+        }
+
+        uid_pat <- "[A-Za-z][A-Za-z0-9]{10}"
+
+        purrr::map_dfr(seq_len(nrow(vr)), function(i) {
+          left_uids  <- unlist(regmatches(
+            vr$leftSide_expression_raw[i],
+            gregexpr(uid_pat, vr$leftSide_expression_raw[i])
+          ))
+          right_uids <- unlist(regmatches(
+            vr$rightSide_expression_raw[i],
+            gregexpr(uid_pat, vr$rightSide_expression_raw[i])
+          ))
+          all_uids <- unique(c(left_uids, right_uids))
+          if (length(all_uids) == 0) {
+            return(tibble::tibble(element_id = character(), rule_id = character()))
+          }
+          tibble::tibble(element_id = all_uids, rule_id = vr$id[i])
+        })
+      })
+
       output$indicators =
         DT::renderDT(DT::datatable(
           indicatorDictionary(),
@@ -1084,21 +1213,15 @@ metadata_widget_server <- function(
           options = list(
             # bPaginate = FALSE,
             # autoWidth = TRUE ,
-            scrollY = "60vh",
-            scrollX = TRUE,
-            scrollCollapse = TRUE,
-            paging = TRUE,
-            searching = TRUE,
-            info = TRUE,
-            lengthMenu = list(
-              c(10, 25, 100, -1),
-              list('10', '25', '100', 'All')
-            ),
-            pageLength = 10,
-            server = TRUE,
-            dom = 'tilrp'
-          ),
-          fillContainer = TRUE
+            scrollX        = TRUE,
+            scrollY        = "calc(100vh - 300px)",
+            scrollCollapse = FALSE,
+            paging         = FALSE,
+            searching      = TRUE,
+            info           = TRUE,
+            server         = TRUE,
+            dom            = 'ti'
+          )
         ))
 
       ## orgUnitLevels ####
@@ -1222,20 +1345,15 @@ metadata_widget_server <- function(
         filter = 'top',
         # options = DToptions_no_buttons()
         options = list(
-          # bPaginate = FALSE,
-          # autoWidth = TRUE ,
-          scrollY = "60vh",
-          scrollX = TRUE,
-          scrollCollapse = TRUE,
-          paging = TRUE,
-          searching = TRUE,
-          info = TRUE,
-          lengthMenu = list(c(10, 25, 100, -1), list('10', '25', '100', 'All')),
-          pageLength = 10,
-          server = TRUE,
-          dom = 'tilrp'
-        ),
-        fillContainer = TRUE
+          scrollX        = TRUE,
+          scrollY        = "calc(100vh - 300px)",
+          scrollCollapse = FALSE,
+          paging         = FALSE,
+          searching      = TRUE,
+          info           = TRUE,
+          server         = TRUE,
+          dom            = 'ti'
+        )
       ))
 
       ## OrgUnits ####
@@ -1381,20 +1499,15 @@ metadata_widget_server <- function(
         filter = 'top',
         # options = DToptions_no_buttons()
         options = list(
-          # bPaginate = FALSE,
-          # autoWidth = TRUE ,
-          scrollY = "60vh",
-          scrollX = TRUE,
-          scrollCollapse = TRUE,
-          paging = TRUE,
-          searching = TRUE,
-          info = TRUE,
-          lengthMenu = list(c(10, 25, 100, -1), list('10', '25', '100', 'All')),
-          pageLength = 10,
-          server = TRUE,
-          dom = 'tilrp'
-        ),
-        fillContainer = TRUE
+          scrollX        = TRUE,
+          scrollY        = "calc(100vh - 300px)",
+          scrollCollapse = FALSE,
+          paging         = FALSE,
+          searching      = TRUE,
+          info           = TRUE,
+          server         = TRUE,
+          dom            = 'ti'
+        )
       ))
 
       output$OrgUnit_duplicates = DT::renderDT(
@@ -1499,20 +1612,15 @@ metadata_widget_server <- function(
         filter = 'top',
         # options = DToptions_no_buttons()
         options = list(
-          # bPaginate = FALSE,
-          # autoWidth = TRUE ,
-          scrollY = "60vh",
-          scrollX = TRUE,
-          scrollCollapse = TRUE,
-          paging = TRUE,
-          searching = TRUE,
-          info = TRUE,
-          lengthMenu = list(c(10, 25, 100, -1), list('10', '25', '100', 'All')),
-          pageLength = 10,
-          server = TRUE,
-          dom = 'tilrp'
-        ),
-        fillContainer = TRUE
+          scrollX        = TRUE,
+          scrollY        = "calc(100vh - 300px)",
+          scrollCollapse = FALSE,
+          paging         = FALSE,
+          searching      = TRUE,
+          info           = TRUE,
+          server         = TRUE,
+          dom            = 'ti'
+        )
       ))
 
       ## geoFeatures ####
@@ -1673,6 +1781,7 @@ metadata_widget_server <- function(
           sheet8 <- addWorksheet(wb, sheetName = "Categories")
           sheet9 <- addWorksheet(wb, sheetName = "DataElementGroups")
           sheet10 <- addWorksheet(wb, sheetName = "orgUnitHierarchy")
+          sheet11 <- addWorksheet(wb, sheetName = "ValidationRules")
 
           # Testing
           # saveRDS( dataSets.() , "dataSets..rds" )
@@ -1770,6 +1879,18 @@ metadata_widget_server <- function(
             rowNames = FALSE
           )
 
+          vr_display <- validationRules() |>
+            dplyr::select(-dplyr::any_of(c("leftSide_expression_raw", "rightSide_expression_raw")))
+          writeDataTable(
+            wb,
+            sheet11,
+            vr_display |>
+              as.data.table() |>
+              clean_invalid_characters() |>
+              truncate_df_chars(),
+            rowNames = FALSE
+          )
+
           openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
         }
       )
@@ -1857,44 +1978,67 @@ metadata_widget_server <- function(
       #   print( paste('uploaded_DataSets' , is_tibble( uploaded_DataSets() ) ) )
       # })
 
+      # Validation Rules tab ####
+
+      output$validationRules <- DT::renderDT({
+        vr <- validationRules()
+        req(vr)
+        if (nrow(vr) == 0) return(DT::datatable(tibble::tibble(message = "No validation rules loaded.")))
+
+        # Display columns only (hide raw expression columns)
+        vr_display <- vr |>
+          dplyr::select(-dplyr::any_of(c("leftSide_expression_raw", "rightSide_expression_raw")))
+
+        DT::datatable(
+          vr_display,
+          rownames = FALSE,
+          filter   = 'top',
+          options  = list(
+            scrollX        = TRUE,
+            scrollY        = "calc(100vh - 300px)",
+            scrollCollapse = FALSE,
+            paging         = FALSE,
+            searching      = TRUE,
+            info           = TRUE,
+            server         = TRUE,
+            dom            = 'ti'
+          )
+        )
+      })
+
       # Resources tab ####
 
       resources = reactive({
-        if (login() & loginFetch()) {
-          # there are a couple forms of metadata in the api.  This code tests the format, then gets metadata
-          # if available, use resources method
-          cat('\n **Resources')
+        # Try to load from saved metadata first (fast, works offline)
+        file <- paste0(dir(), metadata.files()[1])
+        if (file.exists(file) && !dir.exists(file)) {
+          res <- metadata()$resources
+          if (!is.null(res) && nrow(res) > 0) {
+            cat('\n - resources: loaded from metadata rds\n')
+            return(res)
+          }
+        }
 
-          showModal(
-            modalDialog(
-              title = "Downloading list of API resources",
-              easyClose = TRUE,
-              fade = FALSE,
-              size = 'm',
-              footer = NULL
-            )
-          )
+        # Fall back to live fetch when logged in (lightweight single call)
+        if (login()) {
+          cat('\n **Resources: fetching from API')
+          url <- paste0(baseurl(), "api/resources.json")
+          raw <- dhis2_get(source_url = url, username = username(), password = password())[[1]]
 
-          url = paste0(baseurl(), "api/resources.json")
-          resources = dhis2_get(source_url = url, username = username(), password = password())[[1]]
-
-          cat('\n **class(resources)', class(resources), '\n')
-          glimpse(resources)
-
-          if ('data.frame' %in% class(resources)) {
-            resources = resources %>%
+          if ('data.frame' %in% class(raw)) {
+            res <- raw %>%
               as_tibble() %>%
               select(displayName, href) %>%
               rename(Attribute = displayName) %>%
               mutate(href = paste0(href, '?fields=:all&paging=false')) %>%
               arrange(Attribute)
 
-            cat('\n - metadata_widget found', nrow(resources), 'resources')
-
-            removeModal()
-            return(resources)
-          } else {}
+            cat('\n - resources: found', nrow(res), 'endpoints\n')
+            return(res)
+          }
         }
+
+        return(NULL)
       })
 
       conditionalPanel(
@@ -1902,12 +2046,37 @@ metadata_widget_server <- function(
         tags$div("Loading...", id = "loadmessage")
       )
 
-      output$resource_table = renderTable(
-        resources(),
+      output$resource_table <- DT::renderDT({
+        res <- resources()
+        if (is.null(res) || nrow(res) == 0) {
+          return(DT::datatable(
+            tibble::tibble(Message = "Login to load API endpoints."),
+            rownames = FALSE, options = list(dom = 't')
+          ))
+        }
 
-        striped = TRUE,
-        spacing = 's'
-      )
+        # Wrap href values in a clickable anchor that opens in a new tab
+        res$href <- paste0('<a href="', res$href, '" target="_blank">', res$href, '</a>')
+        names(res) <- c("Attribute", "API URL")
+
+        DT::datatable(
+          res,
+          rownames = FALSE,
+          escape   = FALSE,
+          filter   = 'top',
+          options  = list(
+            scrollX        = TRUE,
+            scrollY        = "calc(100vh - 300px)",
+            scrollCollapse = FALSE,
+            paging         = FALSE,
+            searching      = TRUE,
+            info           = TRUE,
+            server         = TRUE,
+            dom            = 'ti',
+            columnDefs     = list(list(width = '250px', targets = 0))
+          )
+        )
+      })
 
       # DataElement tab
 
@@ -1925,7 +2094,8 @@ metadata_widget_server <- function(
         # uploaded_DataElementGroups = uploaded_DataElementGroups ,
         # uploaded_Categories = uploaded_Categories ,
         # uploaded_DataSets = uploaded_DataSets ,
-        indicators = indicatorDictionary
+        indicators = indicatorDictionary,
+        validationRules = validationRules
         # uploaded_dataDictionary = uploaded_dataDictionary
       ))
     }

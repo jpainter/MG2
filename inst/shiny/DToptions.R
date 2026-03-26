@@ -15,42 +15,35 @@ buttonList = function(file_name = paste('downloaded_', Sys.Date())) {
   )
 }
 
+
 DToptions_with_buttons = function(...) {
   list(
     autoWidth = TRUE,
     scrollX = TRUE,
-    scrollY = "100vh",
-    scrollCollapse = FALSE,
     lengthMenu = list(
-      c(-1, 1, 5, 10, 25, 100),
-      list('All', '1', '5', '10', '25', '100')
+      c(15, 25, 50, 100, -1),
+      list('15', '25', '50', '100', 'All')
     ),
-    pageLength = 100,
+    pageLength = 15,
     columnDefs = list(list(className = 'dt-right', targets = "_all")),
     dom = 'l<"col-sm-6"B>fiprt',
-    buttons = buttonList(...),
-    fillContainer = TRUE
+    buttons = buttonList(...)
   )
 }
 
 
 DToptions_no_buttons = function(...) {
   list(
-    autoWidth = TRUE,
     scrollX = TRUE,
     dom = 'l<"col-sm-6"i>fprt',
-    scrollY = "100vh",
-    scrollCollapse = FALSE,
     lengthMenu = list(
-      c(-1, 1, 5, 10, 25, 100),
-      list('All', '1', '5', '10', '25', '100')
+      c(15, 25, 50, 100, -1),
+      list('15', '25', '50', '100', 'All')
     ),
-    pageLength = 100,
-    columnDefs = list(list(className = 'dt-right', targets = "_all")),
+    pageLength = 15,
     rownames = FALSE,
     server = TRUE,
     escape = FALSE,
-    selection = list(mode = 'single'),
-    fillContainer = TRUE
+    selection = list(mode = 'single')
   )
 }
