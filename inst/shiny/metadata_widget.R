@@ -184,7 +184,8 @@ metadata_widget_server <- function(
       })
 
       loginFetch       = reactiveVal(FALSE)
-      rulesModalData   = reactiveVal(NULL)
+      rulesModalData      = reactiveVal(NULL)
+      indRulesModalData   = reactiveVal(NULL)
 
       # Request Metatadata ####
       observeEvent(input$getMetadataButton, {
@@ -916,6 +917,47 @@ metadata_widget_server <- function(
         ))
       })
 
+      # Validation rules modal for indicators
+      output$validationRulesModalInd <- DT::renderDT({
+        req(indRulesModalData())
+        DT::datatable(
+          indRulesModalData(),
+          rownames = FALSE,
+          options  = list(
+            dom       = 't',
+            scrollX   = TRUE,
+            paging    = FALSE,
+            searching = FALSE
+          )
+        )
+      })
+
+      observeEvent(input$indRulesClick, {
+        req(input$indRulesClick, validationRules())
+        ind_id <- input$indRulesClick$id
+
+        rule_ids <- element_rules_lookup() |>
+          dplyr::filter(element_id == ind_id) |>
+          dplyr::pull(rule_id)
+
+        if (length(rule_ids) == 0) return()
+
+        matching_rules <- validationRules() |>
+          dplyr::filter(id %in% rule_ids) |>
+          dplyr::select(-dplyr::any_of(c("leftSide_expression_raw", "rightSide_expression_raw")))
+
+        indRulesModalData(matching_rules)
+
+        showModal(modalDialog(
+          title     = "Validation Rules for selected indicator",
+          DTOutput(session$ns("validationRulesModalInd")),
+          easyClose = TRUE,
+          fade      = FALSE,
+          size      = 'xl',
+          footer    = modalButton("Close")
+        ))
+      })
+
       output$dataElementGroups =
         DT::renderDT(DT::datatable(
           if (!is.null(dataElementGroups())) dataElementGroups(),
@@ -1203,16 +1245,37 @@ metadata_widget_server <- function(
         })
       })
 
-      output$indicators =
-        DT::renderDT(DT::datatable(
-          indicatorDictionary(),
+      output$indicators <- DT::renderDT({
+        dict <- indicatorDictionary()
+        req(dict)
 
+        erl <- element_rules_lookup()
+        if (nrow(erl) > 0 && "id" %in% names(dict)) {
+          has_rules_ids <- unique(erl$element_id)
+          dict$Rules <- ifelse(
+            dict$id %in% has_rules_ids,
+            paste0('<button class="btn btn-xs btn-primary ind-rules-btn" data-id="',
+                   dict$id, '">View rules</button>'),
+            ""
+          )
+        } else {
+          dict$Rules <- ""
+        }
+        dict <- dplyr::select(dict, name, Rules, dplyr::everything())
+
+        DT::datatable(
+          dict,
           rownames = FALSE,
-          filter = 'top',
-          # options = DToptions_no_buttons()
+          filter   = 'top',
+          escape   = FALSE,
+          callback = DT::JS(sprintf(
+            "table.on('click', 'button.ind-rules-btn', function() {
+               var id = $(this).data('id');
+               Shiny.setInputValue('%s', {id: id, nonce: Math.random()}, {priority: 'event'});
+             });",
+            session$ns("indRulesClick")
+          )),
           options = list(
-            # bPaginate = FALSE,
-            # autoWidth = TRUE ,
             scrollX        = TRUE,
             scrollY        = "calc(100vh - 300px)",
             scrollCollapse = FALSE,
@@ -1222,7 +1285,8 @@ metadata_widget_server <- function(
             server         = TRUE,
             dom            = 'ti'
           )
-        ))
+        )
+      })
 
       ## orgUnitLevels ####
 

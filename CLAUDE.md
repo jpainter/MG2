@@ -363,6 +363,9 @@ degrade gracefully with `.safely = TRUE`.
   columns hidden)
 - Added **Rules badge** to Data Elements tab: elements with validation rules show a
   "View rules" button; clicking opens a modal with all matching rules
+- Added **Rules badge** to Indicators tab: same pattern, matching on `I{uid}` references
+  in rule expressions (indicators use the same `element_rules_lookup` since all UIDs are
+  extracted regardless of `#{}` vs `I{}` wrapper)
 - Validation rules saved to metadata `.rds` list and to a new `ValidationRules`
   sheet in the Excel export
 
