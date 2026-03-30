@@ -404,7 +404,7 @@ reporting_widget_server <- function(
           return(p)
         }
 
-        reposition_legend(p, "center", panel = names(pnls))
+        lemon::reposition_legend(p, "center", panel = names(pnls))
       }
 
       dates = reactive({

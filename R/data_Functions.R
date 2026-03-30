@@ -1,5 +1,10 @@
 #' functions for data manipulation
 
+#' Get level names from org units
+#' @param orgUnits data frame of org units with level and levelName columns
+#' @param .cat logical; if TRUE print progress messages
+#' @return character vector of level names in ascending order
+#' @export
 getLevelNames = function(orgUnits, .cat = FALSE) {
   if ('sf' %in% class(orgUnits)) {
     orgUnits = orgUnits %>% st_drop_geometry()

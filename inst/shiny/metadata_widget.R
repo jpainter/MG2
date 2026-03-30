@@ -251,7 +251,7 @@ metadata_widget_server <- function(
       # Read metadata file ####
 
       metadata = reactive({
-        req(metadata.files)
+        req(metadata.files())
 
         file = paste0(dir(), metadata.files()[1])
         cat('\n - looking for metadata file:', file)
@@ -1783,7 +1783,7 @@ metadata_widget_server <- function(
             geosf. = metadata()$geoFeatures
             cat('\n- geofeatures have', nrow(geosf.), "rows")
           } else {
-            return
+            return(NULL)
           }
         }
 

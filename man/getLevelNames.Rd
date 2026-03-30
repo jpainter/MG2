@@ -2,10 +2,20 @@
 % Please edit documentation in R/data_Functions.R
 \name{getLevelNames}
 \alias{getLevelNames}
-\title{functions for data manipulation}
+\title{functions for data manipulation
+Get level names from org units}
 \usage{
 getLevelNames(orgUnits, .cat = FALSE)
 }
+\arguments{
+\item{orgUnits}{data frame of org units with level and levelName columns}
+
+\item{.cat}{logical; if TRUE print progress messages}
+}
+\value{
+character vector of level names in ascending order
+}
 \description{
 functions for data manipulation
+Get level names from org units
 }
