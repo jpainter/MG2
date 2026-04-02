@@ -393,6 +393,43 @@ degrade gracefully with `.safely = TRUE`.
 
 ---
 
+### Bug Fixes — Missing NAMESPACE Exports (2026-04-02)
+
+**Status:** ✅ Complete
+
+**Problem:** Functions defined in `R/` but lacking `@export` tags were inaccessible
+to installed-package users (i.e. anyone who installed via `devtools::install_github()`
+rather than `devtools::load_all()`). The Shiny widgets call these functions as bare
+names, which requires them to be exported.
+
+**Changes:**
+- Added `@export` + minimal roxygen stub to 22 previously unexported functions:
+  - `R/data_Functions.R`: `cleanedData`, `dataPeriod`, `mostFrequentReportingOUs`,
+    `groupByCols`, `selectedData`, `dataTotal`, `htsFormula`, `htsData`, `aggData`,
+    `trendData`, `model_formula`, `tsPreModel`, `tsPreForecast`, `MAPE`, `key.mape`,
+    `pre_impact_fit`, `tsModel`, `tsForecast`, `impact_fit`, `getForecast`, `key.mpe`,
+    `plotTrends`
+  - `R/api_data_function_revision.R`: `find_lowest_nonnull`
+- Regenerated `NAMESPACE` and `man/` (22 new `.Rd` files)
+
+**Note:** `backtick` was intentionally left unexported — it is redefined locally
+inside widget function bodies and does not need to be in the package namespace.
+
+---
+
+### Bug Fix — Formula file sort order (2026-04-02)
+
+**Status:** ✅ Complete
+
+**Changes:**
+- `R/utils.R`: `list_dir_files()` now sorts results by file modification time
+  (most recent first) instead of reverse alphabetical name order — ensures
+  recently saved/edited files surface first in all file picker inputs
+- `inst/shiny/data_widget.r`: Removed duplicate mtime sort that was previously
+  applied after `list_dir_files()` (now redundant)
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module
