@@ -2,7 +2,7 @@
 % Please edit documentation in R/api_data_function_revision.R
 \name{api_data}
 \alias{api_data}
-\title{Title}
+\title{Fetch DHIS2 Data Values via API with Optional Update and Quality Checks}
 \usage{
 api_data(
   periods = NA,
@@ -72,7 +72,7 @@ api_data(
 data frame with data values
 }
 \description{
-Title
+Fetch DHIS2 Data Values via API with Optional Update and Quality Checks
 }
 \examples{
 api_data()

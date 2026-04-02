@@ -844,6 +844,8 @@ api_data = function(
 
 
 # find lowest non-null value ####
+#' Find the lowest non-null level value from a data request selection
+#' @export
 find_lowest_nonnull <- function(selected) {
   levels <- c("level2", "level3", "level4", "level5")
 

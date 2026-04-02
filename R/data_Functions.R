@@ -77,7 +77,13 @@ error_factor = function(x) {
     )
 }
 
-# cleanedData equivalent to MG2 reactive function d()
+#' Apply cleaning and filtering to a dataset
+#' @param d data frame; the dataset to clean
+#' @param .effectiveLeaf logical; filter to effective leaf org units
+#' @param source character; data source label
+#' @param ... additional arguments
+#' @return cleaned data frame
+#' @export
 cleanedData = function(
   d,
   .effectiveLeaf = TRUE,
@@ -178,6 +184,8 @@ cleanedData = function(
   return(d)
 }
 
+#' Find most frequently reporting org units
+#' @export
 mostFrequentReportingOUs <- function(
   data,
   endingMonth = NULL,
@@ -467,7 +475,11 @@ mostFrequentReportingOUs <- function(
 
 backtick <- function(x) paste0("`", x, "`")
 
-# determine the period used in dataset (e.g. Monthly or Weekly )
+#' Determine the period type used in a dataset
+#' @param data1 data frame; dataset with a time column
+#' @param .cat logical; if TRUE print progress messages
+#' @return character; "Monthly" or "Weekly"
+#' @export
 dataPeriod = function(data1, .cat = FALSE) {
   if (.cat) {
     cat('\n* reporting_widget period():')
@@ -485,6 +497,8 @@ dataPeriod = function(data1, .cat = FALSE) {
 }
 
 
+#' Build group-by column vector for data aggregation
+#' @export
 groupByCols = function(
   selected = TRUE,
   dataset = TRUE,
@@ -723,6 +737,8 @@ groupByCols = function(
 # }
 #
 
+#' Filter and select data by reporting level and categories
+#' @export
 selectedData = function(
   data1,
   levelNames = NULL,
@@ -897,6 +913,8 @@ selectedData = function(
 }
 
 # merge datasets
+#' Merge and aggregate datasets across org units and periods
+#' @export
 dataTotal = function(
   data = NULL,
   group_by_cols = NULL,
@@ -1104,6 +1122,8 @@ dataTotal = function(
   return(data.total)
 }
 
+#' Build formula for hierarchical time-series aggregation
+#' @export
 htsFormula = function(
   hts = TRUE,
   levelNames = NULL,
@@ -1195,6 +1215,8 @@ htsFormula = function(
   return(htsFormula)
 }
 
+#' Aggregate data using hierarchical time-series structure
+#' @export
 htsData = function(
   data = NULL,
   hts = TRUE,
@@ -1320,6 +1342,8 @@ htsData = function(
 }
 
 
+#' Aggregate data with optional covariates
+#' @export
 aggData = function(
   data.total = NULL,
   covariates = NULL,
@@ -1418,6 +1442,8 @@ aggData = function(
 }
 
 
+#' Prepare trend data for modelling and forecasting
+#' @export
 trendData = function(
   .d = data.hts,
   reportingSelectedOUs = NULL,
@@ -1667,6 +1693,8 @@ trendData = function(
 }
 
 
+#' Build model formula string for time-series fitting
+#' @export
 model_formula = function(
   model = "ARIMA",
   modelSpecs = NULL,
@@ -1790,6 +1818,8 @@ model_formula = function(
   return(formula.string)
 }
 
+#' Fit pre-intervention time-series models
+#' @export
 tsPreModel = function(
   trend.data,
   evaluation_month,
@@ -1981,6 +2011,8 @@ tsPreModel = function(
   }
 }
 
+#' Generate pre-intervention forecasts from fitted models
+#' @export
 tsPreForecast = function(
   trend.data,
   preModel,
@@ -2092,6 +2124,8 @@ tsPreForecast = function(
 }
 
 
+#' Compute mean absolute percentage error
+#' @export
 MAPE = function(
   preForecast,
   trend.data,
@@ -2131,6 +2165,8 @@ MAPE = function(
 }
 
 
+#' Compute key MAPE values for forecast accuracy summary
+#' @export
 key.mape = function(
   preForecast,
   trend.data,
@@ -3038,6 +3074,8 @@ diffHistogram = function(actual, predicted, xlimits = c(NA, NA), ...) {
 }
 
 
+#' Fit pre-intervention impact models
+#' @export
 pre_impact_fit = function(
   ml.data = ml.data,
   startingMonth = "Jan 2015",
@@ -3256,6 +3294,8 @@ pre_impact_fit = function(
     )
 }
 
+#' Fit time-series models across replicates
+#' @export
 tsModel = function(
   trend.data,
   evaluation_month,
@@ -3438,6 +3478,8 @@ tsModel = function(
   }
 }
 
+#' Generate time-series forecasts from fitted models
+#' @export
 tsForecast = function(
   trend.data,
   Model,
@@ -3555,6 +3597,8 @@ tsForecast = function(
 }
 
 
+#' Fit post-intervention impact models
+#' @export
 impact_fit = function(
   # ml.data = ml.data ,
   # startingMonth = "Jan 2015" ,
@@ -3783,6 +3827,8 @@ impact_fit = function(
   return(list(i = i, Forecast = Forecast, x = x))
 }
 
+#' Extract forecast values for a specific model and replicate
+#' @export
 getForecast = function(
   forecastData,
   model = NULL,
@@ -3947,6 +3993,8 @@ getForecast = function(
 }
 
 
+#' Compute key mean percentage error values for forecast evaluation
+#' @export
 key.mpe = function(
   Forecast_data,
   test_data,
@@ -4131,6 +4179,8 @@ key.mpe = function(
 #         return( e )
 #       }
 
+#' Plot time-series trends with forecast overlay
+#' @export
 plotTrends = function(
   trend.data,
   scale = FALSE,
