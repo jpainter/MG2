@@ -109,10 +109,6 @@ data_widget_server <- function(
           return()
         }
 
-        # Arrange by modified date
-        formula_file.mdate = file.info(paste0(data.folder(), ff))$mtime
-        ff = ff[rev(order(formula_file.mdate))]
-
         # cat( '\n - formula.files:' , ff  )
         if (!any(file.exists(paste0(data.folder(), ff)))) {
           return()
@@ -134,11 +130,6 @@ data_widget_server <- function(
           cat('\n - no forumula files in directory')
           return()
         }
-
-        # Arrange by modified date
-        formula_file.mdate = file.info(paste0(aa, ff))$mtime
-        ff = ff[rev(order(formula_file.mdate))]
-        # a = formula.files()
 
         cat('\n - Update data formula files')
         updateSelectInput(session, 'formula.file', choices = ff, selected = 1)

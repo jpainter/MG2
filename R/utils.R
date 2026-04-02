@@ -163,7 +163,9 @@ list_dir_files <- function(search = "All", type = "xlsx", other = "", dir = NULL
     grepl(other, all_files, ignore.case = TRUE)
 
   matched <- all_files[keep]
-  return(matched[rev(order(matched))])
+  if (length(matched) == 0) return(matched)
+  mtimes <- file.info(file.path(dir, matched))$mtime
+  return(matched[order(mtimes, decreasing = TRUE)])
 }
 
 # DHIS2 period code generators ---------------------------------------------
