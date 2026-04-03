@@ -432,6 +432,19 @@ api_data = function(
       "\n"
     )
 
+    n_same   = length(unique(pull(prev.periods.same.data, period)))
+    n_update = length(update.periods)
+    n_total  = n_same + n_update
+
+    showNotification(
+      sprintf(
+        "%d of %d months unchanged; downloading %d month%s",
+        n_same, n_total, n_update, if (n_update == 1) "" else "s"
+      ),
+      type     = "message",
+      duration = 10
+    )
+
     period_vectors = update.periods
   }
 
