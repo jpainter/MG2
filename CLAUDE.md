@@ -415,6 +415,10 @@ names, which requires them to be exported.
 **Note:** `backtick` was intentionally left unexported — it is redefined locally
 inside widget function bodies and does not need to be in the package namespace.
 
+**Note:** `aggData`, `pre_impact_fit`, and `impact_fit` were subsequently changed
+from `@export` to `@noRd` — they are not called directly from widget files, so
+they do not need to be exported.
+
 ---
 
 ### Bug Fix — Formula file sort order (2026-04-02)
@@ -430,7 +434,38 @@ inside widget function bodies and does not need to be in the package namespace.
 
 ---
 
+### devtools::check() Clean Baseline (2026-04-02)
+
+**Status:** ✅ Complete — 0 ERRORs · 0 WARNINGs · 2 NOTEs
+
+**Changes:**
+- `R/api_data_function_revision.R`: Wrapped `@examples api_data()` in `\dontrun{}`
+  (was causing check ERROR); changed `dir = country.dir` default to `dir = NULL`
+- `DESCRIPTION`: Removed `data.table`, `igraph`, `lubridate` from `Suggests`
+  (duplicates of `Imports`); added `URL:` and `BugReports:` GitHub links
+- `inst/shiny/`: Deleted 11 leftover session `.rds` files, `~$Instances.xlsx`,
+  and old `MagicGlasses2_ShinyApp.R`
+- `.Rbuildignore`: Added `.DS_Store`, `.claude`, and `inst/shiny/forecasting schemas.txt`
+- Added `@param` entries to all 20 newly exported functions; `dqa_reporting` also fixed
+- `R/dqa_functions.R`: Replaced non-ASCII em dash with ASCII hyphen in message string
+- `R/data_Functions.R`: Renamed `diff.summary` → `wpe_summary` (R was interpreting
+  it as an S3 method for base `diff()` with incompatible signature)
+- `R/data_Functions.R`: Fixed two stale `key.mpe()` call sites with wrong argument
+  names (`split` → `.split`; `forecastData`/`actualData` → `Forecast_data`/`test_data`)
+- `R/prepare_dataset.R`: Removed broken `[metadata_widget_server()]` roxygen cross-reference
+- `inst/shiny/evaluation_widget_2.R`: Updated `diff.summary` → `wpe_summary` call
+
+**Remaining NOTEs (Phase D):**
+- Shiny packages in `Imports` without `@importFrom` (expected pattern for Shiny apps)
+- Bare `dplyr`/`ggplot2` calls in `R/data_Functions.R` without `::` qualification
+
+**Version bumped to 0.1.1** and `NEWS.md` created.
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module
-- Phase 8: Full `devtools::check()` pass, vignettes, CRAN prep
+- Phase B: Tests (~95 tests across 6 files, no live DHIS2 server needed)
+- Phase C: Demo data (`data/mg2_demo.rda`) + vignettes
+- Phase D: `cat()` → `message()` sweep; `@importFrom` for dplyr/ggplot2; final CRAN polish
