@@ -1678,7 +1678,7 @@ reporting_widget_server <- function(
 
       # data.total: merges data across multiple set ####
       data.total = reactive({
-        req(!is.null(current_tab) && current_tab() == "Reporting")
+        req(!is.null(current_tab) && current_tab() %in% c("Reporting", "Evaluation"))
         req(selected_data())
         # req( group_by_cols() )
         req(period())
