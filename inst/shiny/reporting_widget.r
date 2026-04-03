@@ -1529,7 +1529,6 @@ reporting_widget_server <- function(
 
       selected_data = reactive({
         #print( 'selected_data():')
-        req(!is.null(current_tab) && current_tab() == "Reporting")
         req(data1())
         req(selected_data_categories$elements)
 
