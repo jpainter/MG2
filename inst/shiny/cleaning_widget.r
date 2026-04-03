@@ -424,7 +424,6 @@ cleaning_widget_server <- function(
 
       # data names  ####
       observeEvent(data1(), {
-        req(!is.null(current_tab) && current_tab() == "Outliers")
         cat('\n* cleaning_widget observe data1() class:', class(data1()))
 
         # outlierData$df_data = data1()
