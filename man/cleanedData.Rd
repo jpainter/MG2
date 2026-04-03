@@ -20,7 +20,11 @@ cleanedData(
 
 \item{source}{character; data source label}
 
-\item{...}{additional arguments}
+\item{error}{character; error-level name to apply (NULL uses original values)}
+
+\item{algorithm}{character; outlier algorithm column to use for cleaning}
+
+\item{.cat}{logical; print progress messages to the console}
 }
 \value{
 cleaned data frame

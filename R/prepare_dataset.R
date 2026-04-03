@@ -222,7 +222,7 @@ df_ts <- function(df.pre.ts, period = "Month", fill.gaps = FALSE,
 #' outlier-detection flags pre-computed.
 #'
 #' @param data Data frame returned by [api_data()].
-#' @param dataSets Data sets metadata from [metadata_widget_server()].
+#' @param dataSets Data sets metadata from the metadata widget.
 #' @param formula_elements Formula elements table.
 #' @param dataElements Data elements metadata.
 #' @param categories Categories metadata.

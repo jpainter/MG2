@@ -21,6 +21,8 @@ dqa_reporting(
 (default: \code{TRUE}).}
 
 \item{.cat}{Logical. Print progress messages (default: \code{FALSE}).}
+
+\item{...}{additional arguments passed to \code{mostFrequentReportingOUs()}}
 }
 \value{
 Numeric vector with count of consistently reporting facilities per year.

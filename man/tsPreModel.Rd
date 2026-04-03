@@ -14,6 +14,21 @@ tsPreModel(
   ...
 )
 }
+\arguments{
+\item{trend.data}{tsibble; the prepared trend dataset}
+
+\item{evaluation_month}{yearmonth; start of the evaluation (post-intervention) window}
+
+\item{model}{character; model type to fit (e.g. "ARIMA", "ETS")}
+
+\item{formula.string}{character; model formula string (NULL to auto-build)}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{.cat}{logical; print progress messages to the console}
+
+\item{...}{additional arguments passed to \code{model_formula()}}
+}
 \description{
 Fit pre-intervention time-series models
 }

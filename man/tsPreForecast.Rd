@@ -18,6 +18,29 @@ tsPreForecast(
   .cat = FALSE
 )
 }
+\arguments{
+\item{trend.data}{tsibble; the full trend dataset (used to build new_data)}
+
+\item{preModel}{mable; fitted model object from \code{tsPreModel()}}
+
+\item{horizon}{integer; number of periods to forecast}
+
+\item{evaluation_month}{yearmonth; centre of the evaluation window}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{covariates}{character vector; covariate column names required by the model}
+
+\item{split}{character; split variable name (or NULL)}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{prob}{logical; return probabilistic (distribution) forecasts}
+
+\item{pi_levels}{numeric; prediction interval level(s) (e.g. 0.89)}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Generate pre-intervention forecasts from fitted models
 }

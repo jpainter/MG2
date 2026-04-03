@@ -13,6 +13,19 @@ model_formula(
   .cat = FALSE
 )
 }
+\arguments{
+\item{model}{character; model type (e.g. "ARIMA", "ETS", "TSLM (trend+season)")}
+
+\item{modelSpecs}{list; optional model specification overrides}
+
+\item{transform}{logical; apply Box-Cox transformation in the formula}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{covariates}{character vector; covariate names to add as regressors}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Build model formula string for time-series fitting
 }

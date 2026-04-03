@@ -22,6 +22,37 @@ plotTrends(
   ...
 )
 }
+\arguments{
+\item{trend.data}{tsibble; the prepared trend dataset to plot}
+
+\item{scale}{logical; allow free y-axis (do not force zero baseline)}
+
+\item{legend}{logical; show the colour legend}
+
+\item{label}{logical; add text labels at the end of each series}
+
+\item{facet_split}{logical; split into facets}
+
+\item{facet_vars}{character vector; variables to use for faceting}
+
+\item{facet_admin}{logical; facet by administrative level}
+
+\item{agg_level}{character; aggregation level name for display}
+
+\item{pre_evaluation}{logical; overlay pre-intervention forecast}
+
+\item{evaluation}{logical; overlay post-intervention forecast}
+
+\item{horizon}{integer; number of forecast periods to overlay}
+
+\item{eval_date}{yearmonth; start date of the evaluation window}
+
+\item{pe}{logical; show percentage-error annotation}
+
+\item{.cat}{logical; print progress messages to the console}
+
+\item{...}{additional arguments}
+}
 \description{
 Plot time-series trends with forecast overlay
 }

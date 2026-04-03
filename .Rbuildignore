@@ -5,3 +5,6 @@
 ^CLAUDE\.md$
 ^CRAN_PLAN\.md$
 ^\.vscode$
+\.DS_Store$
+^\.claude$
+^inst/shiny/forecasting schemas\.txt$

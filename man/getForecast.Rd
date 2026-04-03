@@ -23,6 +23,39 @@ getForecast(
   .cat = FALSE
 )
 }
+\arguments{
+\item{forecastData}{tsibble; prepared trend data to fit and forecast from}
+
+\item{model}{character; model type to fit (e.g. "ARIMA")}
+
+\item{model.string}{character; model formula string (NULL to auto-build)}
+
+\item{transform}{logical; apply Box-Cox transformation}
+
+\item{lambda}{numeric; Box-Cox lambda parameter}
+
+\item{covariates}{character vector; covariate column names}
+
+\item{horizon}{integer; number of periods to forecast}
+
+\item{bootstrap}{logical; use bootstrap residuals for prediction intervals}
+
+\item{Reps}{integer; number of bootstrap replicates}
+
+\item{future.seed}{logical; set a reproducible seed for parallel futures}
+
+\item{split}{character; split variable ("None" or a column name)}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{agg_method}{character; aggregation method ("None" or method name)}
+
+\item{.period}{character; time index column name ("Month" or "Week")}
+
+\item{eval_date}{yearmonth; evaluation start date}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Extract forecast values for a specific model and replicate
 }

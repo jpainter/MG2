@@ -16,6 +16,25 @@ mostFrequentReportingOUs(
   .cat = FALSE
 )
 }
+\arguments{
+\item{data}{tsibble or data frame of prepared indicator data}
+
+\item{endingMonth}{yearmonth; last month of the reporting window (NULL uses data maximum)}
+
+\item{startingMonth}{yearmonth; first month of the reporting window (NULL uses data minimum)}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{missing_reports}{integer; number of allowed missing months (default 0)}
+
+\item{count.any}{logical; count a facility if it reports any data element (default TRUE)}
+
+\item{data_categories}{character vector; data element categories to consider}
+
+\item{testing}{logical; save intermediate objects for debugging}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Find most frequently reporting org units
 }

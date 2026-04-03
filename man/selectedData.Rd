@@ -22,6 +22,37 @@ selectedData(
   ...
 )
 }
+\arguments{
+\item{data1}{data frame or tsibble; the full prepared dataset}
+
+\item{levelNames}{character vector; administrative level names}
+
+\item{data_categories}{character vector; data element categories to include}
+
+\item{alwaysReporting}{logical; restrict to consistently reporting facilities}
+
+\item{missing_reports}{integer; allowed missing months when filtering reporters}
+
+\item{reportingSelectedOUs}{character vector; pre-computed set of reporting org units}
+
+\item{startingMonth}{yearmonth; start of the analysis window}
+
+\item{endingMonth}{yearmonth; end of the analysis window}
+
+\item{level}{character; org unit level to filter to ("leaf" or a level name)}
+
+\item{level2}{character; optional level-2 org unit filter value}
+
+\item{level3}{character; optional level-3 org unit filter value}
+
+\item{level4}{character; optional level-4 org unit filter value}
+
+\item{level5}{character; optional level-5 org unit filter value}
+
+\item{.cat}{logical; print progress messages to the console}
+
+\item{...}{additional arguments}
+}
 \description{
 Filter and select data by reporting level and categories
 }

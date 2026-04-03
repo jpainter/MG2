@@ -17,6 +17,27 @@ groupByCols(
   .cat = FALSE
 )
 }
+\arguments{
+\item{selected}{logical; include the "Selected" column}
+
+\item{dataset}{logical; include the "dataSet" column}
+
+\item{orgUnit}{logical; include the "orgUnit" column}
+
+\item{data}{logical; include the "data" column}
+
+\item{period}{character; time index column name to include ("Month" or "Week")}
+
+\item{hts}{logical; include hierarchical time-series columns}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{levelNames}{character vector; administrative level names}
+
+\item{split}{character; split variable name (or NULL)}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Build group-by column vector for data aggregation
 }

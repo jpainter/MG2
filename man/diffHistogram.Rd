@@ -13,7 +13,7 @@ diffHistogram(actual, predicted, xlimits = c(NA, NA), ...)
 
 \item{xlimits}{Numeric vector of length 2. x-axis limits (default \code{c(NA, NA)}).}
 
-\item{...}{Passed to \code{\link[=forecast_diff]{forecast_diff()}} and \code{\link[=diff.summary]{diff.summary()}}.}
+\item{...}{Passed to \code{\link[=forecast_diff]{forecast_diff()}} and \code{\link[=wpe_summary]{wpe_summary()}}.}
 }
 \value{
 A ggplot object.

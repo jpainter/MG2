@@ -16,6 +16,25 @@ key.mpe(
   .cat = FALSE
 )
 }
+\arguments{
+\item{Forecast_data}{fable or data frame; forecast output with a \code{.mean} column}
+
+\item{test_data}{tsibble; actual observed values for the evaluation window}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{.split}{character; split variable for grouping ("None" or a column name)}
+
+\item{by_month}{logical; compute MPE separately for each month}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{horizon}{integer; number of forecast periods (used for mid-point split)}
+
+\item{var}{character; name of the forecast point-estimate column (default ".mean")}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Compute key mean percentage error values for forecast evaluation
 }

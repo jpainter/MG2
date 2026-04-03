@@ -6,6 +6,17 @@
 \usage{
 MAPE(preForecast, trend.data, period = "Month", var = ".mean", .cat = FALSE)
 }
+\arguments{
+\item{preForecast}{fable or data frame; forecast output with a \code{.mean} column}
+
+\item{trend.data}{tsibble; actual observed values}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{var}{character; name of the forecast point-estimate column (default ".mean")}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Compute mean absolute percentage error
 }

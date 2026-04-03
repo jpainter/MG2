@@ -15,6 +15,23 @@ htsFormula(
   .cat = FALSE
 )
 }
+\arguments{
+\item{hts}{logical; use hierarchical time-series aggregation}
+
+\item{levelNames}{character vector; administrative level names}
+
+\item{agg_level}{character; target aggregation level name}
+
+\item{all.levels}{logical; include all levels in the formula}
+
+\item{num_facilities}{integer; number of facilities in the dataset}
+
+\item{num_datasets}{integer; number of datasets in the dataset}
+
+\item{split}{character; split variable ("None" or a column name)}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Build formula for hierarchical time-series aggregation
 }

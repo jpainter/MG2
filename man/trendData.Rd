@@ -23,6 +23,39 @@ trendData(
   .cat = FALSE
 )
 }
+\arguments{
+\item{.d}{tsibble; the HTS-aggregated dataset}
+
+\item{reportingSelectedOUs}{character vector; org units to include}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{startingMonth}{yearmonth; start of the analysis window}
+
+\item{endingMonth}{yearmonth; end of the analysis window}
+
+\item{selected.only}{logical; restrict to selected (consistently reporting) facilities}
+
+\item{num_facilities}{integer; number of facilities in the dataset}
+
+\item{num_datasets}{integer; number of datasets in the dataset}
+
+\item{levelNames}{character vector; administrative level names}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{split}{character; split variable ("None" or a column name)}
+
+\item{covariates}{character vector; covariate column names to retain}
+
+\item{remove.aggregate}{logical; remove aggregate (non-leaf) rows}
+
+\item{scale}{logical; allow y-axis to be free (do not force zero baseline)}
+
+\item{testing}{logical; save intermediate objects for debugging}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Prepare trend data for modelling and forecasting
 }

@@ -20,6 +20,33 @@ tsForecast(
   .cat = FALSE
 )
 }
+\arguments{
+\item{trend.data}{tsibble; the full trend dataset (used to build new_data)}
+
+\item{Model}{mable; fitted model object from \code{tsModel()}}
+
+\item{horizon}{integer; number of periods to forecast}
+
+\item{evaluation_month}{yearmonth; start of the forecast window}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{covariates}{character vector; covariate column names required by the model}
+
+\item{split}{character; split variable name (or NULL)}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{simulate}{logical; use simulation-based forecasting}
+
+\item{bootstrap}{logical; use bootstrap residuals for prediction intervals}
+
+\item{times}{integer; number of simulation/bootstrap replicates}
+
+\item{pi_levels}{numeric; prediction interval level(s) (e.g. 0.89)}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Generate time-series forecasts from fitted models
 }

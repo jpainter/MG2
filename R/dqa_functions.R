@@ -30,6 +30,7 @@ dqa_years <- function(dqa_data) {
 #' @param count.any Logical. Count facilities reporting any data element
 #'   (default: `TRUE`).
 #' @param .cat Logical. Print progress messages (default: `FALSE`).
+#' @param ... additional arguments passed to `mostFrequentReportingOUs()`
 #'
 #' @return Numeric vector with count of consistently reporting facilities per year.
 #' @export
@@ -272,7 +273,7 @@ mase_year <- function(dqa_data, .year) {
 #' @export
 dqa_mase <- function(dqa_data) {
   if (!"expected" %in% names(dqa_data)) {
-    message("dqa_mase: 'expected' column not found — MASE plot requires seasonal cleaning first.")
+    message("dqa_mase: 'expected' column not found - MASE plot requires seasonal cleaning first.")
     return(NULL)
   }
   years <- dqa_years(dqa_data)$Year

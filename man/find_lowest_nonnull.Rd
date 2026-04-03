@@ -6,6 +6,9 @@
 \usage{
 find_lowest_nonnull(selected)
 }
+\arguments{
+\item{selected}{list; named list with elements \code{level2} through \code{level5} (NULL when not selected)}
+}
 \description{
 Find the lowest non-null level value from a data request selection
 }

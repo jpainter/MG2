@@ -26,7 +26,10 @@
 #' @returns data frame with data values
 #'
 #' @export
-#' @examples api_data()
+#' @examples
+#' \dontrun{
+#' api_data()
+#' }
 api_data = function(
   periods = NA,
   periodType = 'Monthly',
@@ -44,7 +47,7 @@ api_data = function(
   previous_dataset_file = '',
   prev.data = NA,
   level1.id = NA, #when comparing current data with previous
-  dir = country.dir,
+  dir = NULL,
   shinyApp = FALSE,
   childOnly = FALSE,
   ...
@@ -845,6 +848,7 @@ api_data = function(
 
 # find lowest non-null value ####
 #' Find the lowest non-null level value from a data request selection
+#' @param selected list; named list with elements `level2` through `level5` (NULL when not selected)
 #' @export
 find_lowest_nonnull <- function(selected) {
   levels <- c("level2", "level3", "level4", "level5")

@@ -10,6 +10,8 @@ Description: An interactive Shiny application and set of R functions for
     reporting bias analysis, and time-series trend evaluation. Functions can
     also be used independently in standalone scripts and notebooks.
 License: GPL-3
+URL: https://github.com/jpainter/MG2
+BugReports: https://github.com/jpainter/MG2/issues
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
@@ -41,7 +43,6 @@ Imports:
     tsibble,
     zoo
 Suggests:
-    data.table,
     distributional,
     dygraphs,
     fable,
@@ -57,11 +58,9 @@ Suggests:
     ggplot2,
     ggrepel,
     hrbrthemes,
-    igraph,
     leaflet,
     leaflegend,
     lemon,
-    lubridate,
     mapview,
     officer,
     openxlsx,

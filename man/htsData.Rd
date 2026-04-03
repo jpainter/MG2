@@ -15,6 +15,23 @@ htsData(
   ...
 )
 }
+\arguments{
+\item{data}{tsibble; the prepared dataset}
+
+\item{hts}{logical; apply hierarchical aggregation}
+
+\item{hts_formula}{character; hts formula string from \code{htsFormula()}}
+
+\item{covariates}{character; covariate column names (space-separated)}
+
+\item{group_by_cols}{character vector; column names used for grouping}
+
+\item{.cat}{logical; print progress messages to the console}
+
+\item{timing}{logical; print timing information}
+
+\item{...}{additional arguments}
+}
 \description{
 Aggregate data using hierarchical time-series structure
 }

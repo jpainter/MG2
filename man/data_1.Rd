@@ -16,7 +16,7 @@ data_1(
 \arguments{
 \item{data}{Data frame returned by \code{\link[=api_data]{api_data()}}.}
 
-\item{dataSets}{Data sets metadata from \code{\link[=metadata_widget_server]{metadata_widget_server()}}.}
+\item{dataSets}{Data sets metadata from the metadata widget.}
 
 \item{formula_elements}{Formula elements table.}
 

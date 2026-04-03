@@ -1114,7 +1114,7 @@ evaluation_widget_server <- function(
 
         cat("\n* output$forecastResult: impactSummary")
 
-        diff.summary(
+        wpe_summary(
           actual = auto_model$actual,
           predicted = auto_model$predicted,
           .var = 'total'

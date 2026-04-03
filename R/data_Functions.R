@@ -81,7 +81,9 @@ error_factor = function(x) {
 #' @param d data frame; the dataset to clean
 #' @param .effectiveLeaf logical; filter to effective leaf org units
 #' @param source character; data source label
-#' @param ... additional arguments
+#' @param error character; error-level name to apply (NULL uses original values)
+#' @param algorithm character; outlier algorithm column to use for cleaning
+#' @param .cat logical; print progress messages to the console
 #' @return cleaned data frame
 #' @export
 cleanedData = function(
@@ -185,6 +187,15 @@ cleanedData = function(
 }
 
 #' Find most frequently reporting org units
+#' @param data tsibble or data frame of prepared indicator data
+#' @param endingMonth yearmonth; last month of the reporting window (NULL uses data maximum)
+#' @param startingMonth yearmonth; first month of the reporting window (NULL uses data minimum)
+#' @param period character; time index column name ("Month" or "Week")
+#' @param missing_reports integer; number of allowed missing months (default 0)
+#' @param count.any logical; count a facility if it reports any data element (default TRUE)
+#' @param data_categories character vector; data element categories to consider
+#' @param testing logical; save intermediate objects for debugging
+#' @param .cat logical; print progress messages to the console
 #' @export
 mostFrequentReportingOUs <- function(
   data,
@@ -498,6 +509,16 @@ dataPeriod = function(data1, .cat = FALSE) {
 
 
 #' Build group-by column vector for data aggregation
+#' @param selected logical; include the "Selected" column
+#' @param dataset logical; include the "dataSet" column
+#' @param orgUnit logical; include the "orgUnit" column
+#' @param data logical; include the "data" column
+#' @param period character; time index column name to include ("Month" or "Week")
+#' @param hts logical; include hierarchical time-series columns
+#' @param agg_level character; aggregation level name
+#' @param levelNames character vector; administrative level names
+#' @param split character; split variable name (or NULL)
+#' @param .cat logical; print progress messages to the console
 #' @export
 groupByCols = function(
   selected = TRUE,
@@ -738,6 +759,21 @@ groupByCols = function(
 #
 
 #' Filter and select data by reporting level and categories
+#' @param data1 data frame or tsibble; the full prepared dataset
+#' @param levelNames character vector; administrative level names
+#' @param data_categories character vector; data element categories to include
+#' @param alwaysReporting logical; restrict to consistently reporting facilities
+#' @param missing_reports integer; allowed missing months when filtering reporters
+#' @param reportingSelectedOUs character vector; pre-computed set of reporting org units
+#' @param startingMonth yearmonth; start of the analysis window
+#' @param endingMonth yearmonth; end of the analysis window
+#' @param level character; org unit level to filter to ("leaf" or a level name)
+#' @param level2 character; optional level-2 org unit filter value
+#' @param level3 character; optional level-3 org unit filter value
+#' @param level4 character; optional level-4 org unit filter value
+#' @param level5 character; optional level-5 org unit filter value
+#' @param .cat logical; print progress messages to the console
+#' @param ... additional arguments
 #' @export
 selectedData = function(
   data1,
@@ -914,6 +950,16 @@ selectedData = function(
 
 # merge datasets
 #' Merge and aggregate datasets across org units and periods
+#' @param data data frame or tsibble; the selected dataset to aggregate
+#' @param group_by_cols character vector; column names to group by
+#' @param period character; time index column name ("Month" or "Week")
+#' @param startMonth yearmonth; start of the aggregation window
+#' @param endMonth yearmonth; end of the aggregation window
+#' @param dataSets character vector; dataset names to combine into "Combined"
+#' @param sum.data logical; sum values across org units (default TRUE)
+#' @param mean.merge logical; use mean instead of sum when merging (default FALSE)
+#' @param covariates character vector; covariate column names to retain
+#' @param .cat logical; print progress messages to the console
 #' @export
 dataTotal = function(
   data = NULL,
@@ -1123,6 +1169,14 @@ dataTotal = function(
 }
 
 #' Build formula for hierarchical time-series aggregation
+#' @param hts logical; use hierarchical time-series aggregation
+#' @param levelNames character vector; administrative level names
+#' @param agg_level character; target aggregation level name
+#' @param all.levels logical; include all levels in the formula
+#' @param num_facilities integer; number of facilities in the dataset
+#' @param num_datasets integer; number of datasets in the dataset
+#' @param split character; split variable ("None" or a column name)
+#' @param .cat logical; print progress messages to the console
 #' @export
 htsFormula = function(
   hts = TRUE,
@@ -1216,6 +1270,14 @@ htsFormula = function(
 }
 
 #' Aggregate data using hierarchical time-series structure
+#' @param data tsibble; the prepared dataset
+#' @param hts logical; apply hierarchical aggregation
+#' @param hts_formula character; hts formula string from `htsFormula()`
+#' @param covariates character; covariate column names (space-separated)
+#' @param group_by_cols character vector; column names used for grouping
+#' @param .cat logical; print progress messages to the console
+#' @param timing logical; print timing information
+#' @param ... additional arguments
 #' @export
 htsData = function(
   data = NULL,
@@ -1343,7 +1405,7 @@ htsData = function(
 
 
 #' Aggregate data with optional covariates
-#' @export
+#' @noRd
 aggData = function(
   data.total = NULL,
   covariates = NULL,
@@ -1443,6 +1505,22 @@ aggData = function(
 
 
 #' Prepare trend data for modelling and forecasting
+#' @param .d tsibble; the HTS-aggregated dataset
+#' @param reportingSelectedOUs character vector; org units to include
+#' @param period character; time index column name ("Month" or "Week")
+#' @param startingMonth yearmonth; start of the analysis window
+#' @param endingMonth yearmonth; end of the analysis window
+#' @param selected.only logical; restrict to selected (consistently reporting) facilities
+#' @param num_facilities integer; number of facilities in the dataset
+#' @param num_datasets integer; number of datasets in the dataset
+#' @param levelNames character vector; administrative level names
+#' @param agg_level character; aggregation level name
+#' @param split character; split variable ("None" or a column name)
+#' @param covariates character vector; covariate column names to retain
+#' @param remove.aggregate logical; remove aggregate (non-leaf) rows
+#' @param scale logical; allow y-axis to be free (do not force zero baseline)
+#' @param testing logical; save intermediate objects for debugging
+#' @param .cat logical; print progress messages to the console
 #' @export
 trendData = function(
   .d = data.hts,
@@ -1694,6 +1772,12 @@ trendData = function(
 
 
 #' Build model formula string for time-series fitting
+#' @param model character; model type (e.g. "ARIMA", "ETS", "TSLM (trend+season)")
+#' @param modelSpecs list; optional model specification overrides
+#' @param transform logical; apply Box-Cox transformation in the formula
+#' @param period character; time index column name ("Month" or "Week")
+#' @param covariates character vector; covariate names to add as regressors
+#' @param .cat logical; print progress messages to the console
 #' @export
 model_formula = function(
   model = "ARIMA",
@@ -1819,6 +1903,13 @@ model_formula = function(
 }
 
 #' Fit pre-intervention time-series models
+#' @param trend.data tsibble; the prepared trend dataset
+#' @param evaluation_month yearmonth; start of the evaluation (post-intervention) window
+#' @param model character; model type to fit (e.g. "ARIMA", "ETS")
+#' @param formula.string character; model formula string (NULL to auto-build)
+#' @param period character; time index column name ("Month" or "Week")
+#' @param .cat logical; print progress messages to the console
+#' @param ... additional arguments passed to `model_formula()`
 #' @export
 tsPreModel = function(
   trend.data,
@@ -2012,6 +2103,17 @@ tsPreModel = function(
 }
 
 #' Generate pre-intervention forecasts from fitted models
+#' @param trend.data tsibble; the full trend dataset (used to build new_data)
+#' @param preModel mable; fitted model object from `tsPreModel()`
+#' @param horizon integer; number of periods to forecast
+#' @param evaluation_month yearmonth; centre of the evaluation window
+#' @param period character; time index column name ("Month" or "Week")
+#' @param covariates character vector; covariate column names required by the model
+#' @param split character; split variable name (or NULL)
+#' @param agg_level character; aggregation level name
+#' @param prob logical; return probabilistic (distribution) forecasts
+#' @param pi_levels numeric; prediction interval level(s) (e.g. 0.89)
+#' @param .cat logical; print progress messages to the console
 #' @export
 tsPreForecast = function(
   trend.data,
@@ -2125,6 +2227,11 @@ tsPreForecast = function(
 
 
 #' Compute mean absolute percentage error
+#' @param preForecast fable or data frame; forecast output with a `.mean` column
+#' @param trend.data tsibble; actual observed values
+#' @param period character; time index column name ("Month" or "Week")
+#' @param var character; name of the forecast point-estimate column (default ".mean")
+#' @param .cat logical; print progress messages to the console
 #' @export
 MAPE = function(
   preForecast,
@@ -2166,6 +2273,13 @@ MAPE = function(
 
 
 #' Compute key MAPE values for forecast accuracy summary
+#' @param preForecast fable or data frame; forecast output with a `.mean` column
+#' @param trend.data tsibble; actual observed values
+#' @param period character; time index column name ("Month" or "Week")
+#' @param split character; split variable for grouping results ("None" or a column name)
+#' @param agg_level character; aggregation level name
+#' @param horizon integer; number of forecast periods
+#' @param .cat logical; print progress messages to the console
 #' @export
 key.mape = function(
   preForecast,
@@ -3007,7 +3121,7 @@ forecast_diff = function(
 #'
 #' @return A data frame with WPE summary statistics per model.
 #' @export
-diff.summary = function(
+wpe_summary = function(
   actual,
   predicted,
   .var     = "total",
@@ -3041,14 +3155,14 @@ diff.summary = function(
 #' @param actual Tsibble of actual post-intervention values.
 #' @param predicted Fable object of post-intervention forecasts.
 #' @param xlimits Numeric vector of length 2. x-axis limits (default `c(NA, NA)`).
-#' @param ... Passed to [forecast_diff()] and [diff.summary()].
+#' @param ... Passed to [forecast_diff()] and [wpe_summary()].
 #'
 #' @return A ggplot object.
 #' @export
 diffHistogram = function(actual, predicted, xlimits = c(NA, NA), ...) {
   diffPredictedActual = forecast_diff(actual, predicted, ...)
   n_forecasts = max(diffPredictedActual$.rep)
-  diffPredictedActual.summary = diff.summary(actual, predicted, ...)
+  diffPredictedActual.summary = wpe_summary(actual, predicted, ...)
 
   d = diffPredictedActual %>%
     dplyr::inner_join(diffPredictedActual.summary, by = dplyr::join_by(.model)) %>%
@@ -3075,7 +3189,7 @@ diffHistogram = function(actual, predicted, xlimits = c(NA, NA), ...) {
 
 
 #' Fit pre-intervention impact models
-#' @export
+#' @noRd
 pre_impact_fit = function(
   ml.data = ml.data,
   startingMonth = "Jan 2015",
@@ -3295,6 +3409,13 @@ pre_impact_fit = function(
 }
 
 #' Fit time-series models across replicates
+#' @param trend.data tsibble; the prepared trend dataset
+#' @param evaluation_month yearmonth; end of the training window
+#' @param model character; model type to fit (e.g. "ARIMA", "ETS")
+#' @param formula.string character; model formula string (NULL to auto-build)
+#' @param period character; time index column name ("Month" or "Week")
+#' @param .cat logical; print progress messages to the console
+#' @param ... additional arguments passed to `model_formula()`
 #' @export
 tsModel = function(
   trend.data,
@@ -3479,6 +3600,19 @@ tsModel = function(
 }
 
 #' Generate time-series forecasts from fitted models
+#' @param trend.data tsibble; the full trend dataset (used to build new_data)
+#' @param Model mable; fitted model object from `tsModel()`
+#' @param horizon integer; number of periods to forecast
+#' @param evaluation_month yearmonth; start of the forecast window
+#' @param period character; time index column name ("Month" or "Week")
+#' @param covariates character vector; covariate column names required by the model
+#' @param split character; split variable name (or NULL)
+#' @param agg_level character; aggregation level name
+#' @param simulate logical; use simulation-based forecasting
+#' @param bootstrap logical; use bootstrap residuals for prediction intervals
+#' @param times integer; number of simulation/bootstrap replicates
+#' @param pi_levels numeric; prediction interval level(s) (e.g. 0.89)
+#' @param .cat logical; print progress messages to the console
 #' @export
 tsForecast = function(
   trend.data,
@@ -3598,7 +3732,7 @@ tsForecast = function(
 
 
 #' Fit post-intervention impact models
-#' @export
+#' @noRd
 impact_fit = function(
   # ml.data = ml.data ,
   # startingMonth = "Jan 2015" ,
@@ -3803,7 +3937,7 @@ impact_fit = function(
     i = key.mpe(
       Forecast,
       trend.data,
-      split = split,
+      .split = split,
       agg_level = agg_level,
       .cat = .cat
     )
@@ -3828,6 +3962,22 @@ impact_fit = function(
 }
 
 #' Extract forecast values for a specific model and replicate
+#' @param forecastData tsibble; prepared trend data to fit and forecast from
+#' @param model character; model type to fit (e.g. "ARIMA")
+#' @param model.string character; model formula string (NULL to auto-build)
+#' @param transform logical; apply Box-Cox transformation
+#' @param lambda numeric; Box-Cox lambda parameter
+#' @param covariates character vector; covariate column names
+#' @param horizon integer; number of periods to forecast
+#' @param bootstrap logical; use bootstrap residuals for prediction intervals
+#' @param Reps integer; number of bootstrap replicates
+#' @param future.seed logical; set a reproducible seed for parallel futures
+#' @param split character; split variable ("None" or a column name)
+#' @param agg_level character; aggregation level name
+#' @param agg_method character; aggregation method ("None" or method name)
+#' @param .period character; time index column name ("Month" or "Week")
+#' @param eval_date yearmonth; evaluation start date
+#' @param .cat logical; print progress messages to the console
 #' @export
 getForecast = function(
   forecastData,
@@ -3994,6 +4144,15 @@ getForecast = function(
 
 
 #' Compute key mean percentage error values for forecast evaluation
+#' @param Forecast_data fable or data frame; forecast output with a `.mean` column
+#' @param test_data tsibble; actual observed values for the evaluation window
+#' @param period character; time index column name ("Month" or "Week")
+#' @param .split character; split variable for grouping ("None" or a column name)
+#' @param by_month logical; compute MPE separately for each month
+#' @param agg_level character; aggregation level name
+#' @param horizon integer; number of forecast periods (used for mid-point split)
+#' @param var character; name of the forecast point-estimate column (default ".mean")
+#' @param .cat logical; print progress messages to the console
 #' @export
 key.mpe = function(
   Forecast_data,
@@ -4180,6 +4339,21 @@ key.mpe = function(
 #       }
 
 #' Plot time-series trends with forecast overlay
+#' @param trend.data tsibble; the prepared trend dataset to plot
+#' @param scale logical; allow free y-axis (do not force zero baseline)
+#' @param legend logical; show the colour legend
+#' @param label logical; add text labels at the end of each series
+#' @param facet_split logical; split into facets
+#' @param facet_vars character vector; variables to use for faceting
+#' @param facet_admin logical; facet by administrative level
+#' @param agg_level character; aggregation level name for display
+#' @param pre_evaluation logical; overlay pre-intervention forecast
+#' @param evaluation logical; overlay post-intervention forecast
+#' @param horizon integer; number of forecast periods to overlay
+#' @param eval_date yearmonth; start date of the evaluation window
+#' @param pe logical; show percentage-error annotation
+#' @param .cat logical; print progress messages to the console
+#' @param ... additional arguments
 #' @export
 plotTrends = function(
   trend.data,
@@ -4428,7 +4602,7 @@ plotTrends = function(
     #           label = paste( "MPE:\n" )
     #           ) +
 
-    mpeData = key.mpe(forecastData = tsForecast, actualData = plotData)
+    mpeData = key.mpe(Forecast_data = tsForecast, test_data = plotData)
 
     if (pe) {
       g = g +

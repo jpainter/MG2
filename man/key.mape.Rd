@@ -14,6 +14,21 @@ key.mape(
   .cat = FALSE
 )
 }
+\arguments{
+\item{preForecast}{fable or data frame; forecast output with a \code{.mean} column}
+
+\item{trend.data}{tsibble; actual observed values}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{split}{character; split variable for grouping results ("None" or a column name)}
+
+\item{agg_level}{character; aggregation level name}
+
+\item{horizon}{integer; number of forecast periods}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Compute key MAPE values for forecast accuracy summary
 }

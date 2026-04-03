@@ -21,7 +21,7 @@ api_data(
   previous_dataset_file = "",
   prev.data = NA,
   level1.id = NA,
-  dir = country.dir,
+  dir = NULL,
   shinyApp = FALSE,
   childOnly = FALSE,
   ...
@@ -75,5 +75,7 @@ data frame with data values
 Fetch DHIS2 Data Values via API with Optional Update and Quality Checks
 }
 \examples{
+\dontrun{
 api_data()
+}
 }

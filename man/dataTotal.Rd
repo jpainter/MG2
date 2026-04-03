@@ -17,6 +17,27 @@ dataTotal(
   .cat = TRUE
 )
 }
+\arguments{
+\item{data}{data frame or tsibble; the selected dataset to aggregate}
+
+\item{group_by_cols}{character vector; column names to group by}
+
+\item{period}{character; time index column name ("Month" or "Week")}
+
+\item{startMonth}{yearmonth; start of the aggregation window}
+
+\item{endMonth}{yearmonth; end of the aggregation window}
+
+\item{dataSets}{character vector; dataset names to combine into "Combined"}
+
+\item{sum.data}{logical; sum values across org units (default TRUE)}
+
+\item{mean.merge}{logical; use mean instead of sum when merging (default FALSE)}
+
+\item{covariates}{character vector; covariate column names to retain}
+
+\item{.cat}{logical; print progress messages to the console}
+}
 \description{
 Merge and aggregate datasets across org units and periods
 }
