@@ -450,7 +450,7 @@ cleaning_widget_server <- function(
         x = data1()
         cat('\n - cleaning_widget observe outlierData$df_data class:', class(x))
 
-        choices = unique(x$data)
+        choices = sort(unique(x$data))
         updateCheckboxGroupInput(
           session,
           "dataElement",

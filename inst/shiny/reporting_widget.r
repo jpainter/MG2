@@ -557,11 +557,11 @@ reporting_widget_server <- function(
         updateCheckboxGroupInput(
           session,
           'data_categories',
-          choices = unique(data1()$data),
-          selected = unique(data1()$data)
+          choices = sort(unique(data1()$data)),
+          selected = sort(unique(data1()$data))
         )
 
-        selected_data_categories$elements = unique(data1()$data)
+        selected_data_categories$elements = sort(unique(data1()$data))
 
         cat('\n - done')
       })
