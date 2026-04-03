@@ -97,7 +97,10 @@ ui <- bslib::page_navbar(
   bg    = "#222222",
   header = tagList(
     shinyjs::useShinyjs(),
-    tags$head(tags$style("body { min-width: 1100px; }")),
+    tags$head(tags$style(
+      "body { min-width: 1100px; }
+       table.dataTable td { vertical-align: top !important; }"
+    )),
     shinyWidgets::setBackgroundColor(color = "#F5F5F5")
   ),
 
