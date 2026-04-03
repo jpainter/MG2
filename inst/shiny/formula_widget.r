@@ -62,6 +62,16 @@ formula_widget_ui <- function(id) {
           fluidRow(
             column(
               12,
+              checkboxInput(
+                ns("collapse_to_element"),
+                "One row per data element (collapse categories)",
+                value = TRUE
+              )
+            )
+          ),
+          fluidRow(
+            column(
+              12,
               div(
                 DT::dataTableOutput(ns('forumlaDictionaryTable')),
                 style = "font-size: 60%; width: 100%"
@@ -336,10 +346,27 @@ formula_widget_server <- function(
       })
 
       output$forumlaDictionaryTable =
-        DT::renderDT(
-          DT::datatable(
-            updated_formula_elements$df,
+        DT::renderDT({
+          df = updated_formula_elements$df
 
+          if (isTRUE(input$collapse_to_element) && nrow(df) > 0 &&
+              all(c("dataElement.id", "Categories", "categoryOptionCombo.ids") %in% names(df))) {
+            collapse_cols = setdiff(
+              names(df),
+              c("Categories", "categoryOptionCombo.ids", "n_categoryOptions", "categoryCombo", "categoryCombo.id")
+            )
+            df = df %>%
+              dplyr::group_by(dplyr::across(dplyr::all_of(collapse_cols))) %>%
+              dplyr::summarise(
+                Categories            = paste(trimws(Categories), collapse = " ;\n "),
+                categoryOptionCombo.ids = paste(trimws(categoryOptionCombo.ids), collapse = " ;\n "),
+                n_categoryOptions     = dplyr::n(),
+                .groups = "drop"
+              )
+          }
+
+          DT::datatable(
+            df,
             rownames = FALSE,
             filter = 'top',
             options = list(
@@ -356,7 +383,7 @@ formula_widget_server <- function(
             )
           )
           # options = DToptions_no_buttons()
-        )
+        })
 
       DT::renderDT(DT::datatable(
         formulaChoices(),
