@@ -1576,6 +1576,11 @@ reporting_widget_server <- function(
           )
         }
 
+        # reportingSelectedOUs() is gated to the Reporting tab; when the user
+        # is on another tab its req() fails silently. Catch that so selected_data()
+        # still returns data for downstream widgets (cleaning, dqa).
+        rous = tryCatch(reportingSelectedOUs(), error = function(e) NULL)
+
         cat("\n - selected_data:")
         selected_data = selectedData(
           data = .cleanedData, # data1() ,
@@ -1583,7 +1588,7 @@ reporting_widget_server <- function(
           data_categories = selected_data_categories$elements,
           # all_categories = input$all_categories ,
           alwaysReporting = input$mostReports,
-          reportingSelectedOUs = reportingSelectedOUs(),
+          reportingSelectedOUs = rous,
           startingMonth = NULL,
           endingMonth = NULL,
           # source = 'Original' ,
