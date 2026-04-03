@@ -1930,7 +1930,14 @@ reporting_widget_server <- function(
         # testing
         saveRDS(.d, 'plot3_data.rds')
 
-        data.text = paste(unique(selected_data()$data), collapse = " + ")
+        cats = unique(selected_data()$data)
+        max_show = 5
+        data.text = if (length(cats) <= max_show) {
+          paste(cats, collapse = " + ")
+        } else {
+          paste0(paste(cats[seq_len(max_show)], collapse = " + "),
+                 sprintf(" ... and %d more", length(cats) - max_show))
+        }
         cat("\n - data.text:", data.text)
 
         # #print( 'data.text'); #print( data.text )
