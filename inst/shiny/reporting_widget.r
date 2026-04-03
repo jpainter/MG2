@@ -1525,6 +1525,15 @@ reporting_widget_server <- function(
         height = "auto"
       )
 
+      # Cache the last successfully-computed reportingSelectedOUs so that
+      # selected_data() doesn't hold a live reactive dependency on it.
+      # When reportingSelectedOUs() fails via req() (e.g. on a non-Reporting tab),
+      # the observer does NOT fire, so the cache — and selected_data() — stay stable.
+      cached_rous = reactiveValues(value = NULL)
+      observeEvent(reportingSelectedOUs(), ignoreNULL = FALSE, {
+        cached_rous$value = reportingSelectedOUs()
+      })
+
       # selected_data. select ous and data element categories ####
 
       selected_data = reactive({
@@ -1576,10 +1585,11 @@ reporting_widget_server <- function(
           )
         }
 
-        # reportingSelectedOUs() is gated to the Reporting tab; when the user
-        # is on another tab its req() fails silently. Catch that so selected_data()
-        # still returns data for downstream widgets (cleaning, dqa).
-        rous = tryCatch(reportingSelectedOUs(), error = function(e) NULL)
+        # Use the cached last-good reportingSelectedOUs value.
+        # This avoids a direct reactive dependency on reportingSelectedOUs(), so
+        # tab switches (which cause reportingSelectedOUs() to fail its req()) do
+        # NOT invalidate selected_data() and cascade to mable_Data() / charts.
+        rous = cached_rous$value
 
         cat("\n - selected_data:")
         selected_data = selectedData(
