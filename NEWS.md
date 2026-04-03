@@ -1,3 +1,10 @@
+# MG2 0.1.2
+
+* Fixed crash when downloading more than one year of data: `api_data()` was
+  calling `group_by(categoryOptionCombo)` unconditionally, but that column is
+  absent when data has no category disaggregation. Now uses `by_cols` (already
+  correctly conditional) for the subsequent `group_by` as well.
+
 # MG2 0.1.1
 
 * Exported 22 package functions that were missing `@export` tags and inaccessible

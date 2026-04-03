@@ -394,7 +394,7 @@ api_data = function(
     # saveRDS( update_compare ,  paste0( dir, 'update_compare_', formula,"_", Sys.Date() , ".rds") )
 
     prev.periods.same.data = update_compare %>%
-      group_by(period, dataElement, categoryOptionCombo) %>%
+      group_by(across(all_of(by_cols))) %>%
       filter(all(same))
 
     cat(
