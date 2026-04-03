@@ -188,6 +188,16 @@ api_data = function(
         distinct
     }
 
+    # Normalize default category option combo: DHIS2 omits categoryOptionCombo
+    # from the API response for elements using the default combo. Replace NA
+    # with "default" so joins work correctly in the mixed case (some elements
+    # disaggregated, some not). Applied to prev.data here; applied to
+    # current.counts and current.values after their bind_rows below.
+    if ('categoryOptionCombo' %in% names(prev.data)) {
+      prev.data = prev.data %>%
+        mutate(categoryOptionCombo = dplyr::coalesce(categoryOptionCombo, "default"))
+    }
+
     cat('\n - extracting previously downloaded elements')
 
     des = prev.data %>%
@@ -278,6 +288,10 @@ api_data = function(
 
     cat('\n - combining previous counts \n')
     current.counts = bind_rows(current.counts)
+    if ('categoryOptionCombo' %in% names(current.counts)) {
+      current.counts = current.counts %>%
+        mutate(categoryOptionCombo = dplyr::coalesce(categoryOptionCombo, "default"))
+    }
     cat('\n - rows =', nrow(current.counts), "\n")
 
     removeModal()
@@ -330,6 +344,10 @@ api_data = function(
     # saveRDS( current.values, 'current.values.rds')
 
     current.values = bind_rows(current.values)
+    if ('categoryOptionCombo' %in% names(current.values)) {
+      current.values = current.values %>%
+        mutate(categoryOptionCombo = dplyr::coalesce(categoryOptionCombo, "default"))
+    }
     cat('\n - rows =', nrow(current.values), "\n")
 
     #TESTING

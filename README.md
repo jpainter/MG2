@@ -15,7 +15,7 @@ Install the development version from GitHub:
 
 ```r
 # install.packages("remotes")
-remotes::install_github("johnpainter/MG2")
+remotes::install_github("https://github.com/jpainter/MG2")
 ```
 
 ### System requirements
@@ -23,7 +23,7 @@ remotes::install_github("johnpainter/MG2")
 The core app requires the packages listed in `DESCRIPTION` under `Imports`. For full functionality — including time-series modeling, forecasting, and map visualization — also install the suggested packages:
 
 ```r
-remotes::install_github("johnpainter/MG2", dependencies = TRUE)
+remotes::install_github("https://github.com/jpainter/MG2", dependencies = TRUE)
 ```
 
 ---

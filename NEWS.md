@@ -1,3 +1,16 @@
+# MG2 0.1.3
+
+* Fixed incorrect join behavior in `api_data()` when a formula contains a mix
+  of default-category and disaggregated data elements. DHIS2 omits
+  `categoryOptionCombo` from the API response for elements using the default
+  category combo, leaving `NA` after `bind_rows()`. In the mixed case this
+  caused default-element rows to never match in the update comparison (NA ≠ NA
+  in dplyr joins), so those elements were always re-downloaded unnecessarily.
+  Worse, dropping `categoryOptionCombo` from the join entirely would collapse
+  disaggregated elements into a many-to-many match. Fix: replace `NA` with the
+  sentinel `"default"` in `current.counts`, `current.values`, and `prev.data`
+  before any joins, so all element types match correctly.
+
 # MG2 0.1.2
 
 * Fixed crash when downloading more than one year of data: `api_data()` was
