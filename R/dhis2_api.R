@@ -100,7 +100,7 @@ api_url <- function(baseurl, de, periods, orgUnits, aggregationType,
 
 #' Fetch a Single DHIS2 Data Request
 #'
-#' Builds a URL with [api_url()], fetches data with [dhis2_get()], and returns
+#' Builds a URL with `api_url()`, fetches data with [dhis2_get()], and returns
 #' a tidy tibble. Returns a one-row NA tibble when the server returns no data.
 #'
 #' @param baseurl. Character. Base URL of the DHIS2 server.

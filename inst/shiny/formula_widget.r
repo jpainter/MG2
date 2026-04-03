@@ -184,7 +184,6 @@ formula_widget_server <- function(
           # options = DToptions_no_buttons()
           options = list(
             # bPaginate = FALSE,
-            autoWidth = TRUE,
             scrollY = "55vh",
             scrollX = TRUE,
             scrollCollapse = TRUE,
@@ -198,8 +197,7 @@ formula_widget_server <- function(
             pageLength = 10,
             server = TRUE,
             dom = 'tirp'
-          ),
-          fillContainer = TRUE
+          )
         ))
 
       selected_elements = reactive({
@@ -345,7 +343,6 @@ formula_widget_server <- function(
             rownames = FALSE,
             filter = 'top',
             options = list(
-              autoWidth = TRUE,
               scrollY = "55vh",
               scrollX = TRUE,
               scrollCollapse = TRUE,
@@ -356,8 +353,7 @@ formula_widget_server <- function(
               pageLength = 10,
               server = TRUE,
               dom = 'tirp'
-            ),
-            fillContainer = TRUE
+            )
           )
           # options = DToptions_no_buttons()
         )
@@ -369,7 +365,6 @@ formula_widget_server <- function(
         rownames = FALSE,
         filter = 'top',
         options = list(
-          autoWidth = TRUE,
           scrollY = "55vh",
           scrollX = TRUE,
           scrollCollapse = TRUE,
@@ -380,8 +375,7 @@ formula_widget_server <- function(
           pageLength = 10,
           server = TRUE,
           dom = 'tirp'
-        ),
-        fillContainer = TRUE
+        )
       ))
 
       output$formulaName = renderPrint({
