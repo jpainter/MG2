@@ -246,45 +246,50 @@ api_data = function(
     #   mutate(current.count = as.integer( value ) ) %>%
     #   select( - value )
 
-    showModal(
-      modalDialog(
-        title = "Checking for updated data counts",
-        easyClose = TRUE,
-        size = 'm',
-        footer = "Looking to see if national monthly COUNTs are the same as when last downloaded"
-      )
-    )
-
     ## NB: Some servers return null when requesting mulitple years (e.g. Malawi when data on both sides of 2020)
+
+    n_years = length(prev.periods.years)
 
     current.counts = list(length(prev.periods.years))
 
-    for (i in seq_along(prev.periods.years)) {
-      prev.periods.in.year = prev.periods.vector[grepl(
-        prev.periods.years[i],
-        prev.periods.vector
-      )] %>%
-        unique()
-      prev.periods.in.year = prev.periods.in.year[order(
-        prev.periods.in.year
-      )] %>%
-        paste(., collapse = ';')
+    withProgress(
+      message = sprintf("Checking counts (%d year%s)", n_years, if (n_years == 1) "" else "s"),
+      detail  = sprintf("Year 1 of %d (%s)", n_years, prev.periods.years[1]),
+      value   = 0,
+      {
+        for (i in seq_along(prev.periods.years)) {
+          setProgress(
+            value  = (i - 1) / n_years,
+            detail = sprintf("Year %d of %d (%s)", i, n_years, prev.periods.years[i])
+          )
 
-      cat('\n - for', prev.periods.in.year)
+          prev.periods.in.year = prev.periods.vector[grepl(
+            prev.periods.years[i],
+            prev.periods.vector
+          )] %>%
+            unique()
+          prev.periods.in.year = prev.periods.in.year[order(
+            prev.periods.in.year
+          )] %>%
+            paste(., collapse = ';')
 
-      current.counts[[i]] = fetch_get(
-        baseurl. = baseurl,
-        username = username,
-        password = password,
-        de. = new.elements,
-        periods. = prev.periods.in.year,
-        orgUnits. = "LEVEL-1",
-        aggregationType. = "COUNT",
-        get.print = print,
-        childOnly = FALSE
-      ) %>%
-        mutate(current.count = as.integer(value))
-    }
+          cat('\n - for', prev.periods.in.year)
+
+          current.counts[[i]] = fetch_get(
+            baseurl. = baseurl,
+            username = username,
+            password = password,
+            de. = new.elements,
+            periods. = prev.periods.in.year,
+            orgUnits. = "LEVEL-1",
+            aggregationType. = "COUNT",
+            get.print = print,
+            childOnly = FALSE
+          ) %>%
+            mutate(current.count = as.integer(value))
+        }
+      }
+    )
 
     cat('\n - combining previous counts \n')
     current.counts = bind_rows(current.counts)
@@ -294,51 +299,46 @@ api_data = function(
     }
     cat('\n - rows =', nrow(current.counts), "\n")
 
-    removeModal()
-
-    showModal(
-      modalDialog(
-        title = "Checking for updated data values",
-        easyClose = TRUE,
-        size = 'm',
-        footer = "Looking to see if national monthly SUMs are the same as when last downloaded"
-      )
-    )
-
     cat('\n - checking previous values:')
 
     current.values = list(length(prev.periods.years))
 
-    for (i in seq_along(prev.periods.years)) {
-      # prev.periods.in.year = str_extract_all( prev.periods,
-      #                                         paste0( prev.periods.years[i] ,"[0-9][0-9]" )
-      #                                         )[[1]] %>%  unique()
-      # prev.periods.in.year = prev.periods.in.year[ order(prev.periods.in.year) ] %>%  paste(. , collapse = ';')
-      #
-      # cat( '\n - for' , prev.periods.in.year )
-      prev.periods.in.year = prev.periods.vector[grepl(
-        prev.periods.years[i],
-        prev.periods.vector
-      )] %>%
-        unique()
-      prev.periods.in.year = prev.periods.in.year[order(
-        prev.periods.in.year
-      )] %>%
-        paste(., collapse = ';')
+    withProgress(
+      message = sprintf("Checking values (%d year%s)", n_years, if (n_years == 1) "" else "s"),
+      detail  = sprintf("Year 1 of %d (%s)", n_years, prev.periods.years[1]),
+      value   = 0,
+      {
+        for (i in seq_along(prev.periods.years)) {
+          setProgress(
+            value  = (i - 1) / n_years,
+            detail = sprintf("Year %d of %d (%s)", i, n_years, prev.periods.years[i])
+          )
 
-      current.values[[i]] = fetch_get(
-        baseurl. = baseurl,
-        username = username,
-        password = password,
-        de. = new.elements,
-        periods. = prev.periods.in.year,
-        orgUnits. = "LEVEL-1",
-        aggregationType. = "SUM",
-        childOnly = FALSE,
-        get.print = print
-      ) %>%
-        mutate(current.value = as.integer(value))
-    }
+          prev.periods.in.year = prev.periods.vector[grepl(
+            prev.periods.years[i],
+            prev.periods.vector
+          )] %>%
+            unique()
+          prev.periods.in.year = prev.periods.in.year[order(
+            prev.periods.in.year
+          )] %>%
+            paste(., collapse = ';')
+
+          current.values[[i]] = fetch_get(
+            baseurl. = baseurl,
+            username = username,
+            password = password,
+            de. = new.elements,
+            periods. = prev.periods.in.year,
+            orgUnits. = "LEVEL-1",
+            aggregationType. = "SUM",
+            childOnly = FALSE,
+            get.print = print
+          ) %>%
+            mutate(current.value = as.integer(value))
+        }
+      }
+    )
 
     cat('\n - combining previous values \n')
     # saveRDS( current.values, 'current.values.rds')
@@ -353,13 +353,6 @@ api_data = function(
     #TESTING
     # saveRDS( current.counts, 'current.counts.rds')
     # saveRDS( current.values, 'current.values.rds')
-
-    # current.values = bind_rows( current.values )
-    # current.values = bind_rows( lapply( current.values, function(x) if( !is.data.frame(x) ) NULL else x) )
-
-    # cat( '\n - rows =' , nrow( current.values ) , "\n")
-
-    removeModal()
 
     # Compare with previous data just for level-1
     ## for excel

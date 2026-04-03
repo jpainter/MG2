@@ -526,52 +526,69 @@ data_request_widget_server <- function(
         removeModal()
         showModal(
           modalDialog(
-            title = "Scanning data for extreme values data",
-            easyClose = TRUE,
+            title = "Scanning for extreme values (MAD) — please wait",
+            easyClose = FALSE,
             fade = FALSE,
             size = 'm',
-            footer = "(click anywhere to close dialog box)"
+            footer = "This may take several minutes for large datasets"
           )
         )
 
         .total = length(key_size(d1))
-
         .threshold = 50
 
-        withProgress(
-          message = "Searchng for extreme values (MAD)",
-          detail = "starting ...",
-          value = 0,
-          {
-            data.mad = mad_outliers(d1, .total = .total, .threshold = 50)
+        data.mad = tryCatch(
+          mad_outliers(d1, .total = .total, .threshold = 50),
+          error = function(e) {
+            removeModal()
+            showModal(modalDialog(
+              title = "Error scanning for extreme values",
+              easyClose = TRUE, fade = FALSE,
+              footer = conditionMessage(e)
+            ))
+            NULL
           }
         )
+
+        if (is.null(data.mad)) return()
 
         cat('\n - scanning for Seasonal outliers')
 
         .total = length(key_size(data.mad))
         cat('\n - .total', .total)
 
-        withProgress(
-          message = "Searchng for seasonal Outliers",
-          detail = "starting ...",
-          value = 0,
-          {
-            data1.seasonal = seasonal_outliers(
-              data.mad,
-              .total = .total,
-              .threshold = 50
-            )
+        showModal(
+          modalDialog(
+            title = "Scanning for seasonal outliers — please wait",
+            easyClose = FALSE,
+            fade = FALSE,
+            size = 'm',
+            footer = "This may take several minutes for large datasets"
+          )
+        )
+
+        data1.seasonal = tryCatch(
+          seasonal_outliers(data.mad, .total = .total, .threshold = 50),
+          error = function(e) {
+            removeModal()
+            showModal(modalDialog(
+              title = "Error scanning for seasonal outliers",
+              easyClose = TRUE, fade = FALSE,
+              footer = conditionMessage(e)
+            ))
+            NULL
           }
         )
 
+        if (is.null(data1.seasonal)) return()
+
         showModal(
           modalDialog(
-            title = "Finished scanning for seasonal values; saving data",
-            easyClose = TRUE,
+            title = "Saving data — please wait",
+            easyClose = FALSE,
             fade = FALSE,
-            size = 'm',
-            footer = "(click anywhere to close dialog box)"
+            size = 's',
+            footer = NULL
           )
         )
 
