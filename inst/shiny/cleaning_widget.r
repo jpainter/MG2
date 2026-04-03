@@ -434,8 +434,8 @@ cleaning_widget_server <- function(
       })
 
       observeEvent(input$select_all_dataElement, {
-        req(data1()$data)
-        choices = unique(data1()$data)
+        req(selected_data()$data)
+        choices = sort(unique(selected_data()$data))
         updateCheckboxGroupInput(
           session,
           "dataElement",
@@ -443,14 +443,13 @@ cleaning_widget_server <- function(
         )
       }, ignoreInit = TRUE)
 
-      # data names  ####
-      observeEvent(data1(), {
-        cat('\n* cleaning_widget observe data1() class:', class(data1()))
+      # data names — populate from selected_data() so the list reflects only
+      # what the reporting widget has filtered/selected, not the full dataset
+      observeEvent(selected_data(), {
+        req(selected_data())
+        cat('\n* cleaning_widget observe selected_data()')
 
-        x = data1()
-        cat('\n - cleaning_widget observe outlierData$df_data class:', class(x))
-
-        choices = sort(unique(x$data))
+        choices = sort(unique(selected_data()$data))
         updateCheckboxGroupInput(
           session,
           "dataElement",
