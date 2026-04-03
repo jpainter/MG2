@@ -18,11 +18,14 @@ cleaning_widget_ui = function(id) {
           sidebarPanel(
             width = 3,
 
-            radioButtons(
-              ns("dataElement"),
-              label = "DataElement_Category:",
-              choices = c(''),
-              selected = NULL
+            div(
+              style = "max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              radioButtons(
+                ns("dataElement"),
+                label = "DataElement_Category:",
+                choices = c(''),
+                selected = NULL
+              )
             ),
 
             selectInput(

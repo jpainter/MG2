@@ -180,12 +180,15 @@ reporting_widget_ui = function(id) {
 
             actionButton(ns('update_data_categories'), label = "Update"),
 
-            checkboxGroupInput(
-              ns("data_categories"),
-              label = "DataElement/Category",
-              choices = NULL,
-              selected = 1,
-              width = "100%"
+            div(
+              style = "max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              checkboxGroupInput(
+                ns("data_categories"),
+                label = "DataElement/Category",
+                choices = NULL,
+                selected = 1,
+                width = "100%"
+              )
             ),
 
             h5(
