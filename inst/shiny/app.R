@@ -200,12 +200,15 @@ server <- function(input, output, session) {
     directory_widget_output  = directory_widget_output
   )
 
+  current_tab <- reactive({ input$tabs })
+
   reporting_widget_output <- reporting_widget_server(
     "reporting1",
     dataDirectory            = directory_widget_output,
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,
-    cleaning_widget_output   = cleaning_widget_output
+    cleaning_widget_output   = cleaning_widget_output,
+    current_tab              = current_tab
   )
 
   cleaning_widget_output <- cleaning_widget_server(
@@ -213,7 +216,8 @@ server <- function(input, output, session) {
     directory_widget_output  = directory_widget_output,
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,
-    reporting_widget_output  = reporting_widget_output
+    reporting_widget_output  = reporting_widget_output,
+    current_tab              = current_tab
   )
 
   dqa_widget_output <- dqa_widget_server(
@@ -222,7 +226,8 @@ server <- function(input, output, session) {
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,
     reporting_widget_output  = reporting_widget_output,
-    cleaning_widget_output   = cleaning_widget_output
+    cleaning_widget_output   = cleaning_widget_output,
+    current_tab              = current_tab
   )
 
   evaluation_widget_output <- evaluation_widget_server(
@@ -231,7 +236,8 @@ server <- function(input, output, session) {
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,
     reporting_widget_output  = reporting_widget_output,
-    cleaning_widget_output   = cleaning_widget_output
+    cleaning_widget_output   = cleaning_widget_output,
+    current_tab              = current_tab
   )
 }
 

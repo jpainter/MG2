@@ -297,7 +297,8 @@ evaluation_widget_server <- function(
   metadata_widget_output = NULL,
   data_widget_output = NULL,
   reporting_widget_output = NULL,
-  cleaning_widget_output = NULL
+  cleaning_widget_output = NULL,
+  current_tab = NULL
 ) {
   moduleServer(
     id,
@@ -412,6 +413,7 @@ evaluation_widget_server <- function(
       # Dates
 
       dates = reactive({
+        req(!is.null(current_tab) && current_tab() == "Evaluation")
         req(selected_data())
 
         cat('\n* evaluation_widget dates():')
@@ -471,6 +473,7 @@ evaluation_widget_server <- function(
       observeEvent(
         data.total(),
         {
+          req(!is.null(current_tab) && current_tab() == "Evaluation")
           cat('\n* evaluation_widget update var_y:')
           updateSelectInput(session, 'var_y', choices = names(data.total()))
         }

@@ -341,7 +341,8 @@ reporting_widget_server <- function(
   dataDirectory = NULL,
   metadata_widget_output = NULL,
   data_widget_output = NULL,
-  cleaning_widget_output = NULL
+  cleaning_widget_output = NULL,
+  current_tab = NULL
 ) {
   moduleServer(
     id,
@@ -1205,6 +1206,7 @@ reporting_widget_server <- function(
 
       reportingSelectedOUs <- reactive({
         #print( 'reportingSelectedOUs()' )
+        req(!is.null(current_tab) && current_tab() == "Reporting")
         req(input$endingMonth)
         req(input$startingMonth)
         req(d())
@@ -1512,6 +1514,7 @@ reporting_widget_server <- function(
 
       selected_data = reactive({
         #print( 'selected_data():')
+        req(!is.null(current_tab) && current_tab() == "Reporting")
         req(data1())
         req(selected_data_categories$elements)
 
@@ -1656,6 +1659,7 @@ reporting_widget_server <- function(
 
       # data.total: merges data across multiple set ####
       data.total = reactive({
+        req(!is.null(current_tab) && current_tab() == "Reporting")
         req(selected_data())
         # req( group_by_cols() )
         req(period())

@@ -54,7 +54,8 @@ dqa_widget_server <- function(
   metadata_widget_output = NULL,
   data_widget_output = NULL,
   reporting_widget_output = NULL,
-  cleaning_widget_output = NULL
+  cleaning_widget_output = NULL,
+  current_tab = NULL
 ) {
   moduleServer(
     id,

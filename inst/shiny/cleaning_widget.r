@@ -236,7 +236,8 @@ cleaning_widget_server <- function(
   directory_widget_output = NULL,
   metadata_widget_output = NULL,
   data_widget_output = NULL,
-  reporting_widget_output = NULL
+  reporting_widget_output = NULL,
+  current_tab = NULL
 ) {
   moduleServer(
     id,
@@ -420,7 +421,7 @@ cleaning_widget_server <- function(
 
       # data names  ####
       observeEvent(data1(), {
-        # req( data1() )
+        req(!is.null(current_tab) && current_tab() == "Outliers")
         cat('\n* cleaning_widget observe data1() class:', class(data1()))
 
         # outlierData$df_data = data1()
@@ -499,6 +500,7 @@ cleaning_widget_server <- function(
       observeEvent(data1(), {
         # req( outlierData$df_data )
         # req( data1() )
+        req(!is.null(current_tab) && current_tab() == "Outliers")
         cat(
           '\n* cleaning_widget observeEvent determineExtremeValues.  searchForMAD():',
           searchForMAD()
