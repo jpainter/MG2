@@ -18,13 +18,18 @@ cleaning_widget_ui = function(id) {
           sidebarPanel(
             width = 3,
 
+            actionButton(ns('update_dataElement'), label = "Update"),
+
+            checkboxInput(ns("select_all_dataElement"), "Select / deselect all", value = TRUE),
+
             div(
               style = "max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
-              radioButtons(
+              checkboxGroupInput(
                 ns("dataElement"),
                 label = "DataElement_Category:",
-                choices = c(''),
-                selected = NULL
+                choices = NULL,
+                selected = NULL,
+                width = "100%"
               )
             ),
 
@@ -422,22 +427,37 @@ cleaning_widget_server <- function(
         )
       })
 
+      selected_data_cats = reactiveValues(elements = NULL)
+
+      observeEvent(input$update_dataElement, {
+        selected_data_cats$elements = input$dataElement
+      })
+
+      observeEvent(input$select_all_dataElement, {
+        req(data1()$data)
+        choices = unique(data1()$data)
+        updateCheckboxGroupInput(
+          session,
+          "dataElement",
+          selected = if (input$select_all_dataElement) choices else character(0)
+        )
+      }, ignoreInit = TRUE)
+
       # data names  ####
       observeEvent(data1(), {
         cat('\n* cleaning_widget observe data1() class:', class(data1()))
 
-        # outlierData$df_data = data1()
         x = data1()
-
-        # cat('\n - cleaning_widget observe outlierData$df_data class:' , class( outlierData$df_data ) )
         cat('\n - cleaning_widget observe outlierData$df_data class:', class(x))
 
-        updateRadioButtons(
+        choices = unique(x$data)
+        updateCheckboxGroupInput(
           session,
           "dataElement",
-          # choices = c( 'All' , outlierData$df_data$data %>% unique ) )
-          choices = c('All', x$data %>% unique)
+          choices  = choices,
+          selected = choices
         )
+        selected_data_cats$elements = choices
       })
 
       # Dates
@@ -1140,11 +1160,10 @@ cleaning_widget_server <- function(
         }
 
         # filter dataElement
-        if (input$dataElement %in% 'All') {
-          d = d %>% as_tibble()
+        if (!is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
+          d = setDT(d)[data %in% selected_data_cats$elements, ] %>% as_tibble()
         } else {
-          d = setDT(d)[data %in% input$dataElement, ] %>% as_tibble()
-          # %>%  filter( data %in% input$dataElement )
+          d = d %>% as_tibble()
         }
 
         cat('\n - done')
@@ -1180,7 +1199,7 @@ cleaning_widget_server <- function(
       outlier.summary.table = reactive({
         req(outlier.dataset())
         req(outlier.summary.cols())
-        req(input$dataElement)
+        req(selected_data_cats$elements)
 
         cat('\n* cleaning_widget outlier.summary')
         d = outlier.dataset()
@@ -1208,7 +1227,7 @@ cleaning_widget_server <- function(
       errorFlag = reactive({
         req(outlier.dataset())
         req(input$Error)
-        req(input$dataElement)
+        req(selected_data_cats$elements)
         cat('\n* errorFlag():')
 
         # print( head( data1() ) )
@@ -1220,8 +1239,8 @@ cleaning_widget_server <- function(
         # MAD Error
         cat("\n - input$Error:", input$Error)
         if (input$Error %in% names(d)) {
-          if (!'All' %in% input$dataElement) {
-            d = d %>% filter(data %in% input$dataElement)
+          if (!is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
+            d = d %>% filter(data %in% selected_data_cats$elements)
           }
           flag = unique(
             as_tibble(d) %>%
@@ -1264,7 +1283,7 @@ cleaning_widget_server <- function(
               ) %>%
               filter(
                 orgUnitName %in% errorFlag()$orgUnitName,
-                data %in% input$dataElement
+                data %in% selected_data_cats$elements
               ),
 
             rownames = FALSE,
@@ -1299,11 +1318,9 @@ cleaning_widget_server <- function(
             orgUnitName %in% input$flaggedOrgUnit
           )
 
-        if (!(input$showAllData || 'All' %in% input$dataElement)) {
+        if (!input$showAllData && !is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
           inspectOrgUnitData = inspectOrgUnitData %>%
-            filter(
-              data %in% input$dataElement
-            )
+            filter(data %in% selected_data_cats$elements)
         }
 
         cat('\n* inspectOrgUnitData points:', nrow(inspectOrgUnitData))
