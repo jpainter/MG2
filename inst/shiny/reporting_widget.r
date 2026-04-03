@@ -180,6 +180,8 @@ reporting_widget_ui = function(id) {
 
             actionButton(ns('update_data_categories'), label = "Update"),
 
+            checkboxInput(ns("select_all_categories"), "Select / deselect all", value = TRUE),
+
             div(
               style = "max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
               checkboxGroupInput(
@@ -563,6 +565,16 @@ reporting_widget_server <- function(
 
         cat('\n - done')
       })
+
+      observeEvent(input$select_all_categories, {
+        req(data1()$data)
+        choices = unique(data1()$data)
+        updateCheckboxGroupInput(
+          session,
+          'data_categories',
+          selected = if (input$select_all_categories) choices else character(0)
+        )
+      }, ignoreInit = TRUE)
 
       # update split
       observe({
