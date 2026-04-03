@@ -1,6 +1,6 @@
 Package: MG2
 Title: Magic Glasses 2: Epidemiological Analysis of DHIS2 Health Data
-Version: 0.1.0
+Version: 0.1.1
 Authors@R:
     person("John", "Painter", , "painter.ja@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "https://orcid.org/0000-0002-1750-8391"))
