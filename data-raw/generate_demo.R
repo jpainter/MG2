@@ -351,8 +351,13 @@ mg2_demo_formula <- dataElementDictionary %>%
 
 message("\n=== Downloading real data (12 months) ===")
 
-real_periods_str <- date_code(YrsPrevious = 1)
-real_periods <- strsplit(real_periods_str, ";", fixed = TRUE)[[1]]
+# Use a fixed 12-month window (Jan–Dec 2024).
+# The analytics endpoint returns HTTP 409 for future or unprocessed periods
+# (analytics tables not yet built on the demo instance). Adjust END_YEAR if
+# the instance has been refreshed with more recent analytics data.
+END_YEAR     <- 2024L
+real_periods <- sprintf("%04d%02d", END_YEAR, 1:12)
+real_periods_str <- paste(real_periods, collapse = ";")
 
 message("  Periods: ", paste(real_periods, collapse = ", "))
 
@@ -433,7 +438,17 @@ fetch_one_de <- function(de_id, periods_str) {
 }
 
 real_data_list <- map(DE_IDS, fetch_one_de, periods_str = real_periods_str)
-real_data <- bind_rows(real_data_list) %>%
+real_data_raw  <- bind_rows(real_data_list)
+
+if (nrow(real_data_raw) == 0 || !"dataElement" %in% names(real_data_raw)) {
+  stop(
+    "No data returned for any data element. ",
+    "Check that END_YEAR (", END_YEAR, ") has analytics data on this instance, ",
+    "and that LEVEL-4 org units exist."
+  )
+}
+
+real_data <- real_data_raw %>%
   select(
     dataElement,
     period,
