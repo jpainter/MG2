@@ -13,6 +13,7 @@ License: GPL-3
 URL: https://github.com/jpainter/MG2
 BugReports: https://github.com/jpainter/MG2/issues
 Encoding: UTF-8
+LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports:
@@ -76,7 +77,10 @@ Suggests:
     sf,
     slider,
     sugrrants,
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0),
+    usethis,
     tictoc,
     tidyfast,
     tsbox
