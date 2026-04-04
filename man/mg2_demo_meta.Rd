@@ -39,7 +39,6 @@ the app via the Setup → Directory tab when running in standalone mode.
 \examples{
 data(mg2_demo_meta)
 names(mg2_demo_meta)
-mg2_demo_meta$orgUnitLevels
 }
 \seealso{
 \code{mg2_demo}, \code{mg2_demo_formula}, \code{\link[=ous_tree]{ous_tree()}}

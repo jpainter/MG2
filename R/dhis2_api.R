@@ -199,15 +199,36 @@ fetch_get <- function(baseurl., username = NULL, password = NULL,
 ous_tree <- function(ous, ouLevels, .verbose = FALSE) {
   if (.verbose) message("ous_tree: building org unit hierarchy")
 
-  # Remove known-bad phantom parents (e.g. Benin "UO_supprimé")
-  bad_parent <- dplyr::filter(ous, parent == "UO_supprim\u00e9") |> dplyr::pull(id)
-  if (length(bad_parent) > 0) {
-    bad2 <- dplyr::filter(ous, parent.id %in% bad_parent) |> dplyr::pull(id)
-    bad3 <- dplyr::filter(ous, parent.id %in% bad2)       |> dplyr::pull(id)
-    bad4 <- dplyr::filter(ous, parent.id %in% bad3)       |> dplyr::pull(id)
-    all_bad <- c(bad_parent, bad2, bad3, bad4)
-    if (.verbose) message("- removing ", length(all_bad), " phantom org units")
-    ous <- dplyr::filter(ous, !id %in% all_bad)
+  # Remove known-bad phantom parents (e.g. Benin "UO_supprimé").
+  # The parent column may be:
+  #   (a) a nested data.frame (raw jsonlite output from the app), or
+  #   (b) absent (replaced by parent.id / parent.name after flattening), or
+  #   (c) a plain character vector.
+  # Only apply the name-based phantom check when a character parent.name column
+  # is available; skip silently otherwise (Sierra Leone / most instances are fine).
+  phantom_name <- "UO_supprim\u00e9"
+  parent_names <- if ("parent.name" %in% names(ous) && is.character(ous$parent.name)) {
+    ous$parent.name
+  } else if ("parent" %in% names(ous) && is.data.frame(ous$parent)) {
+    ous$parent$name
+  } else if ("parent" %in% names(ous) && is.character(ous$parent)) {
+    ous$parent
+  } else {
+    character(0)
+  }
+
+  if (length(parent_names) > 0) {
+    bad_parent <- ous$id[!is.na(parent_names) & parent_names == phantom_name]
+    if (length(bad_parent) > 0) {
+      id_col <- ous$id
+      pid_col <- if ("parent.id" %in% names(ous)) ous$parent.id else ous$parent$id
+      bad2 <- id_col[!is.na(pid_col) & pid_col %in% bad_parent]
+      bad3 <- id_col[!is.na(pid_col) & pid_col %in% bad2]
+      bad4 <- id_col[!is.na(pid_col) & pid_col %in% bad3]
+      all_bad <- c(bad_parent, bad2, bad3, bad4)
+      if (.verbose) message("- removing ", length(all_bad), " phantom org units")
+      ous <- ous[!ous$id %in% all_bad, ]
+    }
   }
 
   # Build id -> parent_id edge list

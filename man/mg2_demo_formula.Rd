@@ -17,9 +17,9 @@ A data frame with columns:
 (integer).}
 \item{categoryCombo}{Category combo name (character).}
 \item{categoryCombo.id}{Category combo UID (character).}
-\item{...}{Additional columns from the data element dictionary (data set,
-period type, display name, etc.).}
 }
+Additional columns from the data element dictionary are included: data set,
+period type, display name, etc.
 }
 \usage{
 mg2_demo_formula
@@ -32,7 +32,9 @@ combo, with human-readable names and UIDs.
 }
 \examples{
 data(mg2_demo_formula)
+\dontrun{
 mg2_demo_formula[, c("dataElement", "Categories", "Formula.Name")]
+}
 }
 \seealso{
 \code{mg2_demo}, \code{mg2_demo_meta}

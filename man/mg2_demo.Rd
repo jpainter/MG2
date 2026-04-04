@@ -51,9 +51,11 @@ to the demo instance.
 }
 \examples{
 data(mg2_demo)
+\dontrun{
 head(mg2_demo)
 dplyr::n_distinct(mg2_demo$orgUnit)   # number of facilities
 dplyr::n_distinct(mg2_demo$period)    # number of months
+}
 }
 \seealso{
 \code{mg2_demo_formula}, \code{mg2_demo_meta}

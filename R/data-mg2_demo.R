@@ -43,9 +43,11 @@
 #' @seealso `mg2_demo_formula`, `mg2_demo_meta`
 #' @examples
 #' data(mg2_demo)
+#' \dontrun{
 #' head(mg2_demo)
 #' dplyr::n_distinct(mg2_demo$orgUnit)   # number of facilities
 #' dplyr::n_distinct(mg2_demo$period)    # number of months
+#' }
 "mg2_demo"
 
 
@@ -68,14 +70,16 @@
 #'     (integer).}
 #'   \item{categoryCombo}{Category combo name (character).}
 #'   \item{categoryCombo.id}{Category combo UID (character).}
-#'   \item{...}{Additional columns from the data element dictionary (data set,
-#'     period type, display name, etc.).}
 #' }
+#' Additional columns from the data element dictionary are included: data set,
+#' period type, display name, etc.
 #'
 #' @seealso `mg2_demo`, `mg2_demo_meta`
 #' @examples
 #' data(mg2_demo_formula)
+#' \dontrun{
 #' mg2_demo_formula[, c("dataElement", "Categories", "Formula.Name")]
+#' }
 "mg2_demo_formula"
 
 
@@ -112,5 +116,4 @@
 #' @examples
 #' data(mg2_demo_meta)
 #' names(mg2_demo_meta)
-#' mg2_demo_meta$orgUnitLevels
 "mg2_demo_meta"
