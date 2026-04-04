@@ -1,8 +1,8 @@
 # MG2 CRAN Preparation Plan
 
 Created: 2026-03-19
-Updated: 2026-04-02
-Status: Phase A complete (0 ERRORs · 0 WARNINGs · 2 NOTEs). Next: demo data → vignettes → tests → polish.
+Updated: 2026-04-04
+Status: Phase A complete (0 ERRORs · 0 WARNINGs · 3 NOTEs). Next: demo data → vignettes → tests → polish.
 
 ---
 
