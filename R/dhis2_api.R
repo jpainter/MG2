@@ -185,6 +185,7 @@ fetch_get <- function(baseurl., username = NULL, password = NULL,
 #'   `parent.id`, `level`, and `leaf`.
 #' @param ouLevels Data frame of org unit levels with columns `level` (integer)
 #'   and `levelName` (character).
+#' @param .verbose Logical. Print progress messages (default: `FALSE`).
 #'
 #' @return A tibble with one row per org unit. Columns: `orgUnit` (id),
 #'   `orgUnitName`, one column per admin level named by `levelName`,
@@ -195,8 +196,8 @@ fetch_get <- function(baseurl., username = NULL, password = NULL,
 #' \dontrun{
 #'   tree <- ous_tree(ous = org_units_df, ouLevels = levels_df)
 #' }
-ous_tree <- function(ous, ouLevels) {
-  cat("\n* ous_tree: building org unit hierarchy\n")
+ous_tree <- function(ous, ouLevels, .verbose = FALSE) {
+  if (.verbose) message("ous_tree: building org unit hierarchy")
 
   # Remove known-bad phantom parents (e.g. Benin "UO_supprimé")
   bad_parent <- dplyr::filter(ous, parent == "UO_supprim\u00e9") |> dplyr::pull(id)
@@ -205,7 +206,7 @@ ous_tree <- function(ous, ouLevels) {
     bad3 <- dplyr::filter(ous, parent.id %in% bad2)       |> dplyr::pull(id)
     bad4 <- dplyr::filter(ous, parent.id %in% bad3)       |> dplyr::pull(id)
     all_bad <- c(bad_parent, bad2, bad3, bad4)
-    cat(" - removing", length(all_bad), "phantom org units\n")
+    if (.verbose) message("- removing ", length(all_bad), " phantom org units")
     ous <- dplyr::filter(ous, !id %in% all_bad)
   }
 
@@ -223,7 +224,7 @@ ous_tree <- function(ous, ouLevels) {
       dplyr::select(id, parent)
   }
 
-  cat(" - building tree from", nrow(ous_edges), "edges\n")
+  if (.verbose) message("- building tree from ", nrow(ous_edges), " edges")
   ous_tree_obj <- data.tree::FromDataFrameNetwork(ous_edges)
   dti           <- data.tree::as.igraph.Node(ous_tree_obj)
   ids           <- names(igraph::V(dti))
@@ -277,6 +278,6 @@ ous_tree <- function(ous, ouLevels) {
     dplyr::arrange(level) |>
     dplyr::select(orgUnit, orgUnitName, dplyr::everything())
 
-  cat(" - tree complete:", nrow(dft_translated), "org units\n")
+  if (.verbose) message("- tree complete: ", nrow(dft_translated), " org units")
   return(dft_translated)
 }

@@ -13,8 +13,8 @@ is_null_or_empty <- function(x) {
 #' Match Downloaded Data to Formula Elements (simple match)
 #'
 #' @noRd
-translate_dataset <- function(data, formula_elements) {
-  cat('\n* translate_dataset:')
+translate_dataset <- function(data, formula_elements, .verbose = FALSE) {
+  if (.verbose) message("translate_dataset:")
 
   if (any(is.na(data$categoryOptionCombo))) {
     element_match <- match(
@@ -50,10 +50,10 @@ translate_dataset <- function(data, formula_elements) {
 #' Match Downloaded Data to Formula Elements (separate DE and category lists)
 #'
 #' @noRd
-translate_dataset_2 <- function(data, dataElements, categories) {
-  cat('\n* translate_dataset_2:')
+translate_dataset_2 <- function(data, dataElements, categories, .verbose = FALSE) {
+  if (.verbose) message("translate_dataset_2:")
 
-  cat("\n- expanding categories table")
+  if (.verbose) message("- expanding categories table")
   categories_expanded <- categories |>
     dplyr::mutate(
       cat_list = stringr::str_split(Categories, " ;\\n "),
@@ -71,7 +71,7 @@ translate_dataset_2 <- function(data, dataElements, categories) {
     dplyr::select(categoryCombo.id, categoryCombo, paired) |>
     tidyr::unnest(paired)
 
-  cat("\n- matching dataElement and categoryOptionCombo")
+  if (.verbose) message("- matching dataElement and categoryOptionCombo")
   dataElement_match  <- match(data$dataElement, dataElements$dataElement.id)
   categories_match   <- match(data$categoryOptionCombo,
                               categories_expanded$categoryOptionCombo.id)
@@ -93,8 +93,8 @@ translate_dataset_2 <- function(data, dataElements, categories) {
 #' Determine Effective Reporting Leaf Status per Org Unit × Data Element
 #'
 #' @noRd
-data_leaves <- function(d) {
-  cat('\n* determining effective leaf')
+data_leaves <- function(d, .verbose = FALSE) {
+  if (.verbose) message("determining effective leaf")
 
   d |>
     tibble::as_tibble() |>
@@ -118,18 +118,19 @@ data_leaves <- function(d) {
 #' @param df Data frame from [data_1()].
 #' @param period `"Month"` or `"Week"`.
 #' @param missing.value Value to fill for missing periods (default: `NA`).
+#' @param .verbose Logical. Print progress messages (default: `FALSE`).
 #'
 #' @return A tibble with time and identifier columns added.
 #' @export
-df_pre_ts <- function(df, period = "Month", missing.value = NA) {
-  cat("\n * df_pre_ts")
+df_pre_ts <- function(df, period = "Month", missing.value = NA, .verbose = FALSE) {
+  if (.verbose) message("df_pre_ts")
 
   .period <- if (period %in% c("Week", "Weekly")) "Week" else "Month"
 
   # Remove rows with no count
   df <- dplyr::filter(df, !is.na(COUNT))
 
-  cat("\n - unite data and data.id")
+  if (.verbose) message("- unite data and data.id")
 
   if (.period == "Month") {
     ym <- tsibble::yearmonth(
@@ -181,19 +182,19 @@ df_pre_ts <- function(df, period = "Month", missing.value = NA) {
 #' @param period `"Month"` or `"Week"`.
 #' @param fill.gaps Logical. Fill implicit gaps in the time series (default: `FALSE`).
 #' @param missing.value Value to fill for gaps (default: `NA`).
+#' @param .verbose Logical. Print progress messages (default: `FALSE`).
 #'
 #' @return A `tsibble` keyed by `orgUnit` × `data.id`.
 #' @export
 df_ts <- function(df.pre.ts, period = "Month", fill.gaps = FALSE,
-                  missing.value = NA) {
-  cat('\n * df_ts')
-  cat('\n - .period is', period)
+                  missing.value = NA, .verbose = FALSE) {
+  if (.verbose) message("df_ts: period = ", period)
 
-  cat('\n - dedup')
+  if (.verbose) message("- dedup")
   dt <- data.table::as.data.table(df.pre.ts)
   dt <- unique(dt, by = c("orgUnit", "data.id", period))
 
-  cat('\n - as_tsibble')
+  if (.verbose) message("- as_tsibble")
   ts <- tibble::as_tibble(dt) |>
     tsibble::as_tsibble(
       key      = c(orgUnit, data.id),
@@ -202,13 +203,13 @@ df_ts <- function(df.pre.ts, period = "Month", fill.gaps = FALSE,
     )
 
   if (fill.gaps) {
-    cat('\n - fill gaps')
+    if (.verbose) message("- fill gaps")
     ts <- ts |>
       tsibble::fill_gaps(value = missing.value, .full = TRUE) |>
       tidyr::fill(c(effectiveLeaf, orgUnit, data.id), .direction = "down")
   }
 
-  cat('\n - done')
+  if (.verbose) message("- done")
   return(ts)
 }
 
@@ -227,6 +228,7 @@ df_ts <- function(df.pre.ts, period = "Month", fill.gaps = FALSE,
 #' @param dataElements Data elements metadata.
 #' @param categories Categories metadata.
 #' @param ousTree Org unit hierarchy table from [ous_tree()].
+#' @param .verbose Logical. Print progress messages (default: `FALSE`).
 #'
 #' @return A `tsibble` ready for DQA and analysis widgets.
 #' @export
@@ -235,11 +237,12 @@ data_1 <- function(data,
                    formula_elements = NULL,
                    dataElements    = NULL,
                    categories      = NULL,
-                   ousTree         = NULL) {
-  cat('\n* data_1: preparing dataset')
+                   ousTree         = NULL,
+                   .verbose        = FALSE) {
+  if (.verbose) message("data_1: preparing dataset")
 
   if (!'COUNT' %in% names(data)) {
-    cat('\n - no COUNT column, returning NULL')
+    if (.verbose) message("- no COUNT column, returning NULL")
     return(NULL)
   }
 
@@ -250,13 +253,13 @@ data_1 <- function(data,
     min(formula_elements$periodType, na.rm = TRUE)
   }
   if (is_null_or_empty(ptype)) ptype <- "Monthly"
-  cat('\n - ptype is', ptype)
+  if (.verbose) message("- ptype is ", ptype)
 
   p <- if (grepl("weekly", ptype, ignore.case = TRUE)) "Week" else "Month"
 
   # Ensure categoryOptionCombo column exists
   if (!'categoryOptionCombo' %in% names(data)) {
-    cat("\n - adding missing categoryOptionCombo column")
+    if (.verbose) message("- adding missing categoryOptionCombo column")
     data <- dplyr::mutate(data, categoryOptionCombo = NA_character_)
   }
 
@@ -275,24 +278,24 @@ data_1 <- function(data,
     ) |>
     dplyr::arrange(-n_datasets)
 
-  cat('\n - translate_dataset_2 + join hierarchy')
+  if (.verbose) message("- translate_dataset_2 + join hierarchy")
   d. <- data |>
     tibble::as_tibble() |>
     dplyr::filter(!is.na(SUM)) |>
-    translate_dataset_2(dataElements, categories) |>
+    translate_dataset_2(dataElements, categories, .verbose = .verbose) |>
     dplyr::left_join(dataSetElements, by = "dataElement.id") |>
     dplyr::left_join(ousTree,         by = "orgUnit")
 
-  data.leaves <- data_leaves(d.)
+  data.leaves <- data_leaves(d., .verbose = .verbose)
 
-  cat('\n - df_pre_ts + df_ts')
+  if (.verbose) message("- df_pre_ts + df_ts")
   d.. <- d. |>
     dplyr::left_join(
       dplyr::select(data.leaves, orgUnit, dataElement.id, effectiveLeaf),
       by = c("orgUnit", "dataElement.id")
     ) |>
-    df_pre_ts(period = p) |>
-    df_ts(period = p) |>
+    df_pre_ts(period = p, .verbose = .verbose) |>
+    df_ts(period = p, .verbose = .verbose) |>
     dplyr::mutate(original = SUM, value = !is.na(SUM))
 
   return(d..)

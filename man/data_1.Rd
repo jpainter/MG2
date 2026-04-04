@@ -10,7 +10,8 @@ data_1(
   formula_elements = NULL,
   dataElements = NULL,
   categories = NULL,
-  ousTree = NULL
+  ousTree = NULL,
+  .verbose = FALSE
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ data_1(
 \item{categories}{Categories metadata.}
 
 \item{ousTree}{Org unit hierarchy table from \code{\link[=ous_tree]{ous_tree()}}.}
+
+\item{.verbose}{Logical. Print progress messages (default: \code{FALSE}).}
 }
 \value{
 A \code{tsibble} ready for DQA and analysis widgets.

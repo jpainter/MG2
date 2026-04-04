@@ -4,7 +4,7 @@
 \alias{df_pre_ts}
 \title{Prepare a Data Frame for Time-Series Analysis}
 \usage{
-df_pre_ts(df, period = "Month", missing.value = NA)
+df_pre_ts(df, period = "Month", missing.value = NA, .verbose = FALSE)
 }
 \arguments{
 \item{df}{Data frame from \code{\link[=data_1]{data_1()}}.}
@@ -12,6 +12,8 @@ df_pre_ts(df, period = "Month", missing.value = NA)
 \item{period}{\code{"Month"} or \code{"Week"}.}
 
 \item{missing.value}{Value to fill for missing periods (default: \code{NA}).}
+
+\item{.verbose}{Logical. Print progress messages (default: \code{FALSE}).}
 }
 \value{
 A tibble with time and identifier columns added.

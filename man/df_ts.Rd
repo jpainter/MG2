@@ -4,7 +4,13 @@
 \alias{df_ts}
 \title{Convert Prepared Data to a tsibble Time-Series Object}
 \usage{
-df_ts(df.pre.ts, period = "Month", fill.gaps = FALSE, missing.value = NA)
+df_ts(
+  df.pre.ts,
+  period = "Month",
+  fill.gaps = FALSE,
+  missing.value = NA,
+  .verbose = FALSE
+)
 }
 \arguments{
 \item{df.pre.ts}{Output of \code{\link[=df_pre_ts]{df_pre_ts()}}.}
@@ -14,6 +20,8 @@ df_ts(df.pre.ts, period = "Month", fill.gaps = FALSE, missing.value = NA)
 \item{fill.gaps}{Logical. Fill implicit gaps in the time series (default: \code{FALSE}).}
 
 \item{missing.value}{Value to fill for gaps (default: \code{NA}).}
+
+\item{.verbose}{Logical. Print progress messages (default: \code{FALSE}).}
 }
 \value{
 A \code{tsibble} keyed by \code{orgUnit} × \code{data.id}.

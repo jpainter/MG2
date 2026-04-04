@@ -4,7 +4,7 @@
 \alias{ous_tree}
 \title{Build an Org Unit Hierarchy Table}
 \usage{
-ous_tree(ous, ouLevels)
+ous_tree(ous, ouLevels, .verbose = FALSE)
 }
 \arguments{
 \item{ous}{Data frame of org units as returned by the DHIS2
@@ -13,6 +13,8 @@ ous_tree(ous, ouLevels)
 
 \item{ouLevels}{Data frame of org unit levels with columns \code{level} (integer)
 and \code{levelName} (character).}
+
+\item{.verbose}{Logical. Print progress messages (default: \code{FALSE}).}
 }
 \value{
 A tibble with one row per org unit. Columns: \code{orgUnit} (id),
