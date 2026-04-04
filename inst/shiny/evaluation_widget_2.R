@@ -2058,39 +2058,43 @@ evaluation_widget_server <- function(
           # Testing
           # save( g , auto_model , file = "auto_model_chart.rda")
 
+          predicted     = if (!is.null(auto_model)) auto_model$predicted     else NULL
+          test.forecasts = if (!is.null(auto_model)) auto_model$test.forecasts else NULL
+
           cat('\n - auto predicted trend  ')
-          cat("\n - nrow(auto_model$predicted) = ", nrow(auto_model$predicted))
+          cat("\n - nrow(auto_model$predicted) = ", if (!is.null(predicted)) nrow(predicted) else "NULL")
           cat('\n - input$forecast_ci:', input$forecast_ci)
           # cat( '\n - pi_levels:' , pi_levels() )
 
-          predicted = auto_model$predicted
-          test.forecasts = auto_model$test.forecasts
+          if (!is.null(predicted) && !is.null(test.forecasts)) {
+            g = g +
+              fabletools::autolayer(
+                predicted,
+                # series = ".mean" ,
+                # , level = 80  # pi_levels()
+                ,
+                color = 'blue',
+                level = ifelse(input$forecast_ci, 80, FALSE),
+                linetype = 'dashed',
+                linewidth = 1,
+                alpha = .75
+              ) +
 
-          g = g +
-            fabletools::autolayer(
-              predicted,
-              # series = ".mean" ,
-              # , level = 80  # pi_levels()
-              ,
-              color = 'blue',
-              level = ifelse(input$forecast_ci, 80, FALSE),
-              linetype = 'dashed',
-              linewidth = 1,
-              alpha = .75
-            ) +
-
-            fabletools::autolayer(
-              test.forecasts %>%
-                filter(.model %in% auto_model$model_selection),
-              # series = ".mean" ,
-              # , level = 80  # pi_levels()
-              ,
-              color = 'blue',
-              level = ifelse(input$forecast_ci, 80, FALSE),
-              linetype = 'dotted',
-              linewidth = 1,
-              alpha = .5
-            )
+              fabletools::autolayer(
+                test.forecasts %>%
+                  filter(.model %in% auto_model$model_selection),
+                # series = ".mean" ,
+                # , level = 80  # pi_levels()
+                ,
+                color = 'blue',
+                level = ifelse(input$forecast_ci, 80, FALSE),
+                linetype = 'dotted',
+                linewidth = 1,
+                alpha = .5
+              )
+          } else {
+            cat('\n - predicted or test.forecasts is NULL (model fitting failed); skipping autolayer')
+          }
 
           # if (input$pe) g = g +
           #   geom_label_repel( data =  key.mpe() ,
