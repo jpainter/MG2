@@ -34,7 +34,7 @@
 #' }
 #'
 #' **Source:** Sierra Leone DHIS2 demo instance
-#' (`https://play.im.dhis2.org/stable-2-42-4/`).
+#' (`https://play.im.dhis2.org/stable-2-41-8/`).
 #' Real data are public. Bootstrapped history is synthetic.
 #'
 #' **Regeneration:** Run `data-raw/generate_demo.R` with a live connection

@@ -43,7 +43,7 @@ intervention analysis without requiring a live server connection.
 }
 
 \strong{Source:} Sierra Leone DHIS2 demo instance
-(\verb{https://play.im.dhis2.org/stable-2-42-4/}).
+(\verb{https://play.im.dhis2.org/stable-2-41-8/}).
 Real data are public. Bootstrapped history is synthetic.
 
 \strong{Regeneration:} Run \code{data-raw/generate_demo.R} with a live connection
