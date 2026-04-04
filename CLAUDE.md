@@ -94,6 +94,34 @@ data_widget → dqa_widget
            → reporting_widget → cleaning_widget → evaluation_widget
 ```
 
+### Cross-tab Reactive Safety: the `cached_rous` Pattern
+
+`reportingSelectedOUs()` in `reporting_widget` has a `req(current_tab() == "Reporting")`
+guard. Any reactive that calls it **directly** will fail silently (blank output, no error)
+when the user is on any other tab — and the silent failure propagates to every downstream
+reactive, including plots in `cleaning_widget` and `evaluation_widget`.
+
+**The fix:** a `cached_rous` reactiveValues stores the last successfully-computed value.
+An `observeEvent(reportingSelectedOUs(), ...)` updates the cache; because `observeEvent`
+handlers do not fire when the event expression fails via `req()`, the cache — and anything
+that reads it — stays stable across tab switches.
+
+```r
+# In reporting_widget_server:
+cached_rous = reactiveValues(value = NULL)
+observeEvent(reportingSelectedOUs(), ignoreNULL = FALSE, {
+  cached_rous$value = reportingSelectedOUs()
+})
+```
+
+**Rule:** Never call `reportingSelectedOUs()` directly inside a reactive or in a function
+called from one. Always read `cached_rous$value` instead. Reactives that violated this
+rule and were fixed: `selected_data()`, `caption.text()`.
+
+`caption.text()` also had a secondary bug: it compared `reportingSelectedOUs() > 0`
+(character vector vs. numeric — alphabetical comparison against "0") instead of
+`length(rous) > 0`.
+
 ---
 
 ## Outlier Detection Algorithms
