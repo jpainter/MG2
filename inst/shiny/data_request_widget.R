@@ -396,6 +396,18 @@ data_request_widget_server <- function(
             .elements$name
           )
 
+          if (length(.elements$name) == 0) {
+            showModal(modalDialog(
+              title = "No formula elements",
+              "The selected formula has no data elements. Please add elements on the Data tab before requesting data.",
+              easyClose = TRUE,
+              fade = FALSE,
+              size = 's',
+              footer = NULL
+            ))
+            return(NULL)
+          }
+
           cat('\n - dataset():', dataset.file())
           file = paste0(data.folder(), dataset.file())
 

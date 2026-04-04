@@ -173,11 +173,14 @@ server <- function(input, output, session) {
 
   # data1_Widget_output must be defined before regions_widget_output because
   # regions_widget_server receives it as a lazy argument evaluated at reactive time.
+  formulaSaved <- reactiveVal(0)
+
   data1_Widget_output <- data_widget_server(
     "data1",
     directory_widget_output  = directory_widget_output,
     metadata_widget_output   = metadata_widget_output,
-    data_request_output      = data_request_output
+    data_request_output      = data_request_output,
+    formulaSaved             = formulaSaved
   )
 
   data_request_output <- data_request_widget_server(
@@ -200,7 +203,8 @@ server <- function(input, output, session) {
     "formula1",
     metadata_widget_output   = metadata_widget_output,
     data_Widget_output       = data1_Widget_output,
-    directory_widget_output  = directory_widget_output
+    directory_widget_output  = directory_widget_output,
+    formulaSaved             = formulaSaved
   )
 
   current_tab <- reactive({ input$tabs })

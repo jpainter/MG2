@@ -491,6 +491,51 @@ they do not need to be exported.
 
 ---
 
+### Bug Fixes — Formula Widget Save & Data Request (2026-04-04)
+
+**Status:** ✅ Complete
+
+**Changes:**
+
+*Formula save — replaced download handler with direct server-side save:*
+- `inst/shiny/formula_widget.r`: `observeEvent(input$saveData, ...)` now calls
+  `openxlsx::saveWorkbook()` directly to overwrite the selected formula xlsx in the
+  data directory, instead of showing a modal with a browser `downloadButton`; shows
+  "Saving formula..." modal during write, green notification on success, error
+  notification on failure
+- `inst/shiny/data_widget.r`: Added `formulaFile` to return list (full path of the
+  currently selected formula xlsx, used by `formula_widget` as the save target)
+- `inst/shiny/data_widget.r`: Renamed label "Select Formula:" → "Select/Add Formula:"
+
+*Auto-refresh after save — no manual Refresh needed:*
+- `inst/shiny/app.R`: Created shared `formulaSaved <- reactiveVal(0)` passed to both
+  `data_widget_server` and `formula_widget_server`
+- `inst/shiny/formula_widget.r`: Increments `formulaSaved` after a successful save
+- `inst/shiny/data_widget.r`: `formulas` and `all_formula_elements` reactives depend
+  on `formulaSaved` — they invalidate and re-read the xlsx automatically after each
+  save, so `formula_elements()` is populated before the user clicks Request Data
+
+*Auto-refresh after download — newly saved rds appears in dataset list automatically:*
+- `inst/shiny/data_widget.r`: `data.dir_files()` now depends on `completedRequest()`;
+  re-scans the data directory after each completed download without requiring Refresh
+
+*Guard against data request with empty formula:*
+- `inst/shiny/data_request_widget.R`: Added early-return guard when
+  `length(.elements$name) == 0` — shows informative modal instead of proceeding to
+  `api_data()` with no elements
+
+*Fix crash when requesting data with 0 elements (R `1:0` footgun):*
+- `R/api_data_function_revision.R`: Changed `for (i in 1:nrow(pmap.df))` →
+  `for (i in seq_len(nrow(pmap.df)))` — `1:0` in R yields `c(1, 0)` (two iterations
+  with invalid NA indices); `seq_len(0)` correctly yields no iterations
+
+*Fix subscript-out-of-bounds when switching between data elements and indicators:*
+- `inst/shiny/formula_widget.r`: Added `observeEvent(input$element_indicator_choice)`
+  that calls `DT::selectRows(proxy, NULL)` to clear stale row selections before
+  `selected_elements()` fires with indices that exceed the new table's row count
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module

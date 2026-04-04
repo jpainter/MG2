@@ -33,7 +33,7 @@ data_widget_ui = function(id) {
 
     selectizeInput(
       ns("formula"),
-      label = "Select Formula:",
+      label = "Select/Add Formula:",
       width = '95%',
       choices = "",
       options = list(create = TRUE),
@@ -72,7 +72,8 @@ data_widget_server <- function(
   id,
   metadata_widget_output = NULL,
   directory_widget_output = NULL,
-  data_request_output = NULL
+  data_request_output = NULL,
+  formulaSaved = NULL
 ) {
   moduleServer(
     id,
@@ -166,7 +167,7 @@ data_widget_server <- function(
       })
 
       formulas = reactive({
-        # req( input$formula.file )
+        if (!is.null(formulaSaved)) formulaSaved()  # invalidate when formula is saved
         cat('\n* formulas:')
 
         if (is.null(input$formula.file)) {
@@ -200,6 +201,7 @@ data_widget_server <- function(
       })
 
       all_formula_elements = reactive({
+        if (!is.null(formulaSaved)) formulaSaved()  # invalidate when formula is saved
         req(input$formula.file)
         cat('\n* all_formula_elements:')
 
@@ -235,14 +237,11 @@ data_widget_server <- function(
       })
 
       data.dir_files = reactive({
-        # req( completedRequest() )
         req(input$formula.file)
+        completedRequest()  # re-scan directory after each completed download
         if (!dir.exists(data.folder())) {
           return(NULL)
         }
-        # trigger   when there is a data request finishes
-        #  = completedRequest() > 0
-        # cat( '\n data.dir_files completedRequest:' , completedRequest() )
         dir.files = list.files(data.folder())
         cat("\n - number of dir.files :", length(dir.files))
         return(dir.files)
@@ -532,6 +531,10 @@ data_widget_server <- function(
         }),
         all_formula_elements = all_formula_elements,
         formula_elements = formula_elements,
+        formulaFile = reactive({
+          req(input$formula.file)
+          paste0(data.folder(), input$formula.file)
+        }),
         dataset.file = reactive({
           input$dataset
         }),

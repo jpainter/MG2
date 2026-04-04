@@ -56,8 +56,6 @@ formula_widget_ui <- function(id) {
               2,
               actionButton(ns("saveData"), "Save Changes", width = '200px')
             )
-            # column( 2, downloadButton( ns("downloadFormula") , "Save Formula") )
-            # column( 2, downloadButton( ns("downloadRDS") , "Download RDS") )
           ),
           fluidRow(
             column(
@@ -126,7 +124,8 @@ formula_widget_server <- function(
   id,
   metadata_widget_output = NULL,
   data_Widget_output = NULL,
-  directory_widget_output = NULL
+  directory_widget_output = NULL,
+  formulaSaved = NULL
 ) {
   moduleServer(
     id,
@@ -155,6 +154,9 @@ formula_widget_server <- function(
       })
       formulaName = reactive({
         data_Widget_output$formulaName()
+      })
+      formulaFile = reactive({
+        data_Widget_output$formulaFile()
       })
       dir = reactive({
         directory_widget_output$directory()
@@ -191,9 +193,7 @@ formula_widget_server <- function(
           selection = 'multiple',
           rownames = FALSE,
           filter = 'top',
-          # options = DToptions_no_buttons()
           options = list(
-            # bPaginate = FALSE,
             scrollY = "55vh",
             scrollX = TRUE,
             scrollCollapse = TRUE,
@@ -209,6 +209,12 @@ formula_widget_server <- function(
             dom = 'tirp'
           )
         ))
+
+      # Clear row selection when switching between data elements and indicators
+      # so stale row numbers from the previous table don't go out of bounds
+      observeEvent(input$element_indicator_choice, {
+        DT::selectRows(DT::dataTableProxy("dataElementDictionaryTable"), NULL)
+      }, ignoreInit = TRUE)
 
       selected_elements = reactive({
         req(input$dataElementDictionaryTable_rows_selected)
@@ -385,129 +391,92 @@ formula_widget_server <- function(
           # options = DToptions_no_buttons()
         })
 
-      DT::renderDT(DT::datatable(
-        formulaChoices(),
-
-        selection = 'multiple',
-        rownames = FALSE,
-        filter = 'top',
-        options = list(
-          scrollY = "55vh",
-          scrollX = TRUE,
-          scrollCollapse = TRUE,
-          paging = TRUE,
-          searching = TRUE,
-          info = TRUE,
-          lengthMenu = list(c(10, 25, 100, -1), list('10', '25', '100', 'All')),
-          pageLength = 10,
-          server = TRUE,
-          dom = 'tirp'
-        )
-      ))
-
       output$formulaName = renderPrint({
         formulaName()
       })
 
       # Save Formula ####
 
-      # Show download buttons when action button is clicked
       observeEvent(input$saveData, {
+        req(formulaFile())
+        req(formulaName())
+
+        cat('\n* saveData: saving formula to', formulaFile())
+
         showModal(modalDialog(
-          title = "Saving Data",
-          "Click below to download:",
-          tags$div(
-            downloadButton(ns("downloadFormula"), "Download Excel")
-            # downloadButton( ns("downloadRDS"), "Download RDS")
-          ),
-          easyClose = TRUE
+          title = "Saving formula...",
+          easyClose = FALSE,
+          footer = NULL,
+          fade = FALSE
         ))
-      })
 
-      # Download handler for RDS file
-      output$downloadRDS <- downloadHandler(
-        filename = function() {
-          paste("testDownload", Sys.Date(), ".rds", sep = "")
-        },
-        content = function(file) {
-          saveRDS(selectedElementNames(), file)
-          cat("downloadRDS button was pushed\n")
-        }
-      )
-
-      output$downloadFormula <- downloadHandler(
-        cat('\n* download excel file'),
-
-        filename = function() {
-          paste0("Formulas_", Sys.Date(), ".xlsx")
-        },
-
-        content = function(file) {
-          cat('\n* saving formula')
-
+        tryCatch({
           wb <- openxlsx::createWorkbook()
-
-          cat("\n - create empty excelfile")
-
-          sheet1 <- addWorksheet(wb, sheetName = "Formula")
-          sheet2 <- addWorksheet(wb, sheetName = "Formula Elements")
+          sheet1 <- openxlsx::addWorksheet(wb, sheetName = "Formula")
+          sheet2 <- openxlsx::addWorksheet(wb, sheetName = "Formula Elements")
 
           no_existing_formulas = (is.null(formulas()) || nrow(formulas()) == 0)
 
-          cat('\n - orignal formulas have', nrow(formulas()), 'formulas')
+          cat('\n - original formulas have', if (no_existing_formulas) 0 else nrow(formulas()), 'rows')
 
           if (no_existing_formulas) {
             cat('\n - preparing new formula')
             new.Formula.Name = formulaName()
-            new.Formula = selectedElementNames()
-
+            new.Formula     = selectedElementNames()
             new.formula_elements = updated_formula_elements$df
           } else {
-            cat('\n - adding a formula to existing formulas')
+            cat('\n - adding/replacing formula in existing file')
 
-            origninal_formula = formulas() %>%
+            original_formula = formulas() %>%
               filter(!Formula.Name %in% formulaName())
 
-            cat('\n - orignal formulas have', nrow(formulas()), 'formulas')
-
             cat(
-              '\n - new formula in original?',
+              '\n - new formula already in file?',
               formulaName() %in% formulas()$Formula.Name
             )
 
-            orginal_formula_elements = all_formula_elements() %>%
+            original_formula_elements = all_formula_elements() %>%
               filter(!Formula.Name %in% formulaName())
 
-            cat(
-              '\n - orignal formulas elements have',
-              nrow(all_formula_elements()),
-              'rows'
-            )
+            cat('\n - original formula elements have', nrow(all_formula_elements()), 'rows')
 
-            new.Formula.Name = c(formulaName(), origninal_formula$Formula.Name)
-
-            new.Formula = c(selectedElementNames(), origninal_formula$Formula)
-
-            new.formula_elements = rbind(
-              updated_formula_elements$df,
-              orginal_formula_elements
-            )
+            new.Formula.Name = c(formulaName(), original_formula$Formula.Name)
+            new.Formula      = c(selectedElementNames(), original_formula$Formula)
+            new.formula_elements = rbind(updated_formula_elements$df, original_formula_elements)
           }
 
-          cat('\n - writing sheet1')
-          writeDataTable(
-            wb,
-            sheet1,
-            tibble(Formula.Name = new.Formula.Name, Elements = new.Formula),
+          cat('\n - writing Formula sheet')
+          openxlsx::writeDataTable(
+            wb, sheet1,
+            tibble(Formula.Name = new.Formula.Name, Formula = new.Formula),
             rowNames = FALSE
           )
 
-          cat('\n - writing sheet2')
-          writeDataTable(wb, sheet2, new.formula_elements, rowNames = FALSE)
+          cat('\n - writing Formula Elements sheet')
+          openxlsx::writeDataTable(wb, sheet2, new.formula_elements, rowNames = FALSE)
 
-          openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
-        }
-      )
+          openxlsx::saveWorkbook(wb, formulaFile(), overwrite = TRUE)
+
+          if (!is.null(formulaSaved)) formulaSaved(formulaSaved() + 1)
+
+          removeModal()
+          showNotification(
+            paste0("Saved to: ", basename(formulaFile())),
+            type = "message",
+            duration = 4
+          )
+          cat('\n - done saving to', formulaFile())
+
+        }, error = function(e) {
+          removeModal()
+          showNotification(
+            paste0("Save failed: ", conditionMessage(e)),
+            type = "error",
+            duration = 8
+          )
+          cat('\n - save error:', conditionMessage(e))
+        })
+      })
 
       # Return ####
       return(list(

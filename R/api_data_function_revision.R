@@ -613,7 +613,7 @@ api_data = function(
         {
           # p <- progressor( steps = nrow( pmap.df ) )
 
-          for (i in 1:nrow(pmap.df)) {
+          for (i in seq_len(nrow(pmap.df))) {
             setProgress(
               # value = 1 / nrow( pmap.df ) ,
               detail = sprintf(
