@@ -351,13 +351,15 @@ mg2_demo_formula <- dataElementDictionary %>%
 
 message("\n=== Downloading real data (12 months) ===")
 
-# Use a fixed 12-month window (Jan–Dec 2024).
-# The analytics endpoint returns HTTP 409 for future or unprocessed periods
-# (analytics tables not yet built on the demo instance). Adjust END_YEAR if
-# the instance has been refreshed with more recent analytics data.
-END_YEAR     <- 2024L
+# Use Jan–Dec 2025.
+# Adjust END_YEAR if the instance has been refreshed.
+END_YEAR     <- 2025L
 real_periods <- sprintf("%04d%02d", END_YEAR, 1:12)
 real_periods_str <- paste(real_periods, collapse = ";")
+
+# Determine facility level (maximum org unit level = leaves)
+FACILITY_LEVEL <- max(orgUnitLevels$level)
+message("  Facility level: LEVEL-", FACILITY_LEVEL)
 
 message("  Periods: ", paste(real_periods, collapse = ", "))
 
@@ -375,7 +377,7 @@ fetch_one_de <- function(de_id, periods_str) {
       de_id,
       "&dimension=pe:",
       periods_str,
-      "&dimension=ou:LEVEL-4",
+      "&dimension=ou:LEVEL-", FACILITY_LEVEL, "",
       "&displayProperty=NAME&aggregationType=SUM"
     ),
     username = USERNAME,
@@ -391,7 +393,7 @@ fetch_one_de <- function(de_id, periods_str) {
       de_id,
       "&dimension=pe:",
       periods_str,
-      "&dimension=ou:LEVEL-4",
+      "&dimension=ou:LEVEL-", FACILITY_LEVEL, "",
       "&displayProperty=NAME&aggregationType=COUNT"
     ),
     username = USERNAME,
@@ -443,9 +445,17 @@ real_data_raw  <- bind_rows(real_data_list)
 if (nrow(real_data_raw) == 0 || !"dataElement" %in% names(real_data_raw)) {
   stop(
     "No data returned for any data element. ",
-    "Check that END_YEAR (", END_YEAR, ") has analytics data on this instance, ",
-    "and that LEVEL-4 org units exist."
+    "Check that END_YEAR (", END_YEAR, ") has analytics data on this instance ",
+    "and that LEVEL-", FACILITY_LEVEL, " org units have data."
   )
+}
+
+# Report which elements returned data
+returned_des <- unique(real_data_raw$dataElement)
+missing_des  <- setdiff(DE_IDS, returned_des)
+if (length(missing_des) > 0) {
+  message("  WARNING: no data for ", length(missing_des), " element(s): ",
+          paste(missing_des, collapse = ", "))
 }
 
 real_data <- real_data_raw %>%
