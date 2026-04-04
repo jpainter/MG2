@@ -1886,10 +1886,13 @@ reporting_widget_server <- function(
       })
 
       caption.text = reactive({
+        # Use cached rous so this reactive doesn't fail silently via req()
+        # when reportingSelectedOUs() is tab-gated and we're on another tab.
+        rous = cached_rous$value
         paste(
           ifelse(
-            reportingSelectedOUs() > 0,
-            paste(comma(length(reportingSelectedOUs())), 'facilities'),
+            length(rous) > 0,
+            paste(comma(length(rous)), 'facilities'),
             ""
           ),
           ifelse(
