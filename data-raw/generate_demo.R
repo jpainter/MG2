@@ -6,7 +6,7 @@
 #   mg2_demo_meta    — metadata list (matches metadata_YYYY-MM-DD.rds)
 #
 # Source: Sierra Leone DHIS2 demo instance
-#   URL:      https://play.im.dhis2.org/stable-2-42-4/
+#   URL:      https://play.im.dhis2.org/stable-2-41-8/
 #   Username: admin  |  Password: district
 #
 # Requires live internet access. Run once; outputs are committed to data/.
@@ -15,7 +15,7 @@
 # Usage:
 #   source("data-raw/generate_demo.R")
 
-library(MG2)       # for dhis2_get(), ous_tree(), date_code()
+library(MG2) # for dhis2_get(), ous_tree(), date_code()
 library(dplyr)
 library(tidyr)
 library(tibble)
@@ -26,18 +26,18 @@ library(purrr)
 # Configuration
 # ---------------------------------------------------------------------------
 
-BASEURL  <- "https://play.im.dhis2.org/stable-2-42-4/"
+BASEURL <- "https://play.im.dhis2.org/stable-2-41-8/"
 USERNAME <- "admin"
 PASSWORD <- "district"
 
 # 6 malaria data elements
 DE_IDS <- c(
-  "TV5zBFFkZLu",  # Malaria cases confirmed
-  "p4K11MFEWtw",  # Inpatient malaria cases
-  "wWy5TE9cQ0V",  # Inpatient malaria deaths
-  "wZwzzRnr9N4",  # RDT positive
-  "Qk9nnX0i7lZ",  # RDT negative / tested
-  "AFM5H0wNq3t"   # Malaria treated at PHU with ACT < 24 hrs new
+  "TV5zBFFkZLu", # Malaria cases confirmed
+  "p4K11MFEWtw", # Inpatient malaria cases
+  "wWy5TE9cQ0V", # Inpatient malaria deaths
+  "wZwzzRnr9N4", # RDT positive
+  "Qk9nnX0i7lZ", # RDT negative / tested
+  "AFM5H0wNq3t" # Malaria treated at PHU with ACT < 24 hrs new
 )
 
 DE_NAMES <- c(
@@ -74,8 +74,8 @@ ouLevels_raw <- get_sl(
   "api/organisationUnitLevels.json?fields=id,name,level&paging=false&order=level:asc"
 )
 orgUnitLevels <- tibble(
-  id        = ouLevels_raw$organisationUnitLevels$id,
-  level     = as.integer(ouLevels_raw$organisationUnitLevels$level),
+  id = ouLevels_raw$organisationUnitLevels$id,
+  level = as.integer(ouLevels_raw$organisationUnitLevels$level),
   levelName = ouLevels_raw$organisationUnitLevels$name
 )
 
@@ -89,8 +89,16 @@ orgUnits_raw <- ous_raw$organisationUnits
 orgUnits <- orgUnits_raw %>%
   as_tibble() %>%
   mutate(
-    parent.id   = if (is.data.frame(parent)) parent$id   else map_chr(parent, ~ .x$id   %||% NA_character_),
-    parent.name = if (is.data.frame(parent)) parent$name else map_chr(parent, ~ .x$name %||% NA_character_)
+    parent.id = if (is.data.frame(parent)) {
+      parent$id
+    } else {
+      map_chr(parent, ~ .x$id %||% NA_character_)
+    },
+    parent.name = if (is.data.frame(parent)) {
+      parent$name
+    } else {
+      map_chr(parent, ~ .x$name %||% NA_character_)
+    }
   ) %>%
   select(-parent)
 
@@ -102,13 +110,15 @@ de_raw <- get_sl(
   paste0(
     "api/dataElements.json?fields=id,name,shortName,displayName,displayShortName,",
     "categoryCombo[id,name],periodType,zeroIsSignificant&paging=false&",
-    "filter=id:in:[", paste(DE_IDS, collapse = ","), "]"
+    "filter=id:in:[",
+    paste(DE_IDS, collapse = ","),
+    "]"
   )
 )
 dataElements_raw <- de_raw$dataElements %>%
   as_tibble() %>%
   mutate(
-    categoryCombo.id   = categoryCombo$id,
+    categoryCombo.id = categoryCombo$id,
     categoryCombo.name = categoryCombo$name
   ) %>%
   select(-categoryCombo)
@@ -120,25 +130,40 @@ deg_raw <- get_sl(
 dataElementGroups <- deg_raw$dataElementGroups %>%
   as_tibble() %>%
   tidyr::unnest(dataElements, names_sep = "_") %>%
-  rename(dataElement.id = dataElements_id, dataElementGroups.id = id, dataElementGroup = name)
+  rename(
+    dataElement.id = dataElements_id,
+    dataElementGroups.id = id,
+    dataElementGroup = name
+  )
 
 message("- data sets")
 ds_raw <- get_sl(
   paste0(
     "api/dataSets.json?fields=id,name,periodType,dataSetElements[dataElement[id]]&paging=false&",
-    "filter=dataSetElements.dataElement.id:in:[", paste(DE_IDS, collapse = ","), "]"
+    "filter=dataSetElements.dataElement.id:in:[",
+    paste(DE_IDS, collapse = ","),
+    "]"
   )
 )
 dataSets_raw <- ds_raw$dataSets %>% as_tibble()
 
 # dataSets. (with dataSetElements expanded — used by data_1)
+# After unnest(), dataSetElements_dataElement is a nested data.frame column
+# (not a list-column), so we extract $id directly rather than via map().
 dataSets_dot <- dataSets_raw %>%
   unnest(dataSetElements, names_sep = "_") %>%
   rename(
     dataSet.id = id,
     dataSet    = name
   ) %>%
-  mutate(dataSetElements.id = map(dataSetElements_dataElement, ~ tibble(dataElement = .x$id)))
+  mutate(
+    # Extract the DE id from the nested data.frame column
+    de_id = dataSetElements_dataElement$id,
+    # Rebuild as a list-column of tibbles in the shape data_1() expects:
+    # unnest(dataSetElements.id, names_sep="_") → dataSetElements.id_dataElement
+    # with a nested data.frame containing $id
+    dataSetElements.id = map(de_id, ~ tibble(dataElement = tibble(id = .x)))
+  )
 
 message("- category combos")
 cc_raw <- get_sl(
@@ -166,15 +191,17 @@ coc_flat <- categoryOptionCombos_raw %>%
 
 cc_coc <- coc_flat %>%
   left_join(
-    categoryCombos %>% select(id, name) %>% rename(categoryCombo.id = id, categoryCombo = name),
+    categoryCombos %>%
+      select(id, name) %>%
+      rename(categoryCombo.id = id, categoryCombo = name),
     by = "categoryCombo.id"
   )
 
 categories <- cc_coc %>%
   group_by(categoryCombo.id, categoryCombo) %>%
   summarise(
-    n_categoryOptions       = n(),
-    Categories              = paste(categoryOptionCombo, collapse = " ;\n "),
+    n_categoryOptions = n(),
+    Categories = paste(categoryOptionCombo, collapse = " ;\n "),
     categoryOptionCombo.ids = paste(categoryOptionCombo.id, collapse = " ;\n "),
     .groups = "drop"
   )
@@ -187,10 +214,16 @@ indicatorDictionary <- ind_raw$indicators %>% as_tibble()
 
 message("- validation rules (may be slow)")
 vr_raw <- tryCatch(
-  get_sl("api/validationRules.json?fields=id,name,description,leftSide,rightSide,operator&paging=false"),
+  get_sl(
+    "api/validationRules.json?fields=id,name,description,leftSide,rightSide,operator&paging=false"
+  ),
   error = function(e) NULL
 )
-validationRules <- if (!is.null(vr_raw)) vr_raw$validationRules %>% as_tibble() else tibble()
+validationRules <- if (!is.null(vr_raw)) {
+  vr_raw$validationRules %>% as_tibble()
+} else {
+  tibble()
+}
 
 message("- resources")
 res_raw <- tryCatch(
@@ -205,10 +238,20 @@ resources <- if (!is.null(res_raw) && "resources" %in% names(res_raw)) {
 
 message("- geo features (district level)")
 # Level 3 = district in Sierra Leone
-geoFeatures <- tryCatch({
-  level3_ids <- orgUnits %>% filter(level == 3) %>% pull(id) %>% paste(collapse = ";")
-  get_sl(paste0("api/geoFeatures.json?ou=ou:", level3_ids, "&displayProperty=NAME"))
-}, error = function(e) NULL)
+geoFeatures <- tryCatch(
+  {
+    level3_ids <- orgUnits %>%
+      filter(level == 3) %>%
+      pull(id) %>%
+      paste(collapse = ";")
+    get_sl(paste0(
+      "api/geoFeatures.json?ou=ou:",
+      level3_ids,
+      "&displayProperty=NAME"
+    ))
+  },
+  error = function(e) NULL
+)
 
 # ---------------------------------------------------------------------------
 # 2. Build dataElementDictionary (same structure as metadata_widget output)
@@ -217,14 +260,14 @@ geoFeatures <- tryCatch({
 message("\n=== Building dataElementDictionary ===")
 
 # dataSets joined by data element
+# de_id was extracted from the nested dataSetElements_dataElement column above
 ds_by_de <- dataSets_dot %>%
-  mutate(dataElement.id = map_chr(dataSetElements_dataElement, ~ .x$id)) %>%
-  group_by(dataElement.id) %>%
+  group_by(dataElement.id = de_id) %>%
   summarise(
-    n_datasets  = n(),
+    n_datasets = n(),
     dataSet.ids = paste(dataSet.id, collapse = " ;\n"),
-    dataSet     = paste(dataSet, collapse = " ;\n"),
-    periodType  = first(periodType),
+    dataSet = paste(dataSet, collapse = " ;\n"),
+    periodType = first(periodType),
     .groups = "drop"
   )
 
@@ -232,22 +275,30 @@ ds_by_de <- dataSets_dot %>%
 deg_by_de <- dataElementGroups %>%
   group_by(dataElement.id) %>%
   summarise(
-    dataElementGroup   = paste(dataElementGroup, collapse = " ;\n"),
+    dataElementGroup = paste(dataElementGroup, collapse = " ;\n"),
     dataElementGroups.id = paste(dataElementGroups.id, collapse = " ;\n"),
     .groups = "drop"
   )
 
 dataElementDictionary <- dataElements_raw %>%
   rename(
-    dataElement.id   = id,
-    dataElement      = name,
+    dataElement.id = id,
+    dataElement = name,
     categoryCombo.id = categoryCombo.id
   ) %>%
-  left_join(ds_by_de,  by = "dataElement.id") %>%
+  left_join(ds_by_de, by = "dataElement.id") %>%
   left_join(deg_by_de, by = "dataElement.id") %>%
-  left_join(categories %>% select(categoryCombo.id, categoryCombo, n_categoryOptions,
-                                   Categories, categoryOptionCombo.ids),
-            by = "categoryCombo.id") %>%
+  left_join(
+    categories %>%
+      select(
+        categoryCombo.id,
+        categoryCombo,
+        n_categoryOptions,
+        Categories,
+        categoryOptionCombo.ids
+      ),
+    by = "categoryCombo.id"
+  ) %>%
   select(
     dataElement,
     Categories,
@@ -268,7 +319,7 @@ dataElementDictionary <- dataElements_raw %>%
   ) %>%
   mutate(
     dataElement = str_trim(dataElement),
-    Categories  = str_trim(Categories)
+    Categories = str_trim(Categories)
   )
 
 # meta_variables: distinct data elements + category combos
@@ -286,9 +337,9 @@ mg2_demo_formula <- dataElementDictionary %>%
   filter(dataElement.id %in% DE_IDS) %>%
   separate_rows(Categories, categoryOptionCombo.ids, sep = " ;\n ") %>%
   mutate(
-    Categories              = str_trim(Categories),
+    Categories = str_trim(Categories),
     categoryOptionCombo.ids = str_trim(categoryOptionCombo.ids),
-    Formula.Name            = FORMULA_NAME
+    Formula.Name = FORMULA_NAME
   ) %>%
   select(Formula.Name, everything()) %>%
   arrange(dataElement) %>%
@@ -301,7 +352,7 @@ mg2_demo_formula <- dataElementDictionary %>%
 message("\n=== Downloading real data (12 months) ===")
 
 real_periods_str <- date_code(YrsPrevious = 1)
-real_periods     <- strsplit(real_periods_str, ";", fixed = TRUE)[[1]]
+real_periods <- strsplit(real_periods_str, ";", fixed = TRUE)[[1]]
 
 message("  Periods: ", paste(real_periods, collapse = ", "))
 
@@ -315,12 +366,15 @@ fetch_one_de <- function(de_id, periods_str) {
     paste0(
       BASEURL,
       "api/analytics/dataValueSet.json?",
-      "dimension=dx:", de_id,
-      "&dimension=pe:", periods_str,
+      "dimension=dx:",
+      de_id,
+      "&dimension=pe:",
+      periods_str,
       "&dimension=ou:LEVEL-4",
       "&displayProperty=NAME&aggregationType=SUM"
     ),
-    username = USERNAME, password = PASSWORD
+    username = USERNAME,
+    password = PASSWORD
   )
 
   # COUNT
@@ -328,20 +382,44 @@ fetch_one_de <- function(de_id, periods_str) {
     paste0(
       BASEURL,
       "api/analytics/dataValueSet.json?",
-      "dimension=dx:", de_id,
-      "&dimension=pe:", periods_str,
+      "dimension=dx:",
+      de_id,
+      "&dimension=pe:",
+      periods_str,
       "&dimension=ou:LEVEL-4",
       "&displayProperty=NAME&aggregationType=COUNT"
     ),
-    username = USERNAME, password = PASSWORD
+    username = USERNAME,
+    password = PASSWORD
   )
 
-  sum_df   <- if (!is.null(sum_result)   && is.list(sum_result)   && !is.null(sum_result$dataValues))   as_tibble(sum_result$dataValues)   else tibble()
-  count_df <- if (!is.null(count_result) && is.list(count_result) && !is.null(count_result$dataValues)) as_tibble(count_result$dataValues) else tibble()
+  sum_df <- if (
+    !is.null(sum_result) &&
+      is.list(sum_result) &&
+      !is.null(sum_result$dataValues)
+  ) {
+    as_tibble(sum_result$dataValues)
+  } else {
+    tibble()
+  }
+  count_df <- if (
+    !is.null(count_result) &&
+      is.list(count_result) &&
+      !is.null(count_result$dataValues)
+  ) {
+    as_tibble(count_result$dataValues)
+  } else {
+    tibble()
+  }
 
-  if (nrow(sum_df) == 0) return(tibble())
+  if (nrow(sum_df) == 0) {
+    return(tibble())
+  }
 
-  by_cols <- intersect(c("dataElement", "period", "orgUnit", "categoryOptionCombo"), names(sum_df))
+  by_cols <- intersect(
+    c("dataElement", "period", "orgUnit", "categoryOptionCombo"),
+    names(sum_df)
+  )
 
   sum_df %>%
     rename(SUM = value) %>%
@@ -356,13 +434,25 @@ fetch_one_de <- function(de_id, periods_str) {
 
 real_data_list <- map(DE_IDS, fetch_one_de, periods_str = real_periods_str)
 real_data <- bind_rows(real_data_list) %>%
-  select(dataElement, period, orgUnit,
-         any_of("categoryOptionCombo"), COUNT, SUM) %>%
+  select(
+    dataElement,
+    period,
+    orgUnit,
+    any_of("categoryOptionCombo"),
+    COUNT,
+    SUM
+  ) %>%
   filter(!is.na(SUM))
 
-message("  Real data: ", nrow(real_data), " rows, ",
-        n_distinct(real_data$orgUnit), " facilities, ",
-        n_distinct(real_data$period), " periods")
+message(
+  "  Real data: ",
+  nrow(real_data),
+  " rows, ",
+  n_distinct(real_data$orgUnit),
+  " facilities, ",
+  n_distinct(real_data$period),
+  " periods"
+)
 
 # ---------------------------------------------------------------------------
 # 5. Seasonal bootstrap: generate 48 months of prior history
@@ -387,8 +477,10 @@ set.seed(20260404)
 # months backward 4 times with lognormal multiplicative noise (SD ≈ 15%).
 bootstrap_series <- function(df) {
   df <- df %>% arrange(period)
-  n  <- nrow(df)
-  if (n == 0) return(tibble())
+  n <- nrow(df)
+  if (n == 0) {
+    return(tibble())
+  }
 
   min_ym <- period_to_ym(min(df$period))
 
@@ -400,11 +492,11 @@ bootstrap_series <- function(df) {
     noise <- rlnorm(n, meanlog = 0, sdlog = 0.12)
     prior_df <- df %>%
       mutate(
-        ym     = period_to_ym(period),
+        ym = period_to_ym(period),
         offset = min_ym - (tile * 12) + (ym - min(ym)),
         period = ym_to_period(offset),
-        SUM    = round(SUM * noise),
-        COUNT  = COUNT  # keep count the same (same facilities)
+        SUM = round(SUM * noise),
+        COUNT = COUNT # keep count the same (same facilities)
       ) %>%
       select(-ym, -offset)
     prior_rows[[tile]] <- prior_df
@@ -424,14 +516,22 @@ message("  Prior data: ", nrow(prior_data), " rows")
 mg2_demo <- bind_rows(prior_data, real_data) %>%
   arrange(dataElement, orgUnit, period) %>%
   mutate(
-    SUM   = pmax(SUM, 0, na.rm = TRUE),   # no negative values
+    SUM = pmax(SUM, 0, na.rm = TRUE), # no negative values
     COUNT = as.integer(COUNT)
   ) %>%
   distinct()
 
-message("  Total mg2_demo: ", nrow(mg2_demo), " rows, ",
-        n_distinct(mg2_demo$period), " periods (",
-        min(mg2_demo$period), "-", max(mg2_demo$period), ")")
+message(
+  "  Total mg2_demo: ",
+  nrow(mg2_demo),
+  " rows, ",
+  n_distinct(mg2_demo$period),
+  " periods (",
+  min(mg2_demo$period),
+  "-",
+  max(mg2_demo$period),
+  ")"
+)
 
 # ---------------------------------------------------------------------------
 # 6. Assemble mg2_demo_meta
@@ -440,20 +540,20 @@ message("  Total mg2_demo: ", nrow(mg2_demo), " rows, ",
 message("\n=== Assembling mg2_demo_meta ===")
 
 mg2_demo_meta <- list(
-  systemInfo            = systemInfo,
-  meta_variables        = meta_variables,
-  orgUnitLevels         = orgUnitLevels,
-  orgUnits              = orgUnits,
+  systemInfo = systemInfo,
+  meta_variables = meta_variables,
+  orgUnitLevels = orgUnitLevels,
+  orgUnits = orgUnits,
   dataElementDictionary = dataElementDictionary,
-  indicatorDictionary   = indicatorDictionary,
-  dataSets.             = dataSets_dot,
-  dataSets              = dataSets_raw,
-  categories            = categories,
-  dataElementGroups     = dataElementGroups,
-  ousTree               = ousTree,
-  geoFeatures           = geoFeatures,
-  validationRules       = validationRules,
-  resources             = resources
+  indicatorDictionary = indicatorDictionary,
+  dataSets. = dataSets_dot,
+  dataSets = dataSets_raw,
+  categories = categories,
+  dataElementGroups = dataElementGroups,
+  ousTree = ousTree,
+  geoFeatures = geoFeatures,
+  validationRules = validationRules,
+  resources = resources
 )
 
 # ---------------------------------------------------------------------------
@@ -462,13 +562,21 @@ mg2_demo_meta <- list(
 
 message("\n=== Saving to data/ ===")
 
-usethis::use_data(mg2_demo,         overwrite = TRUE)
+usethis::use_data(mg2_demo, overwrite = TRUE)
 usethis::use_data(mg2_demo_formula, overwrite = TRUE)
-usethis::use_data(mg2_demo_meta,    overwrite = TRUE)
+usethis::use_data(mg2_demo_meta, overwrite = TRUE)
 
 message("\nDone. Objects saved:")
 message("  data/mg2_demo.rda         — ", nrow(mg2_demo), " rows")
-message("  data/mg2_demo_formula.rda — ", nrow(mg2_demo_formula), " rows, ",
-        n_distinct(mg2_demo_formula$dataElement), " data elements")
-message("  data/mg2_demo_meta.rda    — ",
-        length(mg2_demo_meta), " metadata components")
+message(
+  "  data/mg2_demo_formula.rda — ",
+  nrow(mg2_demo_formula),
+  " rows, ",
+  n_distinct(mg2_demo_formula$dataElement),
+  " data elements"
+)
+message(
+  "  data/mg2_demo_meta.rda    — ",
+  length(mg2_demo_meta),
+  " metadata components"
+)
