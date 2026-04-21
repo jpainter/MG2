@@ -398,8 +398,15 @@ formula_widget_server <- function(
       # Save Formula ####
 
       observeEvent(input$saveData, {
+        if (is.null(formulaName()) || trimws(formulaName()) == "") {
+          showNotification(
+            "Please enter a formula name in the 'Select/Add Formula' box before saving.",
+            type = "warning",
+            duration = 5
+          )
+          return()
+        }
         req(formulaFile())
-        req(formulaName())
 
         cat('\n* saveData: saving formula to', formulaFile())
 
