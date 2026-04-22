@@ -285,7 +285,7 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
           selectInput(
             ns("demo_instance_url"),
             label   = "Instance:",
-            choices = choices,
+            choices = c("-- select an instance --" = "", choices),
             width   = "100%"
           ),
           tags$p(
@@ -306,7 +306,7 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
       })
 
       observeEvent(input$demo_connect, {
-        req(input$demo_instance_url)
+        req(input$demo_instance_url, input$demo_instance_url != "")
         url <- input$demo_instance_url
         if (!endsWith(url, "/")) url <- paste0(url, "/")
         if (grepl("demos\\.dhis2\\.org", url)) {

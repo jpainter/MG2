@@ -64,7 +64,7 @@ data_request_widget_ui = function(id) {
             selected = 1,
             multiple = FALSE,
             selectize = FALSE,
-            size = 4 ##needed for `selected = FALSE` to work )
+            size = 10
           )
         )
       ),

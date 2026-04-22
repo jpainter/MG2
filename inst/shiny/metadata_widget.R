@@ -25,7 +25,7 @@ metadata_widget_ui <- function(id) {
 
           fluidRow(
             column(
-              1,
+              2,
               tags$br(),
               actionButton(
                 ns("getMetadataButton"),
@@ -33,20 +33,19 @@ metadata_widget_ui <- function(id) {
                 style = 'margin-top:25px'
               )
             ),
+            column(2, tags$br(), tags$br(), tableOutput(ns('variables'))),
+            column(8, tags$br(), tags$br(), DTOutput(ns('systemInfo')))
+          ),
 
+          fluidRow(
             column(
-              1,
-              tags$br(),
+              3,
               tags$br(),
               downloadButton(
                 ns('downloadInfo'),
-                'Save metadata and system info',
-                style = "width: 100px"
+                'Download Excel file with metadata'
               )
-            ),
-            column(2, tags$br(), tags$br(), tableOutput(ns('variables'))),
-
-            column(8, tags$br(), tags$br(), DTOutput(ns('systemInfo')))
+            )
           )
         ),
 

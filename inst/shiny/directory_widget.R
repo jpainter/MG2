@@ -8,7 +8,7 @@ directory_widget_ui = function(id) {
 
     fluidRow(
       column(
-        9,
+        12,
         textInput(
           ns("data.directory"),
           label       = NULL,
@@ -16,18 +16,18 @@ directory_widget_ui = function(id) {
           placeholder = "Paste a path or use Browse...",
           width       = '100%'
         )
-      ),
+      )
+    ),
+
+    fluidRow(
       column(
         3,
-        tags$div(
-          style = "margin-top: 5px;",
-          shinyFiles::shinyDirButton(
-            ns("folder"),
-            label     = "Browse...",
-            title     = "Select data directory",
-            icon      = icon("folder-open"),
-            style     = "width: 100%"
-          )
+        shinyFiles::shinyDirButton(
+          ns("folder"),
+          label     = "Browse...",
+          title     = "Select data directory",
+          icon      = icon("folder-open"),
+          style     = "width: 100%"
         )
       )
     ),
