@@ -2638,7 +2638,9 @@ yearly_summary_table <- function(
   last_months <- sort(unique(lubridate::month(data[[idx_var]][all_years == last_year])))
   is_partial  <- length(last_months) < 12
 
-  # Full-year totals for all years (used for all rows except the last when partial)
+  # Full-year totals for all years (used for all rows except the last when partial).
+  # as_tibble() strips the tsibble class so subsequent mutate() calls on Year
+  # (which is the tsibble index) don't trigger "Unsupported index type" errors.
   yearly_full <- data %>%
     dplyr::ungroup() %>%
     tsibble::index_by(Year = lubridate::year(!!idx_sym)) %>%
@@ -2647,6 +2649,7 @@ yearly_summary_table <- function(
       months_count = dplyr::n(),
       .groups = "drop"
     ) %>%
+    tibble::as_tibble() %>%
     dplyr::arrange(Year)
 
   if (is_partial) {
