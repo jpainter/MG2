@@ -39,6 +39,20 @@ metadata_widget_ui <- function(id) {
 
           fluidRow(
             column(
+              4,
+              tags$br(),
+              uiOutput(ns("metadata_file_ui"))
+            ),
+            column(
+              4,
+              tags$br(),
+              tags$p(textOutput(ns("metadata_status")),
+                     style = "color: #555; font-style: italic; margin-top: 10px;")
+            )
+          ),
+
+          fluidRow(
+            column(
               3,
               tags$br(),
               downloadButton(
@@ -182,9 +196,56 @@ metadata_widget_server <- function(
         directory_widget_output$geofeatures.files()
       })
 
-      loginFetch       = reactiveVal(FALSE)
+      loginFetch          = reactiveVal(FALSE)
       rulesModalData      = reactiveVal(NULL)
       indRulesModalData   = reactiveVal(NULL)
+
+      # Tracks which metadata file is currently selected (NULL = use most recent)
+      selected_metadata_file <- reactiveVal(NULL)
+
+      # Metadata file picker — shown only when files exist
+      output$metadata_file_ui <- renderUI({
+        files <- metadata.files()
+        if (is.null(files) || length(files) == 0) return(NULL)
+        tagList(
+          tags$strong("Metadata file:"),
+          selectInput(
+            ns("metadata_file_select"),
+            label    = NULL,
+            choices  = files,
+            selected = if (!is.null(selected_metadata_file())) selected_metadata_file() else files[1],
+            width    = "100%",
+            selectize = FALSE
+          )
+        )
+      })
+
+      # Keep selected_metadata_file in sync with the picker
+      observeEvent(input$metadata_file_select, {
+        selected_metadata_file(input$metadata_file_select)
+      })
+
+      # Status text: date loaded from file, or date requested live
+      output$metadata_status <- renderText({
+        files  <- metadata.files()
+        chosen <- if (!is.null(input$metadata_file_select)) input$metadata_file_select else if (!is.null(files)) files[1] else NULL
+        if (is.null(chosen)) return("")
+        if (loginFetch()) {
+          paste("Downloaded:", format(Sys.Date(), "%d %b %Y"))
+        } else if (!is.null(chosen)) {
+          mtime <- tryCatch(
+            file.info(paste0(dir(), chosen))$mtime,
+            error = function(e) NA
+          )
+          if (!is.na(mtime)) {
+            paste("Loaded from file — last saved:", format(as.Date(mtime), "%d %b %Y"))
+          } else {
+            paste("Loaded:", chosen)
+          }
+        } else {
+          ""
+        }
+      })
 
       # Request Metatadata ####
       observeEvent(input$getMetadataButton, {
@@ -231,8 +292,10 @@ metadata_widget_server <- function(
             resources = zz
           )
 
-          cat("\n- Saving metadata.rds")
-          saveRDS(meta, paste0(dir(), "metadata_", Sys.Date(), ".rds"))
+          new_meta_file <- paste0("metadata_", Sys.Date(), ".rds")
+          cat("\n- Saving", new_meta_file)
+          saveRDS(meta, paste0(dir(), new_meta_file))
+          selected_metadata_file(new_meta_file)
         } else {
           showModal(
             modalDialog(
@@ -251,8 +314,13 @@ metadata_widget_server <- function(
 
       metadata = reactive({
         req(metadata.files())
+        chosen <- if (!is.null(input$metadata_file_select) && input$metadata_file_select %in% metadata.files()) {
+          input$metadata_file_select
+        } else {
+          metadata.files()[1]
+        }
 
-        file = paste0(dir(), metadata.files()[1])
+        file = paste0(dir(), chosen)
         cat('\n - looking for metadata file:', file)
 
         if (file.exists(file) & !dir.exists(file)) {
@@ -281,7 +349,7 @@ metadata_widget_server <- function(
 
           cat('\n metadata widget system.info completed \n')
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = paste0(dir(), if (!is.null(input$metadata_file_select)) input$metadata_file_select else metadata.files()[1])
           cat('\n - looking for metadata file:', file)
 
           if (file.exists(file) & !dir.exists(file)) {
