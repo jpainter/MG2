@@ -898,8 +898,16 @@ selectedData = function(
         cat("\n - finding most frequently reporting OUs")
       }
 
+      # Pass only the 4 columns that mostFrequentReportingOUs() actually uses.
+      # data is already a data.table here. Selecting fewer columns and deduplicating
+      # before the call dramatically reduces the row count passed (e.g. 2.6M → ~880K)
+      # since many rows share the same (orgUnit, period) across data elements.
+      rou_period  <- if ("Month" %in% names(data)) "Month" else "Week"
+      rou_cols    <- intersect(c("orgUnit", rou_period, "data", "original"), names(data))
+      data_for_rous <- unique(data[!is.na(original), rou_cols, with = FALSE])
+
       reportingSelectedOUs = mostFrequentReportingOUs(
-        data,
+        data_for_rous,
         # all_categories = all_categories ,
         data_categories = data_categories,
         startingMonth = startingMonth,

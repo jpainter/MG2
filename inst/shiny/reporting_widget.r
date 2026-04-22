@@ -1540,10 +1540,20 @@ reporting_widget_server <- function(
         cached_rous$value = reportingSelectedOUs()
       })
 
+      # Cache the last successfully-computed selected_data so that downstream
+      # widgets (cleaning, evaluation, dqa) keep working when the user is not on
+      # the Reporting tab. selected_data() itself is tab-guarded so it only runs
+      # the heavy cleanedData + selectedData computation when needed.
+      cached_selected_data = reactiveValues(value = NULL)
+      observeEvent(selected_data(), ignoreNULL = TRUE, {
+        cached_selected_data$value <- selected_data()
+      })
+
       # selected_data. select ous and data element categories ####
 
       selected_data = reactive({
         #print( 'selected_data():')
+        req(!is.null(current_tab) && current_tab() == "Reporting")
         req(data1())
         req(selected_data_categories$elements)
 
@@ -1570,9 +1580,6 @@ reporting_widget_server <- function(
           algorithm = 'seasonal3',
           .cat = TRUE
         )
-
-        # testing
-        glimpse(.cleanedData)
 
         # When there are no leaf orgUnits (e.g. National or District data only)
         if (nrow(.cleanedData) == 0) {
@@ -1662,10 +1669,6 @@ reporting_widget_server <- function(
         #  cat( '\n - end  selected_data()')
 
         cat("\n - end selected_data()")
-
-        # Testing
-        saveRDS(iris, 'testing_selected_data_save.rds')
-        saveRDS(selected_data, 'selected_data.rds')
 
         return(selected_data)
       })
@@ -1784,14 +1787,14 @@ reporting_widget_server <- function(
         cat('\n* reporting_widget aggregateselected_data():')
 
         # testing
-        saveRDS(levelNames(), 'levelNames.rds')
-        saveRDS(aggregateDataKey(), 'aggregateDataKey.rds')
+        # saveRDS(levelNames(), 'levelNames.rds')
+        # saveRDS(aggregateDataKey(), 'aggregateDataKey.rds')
 
         .d = data.total()
         cat('\n - data.total():')
 
         # testing
-        saveRDS(.d, 'data.total.rds')
+        # saveRDS(.d, 'data.total.rds')
 
         if (!is_tsibble(.d)) {
           cat('\n - preparing data.total as tsibble')
@@ -1927,7 +1930,7 @@ reporting_widget_server <- function(
         .d = aggregateselected_data()
 
         # testing
-        saveRDS(.d, 'plot3_data.rds')
+        # saveRDS(.d, 'plot3_data.rds')
 
         cats = unique(selected_data()$data)
         max_show = 5
@@ -2063,9 +2066,9 @@ reporting_widget_server <- function(
         avgValues = avgValues()
 
         # testing
-        saveRDS(gf, 'gf.rds')
-        saveRDS(sou, 'sou.rds')
-        saveRDS(avgValues(), 'avgValues.rds')
+        # saveRDS(gf, 'gf.rds')
+        # saveRDS(sou, 'sou.rds')
+        # saveRDS(avgValues(), 'avgValues.rds')
 
         cat("\n - quartile values:")
         quartileValues = quantile(
@@ -2392,7 +2395,7 @@ reporting_widget_server <- function(
           missing_reports = missing_reports,
           num_datasets = num_datasets,
           num_facilities = num_facilities,
-          selected_data = selected_data,
+          selected_data = reactive({ cached_selected_data$value }),
           caption.text = caption.text,
           reportingSelectedOUs = reportingSelectedOUs
         )

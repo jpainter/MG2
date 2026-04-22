@@ -971,6 +971,11 @@ evaluation_widget_server <- function(
         ntestmonths_val  = NULL
       )
 
+      # Tracks whether the model dropdown has been populated for the current validation run.
+      # Prevents wpeValidationTable() changes (caused by Phase 2 updating model_output)
+      # from resetting the dropdown back to models[1] every time Phase 2 completes.
+      dropdown_initialized <- reactiveVal(FALSE)
+
       # Phase 1: Validation — fit all models on train/test data ####
       observeEvent(input$forecast, {
         req(mable_Data())
@@ -983,6 +988,7 @@ evaluation_widget_server <- function(
         auto_model_values$validation_done <- FALSE
         auto_model_values$done            <- FALSE
         auto_model_values$model_output    <- NULL
+        dropdown_initialized(FALSE)   # allow dropdown to be repopulated after new validation
 
         withProgress(message = 'Validating models...', value = 0, {
           data             = isolate(mable_Data())
@@ -1064,19 +1070,11 @@ evaluation_widget_server <- function(
       })
 
       # Phase 2: Evaluation — run only the selected model on the full pre-intervention data ####
-      # Fires when validation completes OR when the user changes the model dropdown.
-      eval_trigger <- reactive({
-        list(
-          validation_done = auto_model_values$validation_done,
-          selected_model  = input$selected_model
-        )
-      })
-
-      observeEvent(eval_trigger(), ignoreInit = TRUE, {
+      # Fires whenever the model selector changes (including first population after validation).
+      observeEvent(input$selected_model, ignoreInit = TRUE, ignoreNULL = TRUE, {
         req(auto_model_values$validation_done)
         req(!auto_model_values$computing)
         req(!is.null(auto_model_values$modeling_data))
-        req(input$selected_model)
         req(nchar(input$selected_model) > 0)
 
         sel_model    <- tolower(input$selected_model)
@@ -1086,13 +1084,18 @@ evaluation_widget_server <- function(
         ensemble     <- auto_model_values$ensemble_val
         ntestmonths  <- auto_model_values$ntestmonths_val
 
-        # Determine which base models to fit (combination → constituent parts)
-        if (startsWith(sel_model, "combination_")) {
-          base_names    <- strsplit(sub("^combination_", "", sel_model), "_")[[1]]
-          run_ensemble  <- TRUE
+        # Primary model abbreviations used in tsmodels()
+        primary_model_names <- c("a", "e", "n", "t", "p1", "p4", "p8")
+
+        # If the selected model is a primary model, fit only that one.
+        # Otherwise it is a combination (e.g. "aentp1") — fit all primary models
+        # with ensemble = TRUE so combination_forecasts() rebuilds it, then filter.
+        if (sel_model %in% primary_model_names) {
+          base_names   <- sel_model
+          run_ensemble <- FALSE
         } else {
-          base_names    <- sel_model
-          run_ensemble  <- FALSE
+          base_names   <- NULL   # tsmodels will use all primary models
+          run_ensemble <- TRUE
         }
 
         cat("\n* Phase 2 evaluation for model:", sel_model,
@@ -1131,6 +1134,10 @@ evaluation_widget_server <- function(
                 paste("Evaluation failed:", e$message), footer = modalButton("OK")))
               NULL
             })
+            cat("\n* Phase 2 inner observer: resolved. pred is",
+                if (is.null(pred)) "NULL" else paste0(nrow(pred), " rows"))
+            if (!is.null(pred) && nrow(pred) > 0)
+              cat("\n  .model values:", paste(unique(pred$.model), collapse = ", "))
             # isolate() prevents reading model_output from creating a reactive
             # dependency that would re-trigger this observer (infinite loop)
             current <- isolate(auto_model_values$model_output)
@@ -1138,10 +1145,13 @@ evaluation_widget_server <- function(
               current$predicted          <- pred
               auto_model_values$model_output <- current
               auto_model_values$done         <- TRUE
+              cat("\n* Phase 2: done = TRUE, predicted stored")
             } else if (is.null(pred)) {
               cat("\n-- Evaluation returned NULL; charts will remain empty")
+            } else if (is.null(current)) {
+              cat("\n-- current model_output is NULL; phase 1 result missing")
             } else {
-              cat("\n-- Evaluation returned 0 rows; model name may not match")
+              cat("\n-- Evaluation returned 0 rows; model name may not match filter")
             }
             auto_model_values$computing <- FALSE
             removeModal()
@@ -1236,29 +1246,40 @@ evaluation_widget_server <- function(
         auto_model = auto_model()
         auto_model$validations %>%
           arrange(swape) %>%
-          rename(SWAPE = swape) %>%
-          mutate(.model = toupper(.model))
+          rename(SWAPE = swape, Model = .model) %>%
+          mutate(Model = toupper(Model))
       })
 
-      # Populate the model selector from the validation table (best model first)
+      # Populate the model selector from the validation table (best model first).
+      # Only fires once per validation run — dropdown_initialized() prevents
+      # Phase 2 updates to model_output (which invalidate wpeValidationTable)
+      # from resetting the user's model selection back to models[1].
       observeEvent(wpeValidationTable(), {
-        vt <- wpeValidationTable()
-        models <- vt$.model  # already uppercased, sorted by SWAPE ascending
-        updateSelectInput(session, "selected_model",
-          choices  = models,
-          selected = models[1]
-        )
+        if (!dropdown_initialized()) {
+          vt <- wpeValidationTable()
+          models <- vt$Model  # already uppercased, sorted by SWAPE ascending
+          updateSelectInput(session, "selected_model",
+            choices  = models,
+            selected = models[1]
+          )
+          dropdown_initialized(TRUE)
+        }
       })
 
       output$modelLegend <- renderUI({
         div(
           style = "font-size:0.82em; color:#555; margin:2px 0 6px 0;",
-          tags$strong("Model types: "),
+          tags$strong("Abbreviations: "),
+          "A = ARIMA | E = ETS | N = NNETAR | T = TSLM | P1 = Prophet (1 seasonal) | ",
+          "P4 = Prophet (4 seasonals) | P8 = Prophet (8 seasonals) | ",
+          "COMBINATION_X_Y = Ensemble of models X and Y",
+          tags$br(),
+          tags$strong("Full names: "),
           "ARIMA = AutoRegressive Integrated Moving Average | ",
           "ETS = Exponential Smoothing | ",
           "NNETAR = Neural Network Autoregression | ",
           "TSLM = Time Series Linear Model | ",
-          "COMBINATION_* = Ensemble of the named models"
+          "Prophet = Additive decomposition (Meta/Facebook)"
         )
       })
 
@@ -1290,27 +1311,21 @@ evaluation_widget_server <- function(
 
       output$wpeValidationTable =
         DT::renderDT(
+          server = TRUE,
           DT::datatable(
             wpeValidationTable(),
-
             rownames = FALSE,
             filter = 'top',
             options = list(
-              autoWidth = TRUE,
-              scrollY = "55vh",
+              scrollY = "50vh",
               scrollX = TRUE,
               scrollCollapse = TRUE,
-              paging = TRUE,
+              paging = FALSE,
               searching = TRUE,
               info = TRUE,
-              lengthMenu = list(c(5, 10, 25, -1), list('5', '10', '25', 'All')),
-              pageLength = -1,
-              server = TRUE,
-              dom = 'tirp'
-            ),
-            fillContainer = TRUE
+              dom = 'ti'
+            )
           )
-          # options = DToptions_no_buttons()
         )
 
       ############### tsModel and tsPre-Model #####
@@ -2197,9 +2212,9 @@ evaluation_widget_server <- function(
 
           if (!is.null(sel_predicted) && nrow(sel_predicted) > 0 && !is.null(test.forecasts)) {
             g = g +
-              # Post-intervention evaluation forecast
+              # Post-intervention evaluation forecast (strip samples list-col before autolayer)
               fabletools::autolayer(
-                sel_predicted,
+                sel_predicted %>% dplyr::select(-dplyr::any_of("samples")),
                 color    = 'darkorange',
                 level    = ifelse(input$forecast_ci, 80, FALSE),
                 linetype = 'dashed',
@@ -2208,7 +2223,9 @@ evaluation_widget_server <- function(
               ) +
               # Test-period forecast for the selected model (pre-intervention validation)
               fabletools::autolayer(
-                test.forecasts %>% dplyr::filter(.model == sel_model_name),
+                test.forecasts %>%
+                  dplyr::filter(.model == sel_model_name) %>%
+                  dplyr::select(-dplyr::any_of("samples")),
                 color    = 'steelblue',
                 level    = ifelse(input$forecast_ci, 80, FALSE),
                 linetype = 'dotted',

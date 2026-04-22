@@ -917,7 +917,7 @@ cleaning_widget_server <- function(
         df.ts = data1()
 
         # Testing
-        saveRDS(df.ts, 'df.ts.rds')
+        # saveRDS(df.ts, 'df.ts.rds')
 
         cat('\n * cleaning_widget.r monthly_summary_chart')
 
@@ -935,6 +935,9 @@ cleaning_widget_server <- function(
       # })
 
       outlier.dataset = reactive({
+        # Only compute when the Outliers tab is active — this is a heavy 2M+ row
+        # operation and there is no need to run it eagerly on data load.
+        req(!is.null(current_tab) && current_tab() == "Outliers")
         # req( outlierData$df_data )
         # req( data1() )
         req(selected_data())
