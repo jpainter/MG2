@@ -119,6 +119,13 @@ data_widget_server <- function(
         return(ff)
       })
 
+      # When the directory changes, reset both formula file and formula dropdowns
+      observeEvent(data.folder(), {
+        updateSelectInput(session, 'formula.file', choices = character(0), selected = NULL)
+        updateSelectizeInput(session, 'formula',   choices = character(0), selected = NULL)
+        updateSelectInput(session, 'dataset',      choices = character(0), selected = NULL)
+      }, ignoreInit = TRUE)
+
       # After a save, remember the formula name so we can re-select it once
       # the file list refreshes (which clears the formula dropdown)
       formula_to_restore <- reactiveVal(NULL)

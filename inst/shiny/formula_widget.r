@@ -275,6 +275,14 @@ formula_widget_server <- function(
         )
       })
 
+      # Clear the review table immediately when the formula name changes,
+      # before formula_elements() repopulates it from the file.
+      observeEvent(formulaName(), {
+        req(formulaName())
+        cat('\n* formulaName changed — clearing review table')
+        updated_formula_elements$df <- dataElementDictionary()[0, ]
+      }, ignoreInit = TRUE)
+
       observeEvent(formula_elements(), {
         cat("\n* updated_formula_elements = formula_elements()")
 
