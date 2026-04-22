@@ -110,7 +110,7 @@ reporting_widget_ui = function(id) {
 
             checkboxInput(
               ns("mostReports"),
-              label = 'Stratify by consistently reporting facilties',
+              label = 'Stratify by consistently reporting facilities (champion)',
               value = TRUE
             ),
 
