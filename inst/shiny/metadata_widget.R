@@ -170,6 +170,7 @@ metadata_widget_server <- function(
       # loginInfo = loginDetails ,
       # dataDirectory = dataDir
     ) {
+      ns <- session$ns
       # cat('\n **** Starting metadata_widget_server \n')
 
       # reactives to toggle login status
