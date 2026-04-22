@@ -536,7 +536,7 @@ data_widget_server <- function(
           req(data.folder())
           req(input$formula)
           if (is.null(input$formula.file) || input$formula.file == "") {
-            paste0(data.folder(), "Formulas_", input$formula, ".xlsx")
+            paste0(data.folder(), "Formulas_", format(Sys.Date(), "%Y_%b%d"), ".xlsx")
           } else {
             paste0(data.folder(), input$formula.file)
           }

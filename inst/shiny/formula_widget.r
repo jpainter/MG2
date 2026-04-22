@@ -409,6 +409,101 @@ formula_widget_server <- function(
 
       # Save Formula ####
 
+      pending_save_path <- reactiveVal(NULL)
+
+      # Generate a unique dated filename that does not yet exist on disk
+      new_dated_formula_path <- function(data_dir) {
+        base <- paste0(data_dir, "Formulas_", format(Sys.Date(), "%Y_%b%d"))
+        path <- paste0(base, ".xlsx")
+        counter <- 1L
+        while (file.exists(path)) {
+          counter <- counter + 1L
+          path <- paste0(base, "_", counter, ".xlsx")
+        }
+        path
+      }
+
+      # Core save logic — reads existing content from target_file directly
+      # so it works correctly whether saving to the selected file or a new one
+      perform_save <- function(target_file) {
+        cat('\n* perform_save: saving formula to', target_file)
+
+        showModal(modalDialog(
+          title = "Saving formula...",
+          easyClose = FALSE,
+          footer = NULL,
+          fade = FALSE
+        ))
+
+        tryCatch({
+          wb     <- openxlsx::createWorkbook()
+          sheet1 <- openxlsx::addWorksheet(wb, sheetName = "Formula")
+          sheet2 <- openxlsx::addWorksheet(wb, sheetName = "Formula Elements")
+
+          # Read existing content from the *target* file (not the currently selected one)
+          existing_formulas  <- NULL
+          existing_elements  <- NULL
+          if (file.exists(target_file)) {
+            tryCatch({
+              existing_formulas <- readxl::read_excel(target_file, sheet = "Formula") %>%
+                dplyr::filter(!is.na(Formula.Name))
+              existing_elements <- readxl::read_excel(
+                target_file, sheet = "Formula Elements", guess_max = 1e6
+              )
+            }, error = function(e) {
+              cat('\n - could not read existing file:', conditionMessage(e))
+            })
+          }
+
+          no_existing <- is.null(existing_formulas) || nrow(existing_formulas) == 0
+          cat('\n - existing formulas in target:', if (no_existing) 0 else nrow(existing_formulas))
+
+          if (no_existing) {
+            new.Formula.Name     <- formulaName()
+            new.Formula          <- selectedElementNames()
+            new.formula_elements <- updated_formula_elements$df
+          } else {
+            original_formula <- existing_formulas %>%
+              dplyr::filter(!Formula.Name %in% formulaName())
+            original_elements <- existing_elements %>%
+              dplyr::filter(!Formula.Name %in% formulaName())
+
+            cat('\n - new formula already in file?', formulaName() %in% existing_formulas$Formula.Name)
+
+            new.Formula.Name     <- c(formulaName(), original_formula$Formula.Name)
+            new.Formula          <- c(selectedElementNames(), original_formula$Formula)
+            new.formula_elements <- rbind(updated_formula_elements$df, original_elements)
+          }
+
+          openxlsx::writeDataTable(
+            wb, sheet1,
+            tibble::tibble(Formula.Name = new.Formula.Name, Formula = new.Formula),
+            rowNames = FALSE
+          )
+          openxlsx::writeDataTable(wb, sheet2, new.formula_elements, rowNames = FALSE)
+          openxlsx::saveWorkbook(wb, target_file, overwrite = TRUE)
+
+          if (!is.null(formulaSaved)) formulaSaved(formulaSaved() + 1)
+
+          removeModal()
+          showNotification(
+            paste0("Saved to: ", basename(target_file)),
+            type = "message",
+            duration = 4
+          )
+          cat('\n - done saving to', target_file)
+
+        }, error = function(e) {
+          removeModal()
+          showNotification(
+            paste0("Save failed: ", conditionMessage(e)),
+            type = "error",
+            duration = 8
+          )
+          cat('\n - save error:', conditionMessage(e))
+        })
+      }
+
       observeEvent(input$saveData, {
         if (is.null(formulaName()) || trimws(formulaName()) == "") {
           showNotification(
@@ -420,81 +515,45 @@ formula_widget_server <- function(
         }
         req(formulaFile())
 
-        cat('\n* saveData: saving formula to', formulaFile())
+        target <- formulaFile()
 
-        showModal(modalDialog(
-          title = "Saving formula...",
-          easyClose = FALSE,
-          footer = NULL,
-          fade = FALSE
-        ))
+        if (file.exists(target)) {
+          # File exists — ask whether to add to it or start a new file
+          pending_save_path(target)
+          showModal(modalDialog(
+            title = "Save Formula",
+            tags$p("This formula will be added to the currently selected file:"),
+            tags$p(tags$strong(basename(target)), style = "margin-left: 10px;"),
+            tags$p(
+              "Would you like to add it to this file, or save to a new file?",
+              style = "margin-top: 10px;"
+            ),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("save_new_file"),  "Save to New File",      class = "btn-default"),
+              actionButton(ns("save_same_file"), "Add to Current File",   class = "btn-primary")
+            ),
+            easyClose = TRUE,
+            fade = FALSE
+          ))
+        } else {
+          # New file — save immediately with the dated default name
+          perform_save(target)
+        }
+      })
 
-        tryCatch({
-          wb <- openxlsx::createWorkbook()
-          sheet1 <- openxlsx::addWorksheet(wb, sheetName = "Formula")
-          sheet2 <- openxlsx::addWorksheet(wb, sheetName = "Formula Elements")
+      observeEvent(input$save_same_file, {
+        removeModal()
+        req(pending_save_path())
+        perform_save(pending_save_path())
+        pending_save_path(NULL)
+      })
 
-          no_existing_formulas = (is.null(formulas()) || nrow(formulas()) == 0)
-
-          cat('\n - original formulas have', if (no_existing_formulas) 0 else nrow(formulas()), 'rows')
-
-          if (no_existing_formulas) {
-            cat('\n - preparing new formula')
-            new.Formula.Name = formulaName()
-            new.Formula     = selectedElementNames()
-            new.formula_elements = updated_formula_elements$df
-          } else {
-            cat('\n - adding/replacing formula in existing file')
-
-            original_formula = formulas() %>%
-              filter(!Formula.Name %in% formulaName())
-
-            cat(
-              '\n - new formula already in file?',
-              formulaName() %in% formulas()$Formula.Name
-            )
-
-            original_formula_elements = all_formula_elements() %>%
-              filter(!Formula.Name %in% formulaName())
-
-            cat('\n - original formula elements have', nrow(all_formula_elements()), 'rows')
-
-            new.Formula.Name = c(formulaName(), original_formula$Formula.Name)
-            new.Formula      = c(selectedElementNames(), original_formula$Formula)
-            new.formula_elements = rbind(updated_formula_elements$df, original_formula_elements)
-          }
-
-          cat('\n - writing Formula sheet')
-          openxlsx::writeDataTable(
-            wb, sheet1,
-            tibble(Formula.Name = new.Formula.Name, Formula = new.Formula),
-            rowNames = FALSE
-          )
-
-          cat('\n - writing Formula Elements sheet')
-          openxlsx::writeDataTable(wb, sheet2, new.formula_elements, rowNames = FALSE)
-
-          openxlsx::saveWorkbook(wb, formulaFile(), overwrite = TRUE)
-
-          if (!is.null(formulaSaved)) formulaSaved(formulaSaved() + 1)
-
-          removeModal()
-          showNotification(
-            paste0("Saved to: ", basename(formulaFile())),
-            type = "message",
-            duration = 4
-          )
-          cat('\n - done saving to', formulaFile())
-
-        }, error = function(e) {
-          removeModal()
-          showNotification(
-            paste0("Save failed: ", conditionMessage(e)),
-            type = "error",
-            duration = 8
-          )
-          cat('\n - save error:', conditionMessage(e))
-        })
+      observeEvent(input$save_new_file, {
+        removeModal()
+        req(dir())
+        perform_save(new_dated_formula_path(dir()))
+        pending_save_path(NULL)
       })
 
       # Return ####
