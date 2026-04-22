@@ -371,6 +371,24 @@ evaluation_widget_server <- function(
         reporting_widget_output$selected_data()
       })
 
+      # Apply region filter to selected_data before it enters mable_data()
+      region_filtered_selected_data = reactive({
+        req(selected_data())
+        d  <- selected_data()
+        sr <- regions_selected()
+        ln <- levelNames()
+
+        if (!is_empty(sr$level2) && length(ln) >= 2 && ln[2] %in% names(d))
+          d <- d[d[[ln[2]]] %in% sr$level2, ]
+        if (!is_empty(sr$level3) && length(ln) >= 3 && ln[3] %in% names(d))
+          d <- d[d[[ln[3]]] %in% sr$level3, ]
+        if (!is_empty(sr$level4) && length(ln) >= 4 && ln[4] %in% names(d))
+          d <- d[d[[ln[4]]] %in% sr$level4, ]
+        if (!is_empty(sr$level5) && length(ln) >= 5 && ln[5] %in% names(d))
+          d <- d[d[[ln[5]]] %in% sr$level5, ]
+        d
+      })
+
       data2 = reactive({
         cleaning_widget_output$data2()
       })
@@ -976,6 +994,34 @@ evaluation_widget_server <- function(
       # from resetting the dropdown back to models[1] every time Phase 2 completes.
       dropdown_initialized <- reactiveVal(FALSE)
 
+      # Helper: clear predictions only (keep validation table visible)
+      clear_predictions <- function() {
+        current <- isolate(auto_model_values$model_output)
+        if (!is.null(current)) {
+          current$predicted <- NULL
+          auto_model_values$model_output <- current
+        }
+        auto_model_values$done <- FALSE
+      }
+
+      # When underlying data changes (region, reporting filter, outlier filter,
+      # agg level, split), erase any predictions so stale forecasts are not shown.
+      observeEvent(mable_Data(), ignoreNULL = TRUE, ignoreInit = TRUE, {
+        clear_predictions()
+      })
+
+      # When model/validation parameters change, also erase predictions and
+      # invalidate validation so user must re-run "Calculate Percent Change".
+      observeEvent(
+        list(input$evaluation_month, input$horizon, input$replicates,
+             input$ensemble, input$transform),
+        ignoreNULL = TRUE, ignoreInit = TRUE, {
+          clear_predictions()
+          auto_model_values$validation_done <- FALSE
+          dropdown_initialized(FALSE)
+        }
+      )
+
       # Phase 1: Validation — fit all models on train/test data ####
       observeEvent(input$forecast, {
         req(mable_Data())
@@ -1101,7 +1147,7 @@ evaluation_widget_server <- function(
         cat("\n* Phase 2 evaluation for model:", sel_model,
             " base_models:", paste(base_names, collapse = ","))
         showModal(modalDialog(
-          paste("Running evaluation for", input$selected_model, "..."),
+          paste("Estimating prediction with", input$selected_model, "model..."),
           footer = NULL
         ))
 
@@ -1871,7 +1917,7 @@ evaluation_widget_server <- function(
       # Mable data ####
 
       mable_Data = reactive({
-        req(selected_data())
+        req(region_filtered_selected_data())
         req(input$outliers)
         req(input$reporting)
 
@@ -1882,7 +1928,7 @@ evaluation_widget_server <- function(
         cat("\n split: ", split())
         cat("\n agg_level: ", input$agg_level)
 
-        selected_data = selected_data()
+        selected_data = region_filtered_selected_data()
 
         # Testing
         # saveRDS( selected_data , "selected_data.rds")

@@ -2630,7 +2630,27 @@ yearly_summary_table <- function(
     stop("Specified columns not found in data")
   }
 
-  yearly_data <- data %>%
+  # Detect partial most-recent year and restrict all years to the same months
+  # so year-on-year comparisons are like-for-like.
+  idx_sym      <- tsibble::index(data)
+  all_years    <- lubridate::year(data[[tsibble::index_var(data)]])
+  last_year    <- max(all_years, na.rm = TRUE)
+  last_months  <- lubridate::month(
+    data[[tsibble::index_var(data)]][all_years == last_year]
+  )
+  is_partial   <- length(unique(last_months)) < 12
+  partial_note <- if (is_partial)
+    paste0(" (", month.abb[min(last_months)], "\u2013", month.abb[max(last_months)], " only)")
+  else ""
+
+  # When partial, filter all years to the same calendar months
+  data_cmp <- if (is_partial) {
+    data %>% dplyr::filter(lubridate::month(!!idx_sym) %in% last_months)
+  } else {
+    data
+  }
+
+  yearly_data <- data_cmp %>%
     dplyr::ungroup() %>%
     tsibble::index_by(Year = lubridate::year(!!tsibble::index(.))) %>%
     dplyr::summarise(
@@ -2660,7 +2680,7 @@ yearly_summary_table <- function(
     flextable::set_header_labels(
       Year              = "Year",
       Total             = "Total",
-      `Formatted Change` = "% Change from Previous Year"
+      `Formatted Change` = paste0("% Change from Previous Year", partial_note)
     ) %>%
     flextable::colformat_double(j = "Total", big.mark = ",", digits = 0) %>%
     flextable::colformat_double(j = "Year",  big.mark = "",  digits = 0) %>%
