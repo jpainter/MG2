@@ -2630,37 +2630,73 @@ yearly_summary_table <- function(
     stop("Specified columns not found in data")
   }
 
-  # Detect partial most-recent year and restrict all years to the same months
-  # so year-on-year comparisons are like-for-like.
-  idx_sym      <- tsibble::index(data)
-  all_years    <- lubridate::year(data[[tsibble::index_var(data)]])
-  last_year    <- max(all_years, na.rm = TRUE)
-  last_months  <- lubridate::month(
-    data[[tsibble::index_var(data)]][all_years == last_year]
-  )
-  is_partial   <- length(unique(last_months)) < 12
-  partial_note <- if (is_partial)
-    paste0(" (", month.abb[min(last_months)], "\u2013", month.abb[max(last_months)], " only)")
-  else ""
+  # Detect whether the most recent year is partial (< 12 months of data).
+  idx_sym     <- tsibble::index(data)
+  idx_var     <- tsibble::index_var(data)
+  all_years   <- lubridate::year(data[[idx_var]])
+  last_year   <- max(all_years, na.rm = TRUE)
+  last_months <- sort(unique(lubridate::month(data[[idx_var]][all_years == last_year])))
+  is_partial  <- length(last_months) < 12
 
-  # When partial, filter all years to the same calendar months
-  data_cmp <- if (is_partial) {
-    data %>% dplyr::filter(lubridate::month(!!idx_sym) %in% last_months)
-  } else {
-    data
-  }
-
-  yearly_data <- data_cmp %>%
+  # Full-year totals for all years (used for all rows except the last when partial)
+  yearly_full <- data %>%
     dplyr::ungroup() %>%
-    tsibble::index_by(Year = lubridate::year(!!tsibble::index(.))) %>%
+    tsibble::index_by(Year = lubridate::year(!!idx_sym)) %>%
     dplyr::summarise(
       Total        = sum(!!rlang::sym(value_col), na.rm = TRUE),
       months_count = dplyr::n(),
       .groups = "drop"
     ) %>%
-    dplyr::arrange(Year) %>%
+    dplyr::arrange(Year)
+
+  if (is_partial) {
+    # For the last row: show its partial total; compute % change against the
+    # same months in the prior year so the comparison is like-for-like.
+    prior_partial_total <- data %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(
+        lubridate::year(!!idx_sym)  == last_year - 1,
+        lubridate::month(!!idx_sym) %in% last_months
+      ) %>%
+      dplyr::summarise(Total = sum(!!rlang::sym(value_col), na.rm = TRUE)) %>%
+      dplyr::pull(Total)
+
+    last_total <- yearly_full$Total[yearly_full$Year == last_year]
+    last_pct   <- if (!is.na(prior_partial_total) && prior_partial_total != 0)
+      round((last_total - prior_partial_total) / prior_partial_total * 100, 1)
+    else NA_real_
+
+    partial_label <- paste0(
+      month.abb[min(last_months)], "\u2013", month.abb[max(last_months)]
+    )
+
+    # Build yearly_data with full-year totals; override the last row's % change
+    yearly_data <- yearly_full %>%
+      dplyr::mutate(
+        `Percent Change` = round((Total - dplyr::lag(Total)) / dplyr::lag(Total) * 100, 1)
+      )
+    last_row <- nrow(yearly_data)
+    yearly_data$`Percent Change`[last_row] <- last_pct
+
+    # Label the last year to make the partial period visible
+    yearly_data <- yearly_data %>%
+      dplyr::mutate(
+        Year = dplyr::if_else(Year == last_year,
+                              paste0(Year, "\n(", partial_label, ")"),
+                              as.character(Year))
+      )
+    col_header <- paste0("% Change from Previous Year\n(last year: ", partial_label,
+                         " vs same months prior year)")
+  } else {
+    yearly_data <- yearly_full %>%
+      dplyr::mutate(
+        `Percent Change` = round((Total - dplyr::lag(Total)) / dplyr::lag(Total) * 100, 1)
+      )
+    col_header <- "% Change from Previous Year"
+  }
+
+  yearly_data <- yearly_data %>%
     dplyr::mutate(
-      `Percent Change`   = round((Total - dplyr::lag(Total)) / dplyr::lag(Total) * 100, 1),
       `Change Direction` = dplyr::case_when(
         is.na(`Percent Change`)  ~ "baseline",
         `Percent Change` > 0    ~ "positive",
@@ -2680,7 +2716,7 @@ yearly_summary_table <- function(
     flextable::set_header_labels(
       Year              = "Year",
       Total             = "Total",
-      `Formatted Change` = paste0("% Change from Previous Year", partial_note)
+      `Formatted Change` = col_header
     ) %>%
     flextable::colformat_double(j = "Total", big.mark = ",", digits = 0) %>%
     flextable::colformat_double(j = "Year",  big.mark = "",  digits = 0) %>%
