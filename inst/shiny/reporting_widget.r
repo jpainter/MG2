@@ -280,6 +280,15 @@ reporting_widget_ui = function(id) {
                     choices = c("None", "Dataset", "Category"),
                     selected = "None"
                   )
+                ),
+                column(
+                  3,
+                  selectInput(
+                    ns("facet_by"),
+                    label = "Facet chart by:",
+                    choices = c("Champion/Non-Champion", "All Facilities"),
+                    selected = "Champion/Non-Champion"
+                  )
                 )
               ),
 
@@ -1764,12 +1773,9 @@ reporting_widget_server <- function(
 
         hts = paste("(", adms[1], ")")
 
-        # if >1 Facilities (ie. selected)
-        if (num_facilities() > 1) {
-          hts = paste(
-            'Selected *',
-            hts
-          )
+        # Facet by champion/non-champion only when explicitly requested
+        if (num_facilities() > 1 && isTRUE(input$facet_by == "Champion/Non-Champion")) {
+          hts = paste('Selected *', hts)
         }
 
         # Dataset series: only when explicitly requested
@@ -1849,16 +1855,10 @@ reporting_widget_server <- function(
             )
         }
 
-        if (num_facilities() > 1) {
-          #print( 'num_facilities()>1:') ;
+        if (num_facilities() > 1 && isTRUE(input$facet_by == "Champion/Non-Champion")) {
           .d = .d %>%
             filter(!is_aggregated(Selected)) %>%
-            mutate(
-              Selected = as.character(Selected) %>%
-                str_remove_all("<aggregated>")
-            )
-
-          #print( unique(.d$Selected))
+            mutate(Selected = as.character(Selected) %>% str_remove_all("<aggregated>"))
         }
 
         # testing
@@ -2011,13 +2011,11 @@ reporting_widget_server <- function(
           length(reportingSelectedOUs())
         )
 
-        if (length(reportingSelectedOUs()) > 0) {
-          g =
-            g +
+        if (isTRUE(input$facet_by == "Champion/Non-Champion") && length(reportingSelectedOUs()) > 0) {
+          g = g +
             facet_wrap(
               vars(Selected),
               labeller = as_labeller(facet_labeller),
-              # scales = 'free' ,
               ncol = 3
             )
         }
