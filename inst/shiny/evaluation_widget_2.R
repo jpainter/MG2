@@ -1131,11 +1131,17 @@ evaluation_widget_server <- function(
                 paste("Evaluation failed:", e$message), footer = modalButton("OK")))
               NULL
             })
-            if (!is.null(pred) && !is.null(auto_model_values$model_output)) {
-              updated           <- auto_model_values$model_output
-              updated$predicted <- pred
-              auto_model_values$model_output <- updated
+            # isolate() prevents reading model_output from creating a reactive
+            # dependency that would re-trigger this observer (infinite loop)
+            current <- isolate(auto_model_values$model_output)
+            if (!is.null(pred) && !is.null(current) && nrow(pred) > 0) {
+              current$predicted          <- pred
+              auto_model_values$model_output <- current
               auto_model_values$done         <- TRUE
+            } else if (is.null(pred)) {
+              cat("\n-- Evaluation returned NULL; charts will remain empty")
+            } else {
+              cat("\n-- Evaluation returned 0 rows; model name may not match")
             }
             auto_model_values$computing <- FALSE
             removeModal()
@@ -1256,8 +1262,9 @@ evaluation_widget_server <- function(
         )
       })
 
-      # Forecasts filtered to the user-selected model
+      # Forecasts filtered to the user-selected model (only valid after phase 2)
       selected_predicted = reactive({
+        req(auto_model_values$done)   # ensures predicted is populated, not NULL
         req(auto_model())
         req(input$selected_model)
         req(nchar(input$selected_model) > 0)
