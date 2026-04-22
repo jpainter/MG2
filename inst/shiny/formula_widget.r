@@ -293,50 +293,30 @@ formula_widget_server <- function(
       })
 
       observeEvent(selected_elements(), {
-        cat('\n* observe selected_elements() ')
+        cat('\n* observe selected_elements()')
 
-        selected_categories = selected_elements() %>%
+        selected_categories <- selected_elements() %>%
           separate_rows(Categories, categoryOptionCombo.ids, sep = ";") %>%
           mutate(
-            Categories = Categories %>% str_trim,
+            Categories              = Categories %>% str_trim,
             categoryOptionCombo.ids = categoryOptionCombo.ids %>% str_trim,
-            Formula.Name = formulaName()
-            # ,zeroIsSignificant = as.logical( zeroIsSignificant )
+            Formula.Name            = formulaName()
           )
 
-        # if ( nrow( updated_formula_elements$df ) == 0 ){
+        # Merge into existing elements: drop any rows for the same dataElement.id
+        # (in case the user is replacing a previous selection), then append.
+        existing <- updated_formula_elements$df
+        if (nrow(existing) > 0 && "dataElement.id" %in% names(existing)) {
+          existing <- existing %>%
+            dplyr::filter(!dataElement.id %in% selected_categories$dataElement.id)
+        }
 
-        cat(
-          '\n- updated_formula_elements == ',
-          nrow(selected_categories),
-          "elements"
-        )
+        updated_formula_elements$df <- dplyr::bind_rows(existing, selected_categories) %>%
+          dplyr::arrange(dataElement) %>%
+          dplyr::select(Formula.Name, everything()) %>%
+          dplyr::distinct()
 
-        updated_formula_elements$df = selected_categories %>%
-          arrange(dataElement) %>%
-          select(Formula.Name, everything()) %>%
-          distinct()
-
-        # } else {
-        #
-        #   # if selectected elements in updated_formula_elements, remove
-        #   if ( any( selected_categories$dataElement %in% updated_formula_elements$df$dataElement ) ){
-        #
-        #       cat('\n - removing' , nrow( selected_categories ), 'selected elements' )
-        #
-        #       updated_formula_elements$df = anti_join( updated_formula_elements$df , selected_categories,
-        #                                                by = "dataElement" )
-        #
-        #   } else {. # or else add them
-        #       cat('\n - adding' , nrow( selected_categories ), 'selected elements' )
-        #
-        #       updated_formula_elements$df = bind_rows( updated_formula_elements$df , selected_categories ) %>%
-        #         arrange( dataElement ) %>%
-        #         select( Formula.Name, everything() ) %>%
-        #         distinct()
-        #     }
-
-        # }
+        cat('\n - updated_formula_elements now has', nrow(updated_formula_elements$df), 'rows')
       })
 
       # Collapsed view of the formula table (shared by renderDT and deleteRows)
