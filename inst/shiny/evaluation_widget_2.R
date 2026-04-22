@@ -957,40 +957,46 @@ evaluation_widget_server <- function(
       plan(sequential)
       options(future.rng.onMisuse = "warning") # Keep warnings enabled
 
-      # Use reactiveValues to store results
+      # Use reactiveValues to store results across both phases
       auto_model_values <- reactiveValues(
-        computing = FALSE,
-        model_output = NULL,
-        done = FALSE
+        computing        = FALSE,
+        validation_done  = FALSE,
+        done             = FALSE,   # TRUE only after evaluation completes
+        model_output     = NULL,
+        # Phase-2 inputs stored after validation, used to run evaluation for chosen model:
+        modeling_data    = NULL,
+        n_forecasts_val  = NULL,
+        type_val         = NULL,
+        ensemble_val     = NULL,
+        ntestmonths_val  = NULL
       )
 
+      # Phase 1: Validation — fit all models on train/test data ####
       observeEvent(input$forecast, {
         req(mable_Data())
         req(input$evaluation_month)
 
-        cat("\n* observeEvent(input$forecast: auto_model")
-        # Show loading modal
-        showModal(modalDialog("Running time series analysis...", footer = NULL))
+        cat("\n* observeEvent(input$forecast: validation phase)")
+        showModal(modalDialog("Running model validation...", footer = NULL))
 
-        # Set computing flag
-        auto_model_values$computing <- TRUE
-        auto_model_values$done = FALSE
-        auto_model_values$model_output <- NULL
+        auto_model_values$computing       <- TRUE
+        auto_model_values$validation_done <- FALSE
+        auto_model_values$done            <- FALSE
+        auto_model_values$model_output    <- NULL
 
-        withProgress(message = 'Running analysis...', value = 0, {
-          data = isolate(mable_Data())
-          model_data = as_tsibble(data)
-          startMonth = min(model_data$Month, na.rm = T)
+        withProgress(message = 'Validating models...', value = 0, {
+          data             = isolate(mable_Data())
+          model_data       = as_tsibble(data)
+          startMonth       = min(model_data$Month, na.rm = T)
           evaluation_month = yearmonth(isolate(input$evaluation_month))
           numberTestMonths = as.integer(isolate(input$horizon))
-          endEvalMonth = evaluation_month + numberTestMonths
-          ensemble = input$ensemble
+          endEvalMonth     = evaluation_month + numberTestMonths
+          ensemble         = input$ensemble
+          n_forecasts      = as.integer(isolate(input$replicates))
+          .type = switch(as.character(input$transform),
+                         "TRUE" = 'transform', "FALSE" = NA)
 
-          n_forecasts = as.integer(isolate(input$replicates))
-
-          # Create training and test datasets
-          cat("\n- Create training and test datasets")
-          incProgress(0.1, detail = "Create training and test datasets")
+          incProgress(0.1, detail = "Preparing data")
 
           modelingData = dataset(
             data = model_data,
@@ -1002,113 +1008,140 @@ evaluation_widget_server <- function(
             grouping = FALSE
           )
 
-          cat("\n- calling tsmodels with", input$replicates, 'replicates')
+          # Store for Phase 2 (run before future so they're accessible in the observer)
+          auto_model_values$modeling_data   <- modelingData
+          auto_model_values$n_forecasts_val <- n_forecasts
+          auto_model_values$type_val        <- .type
+          auto_model_values$ensemble_val    <- ensemble
+          auto_model_values$ntestmonths_val <- numberTestMonths
 
           train_data = modelingData$pre.intervention.train
-          test_data = modelingData$pre.intervention.test
+          test_data  = modelingData$pre.intervention.test
 
-          incProgress(0.25, detail = "Modeling data")
+          incProgress(0.2, detail = "Training models")
 
-          # If transformed selected (esp when values approach zero) use log transform in tsmodels
-          .type = switch(
-            as.character(input$transform),
-            "TRUE" = 'transform',
-            "FALSE" = NA
-          )
-
-          # Run computation in background
           fut <- future(seed = TRUE, {
-            # incProgress(0.3, detail = "Training models...")
-
-            # First computation: test forecasts
             test.forecasts = tsmodels(
-              train_data,
-              test_data,
+              train_data, test_data,
               n_forecasts = n_forecasts,
-              .var = 'total',
-              numberForecastMonths = 12,
-              type = .type,
-              covariate = NULL,
-              ensemble = ensemble,
-              msg = TRUE,
-              .set.seed = TRUE
+              .var = 'total', numberForecastMonths = 12,
+              type = .type, covariate = NULL, ensemble = ensemble,
+              msg = TRUE, .set.seed = TRUE
             )
 
-            cat("\n * validate.forecasts")
-            # incProgress(0.6, detail = "Validating...")
-
-            # Model validation
-            validations = model_metrics(
-              test.forecasts,
-              test_data,
-              .var = 'total'
-            )
-
-            # Model selection
+            validations    = model_metrics(test.forecasts, test_data, .var = 'total')
             model_selection = modelSelection(validations, type = 'synchronize')
             cat("\n * model_selection:", model_selection$.model)
 
-            # incProgress(0.8, detail = "Final forecasts...")
-            cat("\n * preparing evaluation period forecasts")
-
-            # Evaluation forecasts — keep all models so the UI can switch between them
-            evaluation.forecasts = tsmodels(
-              train_data = modelingData$pre.intervention,
-              test_data = modelingData$post.intervention,
-              n_forecasts = n_forecasts,
-              .var = 'total',
-              numberForecastMonths = numberTestMonths,
-              type = .type,
-              covariate = NULL,
-              ensemble = ensemble,
-              msg = TRUE,
-              .set.seed = TRUE
-            )
-
-            # incProgress(1, detail = "Complete!")
-
-            # Return complete model output
-            model_output = list(
-              actual = modelingData$fable.data,
-              train_data = modelingData$pre.intervention.train,
-              test_data = modelingData$pre.intervention.test,
+            list(
+              actual         = modelingData$fable.data,
+              train_data     = modelingData$pre.intervention.train,
+              test_data      = modelingData$pre.intervention.test,
               test.forecasts = test.forecasts,
-              validations = validations,
+              validations    = validations,
               model_selection = model_selection,
-              predicted = evaluation.forecasts
+              predicted      = NULL   # filled by Phase 2
             )
-
-            return(model_output)
           })
 
-          # Check for completion periodically
           observe({
             if (resolved(fut)) {
-              result <- tryCatch(
-                {
-                  value(fut)
-                },
-                error = function(e) {
-                  cat("\n-- Analysis failed:", e$message)
-                  showModal(modalDialog(
-                    title = "Error",
-                    paste("Analysis failed:", e$message),
-                    footer = modalButton("OK")
-                  ))
-                  NULL
-                }
-              )
-
-              # Update reactive values
-              auto_model_values$model_output <- result
-              auto_model_values$done = TRUE
-              auto_model_values$computing <- FALSE
+              result <- tryCatch(value(fut), error = function(e) {
+                cat("\n-- Validation failed:", e$message)
+                showModal(modalDialog(title = "Error",
+                  paste("Validation failed:", e$message), footer = modalButton("OK")))
+                NULL
+              })
+              auto_model_values$model_output    <- result
+              auto_model_values$validation_done <- TRUE
+              auto_model_values$computing       <- FALSE
               removeModal()
             } else {
-              # Keep checking every 100ms
               invalidateLater(100)
             }
           })
+        })
+      })
+
+      # Phase 2: Evaluation — run only the selected model on the full pre-intervention data ####
+      # Fires when validation completes OR when the user changes the model dropdown.
+      eval_trigger <- reactive({
+        list(
+          validation_done = auto_model_values$validation_done,
+          selected_model  = input$selected_model
+        )
+      })
+
+      observeEvent(eval_trigger(), ignoreInit = TRUE, {
+        req(auto_model_values$validation_done)
+        req(!auto_model_values$computing)
+        req(!is.null(auto_model_values$modeling_data))
+        req(input$selected_model)
+        req(nchar(input$selected_model) > 0)
+
+        sel_model    <- tolower(input$selected_model)
+        modelingData <- auto_model_values$modeling_data
+        n_forecasts  <- auto_model_values$n_forecasts_val
+        .type        <- auto_model_values$type_val
+        ensemble     <- auto_model_values$ensemble_val
+        ntestmonths  <- auto_model_values$ntestmonths_val
+
+        # Determine which base models to fit (combination → constituent parts)
+        if (startsWith(sel_model, "combination_")) {
+          base_names    <- strsplit(sub("^combination_", "", sel_model), "_")[[1]]
+          run_ensemble  <- TRUE
+        } else {
+          base_names    <- sel_model
+          run_ensemble  <- FALSE
+        }
+
+        cat("\n* Phase 2 evaluation for model:", sel_model,
+            " base_models:", paste(base_names, collapse = ","))
+        showModal(modalDialog(
+          paste("Running evaluation for", input$selected_model, "..."),
+          footer = NULL
+        ))
+
+        auto_model_values$computing <- TRUE
+        auto_model_values$done      <- FALSE
+
+        fut2 <- future(seed = TRUE, {
+          evaluation.forecasts <- tsmodels(
+            train_data           = modelingData$pre.intervention,
+            test_data            = modelingData$post.intervention,
+            n_forecasts          = n_forecasts,
+            .var                 = 'total',
+            numberForecastMonths = ntestmonths,
+            type                 = .type,
+            covariate            = NULL,
+            ensemble             = run_ensemble,
+            base_models          = base_names,
+            msg                  = TRUE,
+            .set.seed            = TRUE
+          ) %>% dplyr::filter(.model == sel_model)
+
+          evaluation.forecasts
+        })
+
+        observe({
+          if (resolved(fut2)) {
+            pred <- tryCatch(value(fut2), error = function(e) {
+              cat("\n-- Evaluation failed:", e$message)
+              showModal(modalDialog(title = "Error",
+                paste("Evaluation failed:", e$message), footer = modalButton("OK")))
+              NULL
+            })
+            if (!is.null(pred) && !is.null(auto_model_values$model_output)) {
+              updated           <- auto_model_values$model_output
+              updated$predicted <- pred
+              auto_model_values$model_output <- updated
+              auto_model_values$done         <- TRUE
+            }
+            auto_model_values$computing <- FALSE
+            removeModal()
+          } else {
+            invalidateLater(100)
+          }
         })
       })
 
@@ -1138,8 +1171,8 @@ evaluation_widget_server <- function(
       })
 
       # forecastResult table ####
-      # Use the output of eventReactive in the UI
       output$forecastResult <- renderTable({
+        req(auto_model_values$done)
         req(auto_model())
         req(selected_predicted())
         cat("\n* output$forecastResult: impactSummary")
@@ -1151,6 +1184,7 @@ evaluation_widget_server <- function(
       })
 
       wpeHistogram <- reactive({
+        req(auto_model_values$done)
         req(auto_model())
         req(selected_predicted())
         req(nrow(selected_predicted()) > 0)

@@ -2840,6 +2840,10 @@ best_fables_accuracy = function(
 #' @param msg Logical. Print progress messages.
 #' @param .set.seed Logical. Set random seed for reproducibility.
 #'
+#' @param base_models Character vector of base-model short names to fit
+#'   (e.g. `c("a", "e")` for ARIMA + ETS only).  `NULL` (default) fits all.
+#'   Valid names: `"a"` ARIMA, `"e"` ETS, `"n"` NNETAR, `"t"` TSLM,
+#'   `"p1"`, `"p4"`, `"p8"` Prophet variants.
 #' @return A fable object of forecasts (primary + ensemble if `ensemble = TRUE`).
 #' @export
 tsmodels = function(
@@ -2852,7 +2856,8 @@ tsmodels = function(
   covariate            = NULL,
   ensemble             = TRUE,
   msg                  = TRUE,
-  .set.seed            = TRUE
+  .set.seed            = TRUE,
+  base_models          = NULL
 ) {
   valid_types = c("transform and covariate", "transform", "covariate")
   if (!is.na(type) && !type %in% valid_types) {
@@ -2872,62 +2877,65 @@ tsmodels = function(
   tictoc::tic()
   tictoc::tic()
 
+  # Define all model specs as unevaluated expressions, then filter by base_models
   if (is.na(type)) {
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(var),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var),
-        t  = fable::TSLM(var),
-        p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative")),
-        .safely = TRUE
-      )
+    all_specs <- alist(
+      a  = fable::ARIMA(var),
+      e  = fable::ETS(var),
+      n  = fable::NNETAR(var),
+      t  = fable::TSLM(var),
+      p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
+      p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative"))
+    )
   }
 
   if (!is.na(type) && type == "transform") {
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(log(var + 1)),
-        e  = fable::ETS(log(var + 1)),
-        n  = fable::NNETAR(log(var + 1)),
-        t  = fable::TSLM(log(var) ~ trend() + season()),
-        p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      )
+    all_specs <- alist(
+      a  = fable::ARIMA(log(var + 1)),
+      e  = fable::ETS(log(var + 1)),
+      n  = fable::NNETAR(log(var + 1)),
+      t  = fable::TSLM(log(var) ~ trend() + season()),
+      p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
+      p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative"))
+    )
   }
 
   if (!is.na(type) && type == "covariate") {
     if (.set.seed) set.seed(1432)
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(var ~ log(!!covariate)),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var ~ !!covariate),
-        t  = fable::TSLM(var ~ trend() + season() + !!covariate),
-        p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      )
+    all_specs <- alist(
+      a  = fable::ARIMA(var ~ log(!!covariate)),
+      e  = fable::ETS(var),
+      n  = fable::NNETAR(var ~ !!covariate),
+      t  = fable::TSLM(var ~ trend() + season() + !!covariate),
+      p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
+      p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative"))
+    )
   }
 
   if (!is.na(type) && type == "transform and covariate") {
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(log(var) ~ log(!!covariate)),
-        e  = fable::ETS(log(var)),
-        n  = fable::NNETAR(log(var) ~ !!covariate),
-        t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
-        p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      )
+    all_specs <- alist(
+      a  = fable::ARIMA(log(var) ~ log(!!covariate)),
+      e  = fable::ETS(log(var)),
+      n  = fable::NNETAR(log(var) ~ !!covariate),
+      t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
+      p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
+      p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative"))
+    )
   }
+
+  if (!is.null(base_models) && length(base_models) > 0) {
+    matched <- all_specs[names(all_specs) %in% base_models]
+    if (length(matched) > 0) all_specs <- matched else
+      cat("\n - tsmodels: no base_models matched; fitting all models")
+  }
+
+  primary_models <- rlang::inject(
+    fabletools::model(train_data, !!!all_specs, .safely = TRUE)
+  )
 
   t = tictoc::toc(quiet = TRUE)
   if (msg) cat("\n - tsmodels: Primary models finished.", t$callback_msg,
