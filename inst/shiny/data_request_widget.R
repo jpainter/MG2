@@ -170,13 +170,15 @@ data_request_widget_server <- function(
         metadata_widget_output$ousTree()
       })
 
-      # updata formula
-      observeEvent(!is.null(formulaName()), {
-        cat("\n* data_request_widget sees formula: ", formulaName())
-
-        output$formulaName <- renderText({
-          formulaName()
-        })
+      # Display formula name, or a prompt when none is selected
+      output$formulaName <- renderText({
+        fn <- formulaName()
+        if (is.null(fn) || trimws(fn) == "") {
+          "— please select a formula —"
+        } else {
+          cat("\n* data_request_widget sees formula:", fn)
+          fn
+        }
       })
 
       # Update level names

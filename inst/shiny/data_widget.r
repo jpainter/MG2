@@ -119,6 +119,15 @@ data_widget_server <- function(
         return(ff)
       })
 
+      # After a save, remember the formula name so we can re-select it once
+      # the file list refreshes (which clears the formula dropdown)
+      formula_to_restore <- reactiveVal(NULL)
+
+      observeEvent(formulaSaved(), {
+        req(formulaSaved() > 0)
+        formula_to_restore(input$formula)
+      }, ignoreInit = TRUE, priority = 1000)
+
       # trigger refresh after completed download
       observeEvent(input$refresh, {
         cat('\n* Update data widget text boxes')
@@ -303,14 +312,18 @@ data_widget_server <- function(
       # update formulas
       observeEvent(input$formula.file, {
         cat('\n* updating formula list')
-        updateSelectInput(
-          session,
-          'formula',
-          choices = formula.names(),
-          selected = 1
-        )
+        choices <- formula.names()
+        desired <- formula_to_restore()
 
-        updateSelectInput(session, 'dataset', choices = NULL, selected = NULL) # rds_data_file()[1] )
+        if (!is.null(desired) && desired != "" && desired %in% choices) {
+          cat('\n - restoring formula selection:', desired)
+          updateSelectizeInput(session, 'formula', choices = choices, selected = desired)
+          formula_to_restore(NULL)
+        } else {
+          updateSelectInput(session, 'formula', choices = choices, selected = 1)
+        }
+
+        updateSelectInput(session, 'dataset', choices = NULL, selected = NULL)
       })
 
       # Update list of data files
