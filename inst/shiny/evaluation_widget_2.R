@@ -225,7 +225,14 @@ evaluation_widget_ui = function(id) {
                   selected = 12
                 ),
 
-                actionButton(ns("forecast"), "Calculate Percent Change")
+                actionButton(ns("forecast"), "Calculate Percent Change"),
+
+                selectInput(
+                  ns("selected_model"),
+                  label = "Model:",
+                  choices = character(0),
+                  selected = NULL
+                )
               ),
 
               tabsetPanel(
@@ -250,9 +257,10 @@ evaluation_widget_ui = function(id) {
                   h5(
                     "Symmetric Weighted Absolute Percent Error (SWAPE) of difference between the test forecasts and the actual values"
                   ),
+                  htmlOutput(ns("modelLegend")),
 
                   fluidRow(
-                    style = "height:60vh;",
+                    style = "height:55vh;",
                     column(
                       12,
                       div(
@@ -328,6 +336,14 @@ evaluation_widget_server <- function(
           tags$strong(style = "color:#1565C0; font-size:1.05em;",
                       paste("Region:", label))
         )
+      })
+
+      region_caption_text = reactive({
+        sr <- regions_selected()
+        parts <- Filter(function(x) !is.null(x) && length(x) > 0,
+                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+        if (length(parts) == 0) "National" else
+          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
       })
 
       data.folder = reactive({
@@ -1035,7 +1051,7 @@ evaluation_widget_server <- function(
             # incProgress(0.8, detail = "Final forecasts...")
             cat("\n * preparing evaluation period forecasts")
 
-            # Evaluation forecasts
+            # Evaluation forecasts — keep all models so the UI can switch between them
             evaluation.forecasts = tsmodels(
               train_data = modelingData$pre.intervention,
               test_data = modelingData$post.intervention,
@@ -1047,8 +1063,7 @@ evaluation_widget_server <- function(
               ensemble = ensemble,
               msg = TRUE,
               .set.seed = TRUE
-            ) %>%
-              semi_join(model_selection, by = c('.model'))
+            )
 
             # incProgress(1, detail = "Complete!")
 
@@ -1126,49 +1141,110 @@ evaluation_widget_server <- function(
       # Use the output of eventReactive in the UI
       output$forecastResult <- renderTable({
         req(auto_model())
-        auto_model = auto_model()
-
-        # Testing
-        # saveRDS( auto_model ,  "auto_model.rds")
-
+        req(selected_predicted())
         cat("\n* output$forecastResult: impactSummary")
-
         wpe_summary(
-          actual = auto_model$actual,
-          predicted = auto_model$predicted,
-          .var = 'total'
+          actual    = auto_model()$actual,
+          predicted = selected_predicted(),
+          .var      = 'total'
         )
       })
 
       wpeHistogram <- reactive({
         req(auto_model())
+        req(selected_predicted())
+        req(nrow(selected_predicted()) > 0)
         cat("\n* wpeHistogram")
 
         auto_model = auto_model()
+        pred <- selected_predicted() %>% mutate(Intervention = input$reporting)
+        act  <- auto_model$actual    %>% mutate(Intervention = input$reporting)
 
-        wpeHistogram =
-          diffHistogram(
-            actual = auto_model$actual %>%
-              mutate(Intervention = input$reporting),
-            predicted = auto_model$predicted %>%
-              mutate(Intervention = input$reporting),
-            .var = 'total'
+        stats <- tryCatch(
+          wpe_summary(actual = act, predicted = pred, .var = 'total'),
+          error = function(e) NULL
+        )
+
+        h <- diffHistogram(actual = act, predicted = pred, .var = 'total') +
+          labs(caption = paste0(region_caption_text(), " | Blue bar = median"))
+
+        # Upper-left annotation: model name and WPE summary statistics
+        if (!is.null(stats) && nrow(stats) > 0) {
+          annotation_text <- paste(
+            paste("Model:", input$selected_model),
+            paste("Mean:",   round(stats$mean[1],   1), "%"),
+            paste("SD:",     round(stats$sd[1],     1), "%"),
+            paste("Median:", round(stats$median[1], 1), "%"),
+            sep = "\n"
           )
+          h <- h + annotate(
+            "label",
+            x = -Inf, y = Inf,
+            label    = annotation_text,
+            hjust    = -0.05, vjust = 1.1,
+            size     = 3,
+            alpha    = 0.85,
+            label.size = 0.3
+          )
+        }
 
-        # Testing
-        # saveRDS( wpeHistogram , "wpeHistogram.rds")
-
-        return(wpeHistogram)
+        return(h)
       })
 
       wpeValidationTable = reactive({
         req(auto_model())
-
         auto_model = auto_model()
-
-        wpeValidationTable = auto_model$validations %>%
+        auto_model$validations %>%
           arrange(swape) %>%
-          rename(SWAPE = swape)
+          rename(SWAPE = swape) %>%
+          mutate(.model = toupper(.model))
+      })
+
+      # Populate the model selector from the validation table (best model first)
+      observeEvent(wpeValidationTable(), {
+        vt <- wpeValidationTable()
+        models <- vt$.model  # already uppercased, sorted by SWAPE ascending
+        updateSelectInput(session, "selected_model",
+          choices  = models,
+          selected = models[1]
+        )
+      })
+
+      output$modelLegend <- renderUI({
+        div(
+          style = "font-size:0.82em; color:#555; margin:2px 0 6px 0;",
+          tags$strong("Model types: "),
+          "ARIMA = AutoRegressive Integrated Moving Average | ",
+          "ETS = Exponential Smoothing | ",
+          "NNETAR = Neural Network Autoregression | ",
+          "TSLM = Time Series Linear Model | ",
+          "COMBINATION_* = Ensemble of the named models"
+        )
+      })
+
+      # Forecasts filtered to the user-selected model
+      selected_predicted = reactive({
+        req(auto_model())
+        req(input$selected_model)
+        req(nchar(input$selected_model) > 0)
+        auto_model()$predicted %>%
+          dplyr::filter(.model == tolower(input$selected_model))
+      })
+
+      # WPE summary statistics for the selected model (used for chart annotations)
+      selected_wpe_stats = reactive({
+        req(auto_model())
+        req(selected_predicted())
+        pred <- selected_predicted()
+        req(nrow(pred) > 0)
+        tryCatch(
+          wpe_summary(
+            actual    = auto_model()$actual,
+            predicted = pred,
+            .var      = 'total'
+          ),
+          error = function(e) NULL
+        )
       })
 
       output$wpeValidationTable =
@@ -1985,7 +2061,7 @@ evaluation_widget_server <- function(
             fabletools::autolayer(
               tsPreForecast(),
               level = ifelse(input$forecast_ci, 89, FALSE),
-              color = 'black',
+              color = 'steelblue',
               linetype = 'dotted',
               linewidth = 2,
               alpha = .75
@@ -2029,8 +2105,7 @@ evaluation_widget_server <- function(
           g = g +
             fabletools::autolayer(
               tsForecast(),
-              # , level = 80  # pi_levels()
-              color = 'black',
+              color = 'darkorange',
               level = ifelse(input$forecast_ci, 89, FALSE),
               linetype = 'dashed',
               linewidth = 1,
@@ -2071,56 +2146,58 @@ evaluation_widget_server <- function(
           cat("\n - auto_model_values$done = ", auto_model_values$done)
           auto_model = auto_model()
 
-          # Testing
-          # save( g , auto_model , file = "auto_model_chart.rda")
-
-          predicted     = if (!is.null(auto_model)) auto_model$predicted     else NULL
-          test.forecasts = if (!is.null(auto_model)) auto_model$test.forecasts else NULL
+          sel_predicted  <- tryCatch(selected_predicted(),  error = function(e) NULL)
+          test.forecasts <- if (!is.null(auto_model)) auto_model$test.forecasts else NULL
+          sel_model_name <- if (!is.null(input$selected_model) && nchar(input$selected_model) > 0)
+            tolower(input$selected_model) else NULL
 
           cat('\n - auto predicted trend  ')
-          cat("\n - nrow(auto_model$predicted) = ", if (!is.null(predicted)) nrow(predicted) else "NULL")
-          cat('\n - input$forecast_ci:', input$forecast_ci)
-          # cat( '\n - pi_levels:' , pi_levels() )
+          cat("\n - nrow(sel_predicted) = ", if (!is.null(sel_predicted)) nrow(sel_predicted) else "NULL")
 
-          if (!is.null(predicted) && !is.null(test.forecasts)) {
+          if (!is.null(sel_predicted) && nrow(sel_predicted) > 0 && !is.null(test.forecasts)) {
             g = g +
+              # Post-intervention evaluation forecast
               fabletools::autolayer(
-                predicted,
-                # series = ".mean" ,
-                # , level = 80  # pi_levels()
-                ,
-                color = 'blue',
-                level = ifelse(input$forecast_ci, 80, FALSE),
+                sel_predicted,
+                color    = 'darkorange',
+                level    = ifelse(input$forecast_ci, 80, FALSE),
                 linetype = 'dashed',
                 linewidth = 1,
-                alpha = .75
+                alpha    = .75
               ) +
-
+              # Test-period forecast for the selected model (pre-intervention validation)
               fabletools::autolayer(
-                test.forecasts %>%
-                  filter(.model %in% auto_model$model_selection),
-                # series = ".mean" ,
-                # , level = 80  # pi_levels()
-                ,
-                color = 'blue',
-                level = ifelse(input$forecast_ci, 80, FALSE),
+                test.forecasts %>% dplyr::filter(.model == sel_model_name),
+                color    = 'steelblue',
+                level    = ifelse(input$forecast_ci, 80, FALSE),
                 linetype = 'dotted',
                 linewidth = 1,
-                alpha = .5
+                alpha    = .5
               )
-          } else {
-            cat('\n - predicted or test.forecasts is NULL (model fitting failed); skipping autolayer')
-          }
 
-          # if (input$pe) g = g +
-          #   geom_label_repel( data =  key.mpe() ,
-          #            aes(  x = !! rlang::sym( period() ) , y = actual ,
-          #            label = paste( "MPE:" , percent( mpe, accuracy = 1.0 ) ) ,
-          #            hjust = just
-          #            ) ,
-          #            # force_pull = 0 ,
-          #            segment.colour = NA
-          #            )
+            # Lower-right annotation: selected model + WPE stats
+            stats <- tryCatch(selected_wpe_stats(), error = function(e) NULL)
+            if (!is.null(stats) && nrow(stats) > 0) {
+              annotation_text <- paste(
+                paste("Model:", input$selected_model),
+                paste("Mean:",   round(stats$mean[1],   1), "%"),
+                paste("SD:",     round(stats$sd[1],     1), "%"),
+                paste("Median:", round(stats$median[1], 1), "%"),
+                sep = "\n"
+              )
+              g <- g + annotate(
+                "label",
+                x = Inf, y = -Inf,
+                label    = annotation_text,
+                hjust    = 1.05, vjust = -0.1,
+                size     = 3,
+                alpha    = 0.85,
+                label.size = 0.3
+              )
+            }
+          } else {
+            cat('\n - selected predicted or test.forecasts is NULL; skipping autolayer')
+          }
         }
 
         ## prediction Interval
