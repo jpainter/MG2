@@ -48,10 +48,18 @@ directory_widget_server <- function(id) {
     function(input, output, session) {
       ns <- session$ns
 
-      # Volumes available to the folder picker (cross-platform)
-      volumes <- c(Home = path.expand("~"), shinyFiles::getVolumes()())
+      config_path <- path.expand("~/.mg2_config.rds")
 
-      # Add cloud storage roots if present on this machine
+      # Restore last-used directory; fall back to home for new users
+      saved_dir <- tryCatch(readRDS(config_path)$directory, error = function(e) path.expand("~"))
+      if (nchar(saved_dir) > 0 && dir.exists(saved_dir)) {
+        updateTextInput(session, "data.directory", value = saved_dir)
+      }
+
+      # Volumes available to the folder picker — use only known-accessible roots
+      # to avoid macOS Full Disk Access blocks from shinyFiles::getVolumes()
+      volumes <- c(Home = path.expand("~"))
+
       icloud <- file.path(path.expand("~"), "Library/Mobile Documents/com~apple~CloudDocs")
       if (dir.exists(icloud)) volumes <- c("iCloud Drive" = icloud, volumes)
 
@@ -85,6 +93,11 @@ directory_widget_server <- function(id) {
 
         cat('\n - data.folder is ', data.dir, '\n')
         return(data.dir)
+      })
+
+      # Persist chosen directory for next session
+      observeEvent(data.folder(), {
+        tryCatch(saveRDS(list(directory = data.folder()), config_path), error = function(e) NULL)
       })
 
       data.dir.files = reactive({

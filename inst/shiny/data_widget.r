@@ -101,6 +101,7 @@ data_widget_server <- function(
       # completedRequest = reactive({ data_request_output$completedRequest() })
 
       formula.files = reactive({
+        if (!is.null(formulaSaved)) formulaSaved()  # re-scan after save creates a new file
         req(data.folder())
         cat('\n* data_widget looking for formula files in', data.folder(), '\n')
 
@@ -532,8 +533,13 @@ data_widget_server <- function(
         all_formula_elements = all_formula_elements,
         formula_elements = formula_elements,
         formulaFile = reactive({
-          req(input$formula.file)
-          paste0(data.folder(), input$formula.file)
+          req(data.folder())
+          req(input$formula)
+          if (is.null(input$formula.file) || input$formula.file == "") {
+            paste0(data.folder(), "Formulas_", input$formula, ".xlsx")
+          } else {
+            paste0(data.folder(), input$formula.file)
+          }
         }),
         dataset.file = reactive({
           input$dataset

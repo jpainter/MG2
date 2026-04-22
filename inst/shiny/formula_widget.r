@@ -339,40 +339,52 @@ formula_widget_server <- function(
         # }
       })
 
+      # Collapsed view of the formula table (shared by renderDT and deleteRows)
+      review_df <- reactive({
+        df <- updated_formula_elements$df
+        if (isTRUE(input$collapse_to_element) && nrow(df) > 0 &&
+            all(c("dataElement.id", "Categories", "categoryOptionCombo.ids") %in% names(df))) {
+          collapse_cols <- setdiff(
+            names(df),
+            c("Categories", "categoryOptionCombo.ids", "n_categoryOptions", "categoryCombo", "categoryCombo.id")
+          )
+          df <- df %>%
+            dplyr::group_by(dplyr::across(dplyr::all_of(collapse_cols))) %>%
+            dplyr::summarise(
+              Categories              = paste(trimws(Categories), collapse = " ;\n "),
+              categoryOptionCombo.ids = paste(trimws(categoryOptionCombo.ids), collapse = " ;\n "),
+              n_categoryOptions       = dplyr::n(),
+              .groups = "drop"
+            )
+        }
+        df
+      })
+
       observeEvent(input$deleteRows, {
-        cat("\n* delete row:")
+        sel <- input$forumlaDictionaryTable_rows_selected
+        if (is.null(sel) || length(sel) == 0) return()
 
-        if (!is.null(input$forumlaDictionaryTable_rows_selected)) {
-          cat("\n - delete row:", input$forumlaDictionaryTable_rows_selected)
+        cat("\n* deleteRows: selected rows:", sel)
 
-          updated_formula_elements$df = updated_formula_elements$df[
-            -as.numeric(input$forumlaDictionaryTable_rows_selected),
-          ]
+        displayed <- review_df()
+
+        if (isTRUE(input$collapse_to_element) &&
+            "dataElement.id" %in% names(displayed)) {
+          # Collapsed view: delete all underlying rows for each selected element
+          ids_to_remove <- displayed$dataElement.id[sel]
+          cat("\n - removing dataElement.ids:", ids_to_remove)
+          updated_formula_elements$df <- updated_formula_elements$df %>%
+            dplyr::filter(!dataElement.id %in% ids_to_remove)
+        } else {
+          # Expanded view: delete by row index directly
+          updated_formula_elements$df <- updated_formula_elements$df[-as.numeric(sel), ]
         }
       })
 
       output$forumlaDictionaryTable =
         DT::renderDT({
-          df = updated_formula_elements$df
-
-          if (isTRUE(input$collapse_to_element) && nrow(df) > 0 &&
-              all(c("dataElement.id", "Categories", "categoryOptionCombo.ids") %in% names(df))) {
-            collapse_cols = setdiff(
-              names(df),
-              c("Categories", "categoryOptionCombo.ids", "n_categoryOptions", "categoryCombo", "categoryCombo.id")
-            )
-            df = df %>%
-              dplyr::group_by(dplyr::across(dplyr::all_of(collapse_cols))) %>%
-              dplyr::summarise(
-                Categories            = paste(trimws(Categories), collapse = " ;\n "),
-                categoryOptionCombo.ids = paste(trimws(categoryOptionCombo.ids), collapse = " ;\n "),
-                n_categoryOptions     = dplyr::n(),
-                .groups = "drop"
-              )
-          }
-
           DT::datatable(
-            df,
+            review_df(),
             rownames = FALSE,
             filter = 'top',
             options = list(

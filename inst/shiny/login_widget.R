@@ -265,13 +265,19 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
         }
 
         cats    <- instances_data[[1]]$categories
-        choices <- lapply(cats, function(cat) {
+        api_choices <- lapply(cats, function(cat) {
           urls   <- sapply(cat$instances, `[[`, "hostname")
           labels <- sapply(cat$instances, `[[`, "description")
           labels <- sub("^DHIS2? 2? ?", "", labels)
           setNames(urls, labels)
         })
-        names(choices) <- sapply(cats, `[[`, "label")
+        names(api_choices) <- sapply(cats, `[[`, "label")
+
+        pdr_choices <- list(
+          "PDR Lao" = c("PDR Lao HMIS (demo_en / District1#)" =
+                          "https://demos.dhis2.org/hmis_data/")
+        )
+        choices <- c(pdr_choices, api_choices)
 
         showModal(modalDialog(
           title = "Choose a DHIS2 Demo Instance",
@@ -283,7 +289,12 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
             width   = "100%"
           ),
           tags$p(
-            tags$small(icon("info-circle"), " Login: admin / district"),
+            tags$small(
+              icon("info-circle"),
+              " Most instances: admin / district.",
+              tags$br(),
+              " PDR Lao instance: demo_en / District1#"
+            ),
             style = "color:#666; margin-top:4px;"
           ),
           footer    = tagList(
@@ -298,9 +309,16 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
         req(input$demo_instance_url)
         url <- input$demo_instance_url
         if (!endsWith(url, "/")) url <- paste0(url, "/")
+        if (grepl("demos\\.dhis2\\.org", url)) {
+          demo_user <- "demo_en"
+          demo_pass <- "District1#"
+        } else {
+          demo_user <- "admin"
+          demo_pass <- "district"
+        }
         updateTextInput(session, "baseurl",  value = url)
-        updateTextInput(session, "username", value = "admin")
-        updateTextInput(session, "password", value = "district")
+        updateTextInput(session, "username", value = demo_user)
+        updateTextInput(session, "password", value = demo_pass)
         removeModal()
       })
 
