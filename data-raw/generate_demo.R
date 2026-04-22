@@ -8,7 +8,6 @@
 # Source: Sierra Leone DHIS2 demo instance
 #   URL:      https://play.im.dhis2.org/stable-2-41-8/
 #   Username: admin  |  Password: district
-#
 # Requires live internet access. Run once; outputs are committed to data/.
 # Re-run when the demo instance is refreshed or data elements change.
 #
@@ -154,7 +153,7 @@ dataSets_dot <- dataSets_raw %>%
   unnest(dataSetElements, names_sep = "_") %>%
   rename(
     dataSet.id = id,
-    dataSet    = name
+    dataSet = name
   ) %>%
   mutate(
     # Extract the DE id from the nested data.frame column
@@ -353,7 +352,7 @@ message("\n=== Downloading real data (12 months) ===")
 
 # Use Jan–Dec 2025.
 # Adjust END_YEAR if the instance has been refreshed.
-END_YEAR     <- 2025L
+END_YEAR <- 2025L
 real_periods <- sprintf("%04d%02d", END_YEAR, 1:12)
 real_periods_str <- paste(real_periods, collapse = ";")
 
@@ -377,7 +376,9 @@ fetch_one_de <- function(de_id, periods_str) {
       de_id,
       "&dimension=pe:",
       periods_str,
-      "&dimension=ou:LEVEL-", FACILITY_LEVEL, "",
+      "&dimension=ou:LEVEL-",
+      FACILITY_LEVEL,
+      "",
       "&displayProperty=NAME&aggregationType=SUM"
     ),
     username = USERNAME,
@@ -393,7 +394,9 @@ fetch_one_de <- function(de_id, periods_str) {
       de_id,
       "&dimension=pe:",
       periods_str,
-      "&dimension=ou:LEVEL-", FACILITY_LEVEL, "",
+      "&dimension=ou:LEVEL-",
+      FACILITY_LEVEL,
+      "",
       "&displayProperty=NAME&aggregationType=COUNT"
     ),
     username = USERNAME,
@@ -440,22 +443,30 @@ fetch_one_de <- function(de_id, periods_str) {
 }
 
 real_data_list <- map(DE_IDS, fetch_one_de, periods_str = real_periods_str)
-real_data_raw  <- bind_rows(real_data_list)
+real_data_raw <- bind_rows(real_data_list)
 
 if (nrow(real_data_raw) == 0 || !"dataElement" %in% names(real_data_raw)) {
   stop(
     "No data returned for any data element. ",
-    "Check that END_YEAR (", END_YEAR, ") has analytics data on this instance ",
-    "and that LEVEL-", FACILITY_LEVEL, " org units have data."
+    "Check that END_YEAR (",
+    END_YEAR,
+    ") has analytics data on this instance ",
+    "and that LEVEL-",
+    FACILITY_LEVEL,
+    " org units have data."
   )
 }
 
 # Report which elements returned data
 returned_des <- unique(real_data_raw$dataElement)
-missing_des  <- setdiff(DE_IDS, returned_des)
+missing_des <- setdiff(DE_IDS, returned_des)
 if (length(missing_des) > 0) {
-  message("  WARNING: no data for ", length(missing_des), " element(s): ",
-          paste(missing_des, collapse = ", "))
+  message(
+    "  WARNING: no data for ",
+    length(missing_des),
+    " element(s): ",
+    paste(missing_des, collapse = ", ")
+  )
 }
 
 real_data <- real_data_raw %>%
