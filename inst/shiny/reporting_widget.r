@@ -272,6 +272,18 @@ reporting_widget_ui = function(id) {
               # ) ,
 
               fluidRow(
+                column(
+                  3,
+                  selectInput(
+                    ns("series_by"),
+                    label = "Color series by:",
+                    choices = c("None", "Dataset", "Category"),
+                    selected = "None"
+                  )
+                )
+              ),
+
+              fluidRow(
                 style = "height:40vh;",
 
                 column(
@@ -1670,15 +1682,18 @@ reporting_widget_server <- function(
 
         cat("\n* reporting_widget group_by_cols():")
 
-        # adms = backtick( levelNames() )
         adms = levelNames()
         cat("\n - adms:", adms)
+
+        # When coloring by category, add "data" as the split so dataTotal()
+        # preserves the data-element column instead of summing across it
+        effective_split <- if (isTRUE(input$series_by == "Category")) "data" else input$split
 
         group_by_cols = groupByCols(
           period = period(),
           levelNames = levelNames(),
           agg_level = adms[1],
-          split = input$split
+          split = effective_split
         )
 
         cat("\n - group_by_cols:", group_by_cols)
@@ -1757,18 +1772,15 @@ reporting_widget_server <- function(
           )
         }
 
-        # if >1 dataset
-        if (num_datasets() > 1) {
-          hts = paste(
-            'dataSet *',
-            hts
-          )
+        # Dataset series: only when explicitly requested
+        if (isTRUE(input$series_by == "Dataset") && num_datasets() > 1) {
+          hts = paste('dataSet *', hts)
         }
 
-        # # Cross by split
-        if (!input$split %in% 'None') {
-          hts =
-            paste(backtick(input$split), '*', hts)
+        # Category series: split by data-element column
+        effective_split <- if (isTRUE(input$series_by == "Category")) "data" else input$split
+        if (!effective_split %in% 'None') {
+          hts = paste(backtick(effective_split), '*', hts)
         }
 
         cat('\n - done:', hts)
@@ -1828,16 +1840,13 @@ reporting_widget_server <- function(
           ) %>%
           mutate(grouping_var = 'Total')
 
-        if (num_datasets() > 1) {
-          #print( 'num_datasets()>1:') ;
+        if (isTRUE(input$series_by == "Dataset") && num_datasets() > 1) {
           .d = .d %>%
             filter(!is_aggregated(dataSet)) %>%
             mutate(
-              dataSet = as.character(dataSet) %>%
-                str_remove_all("<aggregated>"),
+              dataSet      = as.character(dataSet) %>% str_remove_all("<aggregated>"),
               grouping_var = dataSet
             )
-          #print( unique(.d$dataSet))
         }
 
         if (num_facilities() > 1) {
@@ -1855,18 +1864,12 @@ reporting_widget_server <- function(
         # testing
         # saveRDS( .d , 'agg.d2.rds' )
 
-        # if split, remove aggregate grouping
-        if (!input$split %in% 'None') {
-          #print( '!input split none') ; #print( input$split )
+        # If split (or series_by == Category maps to "data"), remove aggregate grouping
+        effective_split <- if (isTRUE(input$series_by == "Category")) "data" else input$split
+        if (!effective_split %in% 'None') {
           .d = .d %>%
-            filter(!is_aggregated(!!rlang::sym(input$split))) %>%
-            mutate(
-              grouping_var = as.character(
-                !!rlang::sym(input$split)
-              )
-            )
-          #print( unique(.d$grouping_var) )
-          # #print( glimpse( .d ))
+            filter(!is_aggregated(!!rlang::sym(effective_split))) %>%
+            mutate(grouping_var = as.character(!!rlang::sym(effective_split)))
         }
 
         # testing
@@ -1979,30 +1982,20 @@ reporting_widget_server <- function(
           )) +
           geom_line()
 
-        # Line color for mulitple datasets
-        if (num_datasets() > 1) {
-          #print( 'unique dataSets'); #print( unique( .d$dataSet ) )
-          dataSet_breaks = unique(.d$dataSet)
-          datSet_labels = unique(.d$dataSet)
-          datSet_labels[datSet_labels == ""] = "Combined"
-
+        # Legend / color scale based on series_by selection
+        if (isTRUE(input$series_by == "Dataset") && num_datasets() > 1) {
+          dataSet_breaks <- unique(.d$dataSet)
+          dataSet_labels <- unique(.d$dataSet)
+          dataSet_labels[dataSet_labels == ""] <- "Combined"
           g = g +
-            scale_color_discrete(
-              breaks = dataSet_breaks,
-              labels = datSet_labels,
-              drop = TRUE
-            ) +
-
-            guides(color = guide_legend(title = "dataSet"))
+            scale_color_discrete(breaks = dataSet_breaks, labels = dataSet_labels, drop = TRUE) +
+            guides(color = guide_legend(title = "Dataset"))
+        } else if (isTRUE(input$series_by == "Category")) {
+          g = g + guides(color = guide_legend(title = "Category", ncol = 1))
+        } else if (!input$split %in% 'None') {
+          g = g + guides(color = guide_legend(title = input$split))
         } else {
           g = g + guides(color = "none")
-        }
-
-        # Split data
-        if (!input$split %in% 'None') {
-          g = g +
-
-            guides(color = guide_legend(title = input$split))
         }
 
         facet_labeller = function(x) {
@@ -2053,8 +2046,7 @@ reporting_widget_server <- function(
           theme(
             legend.position = "bottom",
             strip.text = element_text(size = 20) # facet label text size
-          ) +
-          guides(color = guide_legend(ncol = 1, title = "Dataset"))
+          )
 
         #print( ' end plotAgregateValue()' )
         cat('\n - done')
