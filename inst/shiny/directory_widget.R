@@ -6,17 +6,19 @@ directory_widget_ui = function(id) {
 
     h3('Step 1.  Provide directory for data files:'),
 
-    uiOutput(ns("dir_history_ui")),
-
     fluidRow(
       column(
         12,
-        textInput(
+        selectizeInput(
           ns("data.directory"),
-          label       = NULL,
-          value       = "",
-          placeholder = "Paste a path or use Browse...",
-          width       = '100%'
+          label   = NULL,
+          choices = NULL,
+          width   = "100%",
+          options = list(
+            create       = TRUE,
+            createOnBlur = TRUE,
+            placeholder  = "Select a recent directory or paste/type a path..."
+          )
         )
       )
     ),
@@ -60,7 +62,10 @@ directory_widget_server <- function(id) {
       }
 
       save_dir_history <- function(new_dir, existing) {
-        updated <- unique(c(new_dir, existing))
+        # Normalize: strip trailing slash before storing
+        new_dir  <- sub("/$", "", new_dir)
+        existing <- sub("/$", "", existing)
+        updated  <- unique(c(new_dir, existing[nchar(existing) > 0]))
         tryCatch(
           saveRDS(list(directories = head(updated, 10)), config_path),
           error = function(e) NULL
@@ -70,41 +75,13 @@ directory_widget_server <- function(id) {
 
       dir_history <- reactiveVal(load_dir_history())
 
-      # Show history dropdown only when there are previous directories
-      output$dir_history_ui <- renderUI({
-        dirs <- dir_history()
-        if (length(dirs) == 0) return(NULL)
-        tagList(
-          h4("Recent directories:"),
-          fluidRow(
-            column(
-              12,
-              selectInput(
-                ns("dir_select"),
-                label    = NULL,
-                choices  = dirs,
-                selected = dirs[1],
-                width    = "100%",
-                selectize = FALSE,
-                size     = min(length(dirs), 5)
-              )
-            )
-          )
-        )
-      })
-
-      # Populate text box from history dropdown
-      observeEvent(input$dir_select, {
-        req(input$dir_select)
-        updateTextInput(session, "data.directory", value = input$dir_select)
-      })
-
-      # Pre-fill text box with most recent directory on startup
+      # Populate selectize with history on startup
       isolate({
         dirs <- dir_history()
-        if (length(dirs) > 0) {
-          updateTextInput(session, "data.directory", value = dirs[1])
-        }
+        updateSelectizeInput(session, "data.directory",
+          choices  = dirs,
+          selected = if (length(dirs) > 0) dirs[1] else NULL
+        )
       })
 
       # Volumes available to the folder picker — use only known-accessible roots
@@ -119,13 +96,17 @@ directory_widget_server <- function(id) {
 
       shinyFiles::shinyDirChoose(input, "folder", roots = volumes, session = session)
 
-      # When user picks a folder, write the path into the text box
+      # When user picks a folder via Browse, add to selectize and select it
       observeEvent(input$folder, {
         if (!is.integer(input$folder)) {
           path <- shinyFiles::parseDirPath(volumes, input$folder)
           if (length(path) > 0 && nchar(path) > 0) {
             cat('\n directory_widget - folder chosen:', path, '\n')
-            updateTextInput(session, "data.directory", value = path)
+            new_choices <- unique(c(path, dir_history()))
+            updateSelectizeInput(session, "data.directory",
+              choices  = new_choices,
+              selected = path
+            )
           }
         }
       })
