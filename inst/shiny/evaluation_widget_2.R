@@ -206,15 +206,9 @@ evaluation_widget_ui = function(id) {
 
             mainPanel(
               width = 9,
-              # width = "75%" ,
-              # conditionalPanel( "input.plotly == 1" , ns = ns ,
-              #     plotlyOutput( ns("plotlyOutput") , height = "100%" )
-              #       ) ,
 
-              # conditionalPanel( "input.plotly == 0" , ns = ns ,
-              #     plotOutput( ns("plotOutput") , height = "600px" ,
-              #              hover = "plot_hover"  )
-              #  )
+              htmlOutput(ns("region_filter_status")),
+
               inputPanel(
                 selectizeInput(
                   ns("evaluation_month"),
@@ -298,6 +292,7 @@ evaluation_widget_server <- function(
   data_widget_output = NULL,
   reporting_widget_output = NULL,
   cleaning_widget_output = NULL,
+  regions_widget_output = NULL,
   current_tab = NULL
 ) {
   moduleServer(
@@ -313,6 +308,27 @@ evaluation_widget_server <- function(
       options(dplyr.summarise.inform = FALSE)
 
       # cat('\n**Starting Reporting Widget\n')
+
+      # Region filter status — data is already filtered upstream via reporting/cleaning
+      regions_selected = reactive({
+        if (!is.null(regions_widget_output)) regions_widget_output$selected_regions() else list()
+      })
+
+      output$region_filter_status <- renderUI({
+        sr <- regions_selected()
+        parts <- Filter(function(x) !is.null(x) && length(x) > 0,
+                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+        label <- if (length(parts) == 0) "National" else
+          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+        div(
+          style = paste0(
+            "background:#e8f4fd; padding:8px 14px;",
+            " border-left:4px solid #2196F3; margin:6px 0 10px 0; border-radius:3px;"
+          ),
+          tags$strong(style = "color:#1565C0; font-size:1.05em;",
+                      paste("Region:", label))
+        )
+      })
 
       data.folder = reactive({
         directory_widget_output$directory()

@@ -54,36 +54,7 @@ cleaning_widget_ui = function(id) {
             #               "Search for Seasonal Outliers" , style='margin-top:25px'
             # )  ,
 
-            inputPanel(
-              selectizeInput(
-                ns("level2"),
-                label = "OrgUnit Level2",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-              selectizeInput(
-                ns("level3"),
-                label = "OrgUnit Level3",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-              selectizeInput(
-                ns("level4"),
-                label = "OrgUnit Level4",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-              selectizeInput(
-                ns("level5"),
-                label = "OrgUnit Level5",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              )
-            ),
+            htmlOutput(ns("region_filter_status")),
 
             inputPanel(
               selectizeInput(
@@ -245,6 +216,7 @@ cleaning_widget_server <- function(
   metadata_widget_output = NULL,
   data_widget_output = NULL,
   reporting_widget_output = NULL,
+  regions_widget_output = NULL,
   current_tab = NULL
 ) {
   moduleServer(
@@ -342,89 +314,34 @@ cleaning_widget_server <- function(
 
       outlierData <- reactiveValues(df_data = NULL) # use observeEvent levelNames to set to data1()
 
-      # orgUnits ###
+      # Region filter — driven by the Regions page ####
 
-      # level 2
-      observeEvent(levelNames(), {
-        req(ousTree())
-        l2 = ousTree() %>%
-          pull(!!rlang::sym(levelNames()[2])) %>%
-          unique
+      regions_selected = reactive({
+        if (!is.null(regions_widget_output)) regions_widget_output$selected_regions() else list()
+      })
 
-        cat('\n* updating cleaning_widget level2')
-        updateSelectizeInput(
-          session,
-          'level2',
-          choices = l2[!is.na(l2)],
-          selected = NULL,
-          server = TRUE
+      output$region_filter_status <- renderUI({
+        sr <- regions_selected()
+        parts <- Filter(function(x) !is.null(x) && length(x) > 0,
+                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+        label <- if (length(parts) == 0) "National" else
+          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+        div(
+          style = paste0(
+            "background:#e8f4fd; padding:8px 14px;",
+            " border-left:4px solid #2196F3; margin:6px 0 10px 0; border-radius:3px;"
+          ),
+          tags$strong(style = "color:#1565C0; font-size:1.05em;",
+                      paste("Region:", label))
         )
       })
 
-      # level 3
-      observeEvent(input$level2, {
-        req(input$level2)
-
-        l3 = ousTree() %>%
-          filter(
-            !!rlang::sym(levelNames()[2]) %in% input$level2
-          ) %>%
-          pull(!!rlang::sym(levelNames()[3])) %>%
-          unique %>%
-          str_sort()
-
-        cat('\n* updating level3')
-        updateSelectizeInput(
-          session,
-          'level3',
-          choices = l3[!is.na(l3)],
-          selected = NULL,
-          server = TRUE
-        )
-      })
-
-      # level 4
-      observeEvent(input$level3, {
-        req(input$level3)
-
-        l4 = ousTree() %>%
-          filter(
-            !!rlang::sym(levelNames()[3]) %in% input$level3
-          ) %>%
-          pull(!!rlang::sym(levelNames()[4])) %>%
-          unique %>%
-          str_sort()
-
-        cat('\n* updating level4')
-        updateSelectizeInput(
-          session,
-          'level4',
-          choices = l4[!is.na(l4)],
-          selected = NULL,
-          server = TRUE
-        )
-      })
-
-      # level 5
-      observeEvent(input$level4, {
-        req(input$level4)
-
-        l5 = ousTree() %>%
-          filter(
-            !!rlang::sym(levelNames()[4]) %in% input$level4
-          ) %>%
-          pull(!!rlang::sym(levelNames()[5])) %>%
-          unique %>%
-          str_sort()
-
-        cat('\n* updating level5')
-        updateSelectizeInput(
-          session,
-          'level5',
-          choices = l5[!is.na(l5)],
-          selected = NULL,
-          server = TRUE
-        )
+      region_caption_text = reactive({
+        sr <- regions_selected()
+        parts <- Filter(function(x) !is.null(x) && length(x) > 0,
+                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+        if (length(parts) == 0) "National" else
+          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
       })
 
       selected_data_cats = reactiveValues(elements = NULL)
@@ -988,6 +905,7 @@ cleaning_widget_server <- function(
           ggplot(aes(x = Month, y = value, group = name, color = name)) +
           scale_color_brewer(type = 'qual') +
           geom_line() +
+          labs(caption = region_caption_text()) +
           theme_minimal()
 
         g
@@ -1004,9 +922,9 @@ cleaning_widget_server <- function(
         cat('\n * cleaning_widget.r monthly_summary_chart')
 
         d = monthly.outlier.summary(df.ts)
-        g = outlier.summary.chart(d)
+        g = outlier.summary.chart(d) +
+          labs(caption = region_caption_text())
         g
-        # ggplotly( g )
       })
 
       # Inspect Outliers #####
@@ -1105,57 +1023,27 @@ cleaning_widget_server <- function(
           # d = d %>% filter( effectiveLeaf )
         }
 
-        # Filter by region/level
-        # level2
-        if (!is_empty(input$level2)) {
-          cat(
-            '\n - filtering outlier data by',
-            levelNames()[2],
-            "=",
-            input$level2
-          )
-          # d = d %>%
-          #   filter( !! rlang::sym( levelNames()[2])  %in%   input$level2  )
-          d = setDT(d)[base::get(levelNames()[2]) %in% input$level2, , ]
+        # Filter by region — driven by the Regions page
+        sr <- regions_selected()
+
+        if (!is_empty(sr$level2)) {
+          cat('\n - filtering outlier data by', levelNames()[2], "=", sr$level2)
+          d = setDT(d)[base::get(levelNames()[2]) %in% sr$level2, , ]
         }
 
-        # level3
-        if (!is_empty(input$level3)) {
-          cat(
-            '\n - filtering outlier data by',
-            levelNames()[3],
-            "=",
-            input$level3
-          )
-          # d = d %>%
-          #   filter( !! rlang::sym( levelNames()[3])  %in%   input$level3  )
-          d = setDT(d)[base::get(levelNames()[3]) %in% input$level3, , ]
+        if (!is_empty(sr$level3)) {
+          cat('\n - filtering outlier data by', levelNames()[3], "=", sr$level3)
+          d = setDT(d)[base::get(levelNames()[3]) %in% sr$level3, , ]
         }
 
-        # level4
-        if (!is_empty(input$level4)) {
-          cat(
-            '\n - filtering outlier data by',
-            levelNames()[4],
-            "=",
-            input$level4
-          )
-          # d = d %>%
-          #   filter( !! rlang::sym( levelNames()[4])  %in%   input$level4  )
-          d = setDT(d)[base::get(levelNames()[4]) %in% input$level4, , ]
+        if (!is_empty(sr$level4)) {
+          cat('\n - filtering outlier data by', levelNames()[4], "=", sr$level4)
+          d = setDT(d)[base::get(levelNames()[4]) %in% sr$level4, , ]
         }
 
-        # level5
-        if (!is_empty(input$level5)) {
-          cat(
-            '\n - filtering outlier data by',
-            levelNames()[5],
-            "=",
-            input$level5
-          )
-          # d = d %>%
-          #   filter( !! rlang::sym( levelNames()[5])  %in%   input$level5  )
-          d = setDT(d)[base::get(levelNames()[5]) %in% input$level5, , ]
+        if (!is_empty(sr$level5)) {
+          cat('\n - filtering outlier data by', levelNames()[5], "=", sr$level5)
+          d = setDT(d)[base::get(levelNames()[5]) %in% sr$level5, , ]
         }
 
         # filter dataElement

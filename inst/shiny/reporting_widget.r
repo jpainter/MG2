@@ -16,41 +16,7 @@ reporting_widget_ui = function(id) {
           tabPanel(
             "Org Levels",
 
-            h5('Filter Org Units (press update button to change display'),
-
             inputPanel(
-              selectInput(
-                ns("level2"),
-                label = "OrgUnit Level2",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-
-              selectInput(
-                ns("level3"),
-                label = "OrgUnit Level3",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-
-              selectInput(
-                ns("level4"),
-                label = "OrgUnit Level4",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-
-              selectInput(
-                ns("level5"),
-                label = "OrgUnit Level5",
-                choices = NULL,
-                selected = NULL,
-                multiple = TRUE
-              ),
-
               selectInput(
                 ns("source"),
                 label = "Original/Cleaned",
@@ -64,11 +30,6 @@ reporting_widget_ui = function(id) {
                 choices = "None",
                 selected = "None"
               )
-            ),
-
-            actionButton(
-              ns('update_reporting_org_levels'),
-              label = "Update orgUnits "
             ),
 
             h5('Filter display dates'),
@@ -217,6 +178,8 @@ reporting_widget_ui = function(id) {
             style = "height:90vh;",
 
             fluidPage(
+              htmlOutput(ns("region_filter_status")),
+
               fluidRow(
                 style = "height:40vh;",
 
@@ -368,6 +331,7 @@ reporting_widget_server <- function(
   metadata_widget_output = NULL,
   data_widget_output = NULL,
   cleaning_widget_output = NULL,
+  regions_widget_output = NULL,
   current_tab = NULL
 ) {
   moduleServer(
@@ -562,13 +526,34 @@ reporting_widget_server <- function(
         level5 = NULL
       )
 
-      observeEvent(input$update_reporting_org_levels, {
-        cat('\n * update_reporting_org_levels')
+      # Sync region selection from the Regions widget
+      regions_selected = reactive({
+        if (!is.null(regions_widget_output)) regions_widget_output$selected_regions() else list()
+      })
 
-        selected_org_levels$level2 = input$level2
-        selected_org_levels$level3 = input$level3
-        selected_org_levels$level4 = input$level4
-        selected_org_levels$level5 = input$level5
+      observeEvent(regions_selected(), {
+        sr <- regions_selected()
+        selected_org_levels$level2 <- sr$level2
+        selected_org_levels$level3 <- sr$level3
+        selected_org_levels$level4 <- sr$level4
+        selected_org_levels$level5 <- sr$level5
+        cat('\n* reporting_widget synced region filter from Regions page')
+      })
+
+      output$region_filter_status <- renderUI({
+        sr <- regions_selected()
+        parts <- Filter(function(x) !is.null(x) && length(x) > 0,
+                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+        label <- if (length(parts) == 0) "National" else
+          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+        div(
+          style = paste0(
+            "background:#e8f4fd; padding:8px 14px;",
+            " border-left:4px solid #2196F3; margin:6px 0 10px 0; border-radius:3px;"
+          ),
+          tags$strong(style = "color:#1565C0; font-size:1.05em;",
+                      paste("Region:", label))
+        )
       })
 
       observeEvent('data' %in% names(data1()), {
@@ -1892,29 +1877,23 @@ reporting_widget_server <- function(
         # Use cached rous so this reactive doesn't fail silently via req()
         # when reportingSelectedOUs() is tab-gated and we're on another tab.
         rous = cached_rous$value
-        paste(
-          ifelse(
-            length(rous) > 0,
-            paste(comma(length(rous)), 'facilities'),
-            ""
-          ),
-          ifelse(
-            nchar(selected_org_levels$level2) > 0,
-            paste(selected_org_levels$level2, collapse = "+")
-          ),
-          ifelse(
-            nchar(selected_org_levels$level3) > 0,
-            paste("/", selected_org_levels$level3, collapse = "+")
-          ),
-          ifelse(
-            nchar(selected_org_levels$level4) > 0,
-            paste("/", selected_org_levels$level4, collapse = "+")
-          ),
-          ifelse(
-            nchar(selected_org_levels$level5) > 0,
-            paste("/", selected_org_levels$level5, collapse = "+")
+
+        parts <- Filter(
+          function(x) !is.null(x) && length(x) > 0,
+          list(
+            selected_org_levels$level2,
+            selected_org_levels$level3,
+            selected_org_levels$level4,
+            selected_org_levels$level5
           )
         )
+        region_label <- if (length(parts) == 0) "National" else
+          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+
+        facility_text <- if (length(rous) > 0)
+          paste(comma(length(rous)), "consistently reporting facilities") else ""
+
+        paste(c(region_label, facility_text), collapse = " — ")
       })
 
       n_selected = reactive({

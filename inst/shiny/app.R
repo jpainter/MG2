@@ -215,6 +215,7 @@ server <- function(input, output, session) {
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,
     cleaning_widget_output   = cleaning_widget_output,
+    regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
   )
 
@@ -224,6 +225,7 @@ server <- function(input, output, session) {
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output,
     reporting_widget_output  = reporting_widget_output,
+    regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
   )
 
@@ -234,6 +236,7 @@ server <- function(input, output, session) {
     data_widget_output       = data1_Widget_output,
     reporting_widget_output  = reporting_widget_output,
     cleaning_widget_output   = cleaning_widget_output,
+    regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
   )
 
@@ -244,6 +247,7 @@ server <- function(input, output, session) {
     data_widget_output       = data1_Widget_output,
     reporting_widget_output  = reporting_widget_output,
     cleaning_widget_output   = cleaning_widget_output,
+    regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
   )
 }
