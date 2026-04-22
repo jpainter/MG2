@@ -6,6 +6,8 @@ directory_widget_ui = function(id) {
 
     h3('Step 1.  Provide directory for data files:'),
 
+    uiOutput(ns("dir_history_ui")),
+
     fluidRow(
       column(
         12,
@@ -50,11 +52,60 @@ directory_widget_server <- function(id) {
 
       config_path <- path.expand("~/.mg2_config.rds")
 
-      # Restore last-used directory; fall back to home for new users
-      saved_dir <- tryCatch(readRDS(config_path)$directory, error = function(e) path.expand("~"))
-      if (nchar(saved_dir) > 0 && dir.exists(saved_dir)) {
-        updateTextInput(session, "data.directory", value = saved_dir)
+      # Load directory history (up to 10); support both old single-dir and new list format
+      load_dir_history <- function() {
+        cfg <- tryCatch(readRDS(config_path), error = function(e) list())
+        dirs <- if (!is.null(cfg$directories)) cfg$directories else if (!is.null(cfg$directory)) cfg$directory else character(0)
+        dirs[nchar(dirs) > 0 & dir.exists(dirs)]
       }
+
+      save_dir_history <- function(new_dir, existing) {
+        updated <- unique(c(new_dir, existing))
+        tryCatch(
+          saveRDS(list(directories = head(updated, 10)), config_path),
+          error = function(e) NULL
+        )
+        head(updated, 10)
+      }
+
+      dir_history <- reactiveVal(load_dir_history())
+
+      # Show history dropdown only when there are previous directories
+      output$dir_history_ui <- renderUI({
+        dirs <- dir_history()
+        if (length(dirs) == 0) return(NULL)
+        tagList(
+          h4("Recent directories:"),
+          fluidRow(
+            column(
+              12,
+              selectInput(
+                ns("dir_select"),
+                label    = NULL,
+                choices  = dirs,
+                selected = dirs[1],
+                width    = "100%",
+                selectize = FALSE,
+                size     = min(length(dirs), 5)
+              )
+            )
+          )
+        )
+      })
+
+      # Populate text box from history dropdown
+      observeEvent(input$dir_select, {
+        req(input$dir_select)
+        updateTextInput(session, "data.directory", value = input$dir_select)
+      })
+
+      # Pre-fill text box with most recent directory on startup
+      isolate({
+        dirs <- dir_history()
+        if (length(dirs) > 0) {
+          updateTextInput(session, "data.directory", value = dirs[1])
+        }
+      })
 
       # Volumes available to the folder picker — use only known-accessible roots
       # to avoid macOS Full Disk Access blocks from shinyFiles::getVolumes()
@@ -95,9 +146,10 @@ directory_widget_server <- function(id) {
         return(data.dir)
       })
 
-      # Persist chosen directory for next session
+      # Persist chosen directory and update history
       observeEvent(data.folder(), {
-        tryCatch(saveRDS(list(directory = data.folder()), config_path), error = function(e) NULL)
+        new_history <- save_dir_history(data.folder(), dir_history())
+        dir_history(new_history)
       })
 
       data.dir.files = reactive({
