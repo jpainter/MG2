@@ -2652,17 +2652,19 @@ yearly_summary_table <- function(
   if (is_partial) {
     # For the last row: show its partial total; compute % change against the
     # same months in the prior year so the comparison is like-for-like.
+    # Use as_tibble() to drop tsibble key grouping before summarising.
     prior_partial_total <- data %>%
-      dplyr::ungroup() %>%
+      tibble::as_tibble() %>%
       dplyr::filter(
-        lubridate::year(!!idx_sym)  == last_year - 1,
-        lubridate::month(!!idx_sym) %in% last_months
+        lubridate::year(.data[[idx_var]])  == last_year - 1,
+        lubridate::month(.data[[idx_var]]) %in% last_months
       ) %>%
-      dplyr::summarise(Total = sum(!!rlang::sym(value_col), na.rm = TRUE)) %>%
+      dplyr::summarise(Total = sum(.data[[value_col]], na.rm = TRUE)) %>%
       dplyr::pull(Total)
+    prior_partial_total <- sum(prior_partial_total, na.rm = TRUE)  # collapse to scalar
 
     last_total <- yearly_full$Total[yearly_full$Year == last_year]
-    last_pct   <- if (!is.na(prior_partial_total) && prior_partial_total != 0)
+    last_pct   <- if (isTRUE(prior_partial_total != 0))
       round((last_total - prior_partial_total) / prior_partial_total * 100, 1)
     else NA_real_
 
