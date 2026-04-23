@@ -536,6 +536,61 @@ they do not need to be exported.
 
 ---
 
+### Evaluation Module — Charts, Model Selection, and Performance (2026-04-22)
+
+**Status:** ✅ Complete
+
+**Changes:**
+
+*Performance:*
+- `inst/shiny/reporting_widget.r`: Added `cached_selected_data` pattern to
+  `selected_data()` — tab guard (`req(current_tab() == "Reporting")`) prevents
+  eager recomputation; cache updated via `observeEvent`; downstream widgets read
+  `cached_selected_data$value`
+- `inst/shiny/cleaning_widget.r`: Added tab guard to `outlier.dataset()` so
+  the 2.6M-row outlier pipeline only runs when the Outliers tab is active
+- `R/data_Functions.R`: Pre-filter to `orgUnit/Month/data/original` columns
+  before `mostFrequentReportingOUs()` to avoid passing unnecessary columns
+- Commented out active `saveRDS()` debug calls in reporting and cleaning widgets
+
+*Evaluation chart fixes:*
+- `inst/shiny/evaluation_widget_2.R`: Strip `samples` list-column from fable
+  before `fabletools::autolayer()` — list columns cause silent ggplot2 failures
+- Fixed combination model detection in Phase 2: check `sel_model %in%
+  primary_model_names` (`a/e/n/t/p1/p4/p8`) instead of a `"combination_"` prefix
+  that does not exist; combination names are concatenated abbreviations (e.g. `aentp1`)
+- Replaced `eval_trigger` reactive with direct `observeEvent(input$selected_model)`
+  for reliable Phase 2 triggering after the dropdown is first populated
+- Added `dropdown_initialized` flag: prevents `wpeValidationTable()` changes
+  (from Phase 2 updating `model_output`) from resetting the model selector back to
+  `models[1]` every time a model evaluation completes
+- Phase 2 modal message: "Estimating prediction with X model..."
+- Added diagnostic `cat()` logging to Phase 2 inner observer
+
+*Region filter in evaluation:*
+- Added `region_filtered_selected_data()` reactive — applies level-by-level OrgUnit
+  filter from `regions_widget_output` to `selected_data()` before it enters
+  `mable_data()`; mirrors the pattern used in `dqa_widget.R`
+
+*Stale prediction clearing:*
+- `clear_predictions()` helper zeros `model_output$predicted` and sets `done = FALSE`
+- Triggered by `mable_Data()` changes (region, reporting, outlier, agg level)
+  and by model parameters (`evaluation_month`, `horizon`, `replicates`, `ensemble`,
+  `transform`); keeps validation table visible but clears charts
+
+*Annual Change table:*
+- `R/data_Functions.R` — `yearly_summary_table()`: when most recent year is partial
+  (< 12 months), all previous years show full-year totals and full-year % change;
+  the most recent year shows its partial total and its % change is computed against
+  the same calendar months of the prior year only; year label and column header
+  note the restricted period (e.g. "2024 (Jan–Aug)")
+- Fixed `&&` scalar coercion error: `as_tibble()` before filter+sum drops tsibble
+  key grouping; `isTRUE()` for safe scalar logical test
+- Fixed "Unsupported index type: character" error: `as_tibble()` inserted after
+  `index_by/summarise` so `Year` (former tsibble index) can be safely relabeled
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module
