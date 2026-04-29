@@ -384,6 +384,21 @@ reporting_widget_server <- function(
         cleaning_widget_output$data2()
       })
 
+      # Debounced versions of the champion-window date inputs so that rapid
+      # selectize interactions don't fire mostFrequentReportingOUs() repeatedly.
+      # These are also exported from the module so evaluation_widget benefits.
+      startingMonth_debounced = reactive(input$startingMonth) |> debounce(600)
+      endingMonth_debounced   = reactive(input$endingMonth)   |> debounce(600)
+
+      # Flag: has the user visited the Reporting tab at least once?
+      # selected_data() and reportingSelectedOUs() are expensive; this flag
+      # keeps them dormant during initial data load.  Once TRUE it never goes
+      # back to FALSE, so it does NOT create a per-tab-switch invalidation loop.
+      hasVisitedReporting = reactiveVal(FALSE)
+      observeEvent(current_tab(), {
+        if (isTRUE(current_tab() == "Reporting")) hasVisitedReporting(TRUE)
+      }, ignoreInit = TRUE)
+
       # see https://stackoverflow.com/questions/54438495/shift-legend-into-empty-facets-of-a-faceted-plot-in-ggplot2
       shift_legend3 <- function(p) {
         pnls <- cowplot::plot_to_gtable(p) %>%
@@ -583,7 +598,8 @@ reporting_widget_server <- function(
       }, ignoreInit = TRUE)
 
       # update split
-      observe({
+      observeEvent(data1(), {
+        req(data1())
         updateSelectInput(session, 'split', choices = c('None', names(data1())))
       })
 
@@ -662,6 +678,7 @@ reporting_widget_server <- function(
         req(data1())
         req(period())
         cat('\n* reporting_widget d:')
+        .t0_d <- proc.time()["elapsed"]
 
         # Testing
         # saveRDS( data1() , 'dataset.rds' )
@@ -672,10 +689,12 @@ reporting_widget_server <- function(
           return()
         }
 
-        # NB: setting data = setDT( data1()) has side effect of changing data1() to data.table.
-        data = as.data.table(data1())
+        # data1() is now a data.table (converted once in data_widget).
+        # Using it directly avoids a ~300ms copy on every d() evaluation.
+        data = data1()
+        cat(sprintf('\n - data1() assigned: %.1f sec', proc.time()["elapsed"] - .t0_d))
 
-        cat('\n - data (d) converted to data.table')
+        cat('\n - data (d) is data.table')
 
         .period = period()
         cat('\n - period is', .period)
@@ -773,8 +792,10 @@ reporting_widget_server <- function(
         cat('\n - nrow( d ):', nrow(data))
 
         if (input$level %in% 'leaf') {
-          # data = data %>% filter( effectiveLeaf == TRUE )
-          data = setDT(data)[effectiveLeaf == TRUE, , ]
+          # Skip copy when all rows are already effectiveLeaf (common for facility-level data)
+          if (!isTRUE(all(data$effectiveLeaf))) {
+            data = setDT(data)[effectiveLeaf == TRUE, , ]
+          }
         } else {
           # data = data %>% filter( levelName  %in% input$level  )
           level. = count(orgUnits() %>% as_tibble, level, levelName) %>%
@@ -791,7 +812,9 @@ reporting_widget_server <- function(
           cat('\n - d() source is original')
 
           # data = data %>% mutate( dataCol = original )
+          .t0_dc <- proc.time()["elapsed"]
           data = setDT(data)[, dataCol := as.numeric(original), ]
+          cat(sprintf('\n - dataCol := as.numeric(original): %.1f sec', proc.time()["elapsed"] - .t0_dc))
         }
 
         if (input$source %in% 'Cleaned' & 'seasonal3' %in% names(data)) {
@@ -866,14 +889,14 @@ reporting_widget_server <- function(
 
         # #print( 'd: max period ' ); #print( max( d$period ))
 
-        cat('\n - d: max period: ', max(data %>% pull(period), na.rm = TRUE))
+        cat('\n - d: max period: ', max(data$period, na.rm = TRUE))
         # #print( max( data$Month , na.rm = TRUE ))
 
-        cat('\n - end d():', nrow(data), 'rows')
+        cat(sprintf('\n - end d()  %.1f sec  %d rows', proc.time()["elapsed"] - .t0_d, nrow(data)))
         # cat( "\n - reporting_widget d() class/cols: \n -- " , class( data ) , "\n -- " , names( data ))
 
-        # testing
-        # saveRDS( data, 'reporting_widget_d.rds')
+        # testing — uncomment to capture d() for profvis; re-comment after
+        # if (!file.exists('reporting_widget_d.rds')) saveRDS(data, 'reporting_widget_d.rds')
 
         return(data)
       })
@@ -886,63 +909,39 @@ reporting_widget_server <- function(
         req(period())
 
         cat('\n* reporting_widget orgunit.reports()')
+        .t0_orgunit_reports <- proc.time()["elapsed"]
 
         mrm = most_recent_period()
 
         year_var = 'calendar_year' # ifelse( input$calendar_year , 'calendar_year' , 'months12' )
 
-        cat('\n - orgunit.reports--data')
         data = d()
 
-        #Testing
-        # saveRDS( data, 'orgunits.reports.data.rds')
-
         if (!input$count.any) {
-          # data =  data %>% filter( data %in% input$data_categories )
-          data = setDT(data)[data %in% selected_data_categories$elements, , ]
+          data = setDT(data)[data %chin% selected_data_categories$elements, , ]
         }
 
-        cat('\n - orgunit.reports--period')
         .period = period()
 
-        #Testing
-        # saveRDS( .period, '.period.rds')
+        # Fast path: add year column, take unique (year, orgUnit, period) triples,
+        # then count .N per (year, orgUnit).  Avoids creating per-group .SD objects
+        # (which takes ~10s for 191K groups on 5.2M rows).
+        # Add year in-place on d()'s cached data.table — avoids a ~530ms full copy.
+        # The year column persists in the cache across calls, which is safe and saves
+        # recomputation when both orgunit.reports and orgunit.monthly.reports run.
+        if (!'year' %in% names(data)) data[, year := year(.SD[[1L]]), .SDcols = .period]
+        o.r. = data
 
-        # cat('\n -orgunit.reports--o.r.')
-        # o.r. =
-        #   data %>% as_tibble() %>% ungroup %>%
-        #
-        #   mutate(
-        #
-        #   calendar_year = year( !! rlang::sym( .period )  )
+        # Use integer key for period to bypass vctrs dispatch in unique() —
+        # yearmonth/yearweek stored as integers but unique.data.table falls
+        # back to R-level comparison on vctrs objects (~10x slower).
+        o.r. = unique(o.r.[, .(year, orgUnit, .period_int = unclass(get(.period)))])[
+          , .(n_periods = .N), by = c('year', 'orgUnit')
+        ][,
+          `:=`(n_periods = factor(n_periods), year = factor(year))
+        ] |> as_tibble()
 
-        o.r. = setDT(data %>% as_tibble() %>% ungroup)[,
-          calendar_year := year(base::get(.period)),
-        ] %>%
-          rename(year = {{ year_var }})
-
-        cat('\n - orgunit.reports--o.r.(DT)')
-
-        # Testing:
-        # saveRDS( o.r. , "o.r..rds")
-
-        o.r. = setDT(o.r.)[,
-          .(n_periods = uniqueN(base::get(.period))),
-          by = c('year', 'orgUnit')
-        ] %>%
-          .[, n_periods := factor(n_periods)] %>%
-          .[, year := factor(year)] %>%
-          as_tibble()
-
-        # group_by( year , orgUnit ) %>%
-        # summarise( n_periods = n_distinct( !! rlang::sym( period() )  )
-        #            # , max_month = max( Month )
-        #            )
-        # mutate( n_periods = factor( n_periods ) ,
-        #         year = factor( year ) )
-
-        ##print( 'o.r:') ; # #print(head(o.r))
-        cat('\n - end orgunit.reports')
+        cat(sprintf('\n - end orgunit.reports  %.1f sec', proc.time()["elapsed"] - .t0_orgunit_reports))
         return(o.r.)
       })
 
@@ -969,6 +968,7 @@ reporting_widget_server <- function(
       orgunit.monthly.reports = reactive({
         req(selected_data_categories$elements)
         cat('\n* reporting_widget orgunit.monthly.reports():')
+        .t0_omr <- proc.time()["elapsed"]
 
         # mrp = most_recent_period()
         .period = period()
@@ -979,23 +979,16 @@ reporting_widget_server <- function(
         cat('\n - o.m.r data has', nrow(data), 'rows')
 
         if (!input$count.any) {
-          data = data %>% filter(data %in% selected_data_categories$elements)
+          data = data[data %chin% selected_data_categories$elements]
         }
 
-        o.m.r =
-          data %>%
-          as_tibble() %>%
-          ungroup %>%
-
-          mutate(
-            calendar_year = year(!!rlang::sym(.period))
-          ) %>%
-          rename(year = {{ year_var }})
+        # Add year in-place — avoids ~530ms copy (same pattern as orgunit.reports).
+        if (!'year' %in% names(data)) data[, year := year(.SD[[1L]]), .SDcols = .period]
+        o.m.r = data
         # %>%
         # mutate( year = factor( year ) )
 
-        cat('\n - end orgunit.monthly.reports():', nrow(o.m.r), 'rows')
-        # print(head(o.m.r))
+        cat(sprintf('\n - end orgunit.monthly.reports  %.1f sec  %d rows', proc.time()["elapsed"] - .t0_omr, nrow(o.m.r)))
         return(o.m.r)
       })
 
@@ -1010,12 +1003,16 @@ reporting_widget_server <- function(
 
         # #print('monthly.reports() o.m.r'); #print( names(o.m.r) )
 
-        m.r = setDT(o.m.r)[,
-          .(n = uniqueN(orgUnit)),
-          by = c("year", .period)
-        ] %>%
-          as_tibble()
-
+        # Use integer surrogate for period column to avoid vctrs dispatch in groupby.
+        # yearmonth/yearweek are stored as integers under a vctrs class; restore the
+        # class after aggregation so the plot axis ticks render correctly.
+        .period_class = class(o.m.r[[.period]])
+        m.r = o.m.r[, .(year, orgUnit, .pint = unclass(get(.period)))][
+          , .(n = uniqueN(orgUnit)), by = c("year", ".pint")
+        ]
+        setnames(m.r, ".pint", .period)
+        m.r[[.period]] = structure(m.r[[.period]], class = .period_class)
+        m.r = as_tibble(m.r)
         # group_by( year , !! rlang::sym( .period )   ) %>%
         # summarise( n = n_distinct( orgUnit ) )
 
@@ -1227,9 +1224,9 @@ reporting_widget_server <- function(
 
       reportingSelectedOUs <- reactive({
         #print( 'reportingSelectedOUs()' )
-        req(!is.null(current_tab) && current_tab() == "Reporting")
-        req(input$endingMonth)
-        req(input$startingMonth)
+        req(hasVisitedReporting())  # dormant until user first opens Reporting tab
+        req(endingMonth_debounced())
+        req(startingMonth_debounced())
         req(d())
         req(period())
         req(selected_data_categories$elements)
@@ -1257,9 +1254,10 @@ reporting_widget_server <- function(
         if (input$mostReports & nrow(d()) > 0) {
           cat(
             "\n - determining most frequently reported facilities...",
-            input$startingMonth,
-            input$endingMonth
+            startingMonth_debounced(),
+            endingMonth_debounced()
           )
+          .t0_rous <- proc.time()["elapsed"]
 
           # cat( "\n - selected_data_categories:" ,
           #      paste( selected_data_categories$elements , collapse = ", " )
@@ -1267,8 +1265,8 @@ reporting_widget_server <- function(
 
           sf = mostFrequentReportingOUs(
             d = d(),
-            endingMonth = input$endingMonth,
-            startingMonth = input$startingMonth,
+            endingMonth = endingMonth_debounced(),
+            startingMonth = startingMonth_debounced(),
             # period = period() ,
             missing_reports = as.integer(input$missing_reports),
             count.any = input$count.any,
@@ -1277,8 +1275,7 @@ reporting_widget_server <- function(
             .cat = TRUE
           )
 
-          cat("\n - mostFrequentReportingOUs:", length(sf), 'orgUnits')
-          toc()
+          cat(sprintf("\n - mostFrequentReportingOUs: %d orgUnits  %.1f sec", length(sf), proc.time()["elapsed"] - .t0_rous))
         } else {
           sf = NULL
         }
@@ -1531,19 +1528,9 @@ reporting_widget_server <- function(
         height = "auto"
       )
 
-      # Cache the last successfully-computed reportingSelectedOUs so that
-      # selected_data() doesn't hold a live reactive dependency on it.
-      # When reportingSelectedOUs() fails via req() (e.g. on a non-Reporting tab),
-      # the observer does NOT fire, so the cache — and selected_data() — stay stable.
-      cached_rous = reactiveValues(value = NULL)
-      observeEvent(reportingSelectedOUs(), ignoreNULL = FALSE, {
-        cached_rous$value = reportingSelectedOUs()
-      })
-
       # Cache the last successfully-computed selected_data so that downstream
-      # widgets (cleaning, evaluation, dqa) keep working when the user is not on
-      # the Reporting tab. selected_data() itself is tab-guarded so it only runs
-      # the heavy cleanedData + selectedData computation when needed.
+      # widgets (cleaning, evaluation, dqa) always have a stable value even if
+      # selected_data() is mid-computation or blocked by req().
       cached_selected_data = reactiveValues(value = NULL)
       observeEvent(selected_data(), ignoreNULL = TRUE, {
         cached_selected_data$value <- selected_data()
@@ -1553,7 +1540,7 @@ reporting_widget_server <- function(
 
       selected_data = reactive({
         #print( 'selected_data():')
-        req(!is.null(current_tab) && current_tab() == "Reporting")
+        req(hasVisitedReporting())  # dormant until user first opens Reporting tab
         req(data1())
         req(selected_data_categories$elements)
 
@@ -1572,6 +1559,7 @@ reporting_widget_server <- function(
           paste(selected_data_categories$elements, collapse = ", ")
         )
 
+        .t0_sd <- proc.time()["elapsed"]
         .cleanedData = cleanedData(
           data1(),
           .effectiveLeaf = TRUE,
@@ -1580,6 +1568,7 @@ reporting_widget_server <- function(
           algorithm = 'seasonal3',
           .cat = TRUE
         )
+        cat(sprintf('\n - cleanedData: %.1f sec  %d rows', proc.time()["elapsed"] - .t0_sd, nrow(.cleanedData)))
 
         # When there are no leaf orgUnits (e.g. National or District data only)
         if (nrow(.cleanedData) == 0) {
@@ -1598,13 +1587,10 @@ reporting_widget_server <- function(
           )
         }
 
-        # Use the cached last-good reportingSelectedOUs value.
-        # This avoids a direct reactive dependency on reportingSelectedOUs(), so
-        # tab switches (which cause reportingSelectedOUs() to fail its req()) do
-        # NOT invalidate selected_data() and cascade to mable_Data() / charts.
-        rous = cached_rous$value
+        rous = reportingSelectedOUs()
 
         cat("\n - selected_data:")
+        .t0_sdata <- proc.time()["elapsed"]
         selected_data = selectedData(
           data = .cleanedData, # data1() ,
           levelNames = levelNames(),
@@ -1668,7 +1654,8 @@ reporting_widget_server <- function(
         #
         #  cat( '\n - end  selected_data()')
 
-        cat("\n - end selected_data()")
+        cat(sprintf('\n - selectedData: %.1f sec  %d rows', proc.time()["elapsed"] - .t0_sdata, nrow(selected_data)))
+        cat(sprintf('\n - selected_data total: %.1f sec', proc.time()["elapsed"] - .t0_sd))
 
         return(selected_data)
       })
@@ -1700,14 +1687,12 @@ reporting_widget_server <- function(
 
       # data.total: merges data across multiple set ####
       data.total = reactive({
-        req(!is.null(current_tab) && current_tab() %in% c("Reporting", "Evaluation"))
         req(selected_data())
         # req( group_by_cols() )
         req(period())
-        req(input$startDisplayMonth)
-        req(input$endDisplayMonth)
 
         cat('\n* reporting_widget data.total()')
+        .t0_dt <- proc.time()["elapsed"]
 
         # Testing
         # saveRDS( selected_data()  , 'selected_data.rds')
@@ -1717,14 +1702,14 @@ reporting_widget_server <- function(
           data = selected_data(),
           period = period(),
           group_by_cols = group_by_cols(),
-          startMonth = input$startDisplayMonth,
-          endMonth = input$endDisplayMonth,
+          startMonth = NULL,
+          endMonth = NULL,
           dataSets = input$dataSets,
           mean.merge = input$dataset_merge_average,
           .cat = TRUE
         )
 
-        cat('\n - end data.total()')
+        cat(sprintf('\n - end data.total  %.1f sec  %d rows', proc.time()["elapsed"] - .t0_dt, nrow(data.total)))
 
         # Testing
         # saveRDS( data.total , 'data.total.rds')
@@ -1785,6 +1770,7 @@ reporting_widget_server <- function(
         # req( data.hts() )
         req(data.total())
         cat('\n* reporting_widget aggregateselected_data():')
+        .t0_agg <- proc.time()["elapsed"]
 
         # testing
         # saveRDS(levelNames(), 'levelNames.rds')
@@ -1872,14 +1858,12 @@ reporting_widget_server <- function(
         # testing
         # saveRDS( .d, 'aggregateselected_data.rds')
 
-        cat('\n -  end aggregateselected_data()')
+        cat(sprintf('\n -  end aggregateselected_data  %.1f sec  %d rows', proc.time()["elapsed"] - .t0_agg, nrow(.d)))
         return(.d)
       })
 
       caption.text = reactive({
-        # Use cached rous so this reactive doesn't fail silently via req()
-        # when reportingSelectedOUs() is tab-gated and we're on another tab.
-        rous = cached_rous$value
+        rous = reportingSelectedOUs()
 
         parts <- Filter(
           function(x) !is.null(x) && length(x) > 0,
@@ -1949,6 +1933,22 @@ reporting_widget_server <- function(
 
         #print('plotting aggregate data');
 
+        # Apply display-date filter here rather than in data.total() so that
+        # adjusting the display window doesn't re-run dataTotal()/aggregate_key().
+        if (!is.null(input$startDisplayMonth) && !is.null(input$endDisplayMonth)) {
+          if (.period %in% 'Month') {
+            .d = .d %>% filter(
+              Month >= yearmonth(input$startDisplayMonth),
+              Month <= yearmonth(input$endDisplayMonth)
+            )
+          } else if (.period %in% 'Week') {
+            .d = .d %>% filter(
+              Week >= yearweek(input$startDisplayMonth),
+              Week <= yearweek(input$endDisplayMonth)
+            )
+          }
+        }
+
         cat('\n - fill_gaps')
         .d = .d %>%
           fill_gaps(.full = TRUE)
@@ -1987,13 +1987,9 @@ reporting_widget_server <- function(
         }
 
         # facet when selected > 0
-        # Testing
-        cat(
-          "\n - length( reportingSelectedOUs() ):",
-          length(reportingSelectedOUs())
-        )
+        rous = reportingSelectedOUs()
 
-        if (isTRUE(input$facet_by == "Champion/Non-Champion") && length(reportingSelectedOUs()) > 0) {
+        if (isTRUE(input$facet_by == "Champion/Non-Champion") && length(rous) > 0) {
           g = g +
             facet_wrap(
               vars(Selected),
@@ -2036,7 +2032,9 @@ reporting_widget_server <- function(
       output$plot_values <- renderPlot({
         plotAgregateValue()
       })
-      outputOptions(output, "plot_values", suspendWhenHidden = TRUE)
+      outputOptions(output, "plot_values",               suspendWhenHidden = TRUE)
+      outputOptions(output, "plot_reporting_by_month",  suspendWhenHidden = TRUE)
+      outputOptions(output, "plot_reports_in_a_year",   suspendWhenHidden = TRUE)
 
       # Champions Map and Table####
 
@@ -2256,10 +2254,6 @@ reporting_widget_server <- function(
         avgValues = avgValues()
         base.map = base.map()
 
-        # Testing
-        cat("\n - saving facility_map files for testing")
-        save(gf, facilities, avgValues, base.map, file = "facility_map.rda")
-
         cat("\n - admin.levels")
         admins = gf %>%
           filter(st_geometry_type(.) != 'POINT') %>%
@@ -2390,8 +2384,8 @@ reporting_widget_server <- function(
           group_by_cols = group_by_cols,
           levelNames = levelNames,
           split = split,
-          startingMonth = startingMonth,
-          endingMonth = endingMonth,
+          startingMonth = startingMonth_debounced,
+          endingMonth = endingMonth_debounced,
           missing_reports = missing_reports,
           num_datasets = num_datasets,
           num_facilities = num_facilities,

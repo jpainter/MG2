@@ -527,6 +527,10 @@ data_widget_server <- function(
         #
         # d1 = as_tsibble( d1, index = {{ indexvars }} , key = {{ keyvars }} )
 
+        # Convert to data.table once here so all downstream consumers
+        # (d(), cleanedData, selectedData, etc.) skip individual conversions.
+        if (!is.data.table(d1)) setDT(d1)
+
         cat("\n - end d1  class/cols:\n -- ", class(d1), "\n")
 
         return(d1)

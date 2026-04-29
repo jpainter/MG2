@@ -106,7 +106,7 @@ cleanedData = function(
   if (.cat) {
     cat('\n - filtering by effectiveLeaf', .effectiveLeaf)
   }
-  d = d %>% filter(effectiveLeaf == .effectiveLeaf)
+  d = (if (is.data.table(d)) d else as.data.table(d))[effectiveLeaf == .effectiveLeaf]
 
   if (nrow(d) == 0) {
     if (.cat) {
@@ -115,36 +115,12 @@ cleanedData = function(
     return(d)
   }
 
-  # TODO for speed -- use d.table ....
-  # Don't know why...
-  # d = d1  %>% mutate( period = !!rlang::sym( .period ) )
-
-  # if ( is_null( error ) &  source %in% 'Original' ){
   if (is_null(error) || error == "Original") {
     if (.cat) {
       cat('\n- source is original')
     }
-    d = d %>% mutate(dataCol = original)
+    d[, dataCol := original]
   }
-
-  # if ( is_null( error ) & ( source %in% 'Cleaned' ) & ( algorithm %in% names(d) ) ){
-  # if ( ! is_null( error ) ){
-  #   algorithm = error
-
-  # if ( .cat ) cat( '\n-' , paste('cleaning removes', sum( d$value , na.rm = T ) - sum( d$seasonal3 , na.rm = T )  , 'd points' ) )
-
-  #   d = d %>%
-  #     mutate( dataCol = ifelse( !! rlang::sym( algorithm ) , NA, original  ) )
-  #
-  #   # Modify variables used for cleaning d so that FALSE when NA -- meaning it failed prior cleaning step, and TRUE means d is ok
-  #   if ('mad15' %in% names( d )) d = d %>% mutate( mad15 = ifelse( value & is.na( mad15)|!mad15, FALSE, TRUE ) )
-  #   if ('mad10' %in% names( d )) d = d %>% mutate( mad10 = ifelse( value & is.na( mad10)|!mad10, FALSE, TRUE ) )
-  #   if ('mad5' %in% names( d )) d = d %>% mutate( mad5 = ifelse( value & is.na( mad5)|!mad5, FALSE, TRUE ) )
-  #   if ('seasonal5' %in% names( d )) d = d %>% mutate( seasonal5 = ifelse( value & is.na( seasonal5)|!seasonal5, FALSE, TRUE ) )
-  #   if ('seasonal3' %in% names( d )) d = d %>% mutate( seasonal3 = ifelse( value & is.na( seasonal3)|!seasonal3, FALSE, TRUE ) )
-  #
-  #   if ( .cat ) cat( '\n-' , paste('cleaning changes total by', sum( d$original , na.rm = T ) - sum( d$dataCol , na.rm = T )) )
-  # }
 
   if (!is_null(error) & 'error' %in% names(d)) {
     if (.cat) {
@@ -152,16 +128,12 @@ cleanedData = function(
     }
     error.levels = levels(d$error)
     error.factor.value = which(error == error.levels)
-    d = d %>%
-      mutate(
-        dataCol = ifelse(as.numeric(error) > error.factor.value, original, NA)
-      )
+    d[, dataCol := fifelse(as.numeric(error) > error.factor.value, original, NA_real_)]
   }
 
   if (.cat) {
     cat('\n - nrow( d ):', nrow(d))
   }
-  # if ( .cat ) cat( '\n - sum(!is.na(d$dataCol)):' , sum(!is.na(d$dataCol)) )
   removed = sum(is.na(d$dataCol))
   if (.cat) {
     cat(
@@ -173,13 +145,10 @@ cleanedData = function(
     )
   }
 
-  # Remove rows where d not translated correctly.  d is 'NA_'
   if (.cat) {
     cat('\n - removing rows where d is NA_: ', sum(d$data %in% "NA_"), 'rows')
   }
-
-  # TODO speed up with d.table
-  d = d %>% filter(!data %in% 'NA_')
+  d = d[!data %in% 'NA_']
 
   # if ( .cat ) cat( '\n - nrow( d ):' , nrow( d ))
 
@@ -243,14 +212,9 @@ mostFrequentReportingOUs <- function(
     if (!'yearweek' %in% class(endingMonth)) endingMonth = yearweek(endingMonth)
   }
 
-  # TODO for speed -- use data.table ....
-
-  if (!count.any) {
-    if (.cat) {
-      cat('\n - not count.any')
-    }
-    data = data %>% filter(data %in% data_categories)
-  }
+  # Stay in data.table throughout — avoids dplyr + tibble round-trips on 5M+ rows.
+  # is.data.table() check avoids a 1300MB copy when the input is already a data.table.
+  dt = if (is.data.table(data)) data else as.data.table(data)
 
   if (.cat) {
     cat(
@@ -260,67 +224,86 @@ mostFrequentReportingOUs <- function(
     )
   }
 
+  # Combine category, date-window, and NA filters into ONE pass — avoids making
+  # separate full copies of the 5M+ row dataset for each condition.
+  # Integer comparison bypasses vctrs dispatch on yearmonth/yearweek columns.
   if (period %in% 'Month') {
-    data.dt = data %>% as.data.table()
-    data.dt = data.dt[Month >= startingMonth & Month <= endingMonth]
-    data = as_tibble(data.dt)
-  }
-
-  if (period %in% 'Week') {
-    data.dt = data %>% as.data.table()
-    data.dt = data.dt[
-      Week >= yearweek(startingMonth) & Week <= yearweek(endingMonth)
-    ]
-    data = as_tibble(data.dt)
+    .sm_int = unclass(startingMonth)
+    .em_int = unclass(endingMonth)
+    if (!count.any) {
+      if (.cat) cat('\n - not count.any')
+      dt = dt[get("data") %chin% data_categories &
+              unclass(Month) >= .sm_int & unclass(Month) <= .em_int &
+              !is.na(original)]
+    } else {
+      dt = dt[unclass(Month) >= .sm_int & unclass(Month) <= .em_int & !is.na(original)]
+    }
+  } else if (period %in% 'Week') {
+    .sm_int = unclass(yearweek(startingMonth))
+    .em_int = unclass(yearweek(endingMonth))
+    if (!count.any) {
+      if (.cat) cat('\n - not count.any')
+      dt = dt[get("data") %chin% data_categories &
+              unclass(Week) >= .sm_int & unclass(Week) <= .em_int &
+              !is.na(original)]
+    } else {
+      dt = dt[unclass(Week) >= .sm_int & unclass(Week) <= .em_int & !is.na(original)]
+    }
   }
 
   # Testing
   if (testing) {
-    saveRDS(data, "mostFrequentReportingOUs.data.rds")
+    saveRDS(dt, "mostFrequentReportingOUs.data.rds")
   }
 
   if (.cat) {
-    cat('\n - mr')
+    cat('\n - mr (data.table)')
+    cat('\n - nrow(data) entering mr step:', nrow(dt))
   }
-  mr = data %>%
-    filter(!is.na(original), ) %>%
-    group_by(year = year(!!rlang::sym(period))) %>%
-    distinct(!!rlang::sym(period), orgUnit) %>%
-    group_by(year, orgUnit) %>%
-    summarise(report_periods = n(), .groups = 'keep')
+  .t0_mr <- proc.time()["elapsed"]
 
-  #print( "mr" ); #print( summary( mr$n ) )
-  max_years = n_distinct(mr$year, na.rm = FALSE)
+  dt[, year := year(.SD[[1L]]), .SDcols = period]
+  if (.cat) cat('\n - nrow(dt) after !is.na(original):', nrow(dt), '| unique orgUnits:', uniqueN(dt$orgUnit))
+  dt[, year := year(.SD[[1L]]), .SDcols = period]
+
+  # distinct (year, orgUnit, period) tuples → count reported periods per org/year
+  mr = unique(dt[, c('year', 'orgUnit', period), with = FALSE])[
+    , .(report_periods = .N), by = .(year, orgUnit)
+  ]
+  if (.cat) cat('\n - mr rows:', nrow(mr), '| unique orgUnits:', uniqueN(mr$orgUnit), '| unique years:', uniqueN(mr$year))
+
+  max_years = uniqueN(mr$year)
   if (.cat) {
     cat('\n - max_years', max_years)
   }
 
-  periods_per_year = data %>%
-    ungroup %>%
-    distinct(!!rlang::sym(period)) %>%
-    mutate(year = year(!!rlang::sym(period))) %>%
-    count(year) %>%
-    rename(max = n)
+  # count distinct periods per year across all orgunits (the denominator)
+  # dt is already filtered to the window; use it directly (no extra conversion)
+  ppy = unique(dt[, period, with = FALSE])
+  setnames(ppy, period, 'period_val')
+  ppy[, year := year(period_val)]
+  periods_per_year = ppy[, .(max = .N), by = year]
   if (.cat) {
-    cat('\n - periods per year')
+    cat('\n - periods per year:\n')
+    print(periods_per_year)
   }
 
-  s = mr %>%
-    inner_join(periods_per_year, by = "year") %>%
-    ungroup %>%
-    group_by(orgUnit) %>%
-    summarise(
-      years = n(),
-      consistent = all(report_periods >= (max - missing_reports)),
-      champion = (years == max_years) & consistent,
-      .groups = 'drop'
-    ) %>%
-    filter(champion) %>%
-    pull(orgUnit) %>%
-    unique
+  mr_j = merge(mr, periods_per_year, by = "year")
+  if (.cat) cat('\n - mr_j rows:', nrow(mr_j))
+
+  s_all = mr_j[
+    , .(years = .N, consistent = all(report_periods >= (max - missing_reports))),
+    by = orgUnit
+  ]
+  if (.cat) {
+    cat('\n - summary before filter: years==max_years:', sum(s_all$years == max_years),
+        '| consistent:', sum(s_all$consistent),
+        '| both:', sum(s_all$years == max_years & s_all$consistent))
+  }
+  s = s_all[years == max_years & consistent == TRUE, unique(orgUnit)]
 
   if (.cat) {
-    cat("\n - number reportingSelectedOUs:", length(s), 'orgUnits')
+    cat(sprintf('\n - number reportingSelectedOUs: %d orgUnits  (mr step: %.1f sec)', length(s), proc.time()["elapsed"] - .t0_mr))
   }
   return(s)
 }
@@ -797,6 +780,7 @@ selectedData = function(
   if (.cat) {
     cat("\n* data Functions.R selectedData:")
   }
+  .t0_selectedData <- proc.time()["elapsed"]
 
   if (nrow(data1) == 0) {
     cat('\n - data1() has zero rows')
@@ -807,14 +791,11 @@ selectedData = function(
     cat('\n - nrow( d ):', nrow(data1))
   }
 
-  # if ( is_null( startingMonth )) startingMonth = yearmonth( min( data1$period   , na.rm = T ) , format = "%B%Y" )
-  if (is.null(startingMonth)) {
-    startingMonth = min(data1$period, na.rm = TRUE)
-  }
-  # if ( is_null( endingMonth )) endingMonth = yearmonth( max( data1$period   , na.rm = T ) , format = "%B%Y" )
-  if (is.null(endingMonth)) {
-    endingMonth = max(data1$period, na.rm = TRUE)
-  }
+  # Track whether caller supplied explicit date bounds.
+  # When NULL, skip the full-data min/max scan — it's only needed if
+  # mostFrequentReportingOUs() must be computed internally (rare path).
+  .startingMonth_explicit = !is.null(startingMonth)
+  .endingMonth_explicit   = !is.null(endingMonth)
   if (is_null(data_categories)) {
     data_categories = unique(data1$data)
   }
@@ -823,7 +804,8 @@ selectedData = function(
   }
 
   # NB: setting data = setDT( data1()) has side effect of changing data1() to data.table.
-  data = as.data.table(data1)
+  # is.data.table() check avoids a ~650MB copy when cleanedData() already returned a data.table.
+  data = if (is.data.table(data1)) data1 else as.data.table(data1)
 
   if (.cat) {
     cat('\n - data (d) converted to data.table')
@@ -850,11 +832,19 @@ selectedData = function(
     data = data[base::get(levelNames[5]) %in% level5, , ]
   }
 
+  # Combine level and data_categories filters into a single pass where possible
+  # to avoid creating two full copies of a large data.table.
+  has_cats = any(!is.null(data_categories))
+
   if (level %in% 'leaf') {
-    if (.cat) {
-      cat('\n - leaf level data only')
+    if (.cat) cat('\n - leaf level data only')
+
+    if (has_cats) {
+      if (.cat) cat('\n - selectedData filtered by data_categories')
+      data = data[effectiveLeaf == TRUE & get("data") %in% data_categories]
+    } else {
+      data = data[effectiveLeaf == TRUE, , ]
     }
-    data = data[effectiveLeaf == TRUE, , ]
   } else {
     if (.cat) {
       cat('\n - levelname', levelName)
@@ -863,21 +853,16 @@ selectedData = function(
       filter(levelName %in% input$level) %>%
       pull(level)
 
-    data = data[level %in% level., , ]
+    if (has_cats) {
+      if (.cat) cat('\n - selectedData filtered by data_categories')
+      data = data[get("level") %in% level. & get("data") %in% data_categories]
+    } else {
+      data = data[level %in% level., , ]
+    }
   }
 
   if (.cat) {
     cat('\n - nrow( d ):', nrow(data))
-  }
-
-  # filter to selected category
-
-  if (any(!is.null(data_categories))) {
-    if (.cat) {
-      cat('\n - selectedData filtered by data_categories')
-    }
-    data = data %>% filter(data %in% data_categories)
-    if (.cat) cat('\n - nrow( d ):', nrow(data))
   }
 
   # Consistent reporting
@@ -906,9 +891,12 @@ selectedData = function(
       rou_cols    <- intersect(c("orgUnit", rou_period, "data", "original"), names(data))
       data_for_rous <- unique(data[!is.na(original), rou_cols, with = FALSE])
 
+      # Compute date bounds lazily — only in this rare path where they're needed.
+      if (is.null(startingMonth)) startingMonth = min(data1$period, na.rm = TRUE)
+      if (is.null(endingMonth))   endingMonth   = max(data1$period, na.rm = TRUE)
+
       reportingSelectedOUs = mostFrequentReportingOUs(
         data_for_rous,
-        # all_categories = all_categories ,
         data_categories = data_categories,
         startingMonth = startingMonth,
         endingMonth = endingMonth,
@@ -927,27 +915,24 @@ selectedData = function(
     if (.cat) {
       cat("\n - Adding variable Selected: Champion or Non-Champion")
     }
-    data = setDT(data)[,
-      Selected := fifelse(
-        orgUnit %in% reportingSelectedOUs,
-        'Champion',
-        'Non-Champion'
-      )
-    ] %>%
-      as_tibble(.) %>%
-      filter(Month >= yearmonth(startingMonth))
+    data[, Selected := fifelse(orgUnit %in% reportingSelectedOUs, 'Champion', 'Non-Champion')]
+    # Only apply date-window filter when caller supplied an explicit startingMonth.
+    # When startingMonth was NULL, it equals min(data), so the filter is a no-op
+    # that copies the entire dataset for nothing.
+    if (.startingMonth_explicit) {
+      data = data[unclass(Month) >= unclass(as.yearmonth(startingMonth))]
+    }
 
-    # data = data %>% filter( Selected %in% 'Reporting Each Period' )
   } else {
     if (.cat) {
       cat("\n - adding Selected = All to data")
     }
-    data = setDT(data)[, Selected := "All", ] %>% as_tibble(.)
+    data[, Selected := "All"]
   }
 
   if (.cat) {
-    cat('\n - end  selectedData()')
-  } # #print( names( data ))
+    cat(sprintf('\n - end selectedData  %.1f sec  %d rows', proc.time()["elapsed"] - .t0_selectedData, nrow(data)))
+  }
 
   # TESTING
   # if ( .cat ) cat( '\n - if Testing, saving  selectedData() as data.rds' )
@@ -984,6 +969,7 @@ dataTotal = function(
   if (.cat) {
     cat('\n* data Functions.R dataTotal()')
   }
+  .t0_dataTotal <- proc.time()["elapsed"]
 
   if (is.null(period)) {
     period = dataPeriod(data)
@@ -1048,26 +1034,29 @@ dataTotal = function(
     cat("\n - summarise group by: ", group_by_cols)
   }
 
+  group_by_cols = str_remove(group_by_cols, fixed("`"))
+
+  .t0_grp <- proc.time()["elapsed"]
+  if (.cat) cat('\n - nrow before grouping:', nrow(data))
+
   if (!any(is.null(summary_cols)) && any(nchar(summary_cols) > 0)) {
     if (.cat) {
       cat("\n - and all_of : ", summary_cols)
     }
-
-    group_by_cols = str_remove(group_by_cols, fixed("`"))
-
-    data = data %>%
-      group_by_at(vars({{ group_by_cols }})) %>%
-      summarise(
-        across(dataCol, \(x) sum(x, na.rm = TRUE)),
-        across(all_of(summary_cols), \(x) mean(as.numeric(x), na.rm = TRUE))
-      )
+    cov_cols = setdiff(summary_cols, group_by_cols)
+    data = as.data.table(data)[,
+      c(.(dataCol = sum(dataCol, na.rm = TRUE)),
+        lapply(.SD, \(x) mean(as.numeric(x), na.rm = TRUE))),
+      by = group_by_cols,
+      .SDcols = cov_cols
+    ]
   } else {
-    data = data %>%
-      group_by_at(vars({{ group_by_cols }})) %>%
-      summarise(
-        across(dataCol, \(x) sum(x, na.rm = TRUE))
-      )
+    data = as.data.table(data)[,
+      .(dataCol = sum(dataCol, na.rm = TRUE)),
+      by = group_by_cols
+    ]
   }
+  if (.cat) cat(sprintf('\n - grouping done: %.1f sec  %d rows out', proc.time()["elapsed"] - .t0_grp, nrow(data)))
 
   # data = setDT( data ) %>%
   #   .[ ,  lapply( .SD, sum  ) ,
@@ -1168,7 +1157,7 @@ dataTotal = function(
   # if (.cat ) cat( "\n - data.total columns:" , paste( names( data.total ) , collapse = ", "))
 
   if (.cat) {
-    cat('\n - end dataTotal()')
+    cat(sprintf('\n - end dataTotal  %.1f sec total  %d rows', proc.time()["elapsed"] - .t0_dataTotal, nrow(data.total)))
   }
 
   # saveRDS( data.total , "data.total.rds")

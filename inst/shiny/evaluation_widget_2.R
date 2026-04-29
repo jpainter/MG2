@@ -311,6 +311,14 @@ evaluation_widget_server <- function(
 
       testing = FALSE
 
+      # Flag: has the user visited the Evaluation tab at least once?
+      # mable_Data is expensive; keep it dormant until the user navigates there.
+      # Once TRUE it never reverts, so it does not create a per-tab-switch loop.
+      hasVisitedEvaluation = reactiveVal(FALSE)
+      observeEvent(current_tab(), {
+        if (isTRUE(current_tab() == "Evaluation")) hasVisitedEvaluation(TRUE)
+      }, ignoreInit = TRUE)
+
       options(shiny.trace = FALSE)
       options(shiny.reactlog = FALSE)
       options(dplyr.summarise.inform = FALSE)
@@ -1917,6 +1925,7 @@ evaluation_widget_server <- function(
       # Mable data ####
 
       mable_Data = reactive({
+        req(hasVisitedEvaluation())  # dormant until user first visits Evaluation tab
         req(region_filtered_selected_data())
         req(input$outliers)
         req(input$reporting)
@@ -1939,6 +1948,26 @@ evaluation_widget_server <- function(
         if (!reporting == "All") {
           selected_data = selected_data %>%
             filter(Selected %in% reporting)
+
+          # Restrict to the champion window: champion/non-champion status was
+          # determined over startingMonth:endingMonth, so evaluation should use
+          # only that period (facilities outside it may not have been reporting).
+          .period_col = period()
+          if (.period_col == "Month") {
+            .sm = as.yearmonth(startingMonth())
+            .em = as.yearmonth(endingMonth())
+            selected_data = as.data.table(selected_data)[
+              Month >= .sm & Month <= .em
+            ] |> as_tibble()
+            cat("\n - champion window filter:", as.character(.sm), "to", as.character(.em))
+          } else if (.period_col == "Week") {
+            .sm = yearweek(startingMonth())
+            .em = yearweek(endingMonth())
+            selected_data = as.data.table(selected_data)[
+              Week >= .sm & Week <= .em
+            ] |> as_tibble()
+            cat("\n - champion window filter:", as.character(.sm), "to", as.character(.em))
+          }
 
           if (nrow(selected_data) == 0) {
             cat("\n - no data for this level of reporting!")
