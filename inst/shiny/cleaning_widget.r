@@ -1011,6 +1011,8 @@ cleaning_widget_server <- function(
           cat('\n - data has seasonal3')
         }
 
+        # effectiveLeaf is always TRUE for modern DHIS2 downloads; these filters
+        # are no-ops on new datasets and are retained for legacy backward compatibility.
         if (
           'effectiveLeaf' %in%
             names(d) &&
@@ -1019,11 +1021,9 @@ cleaning_widget_server <- function(
           cat('\n - data has effectiveLeaf; facilities only')
 
           d = setDT(d)[effectiveLeaf == TRUE, ]
-          # d = d %>% filter( effectiveLeaf )
         } else if (input$selectOrgType %in% 'Admin only') {
           cat('\n - Admin only')
           d = setDT(d)[effectiveLeaf != TRUE, ]
-          # d = d %>% filter( effectiveLeaf )
         }
 
         # Filter by region — driven by the Regions page

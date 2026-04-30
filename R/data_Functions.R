@@ -106,6 +106,9 @@ cleanedData = function(
   if (.cat) {
     cat('\n - filtering by effectiveLeaf', .effectiveLeaf)
   }
+  # effectiveLeaf is always TRUE for modern DHIS2 downloads (API returns only
+  # org units where data was entered). This filter is a no-op on new datasets
+  # and is retained only for backward compatibility with legacy files.
   d = (if (is.data.table(d)) d else as.data.table(d))[effectiveLeaf == .effectiveLeaf]
 
   if (nrow(d) == 0) {
@@ -839,6 +842,8 @@ selectedData = function(
   if (level %in% 'leaf') {
     if (.cat) cat('\n - leaf level data only')
 
+    # effectiveLeaf is always TRUE for modern DHIS2 downloads; this filter is a
+    # no-op on new datasets and is retained for legacy backward compatibility.
     if (has_cats) {
       if (.cat) cat('\n - selectedData filtered by data_categories')
       data = data[effectiveLeaf == TRUE & get("data") %in% data_categories]
@@ -892,8 +897,9 @@ selectedData = function(
       data_for_rous <- unique(data[!is.na(original), rou_cols, with = FALSE])
 
       # Compute date bounds lazily — only in this rare path where they're needed.
-      if (is.null(startingMonth)) startingMonth = min(data1$period, na.rm = TRUE)
-      if (is.null(endingMonth))   endingMonth   = max(data1$period, na.rm = TRUE)
+      # Use the processed time column (Month/Week), not the raw DHIS2 period string.
+      if (is.null(startingMonth)) startingMonth = min(data[[rou_period]], na.rm = TRUE)
+      if (is.null(endingMonth))   endingMonth   = max(data[[rou_period]], na.rm = TRUE)
 
       reportingSelectedOUs = mostFrequentReportingOUs(
         data_for_rous,

@@ -792,7 +792,8 @@ reporting_widget_server <- function(
         cat('\n - nrow( d ):', nrow(data))
 
         if (input$level %in% 'leaf') {
-          # Skip copy when all rows are already effectiveLeaf (common for facility-level data)
+          # effectiveLeaf is always TRUE for modern DHIS2 downloads; the all()
+          # check is a fast no-op in that case. Filter retained for legacy files.
           if (!isTRUE(all(data$effectiveLeaf))) {
             data = setDT(data)[effectiveLeaf == TRUE, , ]
           }

@@ -402,7 +402,15 @@ data_widget_server <- function(
 
         cat('\n -  data_widget data1() class( dataset() )', class(dataset()))
 
-        if (!'COUNT' %in% names(dataset())) {
+        # A valid file is either:
+        #   (a) a raw download — has COUNT and SUM (needs data_1() processing), or
+        #   (b) an already-processed file — has effectiveLeaf and original.
+        # COUNT is dropped from processed files, so checking COUNT alone is no longer
+        # sufficient.  Reject only when neither signature is present.
+        is_raw       <- 'COUNT' %in% names(dataset())
+        is_processed <- 'effectiveLeaf' %in% names(dataset())
+
+        if (!is_raw && !is_processed) {
           showModal(
             modalDialog(
               title = "Data is the wrong type and will not be used",

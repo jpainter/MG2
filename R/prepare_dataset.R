@@ -92,6 +92,14 @@ translate_dataset_2 <- function(data, dataElements, categories, .verbose = FALSE
 
 #' Determine Effective Reporting Leaf Status per Org Unit × Data Element
 #'
+#' @details
+#' **Deprecated for modern downloads.** The DHIS2 download API (post ~2022) returns
+#' only org units where data was directly entered, so `COUNT` is always 1 and
+#' `effectiveLeaf` is always `TRUE`. `data_1()` skips this function and sets
+#' `effectiveLeaf = TRUE` directly when `max(COUNT) <= 1`. This function is
+#' retained only for backward compatibility with legacy "All levels" datasets
+#' where aggregate rows with `COUNT > 1` were included.
+#'
 #' @noRd
 data_leaves <- function(d, .verbose = FALSE) {
   if (.verbose) message("determining effective leaf")
@@ -286,17 +294,45 @@ data_1 <- function(data,
     dplyr::left_join(dataSetElements, by = "dataElement.id") |>
     dplyr::left_join(ousTree,         by = "orgUnit")
 
-  data.leaves <- data_leaves(d., .verbose = .verbose)
+  # Skip the expensive leaf-detection join when every row has COUNT == 1.
+  # The new DHIS2 download API returns only org units where data was entered,
+  # so COUNT is always 1 for modern downloads.  Old "All levels" downloads
+  # included aggregate rows with COUNT > 1; those still need data_leaves().
+  if (isTRUE(max(as.integer(d.$COUNT), na.rm = TRUE) <= 1L)) {
+    if (.verbose) message("- effectiveLeaf: all COUNT == 1, skipping data_leaves()")
+    d.$effectiveLeaf <- TRUE
+  } else {
+    if (.verbose) message("- effectiveLeaf: COUNT > 1 detected, running data_leaves()")
+    data.leaves <- data_leaves(d., .verbose = .verbose)
+    d. <- dplyr::left_join(
+      d.,
+      dplyr::select(data.leaves, orgUnit, dataElement.id, effectiveLeaf),
+      by = c("orgUnit", "dataElement.id")
+    )
+  }
 
   if (.verbose) message("- df_pre_ts + df_ts")
   d.. <- d. |>
-    dplyr::left_join(
-      dplyr::select(data.leaves, orgUnit, dataElement.id, effectiveLeaf),
-      by = c("orgUnit", "dataElement.id")
-    ) |>
     df_pre_ts(period = p, .verbose = .verbose) |>
     df_ts(period = p, .verbose = .verbose) |>
     dplyr::mutate(original = SUM, value = !is.na(SUM))
+
+  # Drop columns that were only needed during processing.
+  # SUM/COUNT: used to build original/value and effectiveLeaf; not needed downstream.
+  # dataElement.id, categoryOptionCombo.ids, Category: encoded in data/data.id.
+  # categoryCombo, categoryCombo.id, n_datasets, dataSet.ids: metadata not used downstream.
+  # leaf: redundant with effectiveLeaf.
+  # period: raw DHIS2 string replaced by Month/Week.
+  drop_cols <- intersect(
+    names(d..),
+    c("SUM", "COUNT", "dataElement.id", "categoryOptionCombo.ids",
+      "Category", "categoryCombo", "categoryCombo.id",
+      "n_datasets", "dataSet.ids", "leaf", "period")
+  )
+  if (length(drop_cols) > 0) {
+    if (.verbose) message("- dropping columns: ", paste(drop_cols, collapse = ", "))
+    d.. <- dplyr::select(d.., -dplyr::all_of(drop_cols))
+  }
 
   return(d..)
 }

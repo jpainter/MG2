@@ -2043,6 +2043,7 @@ evaluation_widget_server <- function(
       # Plot ####
       plotTrends = reactive({
         req(mable_Data())
+        req(input$evaluation_month)
 
         cat('\n* evaluation_widget plotTrends():')
 
@@ -2071,7 +2072,11 @@ evaluation_widget_server <- function(
         mable_Data = mable_Data()
         cat('\n - ploTrends .d:') #glimpse(.d)
 
-        data.text = paste(unique(mable_Data$data), collapse = " + ")
+        data.text = if ("data" %in% names(mable_Data)) {
+          paste(unique(as.character(mable_Data$data)), collapse = " + ")
+        } else {
+          ""
+        }
 
         tic()
 
