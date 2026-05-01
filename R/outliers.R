@@ -281,20 +281,74 @@ seasonal_outliers <- function(d,
                               tests          = c("seasonal5", "seasonal3"),
                               progress       = FALSE,
                               shiny_progress = FALSE) {
-  mad_sym <- rlang::sym(mad)
 
   if (is.null(.total)) .total <- tsibble::n_keys(d)
+  key_vars <- tsibble::key_vars(d)
+  idx_var  <- tsibble::index_var(d)
 
-  # Initialise time-throttled progress state for this scan
+  # Determine whether parallel execution is available
+  use_parallel <- .total > 1L &&
+    requireNamespace("furrr",  quietly = TRUE) &&
+    requireNamespace("future", quietly = TRUE)
+
+  n_workers <- if (use_parallel) {
+    max(1L, parallelly::availableCores() - 1L)
+  } else 1L
+
+  use_parallel <- use_parallel && n_workers > 1L
+
+  # Initialise Shiny progress
   if (shiny_progress) {
     .mg2_scan_state$n      <- 0L
     .mg2_scan_state$total  <- .total
     .mg2_scan_state$last_t <- proc.time()[["elapsed"]]
+    shiny::setProgress(
+      value  = 0,
+      detail = if (use_parallel)
+        sprintf("%d series on %d cores...", .total, n_workers)
+      else
+        "starting"
+    )
   }
 
-  data1.seasonal <- d |>
-    tsibble::group_by_key() |>
-    dplyr::group_modify(~ {
+  # Per-series worker — closed over mad, .threshold, tests, unseasonal
+  .process_one <- function(s) {
+    s$not_mad   <- dplyr::if_else(!s[[mad]], s$original, NA_real_)
+    s$seasonal5 <- if ("seasonal5" %in% tests)
+      unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 5, logical = TRUE)
+    else rep(NA, nrow(s))
+    s$seasonal3 <- if ("seasonal3" %in% tests)
+      unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = TRUE)
+    else rep(NA, nrow(s))
+    s
+  }
+
+  # Split tsibble into a list of per-key tibbles
+  d_tbl       <- tibble::as_tibble(d)
+  series_list <- dplyr::group_split(
+    d_tbl, dplyr::across(dplyr::all_of(key_vars)), .keep = TRUE
+  )
+
+  if (use_parallel) {
+    # ── Parallel path ───────────────────────────────────────────────────────
+    old_plan <- future::plan()
+    on.exit(future::plan(old_plan), add = TRUE)
+    future::plan(future::multisession, workers = n_workers)
+
+    results <- furrr::future_map(
+      series_list,
+      .process_one,
+      .options = furrr::furrr_options(seed = NULL, packages = "forecast")
+    )
+
+    if (shiny_progress)
+      shiny::setProgress(value = 1, detail = sprintf("%d series complete", .total))
+
+  } else {
+    # ── Sequential path with time-throttled progress ─────────────────────
+    results <- vector("list", length(series_list))
+    for (i in seq_along(series_list)) {
+      results[[i]] <- .process_one(series_list[[i]])
 
       if (shiny_progress) {
         .mg2_scan_state$n <- .mg2_scan_state$n + 1L
@@ -309,22 +363,15 @@ seasonal_outliers <- function(d,
           )
         }
       }
+    }
+  }
 
-      .x <- dplyr::mutate(.x,
-        not_mad = dplyr::if_else(!{{ mad_sym }}, original, NA_real_)
-      )
-      .x <- dplyr::mutate(.x,
-        seasonal5 = if ("seasonal5" %in% tests) {
-          unseasonal(not_mad, smallThreshold = .threshold,
-                     deviation = 5, logical = TRUE)
-        } else NA,
-        seasonal3 = if ("seasonal3" %in% tests) {
-          unseasonal(not_mad, smallThreshold = .threshold,
-                     deviation = 3, logical = TRUE)
-        } else NA
-      )
-      return(.x)
-    })
+  # Reconstruct tsibble from list of per-key tibbles
+  data1.seasonal <- dplyr::bind_rows(results) |>
+    tsibble::as_tsibble(
+      key   = dplyr::all_of(key_vars),
+      index = dplyr::all_of(idx_var)
+    )
 
   return(data1.seasonal)
 }

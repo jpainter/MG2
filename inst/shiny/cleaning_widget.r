@@ -555,7 +555,7 @@ cleaning_widget_server <- function(
 
           withProgress(
             message = sprintf("Scanning %d series for seasonal outliers...", .total),
-            detail  = "starting",
+            detail  = "starting",    # updated by seasonal_outliers() with core count
             value   = 0,
             {
               data1.seasonal <- seasonal_outliers(
