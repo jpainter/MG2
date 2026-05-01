@@ -101,8 +101,7 @@ cleaning_widget_ui = function(id) {
                 tableOutput(ns("outlier.summary.table")),
                 br(),
                 htmltools::HTML(
-                  "For information on the outlier procedure and algorithms, <br>
-                                             see the Outliers section on the About MagicGlasses2 page. "
+                  "For information on the outlier procedure and algorithms, see the <b>About</b> tab."
                 )
               ),
 

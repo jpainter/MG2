@@ -87,6 +87,7 @@ source("reporting_widget.r")   # Tab: Reporting
 source("cleaning_widget.r")    # Tab: Outliers
 source("evaluation_widget_2.R")# Tab: Evaluation
 source("regions_widget.R")     # Tab: Regions
+source("about_widget.R")       # Tab: About
 # map_widget.R and facilities_widget.r are not standalone modules;
 # they are embedded within other widgets and sourced there when needed.
 
@@ -153,7 +154,9 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("DQA",        dqa_widget_ui("dqa1")),
   bslib::nav_panel("Reporting",  reporting_widget_ui("reporting1")),
   bslib::nav_panel("Outliers",   cleaning_widget_ui("cleaning1")),
-  bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1"))
+  bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1")),
+  bslib::nav_spacer(),
+  bslib::nav_panel("About",      about_widget_ui("about"))
 )
 
 # Server --------------------------------------------------------------------
