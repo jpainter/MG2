@@ -591,6 +591,86 @@ they do not need to be exported.
 
 ---
 
+### Dataset Combiner — New Module (2026-04-30)
+
+**Status:** ✅ Complete
+
+**New files:**
+- `R/combine_functions.R` — all pipeline logic (no Shiny dependency)
+- `inst/shiny/combine_widget.R` — Shiny module (`combine_widget_ui` / `combine_widget_server`)
+- Accessible via **Data → Combine** tab
+
+**What it does:**
+Lets users construct new derived datasets (e.g. Test Positivity Rate) from existing
+processed `.rds` files without writing code.  Each step is either an **Include**
+(filter + optional rename) or a **Ratio** (numerator ÷ denominator, full outer join).
+Results are saved as standard MG2 processed datasets compatible with the full
+Reporting → Outliers → Evaluation pipeline.
+
+**Key functions in `R/combine_functions.R`:**
+- `read_combine_meta()` — reads `data_values`, `cleaning_levels`, `period_type`
+  from a source file without loading the full dataset (used to populate UI pickers)
+- `apply_combine_cleaning()` — applies cumulative outlier cleaning at a user-chosen
+  severity level (`none` / `mad15` / `mad10` / `seasonal5` / `seasonal3`)
+- `execute_include_step()` — filters + renames one source variable; carries outlier
+  flag columns through from source data (Phase 1 inheritance)
+- `execute_ratio_step()` — full outer join of numerator and denominator; sums
+  components per orgUnit × period before dividing (never sums ratio values);
+  produces `missing_numerator` and `missing_denominator` flag columns; carries and
+  combines (OR) outlier flags from both sides
+- `build_combined_dataset()` — orchestrates all steps, initialises flag columns,
+  applies per-step `max_value` → `over_max`, runs two-phase outlier detection,
+  joins ousTree; accepts optional `.progress` callback for Shiny `withProgress`
+- `register_combined_formula()` — appends the combo name to a `Formulas_*.xlsx`
+  "Formula" sheet so `data_widget` can find the output file; handles Excel Table
+  objects (removes before `writeData`)
+- `suggest_combine_filename()` — sanitises combo name to a valid filename while
+  preserving special characters (`>=` etc.) so `grepl()` matching in `data_widget` works
+- `save_combine_definition()` / `load_combine_definition()` — persist step
+  definitions to `Combinations_[name]_[date].rds` companion files
+
+**Two-phase outlier detection for combined datasets:**
+- *Phase 1 (inheritance)*: `execute_include_step` and `execute_ratio_step` carry
+  flag columns (`over_max`, `mad15`, `mad10`, `seasonal5`, `seasonal3`) from source
+  data.  For Ratio steps, flags are aggregated with `any()` per orgUnit × period on
+  each side, then combined with OR after the merge.  Inherited `TRUE` is never cleared.
+- *Phase 2 (direct scan)*: `build_combined_dataset` calls `.scan_series_outliers()`
+  (internal, via `data.table` `by`) on the combined values using `smallThreshold = 0`
+  (the default of 50 would skip all ratio series in [0,1]).  Respects hierarchy:
+  `over_max` → stop; `mad15` → skip `mad10`; `mad10` → skip seasonal.
+  Results are OR-ed with Phase 1 inherited flags.
+
+**Pipeline compatibility fixes (required by combine output):**
+- `R/data_Functions.R` — `error_factor()`: safety-initialises all 8 flag columns
+  (`key_entry_error`, `over_max`, `mad15`, `mad10`, `seasonal5`, `seasonal3`,
+  `missing_numerator`, `missing_denominator`) to `FALSE` if absent — prevents crash
+  when a combined dataset hasn't been through the Outliers tab
+- `R/data_Functions.R` — `dataTotal()`: drops `group_by_cols` not present in
+  the data (combined datasets don't have `dataSet`); detects ratio variables via
+  `numerator`/`denominator` columns and uses `sum(num)/sum(den)` aggregation instead
+  of `sum(ratio)` — correct rollup across facilities
+- `R/outlier_summary.R` — `outlier.summary.tibble()`: adds `missing_numerator` and
+  `missing_denominator` to default `cols`; computes N as
+  `max(non-missing numerator count, non-missing denominator count)` for ratio data
+- `inst/shiny/reporting_widget.r` — `aggregateselected_data`: intersects
+  `group_by_cols` with `names(.d)` before tsibble key construction; when ratio
+  columns present, aggregates `numerator` and `denominator` separately via
+  `aggregate_key()` then recomputes `total = numerator / denominator`
+
+**UX:**
+- Step definitions persist to `Combinations_*.rds` (load with spinner notification
+  in lower-right corner, non-blocking)
+- Build-once: preview caches the result; Build & Save reuses it if step count matches
+- `withProgress()` + `.progress` callback: stage labels (loading, scanning, complete)
+  appear in real-time in the Shiny progress dialog during build
+- Post-build log shown in a scrollable `verbatimTextOutput` box (max-height 250px)
+- Formula registration appended to selected `Formulas_*.xlsx` so output appears
+  in Data → Formula immediately
+
+**Version bumped to 0.1.4.**
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module

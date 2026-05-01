@@ -20,6 +20,8 @@ outlier.summary.tibble <- function(
     "AllSmall",
     "key_entry_error",
     "over_max",
+    "missing_numerator",
+    "missing_denominator",
     "mad15",
     "mad10",
     "mad5",
@@ -41,8 +43,17 @@ outlier.summary.tibble <- function(
 
   dt <- data.table::as.data.table(data)
 
-  os.total <- dt[, .(Total = sum(original, na.rm = TRUE),
-                      N     = sum(!is.na(original)))]
+  # For ratio variables, N = max(non-missing numerator count, non-missing
+  # denominator count) — i.e. the count of facility-months where either side
+  # of the ratio existed.  For other variables, N = non-missing original count.
+  has_ratio_cols <- all(c("numerator", "denominator") %in% names(dt))
+  os.total <- if (has_ratio_cols) {
+    dt[, .(Total = sum(original, na.rm = TRUE),
+           N     = max(sum(!is.na(numerator)), sum(!is.na(denominator))))]
+  } else {
+    dt[, .(Total = sum(original, na.rm = TRUE),
+           N     = sum(!is.na(original)))]
+  }
 
   if ("AllSmall" %in% names(data)) {
     os.notSmall <- dt[AllSmall == FALSE,

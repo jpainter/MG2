@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
+
+# Session-cache .rds files written by the Shiny app during a live session.
+# These are regenerated at runtime and should not be tracked.
+inst/shiny/*.rds

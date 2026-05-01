@@ -81,6 +81,7 @@ source("metadata_widget.R")    # Tab: Metadata
 source("data_widget.r")        # Tab: Data — formula/dataset selector
 source("formula_widget.r")     # Tab: Data — formula builder
 source("data_request_widget.R")# Tab: Data — download from DHIS2
+source("combine_widget.R")     # Tab: Data — combine/derive datasets
 source("dqa_widget.R")         # Tab: DQA
 source("reporting_widget.r")   # Tab: Reporting
 source("cleaning_widget.r")    # Tab: Outliers
@@ -145,7 +146,8 @@ ui <- bslib::page_navbar(
         column(7, formula_widget_ui("formula1"))
       )
     ),
-    bslib::nav_panel("Download", data_request_widget_ui("data_request1"))
+    bslib::nav_panel("Download", data_request_widget_ui("data_request1")),
+    bslib::nav_panel("Combine",  combine_widget_ui("combine1"))
   ),
 
   bslib::nav_panel("DQA",        dqa_widget_ui("dqa1")),
@@ -197,6 +199,12 @@ server <- function(input, output, session) {
     directory_widget_output  = directory_widget_output,
     metadata_widget_output   = metadata_widget_output,
     data_widget_output       = data1_Widget_output
+  )
+
+  combine_widget_server(
+    "combine1",
+    directory_widget_output = directory_widget_output,
+    metadata_widget_output  = metadata_widget_output
   )
 
   formula1_Widget_output <- formula_widget_server(

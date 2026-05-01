@@ -43,6 +43,17 @@ getLevelNames = function(orgUnits, .cat = FALSE) {
 # }
 
 error_factor = function(x) {
+  # Ensure all six flag columns exist.  Combined datasets start with only
+  # key_entry_error and over_max populated; MAD/seasonal columns are added
+  # FALSE here so error_factor() doesn't crash on datasets that haven't been
+  # through the Outliers tab yet.
+  flag_cols <- c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3",
+                 "missing_numerator", "missing_denominator")
+  missing   <- setdiff(flag_cols, names(x))
+  if (length(missing) > 0) {
+    x <- as.data.table(x)
+    x[, (missing) := FALSE]
+  }
   x %>%
     mutate(
       error = case_when(
@@ -1042,6 +1053,18 @@ dataTotal = function(
 
   group_by_cols = str_remove(group_by_cols, fixed("`"))
 
+  # Drop any group-by columns that don't exist in the data (e.g. combined
+  # datasets don't have a 'dataSet' column)
+  missing_cols  <- setdiff(group_by_cols, names(data))
+  if (length(missing_cols) > 0) {
+    if (.cat) cat("\n - dropping missing group_by_cols:", missing_cols)
+    group_by_cols <- intersect(group_by_cols, names(data))
+  }
+
+  # Detect ratio variables: combined datasets carry numerator/denominator columns
+  # so the pipeline can compute sum(num)/sum(den) instead of sum(ratio).
+  has_ratio_cols <- all(c("numerator", "denominator") %in% names(data))
+
   .t0_grp <- proc.time()["elapsed"]
   if (.cat) cat('\n - nrow before grouping:', nrow(data))
 
@@ -1050,18 +1073,48 @@ dataTotal = function(
       cat("\n - and all_of : ", summary_cols)
     }
     cov_cols = setdiff(summary_cols, group_by_cols)
-    data = as.data.table(data)[,
-      c(.(dataCol = sum(dataCol, na.rm = TRUE)),
-        lapply(.SD, \(x) mean(as.numeric(x), na.rm = TRUE))),
-      by = group_by_cols,
-      .SDcols = cov_cols
-    ]
+    if (has_ratio_cols) {
+      data = as.data.table(data)[,
+        c(.(dataCol     = sum(dataCol, na.rm = TRUE),
+            numerator   = if (all(is.na(numerator)))   NA_real_ else sum(numerator,   na.rm = TRUE),
+            denominator = if (all(is.na(denominator))) NA_real_ else sum(denominator, na.rm = TRUE)),
+          lapply(.SD, \(x) mean(as.numeric(x), na.rm = TRUE))),
+        by = group_by_cols,
+        .SDcols = cov_cols
+      ]
+    } else {
+      data = as.data.table(data)[,
+        c(.(dataCol = sum(dataCol, na.rm = TRUE)),
+          lapply(.SD, \(x) mean(as.numeric(x), na.rm = TRUE))),
+        by = group_by_cols,
+        .SDcols = cov_cols
+      ]
+    }
   } else {
-    data = as.data.table(data)[,
-      .(dataCol = sum(dataCol, na.rm = TRUE)),
-      by = group_by_cols
-    ]
+    if (has_ratio_cols) {
+      data = as.data.table(data)[,
+        .(dataCol     = sum(dataCol, na.rm = TRUE),
+          numerator   = if (all(is.na(numerator)))   NA_real_ else sum(numerator,   na.rm = TRUE),
+          denominator = if (all(is.na(denominator))) NA_real_ else sum(denominator, na.rm = TRUE)),
+        by = group_by_cols
+      ]
+    } else {
+      data = as.data.table(data)[,
+        .(dataCol = sum(dataCol, na.rm = TRUE)),
+        by = group_by_cols
+      ]
+    }
   }
+
+  # For ratio rows (denominator present and > 0), recompute dataCol from the
+  # aggregated components — do not sum ratio values across groups.
+  if (has_ratio_cols) {
+    data = as.data.table(data)
+    data[!is.na(denominator) & denominator > 0, dataCol := numerator / denominator]
+    data[!is.na(denominator) & denominator == 0, dataCol := NA_real_]
+    if (.cat) cat('\n - ratio dataCol recomputed from numerator/denominator')
+  }
+
   if (.cat) cat(sprintf('\n - grouping done: %.1f sec  %d rows out', proc.time()["elapsed"] - .t0_grp, nrow(data)))
 
   # data = setDT( data ) %>%

@@ -1786,7 +1786,7 @@ reporting_widget_server <- function(
         if (!is_tsibble(.d)) {
           cat('\n - preparing data.total as tsibble')
 
-          key.cols = setdiff(group_by_cols(), period())
+          key.cols = intersect(setdiff(group_by_cols(), period()), names(.d))
 
           cat('\n - key.cols:', key.cols)
 
@@ -1802,11 +1802,32 @@ reporting_widget_server <- function(
 
         cat('\n - preparing aggregate_key')
 
-        .d = .d %>%
-          aggregate_key(
-            .spec = !!rlang::parse_expr(aggregateDataKey()),
-            total = sum(total, na.rm = T)
-          )
+        has_ratio_cols <- all(c("numerator", "denominator") %in% names(.d))
+
+        if (has_ratio_cols) {
+          .d = .d %>%
+            aggregate_key(
+              .spec       = !!rlang::parse_expr(aggregateDataKey()),
+              total       = sum(total,       na.rm = TRUE),
+              numerator   = sum(numerator,   na.rm = TRUE),
+              denominator = sum(denominator, na.rm = TRUE)
+            )
+          # Recompute total from aggregated components for ratio rows.
+          # Include-step rows have denominator == 0 after na.rm sum of NAs,
+          # so the condition correctly leaves them untouched.
+          .d = .d %>%
+            mutate(total = dplyr::if_else(
+              !is.na(denominator) & denominator > 0,
+              numerator / denominator,
+              total
+            ))
+        } else {
+          .d = .d %>%
+            aggregate_key(
+              .spec = !!rlang::parse_expr(aggregateDataKey()),
+              total = sum(total, na.rm = TRUE)
+            )
+        }
 
         indexVar = index_var(.d)
         keyVars = key_vars(.d)
