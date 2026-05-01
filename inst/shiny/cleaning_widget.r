@@ -538,37 +538,31 @@ cleaning_widget_server <- function(
           #  if ( is_empty( key_entry_errors )  ) key_entry_errors = NA
 
           cat('\n - scanning for MAD outliers')
-          # .total = length( key_size( d ) )
 
-          .threshold = 50
+          .threshold <- 50
+          .total     <- tsibble::n_keys(d)
 
           withProgress(
-            message = "Searchng for extreme values (MAD)",
-            detail = "starting ...",
-            value = 0,
+            message = sprintf("Scanning %d series for extreme values (MAD)...", .total),
+            detail  = "starting",
+            value   = 0,
             {
-              data.mad = mad_outliers(
-                d,
-                # .total = .total ,
-                .threshold = 50
-              )
+              data.mad <- mad_outliers(d, .total = .total, .threshold = .threshold)
             }
           )
 
           cat('\n - scanning for Seasonal outliers')
 
-          # .total = length( key_size( data.mad ) )
-          # cat( '\n - .total' , .total )
-
           withProgress(
-            message = "Searchng for seasonal Outliers",
-            detail = "starting ...",
-            value = 0,
+            message = sprintf("Scanning %d series for seasonal outliers...", .total),
+            detail  = "starting",
+            value   = 0,
             {
-              data1.seasonal = seasonal_outliers(
+              data1.seasonal <- seasonal_outliers(
                 data.mad,
-                # .total = .total ,
-                .threshold = 50
+                .total         = .total,
+                .threshold     = .threshold,
+                shiny_progress = TRUE
               )
             }
           )

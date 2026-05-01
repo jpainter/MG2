@@ -1,6 +1,15 @@
 # Outlier detection functions for MG2.
 # Migrated from R/originals/Cleaning.R
 
+# Shared mutable state for time-throttled Shiny progress updates.
+# Initialised by mad_outliers() / seasonal_outliers() before each scan;
+# read/written by extremely_mad() and the seasonal group_modify loop.
+.mg2_scan_state <- new.env(parent = emptyenv())
+.mg2_scan_state$n        <- 0L    # series processed so far
+.mg2_scan_state$total    <- 0L    # total series in this scan
+.mg2_scan_state$last_t   <- 0     # proc.time elapsed at last UI update
+.mg2_scan_state$interval <- 10    # minimum seconds between UI updates
+
 #' Flag Values Exceeding a MAD-Based Threshold
 #'
 #' For a numeric vector `x`, computes the median and median absolute deviation
@@ -34,9 +43,18 @@ extremely_mad <- function(x,
                           logical         = FALSE,
                           .progress       = FALSE,
                           total           = NA) {
-  if (.progress && !is.na(total)) {
-    shiny::setProgress(detail = "Searching for extreme values within each orgUnit")
-    shiny::incProgress(amount = 1 / total)
+  if (.progress) {
+    .mg2_scan_state$n <- .mg2_scan_state$n + 1L
+    now <- proc.time()[["elapsed"]]
+    if (now - .mg2_scan_state$last_t >= .mg2_scan_state$interval) {
+      .mg2_scan_state$last_t <- now
+      pct <- min(.mg2_scan_state$n / max(.mg2_scan_state$total, 1L), 1)
+      shiny::setProgress(
+        value  = pct,
+        detail = sprintf("%d of %d series (%.0f%%)",
+                         .mg2_scan_state$n, .mg2_scan_state$total, pct * 100)
+      )
+    }
   }
 
   y <- x
@@ -150,6 +168,11 @@ mad_outliers <- function(d,
                          progress        = TRUE) {
   if (is.null(.total)) .total <- tsibble::n_keys(d)
 
+  # Initialise time-throttled progress state for this scan
+  .mg2_scan_state$n      <- 0L
+  .mg2_scan_state$total  <- .total
+  .mg2_scan_state$last_t <- proc.time()[["elapsed"]]
+
   if (is.null(key_entry_errors)) {
     large_values <- dplyr::count(
       dplyr::ungroup(tibble::as_tibble(
@@ -252,18 +275,41 @@ mad_outliers <- function(d,
 #'   columns added.
 #' @export
 seasonal_outliers <- function(d,
-                              .total    = NULL,
-                              .threshold = 50,
-                              mad       = "mad10",
-                              tests     = c("seasonal5", "seasonal3"),
-                              progress  = FALSE) {
+                              .total         = NULL,
+                              .threshold     = 50,
+                              mad            = "mad10",
+                              tests          = c("seasonal5", "seasonal3"),
+                              progress       = FALSE,
+                              shiny_progress = FALSE) {
   mad_sym <- rlang::sym(mad)
 
   if (is.null(.total)) .total <- tsibble::n_keys(d)
 
+  # Initialise time-throttled progress state for this scan
+  if (shiny_progress) {
+    .mg2_scan_state$n      <- 0L
+    .mg2_scan_state$total  <- .total
+    .mg2_scan_state$last_t <- proc.time()[["elapsed"]]
+  }
+
   data1.seasonal <- d |>
     tsibble::group_by_key() |>
     dplyr::group_modify(~ {
+
+      if (shiny_progress) {
+        .mg2_scan_state$n <- .mg2_scan_state$n + 1L
+        now <- proc.time()[["elapsed"]]
+        if (now - .mg2_scan_state$last_t >= .mg2_scan_state$interval) {
+          .mg2_scan_state$last_t <- now
+          pct <- min(.mg2_scan_state$n / max(.mg2_scan_state$total, 1L), 1)
+          shiny::setProgress(
+            value  = pct,
+            detail = sprintf("%d of %d series (%.0f%%)",
+                             .mg2_scan_state$n, .mg2_scan_state$total, pct * 100)
+          )
+        }
+      }
+
       .x <- dplyr::mutate(.x,
         not_mad = dplyr::if_else(!{{ mad_sym }}, original, NA_real_)
       )
