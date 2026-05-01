@@ -434,8 +434,8 @@ data_widget_server <- function(
 
           cat('\n -- preparing data1')
 
-          if (input$rescan) {
-            # revert to original download
+          if (input$rescan && 'dataElement.id' %in% names(dataset())) {
+            # revert to original download columns before re-preparing
             data = dataset() %>%
               as_tibble %>%
               ungroup %>%
