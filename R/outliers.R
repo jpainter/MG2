@@ -389,14 +389,18 @@ seasonal_outliers <- function(d,
     )
   }
 
-  # Per-series worker — closed over mad, .threshold, tests, unseasonal
+  # Capture unseasonal() explicitly so furrr workers can find it regardless
+  # of whether the package was loaded via install or devtools::load_all()
+  .unseasonal <- unseasonal
+
+  # Per-series worker — closed over mad, .threshold, tests, .unseasonal
   .process_one <- function(s) {
     s$not_mad   <- dplyr::if_else(!s[[mad]], s$original, NA_real_)
     s$seasonal5 <- if ("seasonal5" %in% tests)
-      unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 5, logical = TRUE)
+      .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 5, logical = TRUE)
     else rep(NA, nrow(s))
     s$seasonal3 <- if ("seasonal3" %in% tests)
-      unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = TRUE)
+      .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = TRUE)
     else rep(NA, nrow(s))
     s
   }
