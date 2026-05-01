@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Clip paths: content stays inside each lens -->
+    <clipPath id="L">
+      <circle cx="158" cy="205" r="79"/>
+    </clipPath>
+    <clipPath id="R">
+      <circle cx="354" cy="205" r="79"/>
+    </clipPath>
+
+    <!-- Left lens: warm amber radial gradient -->
+    <radialGradient id="gradL" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#FFFAF4"/>
+      <stop offset="100%" stop-color="#FFE0BC"/>
+    </radialGradient>
+
+    <!-- Right lens: cool blue radial gradient -->
+    <radialGradient id="gradR" cx="60%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#F4F9FF"/>
+      <stop offset="100%" stop-color="#C4DCFF"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ── Background ── -->
+  <rect width="512" height="512" rx="80" ry="80" fill="white"/>
+
+  <!-- ── Lens fills (behind frame) ── -->
+  <circle cx="158" cy="205" r="85" fill="url(#gradL)"/>
+  <circle cx="354" cy="205" r="85" fill="url(#gradR)"/>
+
+  <!-- ── Left lens: raw data (jagged orange line) ── -->
+  <g clip-path="url(#L)">
+    <!-- Subtle horizontal baseline -->
+    <line x1="79" y1="205" x2="237" y2="205"
+          stroke="#C8905A" stroke-width="1.2" stroke-dasharray="4,4" opacity="0.4"/>
+    <!-- Noisy jagged line representing raw DHIS2 data artifacts -->
+    <polyline
+      points="88,210  100,190  112,230  124,182  136,222
+              148,178  160,215  172,185  184,227  196,178
+              208,212  220,196  228,210"
+      fill="none" stroke="#D4640A" stroke-width="5.5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- ── Right lens: adjusted trend + confidence interval ribbon ── -->
+  <g clip-path="url(#R)">
+    <!-- CI ribbon (upper bound → lower bound, closed polygon) -->
+    <path d="M 288,222 C 315,216 338,207 366,197 C 390,190 410,185 422,182
+             L 422,208 C 410,211 390,216 366,226 C 338,236 315,245 288,248 Z"
+          fill="#0054A6" opacity="0.16"/>
+    <!-- Smooth adjusted trend line -->
+    <path d="M 288,235 C 315,228 338,219 366,210 C 390,203 410,198 422,195"
+          fill="none" stroke="#0054A6" stroke-width="5.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- ── Glasses frame ── -->
+  <circle cx="158" cy="205" r="85" fill="none" stroke="#1A2A4A" stroke-width="13"/>
+  <circle cx="354" cy="205" r="85" fill="none" stroke="#1A2A4A" stroke-width="13"/>
+
+  <!-- Bridge (gentle upward arc over the nose) -->
+  <path d="M 237,202 Q 256,186 275,202"
+        stroke="#1A2A4A" stroke-width="10" fill="none" stroke-linecap="round"/>
+
+  <!-- Temple arms (angled slightly back) -->
+  <line x1="73"  y1="205" x2="22"  y2="186" stroke="#1A2A4A" stroke-width="10" stroke-linecap="round"/>
+  <line x1="439" y1="205" x2="490" y2="186" stroke="#1A2A4A" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- ── Wordmark ── -->
+  <text x="256" y="368"
+        text-anchor="middle"
+        font-family="'Helvetica Neue', Arial, sans-serif"
+        font-weight="900"
+        font-size="38"
+        letter-spacing="8"
+        fill="#1A2A4A">Magic Glasses</text>
+
+  <text x="256" y="406"
+        text-anchor="middle"
+        font-family="'Helvetica Neue', Arial, sans-serif"
+        font-weight="400"
+        font-size="22"
+        letter-spacing="5"
+        fill="#6080A0">MG2</text>
+</svg>

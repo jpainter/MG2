@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Clip paths use inner radius (excluding frame stroke) -->
+    <clipPath id="Li">
+      <circle cx="138" cy="256" r="95"/>
+    </clipPath>
+    <clipPath id="Ri">
+      <circle cx="374" cy="256" r="95"/>
+    </clipPath>
+
+    <radialGradient id="gL" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#FFFAF4"/>
+      <stop offset="100%" stop-color="#FFE0BC"/>
+    </radialGradient>
+    <radialGradient id="gR" cx="60%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#F4F9FF"/>
+      <stop offset="100%" stop-color="#C4DCFF"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" ry="80" fill="white"/>
+
+  <!-- Lens fills (sit behind the frame strokes) -->
+  <circle cx="138" cy="256" r="102" fill="url(#gL)"/>
+  <circle cx="374" cy="256" r="102" fill="url(#gR)"/>
+
+  <!-- Left lens: raw noisy data line -->
+  <g clip-path="url(#Li)">
+    <line x1="43" y1="256" x2="233" y2="256"
+          stroke="#C8905A" stroke-width="1.5" stroke-dasharray="5,5" opacity="0.4"/>
+    <polyline
+      points="58,263  73,240  88,283  103,228  118,272
+              133,222  148,265  163,232  178,277  193,222
+              208,261  220,245  228,258"
+      fill="none" stroke="#D4640A" stroke-width="6.5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Right lens: adjusted trend + CI ribbon -->
+  <g clip-path="url(#Ri)">
+    <path d="M 284,274 C 312,266 340,254 374,242 C 402,233 428,227 458,222
+             L 458,250 C 428,255 402,261 374,270 C 340,282 312,294 284,302 Z"
+          fill="#0054A6" opacity="0.16"/>
+    <path d="M 284,288 C 312,279 340,267 374,255 C 402,245 428,239 458,235"
+          fill="none" stroke="#0054A6" stroke-width="6.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Glasses frame -->
+  <circle cx="138" cy="256" r="102" fill="none" stroke="#1A2A4A" stroke-width="15"/>
+  <circle cx="374" cy="256" r="102" fill="none" stroke="#1A2A4A" stroke-width="15"/>
+
+  <!-- Bridge -->
+  <path d="M 233,252 Q 256,234 279,252"
+        stroke="#1A2A4A" stroke-width="12" fill="none" stroke-linecap="round"/>
+
+  <!-- Temple arms -->
+  <line x1="36"  y1="256" x2="6"   y2="234" stroke="#1A2A4A" stroke-width="12" stroke-linecap="round"/>
+  <line x1="476" y1="256" x2="506" y2="234" stroke="#1A2A4A" stroke-width="12" stroke-linecap="round"/>
+</svg>

@@ -1,3 +1,5 @@
+<img src="logo.png" align="right" width="140"/>
+
 # MG2: Magic Glasses 2
 
 <!-- badges: start -->
