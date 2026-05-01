@@ -45,8 +45,7 @@ The app opens in your system browser. Work through the tabs from left to right �
 
 ```
 Setup → Metadata → Data → DQA → Reporting → Outliers → Evaluation
-                    │
-                 Combine (build derived datasets from downloaded data)
+                  (Formula / Download / Combine)
 ```
 
 ---
@@ -72,19 +71,13 @@ Browse and download the DHIS2 metadata needed to define your analysis.
 
 ### 3. Data
 
-Define the data elements for analysis and download data from the DHIS2 server.
+Define the data elements for analysis, download data from the DHIS2 server, and build derived datasets.
 
 **Formula builder** — Build a formula (data dictionary) specifying which data elements and category-option combinations to include. Formulas are saved as dated Excel files and can be extended over time.
 
 **Data download** — Select a formula file, then request data. The app compares national-level totals in the local file against the server for each period and only re-downloads periods where values have changed, saving time on large datasets.
 
-### 4. Combine *(Data → Combine)*
-
-Build derived datasets from existing downloaded data — without writing code.
-
-This module lets you construct new indicators (e.g. test positivity rate, stock-out rate) by composing steps over one or more source `.rds` files. Each step is either an **Include** (filter and optionally rename a source variable) or a **Ratio** (numerator ÷ denominator, joined across sources). The resulting dataset is a standard MG2 processed file, fully compatible with the DQA → Reporting → Outliers → Evaluation pipeline.
-
-Key features:
+**Combine** — Build derived datasets from existing downloaded data — without writing code. Construct new indicators (e.g. test positivity rate, stock-out rate) by composing steps over one or more source `.rds` files. Each step is either an **Include** (filter and optionally rename a source variable) or a **Ratio** (numerator ÷ denominator, joined across sources). The resulting dataset is a standard MG2 processed file, fully compatible with the DQA → Reporting → Outliers → Evaluation pipeline.
 
 - **Two-phase outlier inheritance** — Outlier flags from source datasets carry forward into the combined output. For ratio steps, flags from numerator and denominator are merged with OR logic. A second direct scan then runs on the combined values.
 - **Correct ratio aggregation** — When rolling up across facilities, the module sums numerator and denominator separately before dividing, rather than averaging ratio values — avoiding the aggregation bias common in naive implementations.
@@ -92,7 +85,7 @@ Key features:
 - **Persistent step definitions** — Step configurations are saved to a companion `.rds` file so a pipeline can be reloaded and re-run as new data are downloaded.
 - **Auto-registration** — The combined dataset name is appended to the selected `Formulas_*.xlsx` so it appears immediately in the Data tab without restarting the app.
 
-### 5. Data Quality Assessment (DQA)
+### 4. Data Quality Assessment (DQA)
 
 Assess three dimensions of data quality before proceeding to analysis.
 
@@ -100,7 +93,7 @@ Assess three dimensions of data quality before proceeding to analysis.
 - **Outliers** — A summary of flagged values by detection algorithm and time period.
 - **Forecast accuracy (MASE)** — Mean Absolute Scaled Error of a naive seasonal forecast, used as a signal of time-series stability. A rising MASE over time may indicate structural changes or data quality deterioration.
 
-### 6. Reporting
+### 5. Reporting
 
 Identify facilities that report consistently and adjust analyses for reporting bias.
 
@@ -108,7 +101,7 @@ Identify facilities that report consistently and adjust analyses for reporting b
 - The "champion facilities" subset — those reporting in every period — is used to compute bias-adjusted national totals.
 - Outputs include a reporting regularity table and adjusted trend charts.
 
-### 7. Outliers
+### 6. Outliers
 
 Detect and flag anomalous values using a sequential set of algorithms, each applied to the residuals left after the previous step. Algorithms are applied separately to each facility × data element series.
 
@@ -123,7 +116,7 @@ Detect and flag anomalous values using a sequential set of algorithms, each appl
 
 MAD-based detection is preferred over mean ± SD because it is robust when multiple outliers inflate the standard deviation. Seasonal detection uses `forecast::tsclean()` to compute expected values, catching values that are within the overall range of the series but anomalous for their time of year.
 
-### 8. Evaluation
+### 7. Evaluation
 
 Fit time-series models to evaluate trends and measure the effect of programmatic interventions.
 
