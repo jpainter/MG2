@@ -2302,7 +2302,8 @@ evaluation_widget_server <- function(
                 alpha    = .75
               ) +
               # Test-period forecast for the selected model (pre-intervention validation)
-              fabletools::autolayer(
+              # Only shown when "Pre-intervention model fit" checkbox is checked.
+              if (input$pre_evaluation) fabletools::autolayer(
                 test.forecasts %>%
                   dplyr::filter(.model == sel_model_name) %>%
                   dplyr::select(-dplyr::any_of("samples")),

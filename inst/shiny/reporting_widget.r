@@ -1379,18 +1379,18 @@ reporting_widget_server <- function(
             #                     )  +
             ylim(0, NA) +
             scale_color_manual(
-              values = c('All' = 'black', 'Selected' = 'brown')
+              values = c('All' = 'black', 'Champion' = 'brown')
             ) +
-            scale_fill_manual(values = c('All' = 'black', 'Selected' = 'brown'))
+            scale_fill_manual(values = c('All' = 'black', 'Champion' = 'brown'))
 
           if (!is.null(reportingSelectedOUs())) {
             cat('\n - g + selected facilities ')
             g = g +
-              # geom_col(  data = x.months() %>% mutate( facilities = 'Selected' )  )
+              # geom_col(  data = x.months() %>% mutate( facilities = 'Champion' )  )
               geom_point(
-                data = x.months() %>% mutate(facilities = 'Selected')
+                data = x.months() %>% mutate(facilities = 'Champion')
               ) +
-              geom_line(data = x.months() %>% mutate(facilities = 'Selected'))
+              geom_line(data = x.months() %>% mutate(facilities = 'Champion'))
           }
 
           # return( shift_legend3(g) )

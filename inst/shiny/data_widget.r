@@ -60,7 +60,7 @@ data_widget_ui = function(id) {
       style = "overflow-y: auto; font-size: 66%; width: 100%"
     ),
 
-    checkboxInput(ns("rescan"), "Rescan dataset for analysis"),
+    actionButton(ns("rescan"), "Rescan dataset (optional)", class = "btn-warning btn-sm"),
 
     br()
   )
@@ -78,6 +78,11 @@ data_widget_server <- function(
   moduleServer(
     id,
     function(input, output, session) {
+      # Rescan state: holds reconstructed+processed data until scan saves the file
+      rescan_val <- reactiveVal(NULL)
+      # Incremented by cleaning_widget after saving; dataset() depends on it
+      scan_done_counter <- reactiveVal(0L)
+
       # Reactive dependecies
       data.folder = reactive({
         directory_widget_output$directory()
@@ -357,9 +362,87 @@ data_widget_server <- function(
         return(file)
       })
 
+      # Rescan button: reconstruct raw format → data_1() → store in rescan_val()
+      # ignoreInit = TRUE prevents firing on app open (button counter starts at 0)
+      observeEvent(input$rescan, {
+        req(dataset())
+        req(formula_elements())
+        req(ousTree())
+
+        cat('\n* data_widget rescan button clicked')
+
+        if (!'original' %in% names(dataset())) {
+          showModal(modalDialog(
+            title = "Cannot rescan: no 'original' column found in dataset",
+            easyClose = TRUE, size = 's',
+            footer = '(click anywhere to continue)'
+          ))
+          return()
+        }
+
+        # Reset any previously cached rescan result
+        rescan_val(NULL)
+
+        showModal(modalDialog(
+          title = "Preparing raw data for rescan.  Just a moment...",
+          easyClose = TRUE, size = 's',
+          footer = '(click anywhere to continue)'
+        ))
+
+        idx_var <- if ('Month' %in% names(dataset())) 'Month' else 'Week'
+        data = dataset() %>%
+          as_tibble() %>%
+          ungroup() %>%
+          mutate(
+            dataElement = sub("_.*$", "", data.id),
+            categoryOptionCombo = ifelse(
+              grepl("_", data.id),
+              sub("^[^_]*_", "", data.id),
+              NA_character_
+            ),
+            period = if (idx_var == 'Month')
+              format(as.Date(Month), "%Y%m")
+            else
+              format(Week, "%YW%V"),
+            COUNT = 1L,
+            SUM   = original
+          ) %>%
+          select(dataElement, categoryOptionCombo, orgUnit, period, COUNT, SUM) %>%
+          mutate(COUNT = as.integer(COUNT), SUM = as.numeric(SUM)) %>%
+          mutate_all(as.character)
+
+        d1 = data_1(
+          data,
+          formula_elements = formula_elements(),
+          dataSets         = dataSets(),
+          dataElements     = dataElements(),
+          categories       = categories(),
+          ousTree          = ousTree()
+        )
+
+        cat('\n - rescan data_1 done:', nrow(d1), 'rows')
+        removeModal()
+
+        if (!is.data.table(d1)) setDT(d1)
+        rescan_val(d1)
+
+      }, ignoreInit = TRUE)
+
+      # When scan_done_counter increments (set by cleaning_widget after saving),
+      # clear rescan_val so dataset() re-reads from file on next access.
+      observeEvent(scan_done_counter(), {
+        if (scan_done_counter() > 0L) {
+          cat('\n* data_widget scan_done_counter incremented — clearing rescan_val')
+          rescan_val(NULL)
+        }
+      }, ignoreInit = TRUE)
+
       dataset = reactive({
         # req( input$dataset ) # file name from data_widget (on Dictionary tab)
         cat('\n* data_widget  dataset():')
+
+        # Depend on scan_done_counter so dataset() re-reads after scan saves file
+        scan_done_counter()
 
         req(input$dataset)
 
@@ -395,12 +478,14 @@ data_widget_server <- function(
         req(ousTree())
         cat('\n* data_widget data1')
 
-        # Testing
-        # saveRDS( dataset() , 'dataset.rds' )
-        # saveRDS( formula_elements() , 'formula_elements.rds' )
-        # saveRDS( ousTree() , 'ousTree.rds' )
-
         cat('\n -  data_widget data1() class( dataset() )', class(dataset()))
+
+        # If rescan button was clicked, rescan_val() holds the processed result —
+        # use it directly without re-running data_1().
+        if (!is.null(rescan_val())) {
+          cat('\n -- data1 using rescan_val()')
+          return(rescan_val())
+        }
 
         # A valid file is either:
         #   (a) a raw download — has COUNT and SUM (needs data_1() processing), or
@@ -422,7 +507,7 @@ data_widget_server <- function(
           return()
         }
 
-        if (!'effectiveLeaf' %in% names(dataset()) | input$rescan) {
+        if (!is_processed) {
           showModal(
             modalDialog(
               title = "Preparing raw data for analysis.  Just a moment...",
@@ -432,30 +517,9 @@ data_widget_server <- function(
             )
           )
 
-          cat('\n -- preparing data1')
+          cat('\n -- preparing data1 from raw download')
 
-          if (input$rescan && 'dataElement.id' %in% names(dataset())) {
-            # revert to original download columns before re-preparing
-            data = dataset() %>%
-              as_tibble %>%
-              ungroup %>%
-              select(
-                dataElement.id,
-                categoryOptionCombo.ids,
-                orgUnit,
-                period,
-                COUNT,
-                SUM
-              ) %>%
-              rename(
-                dataElement = dataElement.id,
-                categoryOptionCombo = categoryOptionCombo.ids
-              ) %>%
-              mutate(COUNT = round(COUNT, 0), SUM = round(SUM, 0)) %>%
-              mutate_all(as.character)
-          } else {
-            data = dataset()
-          }
+          data = dataset()
 
           if ('categoryOptionCombo.ids' %in% names(data)) {
             data = data %>%
@@ -475,10 +539,6 @@ data_widget_server <- function(
               rename(dataElement = dataElement.id)
           }
 
-          # data = data %>%
-          #   select( dataElement, categoryOptionCombo, period, orgUnit, COUNT, SUM )
-
-          # d1 = data_1( data , formula_elements() , ousTree()  )
           d1 = data_1(
             data,
             formula_elements = formula_elements(),
@@ -491,49 +551,22 @@ data_widget_server <- function(
           cat('\n - data1 names:', names(d1))
           cat('\n - data1 rows:', nrow(d1))
 
-          #Testing
-          # saveRDS( d1, 'd1.rds', compress = FALSE )
-
           removeModal()
-
-          #### April 2024 - since file will be saved after outlier scan, no need to save here
-
-          # showModal(
-          #   modalDialog( title = 'Saving prepared data....',
-          #                easyClose = TRUE ,
-          #                size = 's' ,
-          #                footer= '(click anywhere to continue)'
-          #                )
-          #   )
-          #
-          #
-          # # Save prepared file
-          # cat('\n - saving prepared file'  )
-          # saveRDS( d1, file = dataset.file() , compress = FALSE )
-          # removeModal()
         } else {
           cat('\n -- data1 already prepared')
-          d1 = dataset()
+          # as.data.frame() forces a copy so the subsequent setDT() does not
+          # mutate the reactive's cached object in-place via data.table reference
+          # semantics (which would corrupt dataset() on the next call).
+          d1 = as.data.frame(dataset())
         }
 
-        # Testing
-        # saveRDS( data1 , 'data1.rds' )
         cat('\n - d1 class:', class(d1))
 
         # Add value column if missing (now added in data_1 function)
         if (!'value' %in% names(d1)) {
           cat('\n - data_widget adding value column')
           d1 = d1 %>% mutate(value = !is.na(SUM))
-          # data1 = setDT( data1 )[ , value := !is.na( SUM ) ]
         }
-
-        # removeModal()
-
-        # keyvars = key_vars( dataset() )
-        # indexvars = index2_var( dataset() )
-        # cat( '\n - dataset() index and keyvars:\n  -- ' , indexvars , "\n  -- " , keyvars )
-        #
-        # d1 = as_tsibble( d1, index = {{ indexvars }} , key = {{ keyvars }} )
 
         # Convert to data.table once here so all downstream consumers
         # (d(), cleanedData, selectedData, etc.) skip individual conversions.
@@ -577,7 +610,8 @@ data_widget_server <- function(
           input$dataset
         }),
         dataset = dataset,
-        data1 = data1
+        data1 = data1,
+        scan_done_counter = scan_done_counter
         # dt1 = dt1
       ))
     }

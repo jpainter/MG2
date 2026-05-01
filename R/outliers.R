@@ -166,7 +166,10 @@ mad_outliers <- function(d,
                          .threshold      = 50,
                          key_entry_errors = NULL,
                          progress        = TRUE) {
-  if (is.null(.total)) .total <- tsibble::n_keys(d)
+  if (is.null(.total)) {
+    .total <- if (tsibble::is_tsibble(d)) tsibble::n_keys(d) else
+      data.table::uniqueN(data.table::as.data.table(d), by = c("orgUnit", "data.id"))
+  }
 
   # Initialise time-throttled progress state for this scan
   .mg2_scan_state$n      <- 0L
@@ -197,8 +200,13 @@ mad_outliers <- function(d,
 
   # ── data.table fast path ─────────────────────────────────────────────────
   if (requireNamespace("data.table", quietly = TRUE)) {
-    key_vars <- tsibble::key_vars(d)
-    idx_var  <- tsibble::index_var(d)
+    if (tsibble::is_tsibble(d)) {
+      key_vars <- tsibble::key_vars(d)
+      idx_var  <- tsibble::index_var(d)
+    } else {
+      key_vars <- c("orgUnit", "data.id")
+      idx_var  <- if ("Month" %in% names(d)) "Month" else "Week"
+    }
     dt       <- data.table::as.data.table(tibble::as_tibble(d))
 
     # Row-level (no grouping): .max cap, key_entry_error, over_max
@@ -360,9 +368,17 @@ seasonal_outliers <- function(d,
                               progress       = FALSE,
                               shiny_progress = FALSE) {
 
-  if (is.null(.total)) .total <- tsibble::n_keys(d)
-  key_vars <- tsibble::key_vars(d)
-  idx_var  <- tsibble::index_var(d)
+  if (is.null(.total)) {
+    .total <- if (tsibble::is_tsibble(d)) tsibble::n_keys(d) else
+      data.table::uniqueN(data.table::as.data.table(d), by = c("orgUnit", "data.id"))
+  }
+  if (tsibble::is_tsibble(d)) {
+    key_vars <- tsibble::key_vars(d)
+    idx_var  <- tsibble::index_var(d)
+  } else {
+    key_vars <- c("orgUnit", "data.id")
+    idx_var  <- if ("Month" %in% names(d)) "Month" else "Week"
+  }
 
   # Determine whether parallel execution is available
   use_parallel <- .total > 1L &&

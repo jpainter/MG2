@@ -437,7 +437,10 @@ cleaning_widget_server <- function(
       observeEvent(data1(), {
         # req( outlierData$df_data )
         # req( data1() )
-        req(!is.null(current_tab) && current_tab() == "Outliers")
+        # No tab guard here: the scan should trigger automatically whenever
+        # data1() changes to data without mad15 flags — whether the user is on
+        # the Outliers tab or the Data tab (rescan checkbox).  The withProgress
+        # modal makes the scan visible on any tab.
         cat(
           '\n* cleaning_widget observeEvent determineExtremeValues.  searchForMAD():',
           searchForMAD()
@@ -540,7 +543,10 @@ cleaning_widget_server <- function(
           cat('\n - scanning for MAD outliers')
 
           .threshold <- 50
-          .total     <- tsibble::n_keys(d)
+          .total     <- if (tsibble::is_tsibble(d))
+            tsibble::n_keys(d)
+          else
+            data.table::uniqueN(data.table::as.data.table(d), by = c("orgUnit", "data.id"))
 
           withProgress(
             message = sprintf("Scanning %d series for extreme values (MAD)...", .total),
@@ -581,6 +587,15 @@ cleaning_widget_server <- function(
           cat('\n - names(data1.seasonal):', names(data1.seasonal))
 
           saveRDS(data1.seasonal, paste0(data.folder(), dataset.file()))
+
+          # Signal data_widget to re-read the saved file (clears rescan_val so
+          # dataset() picks up the freshly-scanned file on next access)
+          if (!is.null(data_widget_output$scan_done_counter)) {
+            data_widget_output$scan_done_counter(
+              data_widget_output$scan_done_counter() + 1L
+            )
+          }
+
           removeModal()
         } # end if scan for mad
         return(data1.seasonal)
