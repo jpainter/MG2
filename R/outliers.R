@@ -195,6 +195,84 @@ mad_outliers <- function(d,
     if (rlang::is_empty(key_entry_errors)) key_entry_errors <- NA
   }
 
+  # ── data.table fast path ─────────────────────────────────────────────────
+  if (requireNamespace("data.table", quietly = TRUE)) {
+    key_vars <- tsibble::key_vars(d)
+    idx_var  <- tsibble::index_var(d)
+    dt       <- data.table::as.data.table(tibble::as_tibble(d))
+
+    # Row-level (no grouping): .max cap, key_entry_error, over_max
+    dt[, .max := dplyr::if_else(
+      grepl("stock", data, ignore.case = TRUE) &
+        grepl("out|rupture", data, ignore.case = TRUE) &
+        effectiveLeaf,
+      31, NA_real_
+    )]
+
+    if (!all(is.na(key_entry_errors))) {
+      dt[, key_entry_error := dplyr::if_else(!is.na(original),
+                                              original %in% key_entry_errors, NA)]
+    } else {
+      dt[, key_entry_error := NA]
+    }
+
+    dt[, over_max := dplyr::if_else(!is.na(.max) & !is.na(original),
+                                    original > .max, NA)]
+
+    # Group-level: AllSmall (scalar per group, broadcast to rows)
+    dt[, AllSmall := !is.null(.threshold) &&
+         all(is.na(original) | original <= .threshold),
+       by = key_vars]
+
+    # Row-level: not_key_or_over_under (uses AllSmall already set above)
+    dt[, not_key_or_over_under := dplyr::if_else(
+      (is.na(over_max) | !over_max) &
+        (is.na(key_entry_error) | !key_entry_error) &
+        !AllSmall,
+      original, NA_real_
+    )]
+
+    # Group-level: MAD outlier flags via extremely_mad()
+    dt[, mad15 := extremely_mad(
+      not_key_or_over_under,
+      deviation       = 15,
+      smallThreshold  = .threshold,
+      key_entry_error = key_entry_error,
+      over_max        = over_max,
+      maximum_allowed = .max,
+      logical         = TRUE,
+      .progress       = progress,
+      total           = .total
+    ), by = key_vars]
+
+    dt[, mad10 := extremely_mad(
+      not_key_or_over_under,
+      deviation       = 10,
+      smallThreshold  = .threshold,
+      maximum_allowed = .max,
+      logical         = TRUE,
+      .progress       = FALSE
+    ), by = key_vars]
+
+    dt[, mad5 := extremely_mad(
+      not_key_or_over_under,
+      deviation       = 5,
+      smallThreshold  = .threshold,
+      maximum_allowed = .max,
+      logical         = TRUE,
+      .progress       = FALSE
+    ), by = key_vars]
+
+    m_o <- tsibble::as_tsibble(
+      tibble::as_tibble(dt),
+      key   = dplyr::all_of(key_vars),
+      index = dplyr::all_of(idx_var)
+    )
+
+    return(m_o)
+  }
+
+  # ── Fallback: original tsibble grouped-mutate path ────────────────────────
   m_o <- d |>
     tsibble::group_by_key() |>
     dplyr::mutate(
