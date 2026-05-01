@@ -196,7 +196,18 @@ cleaning_widget_ui = function(id) {
           )
         )
       ),
-      tabPanel("Data View", DTOutput(ns("contents")))
+      tabPanel(
+        "Data View",
+        div(
+          style = "padding: 6px 12px 2px 12px;",
+          tags$small(style = "color:#555;",
+            "Flagged values only — sorted by champion facilities first, then ratio (value ÷ median) descending. ",
+            "Click a row to view the full time series for that facility and indicator."
+          )
+        ),
+        DT::DTOutput(ns("flagged_dt")),
+        plotly::plotlyOutput(ns("drill_chart"), height = "380px")
+      )
 
       # tabPanel( "Summary (under construction)",
       #                 html("<div style='display:flex;'>") ,
@@ -836,22 +847,232 @@ cleaning_widget_server <- function(
         # }
       })
 
-      # output$contents <- renderTable({
-      #   cat('\n* contents')
-      #   req( outlier.dataset() )
-      #   head( outlier.dataset() , n = 100 )
-      # })
+      # ── Data View: flagged values table + drill-down chart ──────────────────
 
-      output$contents <- DT::renderDT({
-        cat('\n* contents')
-        req(outlierData$df_data)
+      flagged_table_data = reactive({
+        req(outlier.dataset())
+        req(levelNames())
+
+        d_full = as.data.table(outlier.dataset())
+
+        flag_cols = intersect(
+          c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3"),
+          names(d_full)
+        )
+        if (length(flag_cols) == 0) return(NULL)
+
+        # Any-flag and per-series stats computed on the full filtered dataset
+        d_full[, any_flag := Reduce(`|`, lapply(.SD, function(x) !is.na(x) & x == TRUE)),
+               .SDcols = flag_cols]
+        d_full[, series_median   := median(original, na.rm = TRUE), by = .(orgUnit, data.id)]
+        d_full[, flags_in_series := sum(any_flag,   na.rm = TRUE),  by = .(orgUnit, data.id)]
+
+        flagged = d_full[any_flag == TRUE]
+        if (nrow(flagged) == 0) return(NULL)
+
+        # Ratio: original ÷ series median
+        flagged[, ratio := ifelse(
+          !is.na(series_median) & series_median > 0,
+          round(original / series_median, 1),
+          NA_real_
+        )]
+
+        # Most-severe flag present in priority order
+        fp = intersect(
+          c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3"),
+          names(flagged)
+        )
+        flag_mat = as.matrix(flagged[, ..fp])
+        flag_mat[is.na(flag_mat)] = FALSE
+        flagged[, flag_type := apply(flag_mat, 1, function(row) {
+          idx = which(row)
+          if (length(idx) == 0L) NA_character_ else fp[idx[1L]]
+        })]
+
+        # Champion indicator — safe: returns NULL if reactive fails/not yet computed
+        champion_ous = tryCatch(
+          reporting_widget_output$reportingSelectedOUs(),
+          error = function(e) NULL
+        )
+        flagged[, champion := orgUnit %in% champion_ous]
+
+        # Readable period label
+        period_col = if ("Month" %in% names(flagged)) "Month" else "Week"
+        flagged[, period_label := as.character(get(period_col))]
+
+        # Hierarchy columns for this country instance
+        lvl = levelNames()
+        hier_cols = intersect(lvl[seq(2, min(5L, length(lvl)))], names(flagged))
+
+        # Sort: champions first, then ratio descending
+        setorder(flagged, -champion, -ratio, na.last = TRUE)
+
+        # Build display frame; orgUnit + data.id kept but will be hidden in DT
+        display_cols = unique(c(
+          hier_cols, "orgUnitName", "data", "period_label",
+          "original", "series_median", "ratio",
+          "flag_type", "champion", "flags_in_series",
+          "orgUnit", "data.id"
+        ))
+        display_cols = intersect(display_cols, names(flagged))
+        as.data.frame(flagged[, ..display_cols])
+      })
+
+      output$flagged_dt = DT::renderDT({
+        req(flagged_table_data())
+        d         = flagged_table_data()
+        col_names = names(d)
+
+        # 0-indexed hidden columns (orgUnit, data.id are the last two)
+        hidden = which(col_names %in% c("orgUnit", "data.id")) - 1L
+        right  = which(col_names %in% c("original", "series_median", "ratio", "flags_in_series")) - 1L
+
+        # Human-readable column headers
+        labels = col_names
+        labels[labels == "orgUnitName"]     = "Facility"
+        labels[labels == "data"]            = "Indicator"
+        labels[labels == "period_label"]    = "Period"
+        labels[labels == "original"]        = "Value"
+        labels[labels == "series_median"]   = "Median"
+        labels[labels == "ratio"]           = "Ratio"
+        labels[labels == "flag_type"]       = "Flag"
+        labels[labels == "champion"]        = "Champion"
+        labels[labels == "flags_in_series"] = "# Flags"
 
         DT::datatable(
-          outlierData$df_data %>% select(-Month),
-          rownames = FALSE,
-          filter = 'top',
-          options = DToptions_no_buttons()
+          d,
+          rownames  = FALSE,
+          colnames  = labels,
+          selection = "single",
+          filter    = "top",
+          options   = list(
+            scrollY    = "42vh",
+            scrollX    = TRUE,
+            paging     = TRUE,
+            pageLength = 25,
+            lengthMenu = list(c(25L, 50L, 100L, -1L), list("25", "50", "100", "All")),
+            dom        = "ftip",
+            columnDefs = list(
+              list(visible = FALSE, targets = as.list(hidden)),
+              list(className = "dt-right", targets = as.list(right))
+            )
+          )
+        ) %>%
+          DT::formatRound(
+            columns = intersect(c("ratio", "series_median"), col_names),
+            digits  = 1
+          ) %>%
+          DT::formatStyle(
+            "champion",
+            target          = "row",
+            backgroundColor = DT::styleEqual(TRUE, "#f0fff4")
+          )
+      })
+
+      output$drill_chart = plotly::renderPlotly({
+        sel = input$flagged_dt_rows_selected
+        if (is.null(sel) || length(sel) == 0L) {
+          return(
+            plotly::plot_ly() %>%
+              plotly::layout(
+                title = list(
+                  text = "Select a row above to view the full time series",
+                  font = list(size = 13, color = "#888")
+                ),
+                xaxis = list(visible = FALSE),
+                yaxis = list(visible = FALSE)
+              )
+          )
+        }
+
+        req(data1())
+        tbl = flagged_table_data()
+        row = tbl[sel, , drop = FALSE]
+        ou  = row$orgUnit
+        di  = row$data.id
+
+        d_series = as.data.table(data1())[orgUnit == ou & data.id == di]
+        if (nrow(d_series) == 0L) return(plotly::plot_ly())
+
+        flag_cols = intersect(
+          c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3"),
+          names(d_series)
         )
+
+        period_col = if ("Month" %in% names(d_series)) "Month" else "Week"
+        d_series[, t := as.Date(get(period_col))]
+
+        if (length(flag_cols) > 0L) {
+          d_series[, any_flag := Reduce(`|`, lapply(.SD, function(x) !is.na(x) & x == TRUE)),
+                   .SDcols = flag_cols]
+          fm = as.matrix(d_series[, ..flag_cols])
+          fm[is.na(fm)] = FALSE
+          d_series[, flag_type := apply(fm, 1, function(row) {
+            idx = which(row)
+            if (length(idx) == 0L) "none" else flag_cols[idx[1L]]
+          })]
+        } else {
+          d_series[, any_flag  := FALSE]
+          d_series[, flag_type := "none"]
+        }
+
+        med_val = median(d_series$original, na.rm = TRUE)
+        d_series[, ratio := ifelse(
+          !is.na(med_val) & med_val > 0,
+          round(original / med_val, 1),
+          NA_real_
+        )]
+        d_series[, point_color := ifelse(any_flag, "Flagged", "OK")]
+        d_series[, tooltip := paste0(
+          as.character(get(period_col)),
+          "<br>Value: ", original,
+          "<br>Ratio: ", ratio,
+          "<br>Flag: ", flag_type
+        )]
+
+        # Median reference line values
+        med_line = data.frame(
+          t = range(d_series$t, na.rm = TRUE),
+          y = med_val
+        )
+
+        plotly::plot_ly() %>%
+          # Median reference line
+          plotly::add_lines(
+            data       = med_line,
+            x          = ~t, y = ~y,
+            line       = list(color = "steelblue", dash = "dot", width = 1),
+            name       = paste0("Median (", round(med_val, 1), ")"),
+            hoverinfo  = "skip"
+          ) %>%
+          # Series line
+          plotly::add_lines(
+            data       = d_series,
+            x          = ~t, y = ~original,
+            line       = list(color = "grey70", width = 1),
+            showlegend = FALSE,
+            hoverinfo  = "skip"
+          ) %>%
+          # Points coloured by flag status
+          plotly::add_markers(
+            data      = d_series,
+            x         = ~t, y = ~original,
+            color     = ~point_color,
+            colors    = c("OK" = "#2ecc71", "Flagged" = "#e74c3c"),
+            text      = ~tooltip,
+            hoverinfo = "text",
+            marker    = list(size = 8)
+          ) %>%
+          plotly::layout(
+            title  = list(
+              text = paste0(row$orgUnitName, " \u2014 ", row$data),
+              font = list(size = 13)
+            ),
+            xaxis  = list(title = ""),
+            yaxis  = list(title = "Value"),
+            legend = list(orientation = "h", x = 0, y = -0.2),
+            margin = list(t = 40)
+          )
       })
 
       output$profileSummary <- renderUI({
