@@ -287,3 +287,55 @@ get_date_part <- function(x) {
 #' @return Integer. Number of elements in common between `x` and `y`.
 #' @noRd
 intersect_length <- function(x, y) length(intersect(x, y))
+
+
+# Dependency checking ---------------------------------------------------------
+
+#' Check MG2 Runtime Dependencies
+#'
+#' Returns a list of messages describing the current R and package environment,
+#' flagging known incompatibilities. Intended for display on app startup.
+#'
+#' @return A list with elements `info` (character vector of informational lines)
+#'   and `warnings` (character vector of warning lines, empty if all OK).
+#' @export
+check_mg2_dependencies <- function() {
+  info  <- character(0)
+  warns <- character(0)
+
+  r_ver <- getRversion()
+  info  <- c(info, paste0("R ", r_ver))
+
+  if (r_ver < "4.2.0")
+    warns <- c(warns, paste0("R >= 4.2 required (running ", r_ver, ")"))
+
+  pkgs <- c("shiny", "bslib", "leaflet", "leaflet.providers", "sf",
+            "DT", "dplyr", "tsibble", "fable", "data.table")
+
+  for (p in pkgs) {
+    if (requireNamespace(p, quietly = TRUE)) {
+      v    <- as.character(utils::packageVersion(p))
+      info <- c(info, paste0(p, " ", v))
+    } else if (p == "leaflet.providers") {
+      warns <- c(warns,
+        "leaflet.providers not installed — only OpenStreetMap tiles available. ",
+        "Install with: install.packages('leaflet.providers')")
+    }
+  }
+
+  known_issues <- list(
+    list(pkg = "bslib",   min = "0.9.0",
+         msg = "bslib >= 0.9.0 changed page_navbar() — use navbar_options() for bg colour."),
+    list(pkg = "leaflet", min = "2.2.0",
+         msg = "leaflet < 2.2 has sf polygon rendering bugs. Update with install.packages('leaflet').")
+  )
+  for (chk in known_issues) {
+    if (requireNamespace(chk$pkg, quietly = TRUE)) {
+      v <- utils::packageVersion(chk$pkg)
+      if (v < chk$min)
+        warns <- c(warns, chk$msg)
+    }
+  }
+
+  list(info = info, warnings = warns)
+}

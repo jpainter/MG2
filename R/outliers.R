@@ -136,7 +136,7 @@ unseasonal <- function(x,
 
   if (!logical) return(x.forecast)
 
-  MAD     <- mad(x, na.rm = TRUE)
+  MAD     <- stats::mad(x, na.rm = TRUE)
   outlier <- abs((x.forecast - x.ts) / MAD) >= deviation
 
   return(outlier)
@@ -406,8 +406,11 @@ seasonal_outliers <- function(d,
   }
 
   # Capture unseasonal() explicitly so furrr workers can find it regardless
-  # of whether the package was loaded via install or devtools::load_all()
+  # of whether the package was loaded via install or devtools::load_all().
+  # Strip the MG2 namespace environment so workers don't try to load the package;
+  # all calls inside unseasonal() use :: notation or are in base/stats.
   .unseasonal <- unseasonal
+  environment(.unseasonal) <- baseenv()
 
   # Per-series worker — closed over mad, .threshold, tests, .unseasonal
   .process_one <- function(s) {
@@ -433,10 +436,23 @@ seasonal_outliers <- function(d,
     on.exit(future::plan(old_plan), add = TRUE)
     future::plan(future::multisession, workers = n_workers)
 
+    # Explicitly list every global that .process_one needs so that furrr
+    # does NOT auto-detect the full closure chain (which would cause it to
+    # try loading the MG2 package on workers that only have it installed,
+    # not load_all()'d).  dplyr is added to packages for dplyr::if_else.
     results <- furrr::future_map(
       series_list,
       .process_one,
-      .options = furrr::furrr_options(seed = NULL, packages = "forecast")
+      .options = furrr::furrr_options(
+        seed     = NULL,
+        packages = c("forecast", "dplyr"),
+        globals  = list(
+          .unseasonal = .unseasonal,
+          mad         = mad,
+          .threshold  = .threshold,
+          tests       = tests
+        )
+      )
     )
 
     if (shiny_progress)

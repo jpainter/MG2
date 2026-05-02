@@ -51,7 +51,10 @@ evaluation_widget_ui = function(id) {
                     label = "Split data by:",
                     choices = 'None',
                     selected = 1
-                  )
+                  ),
+
+                  br(),
+                  uiOutput(ns("selected_elements_display"))
                 ),
 
                 tabPanel(
@@ -403,6 +406,46 @@ evaluation_widget_server <- function(
 
       formula_elements = reactive({
         data_widget_output$formula_elements()
+      })
+
+      # Read-only display of selected elements (with primary/secondary labels)
+      output$selected_elements_display <- renderUI({
+        sd <- tryCatch(selected_data(), error = function(e) NULL)
+        if (is.null(sd) || nrow(sd) == 0) return(NULL)
+        elems <- sort(unique(sd$data))
+        if (length(elems) == 0) return(NULL)
+
+        fe <- formula_elements()
+        secondary_elems <- character(0)
+        if (!is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe)) {
+          fe_exp <- tryCatch(
+            tidyr::separate_rows(fe, Categories, categoryOptionCombo.ids, sep = ";") %>%
+              dplyr::mutate(
+                data_name = dplyr::if_else(
+                  is.na(trimws(Categories)) | !nzchar(trimws(Categories)),
+                  dataElement, paste(dataElement, trimws(Categories), sep = "_")
+                )
+              ),
+            error = function(e) NULL
+          )
+          if (!is.null(fe_exp))
+            secondary_elems <- fe_exp$data_name[fe_exp$role == "secondary"]
+        }
+
+        div(
+          style = "margin-top:8px; font-size:0.85em;",
+          tags$strong("Selected elements:"),
+          tags$ul(
+            style = "padding-left:16px; margin:4px 0 0 0;",
+            lapply(elems, function(e) {
+              tags$li(
+                e,
+                if (e %in% secondary_elems)
+                  tags$em(" (secondary)", style = "color:#999;")
+              )
+            })
+          )
+        )
       })
 
       orgUnits = reactive({

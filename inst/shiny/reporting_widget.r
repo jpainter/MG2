@@ -154,14 +154,18 @@ reporting_widget_ui = function(id) {
               )
             ),
 
-            h5(
-              "By default, facility counted as reporting if the selected data was reported"
+            p(
+              style = "font-size:0.9em; color:#444; margin-bottom:4px;",
+              "A facility is counted as reporting for a month when at least one checked element was submitted. ",
+              "The option below extends this to count a facility as reporting if any data were submitted — ",
+              "including secondary (unchecked) elements. ",
+              tags$em("See About for details.")
             ),
 
             checkboxInput(
               ns("count.any"),
-              label = 'Categorize facility as reporting if any data submitted, even when data not selected above',
-              value = FALSE
+              label = 'Count facility as reporting if any data submitted (including unchecked elements)',
+              value = TRUE
             )
 
             # ) # end inputPanel
@@ -571,21 +575,74 @@ reporting_widget_server <- function(
         )
       })
 
+      # Internal helper: build (primary_choices, secondary_choices) from formula_elements role info
+      .split_by_role <- function(choices, fe) {
+        if (is.null(fe) || nrow(fe) == 0 || !"role" %in% names(fe))
+          return(list(primary = choices, secondary = character(0)))
+
+        fe_exp <- tryCatch(
+          tidyr::separate_rows(fe, Categories, categoryOptionCombo.ids, sep = ";") %>%
+            dplyr::mutate(
+              Categories = trimws(Categories),
+              data_name  = dplyr::if_else(
+                is.na(Categories) | !nzchar(trimws(Categories)),
+                dataElement,
+                paste(dataElement, trimws(Categories), sep = "_")
+              )
+            ) %>%
+            dplyr::select(data_name, role) %>%
+            dplyr::distinct(data_name, .keep_all = TRUE),
+          error = function(e) NULL
+        )
+        if (is.null(fe_exp)) return(list(primary = choices, secondary = character(0)))
+
+        role_map  <- setNames(fe_exp$role, fe_exp$data_name)
+        secondary <- choices[!is.na(role_map[choices]) & role_map[choices] == "secondary"]
+        primary   <- setdiff(choices, secondary)
+        list(primary = primary, secondary = secondary)
+      }
+
+      .make_choice_names <- function(choices, secondary) {
+        lapply(choices, function(ch) {
+          if (ch %in% secondary)
+            tags$span(ch, tags$em(" (secondary)", style = "color:#999; font-size:0.85em;"))
+          else
+            ch
+        })
+      }
+
+      .update_data_categories <- function(all_choices, fe) {
+        roles <- .split_by_role(all_choices, fe)
+        updateCheckboxGroupInput(
+          session, 'data_categories',
+          choiceNames  = .make_choice_names(all_choices, roles$secondary),
+          choiceValues = all_choices,
+          selected     = roles$primary
+        )
+        selected_data_categories$elements <- roles$primary
+        if (length(roles$secondary) > 0) {
+          updateCheckboxInput(session, 'count.any', value = TRUE)
+          showNotification(
+            paste0(length(roles$secondary),
+                   " secondary element(s) detected — 'Count any report' enabled automatically."),
+            type = "message", duration = 5
+          )
+        }
+      }
+
       observeEvent('data' %in% names(data1()), {
         req(data1()$data)
-        cat('\n* updating data_categories to all')
-
-        updateCheckboxGroupInput(
-          session,
-          'data_categories',
-          choices = sort(unique(data1()$data)),
-          selected = sort(unique(data1()$data))
-        )
-
-        selected_data_categories$elements = sort(unique(data1()$data))
-
+        cat('\n* updating data_categories with primary/secondary distinction')
+        .update_data_categories(sort(unique(data1()$data)), formula_elements())
         cat('\n - done')
       })
+
+      observeEvent(formula_elements(), {
+        req(data1()$data)
+        req(formula_elements())
+        cat('\n* reporting_widget: formula_elements changed, refreshing data_categories')
+        .update_data_categories(sort(unique(data1()$data)), formula_elements())
+      }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
       observeEvent(input$select_all_categories, {
         req(data1()$data)
@@ -2097,9 +2154,20 @@ reporting_widget_server <- function(
         )
 
         cat("\n - champion column:")
-        champion_facilities = gf %>%
-          filter(st_geometry_type(.) == 'POINT') %>%
-          filter(!st_is_empty(.)) %>%
+        # Try POINT features first; if none exist (facilities stored as polygons)
+        # fall back to the lowest-level features using their polygon centroids.
+        facilities_sf <- gf %>% filter(st_geometry_type(.) == 'POINT') %>%
+          filter(!st_is_empty(.))
+
+        if (nrow(facilities_sf) == 0) {
+          cat("\n - no POINT features; using lowest-level polygon centroids")
+          lowest_level <- max(gf$level, na.rm = TRUE)
+          facilities_sf <- gf %>%
+            filter(level == lowest_level, !st_is_empty(.)) %>%
+            sf::st_centroid()
+        }
+
+        champion_facilities = facilities_sf %>%
           mutate(
             champion = ifelse(
               id %in% sou,
@@ -2211,24 +2279,14 @@ reporting_widget_server <- function(
         cat("\n - base.map")
         base.map =
           leaflet() %>%
-          addTiles(group = "OSM (default)") %>%
-          addProviderTiles(providers$Stamen.Toner, group = "Toner") %>%
-          addProviderTiles(providers$Stamen.TonerLite, group = "Toner Lite") %>%
-          addProviderTiles("Stamen.Terrain", group = "Stamen.Terrain") %>%
-          addProviderTiles(
-            "Esri.WorldStreetMap",
-            group = "Esri.WorldStreetMap"
-          ) %>%
-          addProviderTiles("Esri.WorldImagery", group = "Esri.WorldImagery") %>%
-          addTiles(
-            group = "No Background",
-            options = providerTileOptions(opacity = 0)
-          )
+          addTiles(group = "OpenStreetMap") %>%
+          addTiles(group = "No Background", options = providerTileOptions(opacity = 0))
 
+        admins_wgs84 <- sf::st_transform(admins, crs = 4326)
         for (i in seq_along(admin.levels)) {
           base.map = base.map %>%
             addPolygons(
-              data = admins %>% filter(levelName == admin.levels[i]),
+              data = admins_wgs84 %>% filter(levelName == admin.levels[i]),
               group = admin.levels[i],
               label = ~ paste(
                 name,
@@ -2253,15 +2311,7 @@ reporting_widget_server <- function(
         base.map = base.map %>%
           # Layers control
           addLayersControl(
-            baseGroups = c(
-              "OSM (default)",
-              "Toner",
-              "Toner Lite",
-              "Stamen.Terrain",
-              "Esri.WorldStreetMap",
-              "Esri.WorldImagery",
-              "No Background"
-            ),
+            baseGroups = c("OpenStreetMap", "No Background"),
             overlayGroups = c(admin.levels, "Facility"),
             options = layersControlOptions(collapsed = TRUE)
           )
@@ -2273,6 +2323,9 @@ reporting_widget_server <- function(
         cat("\n * reporting_widget: facility map")
         gf = geoFeatures()
         facilities = champion_facilities()
+        cat("\n - facilities nrow:", nrow(facilities),
+            " POINT rows:", sum(sf::st_geometry_type(facilities) == "POINT", na.rm = TRUE),
+            " medianValue non-NA:", sum(!is.na(facilities$medianValue)))
         avgValues = avgValues()
         base.map = base.map()
 
@@ -2286,44 +2339,33 @@ reporting_widget_server <- function(
 
         factpal <- colorFactor(c("red4", "grey20"), facilities$champion)
 
-        cat('\n - symbols')
-
-        symbols <- makeSymbolsSize(
-          # values = ifelse( is.na( facilities$medianValueRangeSize ), 0, facilities$medianValueRangeSize )  ,
-          values = ifelse(
-            is.na(facilities$medianValue),
-            0,
-            facilities$medianValue
-          ),
-          shape = 'circle',
-          color = factpal(facilities$champion),
-          fillColor = factpal(facilities$champion),
-          fillOpacity = .8,
-          baseSize = .5
-        )
-
         cat('\n - add markers')
+
+        # Scale radius by median value; floor at 4px so markers are always visible
+        radius_vals <- ifelse(
+          is.na(facilities$medianValue) | facilities$medianValue == 0,
+          4,
+          pmax(4, pmin(20, log1p(facilities$medianValue)))
+        )
 
         gf.map = base.map %>%
 
-          #   addCircleMarkers( data = facilities , group = "Facility" ,
-          #     radius = ~ medianValueRangeSize  ,
-          #     fillColor = ~ factpal( champion )  ,
-          #     stroke = FALSE, fillOpacity = .9
-          # )
-
-          addMarkers(data = facilities, icon = symbols, group = "Reporting") %>%
+          addCircleMarkers(
+            lng         = sf::st_coordinates(facilities)[, 1],
+            lat         = sf::st_coordinates(facilities)[, 2],
+            group       = "Reporting",
+            radius      = radius_vals,
+            fillColor   = factpal(facilities$champion),
+            color       = factpal(facilities$champion),
+            stroke      = TRUE,
+            weight      = 1,
+            fillOpacity = 0.8,
+            opacity     = 1,
+            label       = paste0(facilities$name, " (", facilities$champion, ")")
+          ) %>%
 
           addLayersControl(
-            baseGroups = c(
-              "OSM (default)",
-              "Toner",
-              "Toner Lite",
-              "Stamen.Terrain",
-              "Esri.WorldStreetMap",
-              "Esri.WorldImagery",
-              "No Background"
-            ),
+            baseGroups = c("OpenStreetMap", "No Background"),
             overlayGroups = c(admin.levels, "Reporting"),
             options = layersControlOptions(collapsed = TRUE)
           )
@@ -2333,31 +2375,21 @@ reporting_widget_server <- function(
         cat('\n - add legend')
 
         gf.map = gf.map %>%
-
-          addLegendSize(
-            # values = ifelse( is.na( facilities$medianValueRangeSize ), 0, facilities$medianValueRangeSize )    ,
-            values = ifelse(
-              is.na(facilities$medianValue),
-              0,
-              facilities$medianValue
-            ),
-            color = 'black',
-            fillColor = 'black',
-            opacity = .5,
-            title = 'Median Value',
-            shape = 'circle',
-            # orientation = 'horizontal',
-            breaks = 4,
-            baseSize = .5
-          ) %>%
-
           addLegend(
             "bottomright",
-            values = facilities$champion,
-            pal = factpal,
-            title = 'Reporting Consistency',
-            opacity = .5
+            values  = facilities$champion,
+            pal     = factpal,
+            title   = 'Reporting Consistency',
+            opacity = 0.8
           )
+
+        # Zoom to facility bounding box so markers are visible on load
+        fac_bbox <- tryCatch(sf::st_bbox(facilities), error = function(e) NULL)
+        if (!is.null(fac_bbox)) {
+          gf.map <- gf.map %>%
+            fitBounds(lng1 = unname(fac_bbox["xmin"]), lat1 = unname(fac_bbox["ymin"]),
+                      lng2 = unname(fac_bbox["xmax"]), lat2 = unname(fac_bbox["ymax"]))
+        }
 
         #   options = popupOptions(closeButton = FALSE)
 
@@ -2413,7 +2445,8 @@ reporting_widget_server <- function(
           num_facilities = num_facilities,
           selected_data = reactive({ cached_selected_data$value }),
           caption.text = caption.text,
-          reportingSelectedOUs = reportingSelectedOUs
+          reportingSelectedOUs = reportingSelectedOUs,
+          selected_data_categories = reactive({ selected_data_categories$elements })
         )
       )
     }

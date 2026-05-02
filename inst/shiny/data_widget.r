@@ -245,6 +245,11 @@ data_widget_server <- function(
           cat('\n - reading formula elements from formula rds file', file)
           formulas = readRDS(file)
         }
+
+        # Legacy files without a role column: treat all elements as primary
+        if (!"role" %in% names(formulas)) formulas[["role"]] <- "primary"
+
+        formulas
       })
 
       formula_elements = reactive({

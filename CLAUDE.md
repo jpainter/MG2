@@ -671,6 +671,78 @@ Reporting → Outliers → Evaluation pipeline.
 
 ---
 
+---
+
+### Primary/Secondary Elements, DQA Consistency, and Map Fixes (2026-05-02)
+
+**Status:** ✅ Complete
+
+#### Formula: Primary/Secondary element roles
+
+- `inst/shiny/data_widget.r`: `all_formula_elements()` adds `role = "primary"` fallback for legacy xlsx files lacking the column
+- `inst/shiny/formula_widget.r`:
+  - `role` column persisted to xlsx; defaults to `"primary"` on load and when adding new elements
+  - **"Check for Related Elements"** button: scans validation rules for UIDs linked to formula elements → modal with checkboxGroupInput → selected elements added as `"secondary"`
+  - Review table DT: editable `role` column (green = primary, orange = secondary); force-expands when related elements are added
+  - `Formula.Name` column hidden from display (kept internally for save logic)
+  - `role` moves to first column; elements sorted by role → dataElement → Categories
+  - **Save bug fixed:** `selectedElementNames()` (which required a browse-table row selection) replaced by `.formula_string_from_df()` that builds the formula string from `updated_formula_elements$df` directly
+  - **Delete Formula**, **Rename Formula**, **Rename File** buttons with confirmation modals
+  - Rename Formula: offers to rename matching `.rds` dataset files with a second confirmation modal
+  - `Rows in dataset` column: joined from `data1()` counts per element-category when a dataset is loaded
+- `R/combine_functions.R`: combined datasets default all elements to `role = "primary"`
+
+#### Selector consistency across tabs
+
+- `inst/shiny/reporting_widget.r`:
+  - `data_categories` checkboxes split by role: primary pre-checked, secondary unchecked with `(secondary)` label
+  - Auto-checks `count.any` with notification when secondary elements detected
+  - Re-initialises when formula changes; exported `selected_data_categories` reactive to return list
+  - `count.any` UI default changed to `TRUE`
+  - Label text updated to explain primary/secondary reporting logic
+- `inst/shiny/cleaning_widget.r`:
+  - Element selector populated from `data1()` (not `selected_data()`) so all elements — including secondary — are visible
+  - Primary pre-checked, secondary unchecked; **mismatch warning banner** if outlier-tab element is not checked in reporting
+- `inst/shiny/evaluation_widget_2.R`: read-only element display panel in the Data sidebar (primary/secondary labels)
+
+#### DQA: element selector + Consistency tab
+
+- `inst/shiny/dqa_widget.R`: full rewrite — `sidebarLayout` with element selector (primary default); new **Consistency** tab
+- `R/dqa_functions.R`: new functions:
+  - `.extract_vr_uid_pairs`, `.vr_expr_to_r`, `.apply_vr_operator` — validation rule expression utilities
+  - `dqa_consistency()` — evaluates rules per facility × period; accepts `filter_data_ids` to restrict to selected elements; marks rules as `incomplete` when referenced elements are absent from formula
+  - `dqa_consistency_plot()` — annual % of rule evaluations passing (same style as other DQA charts)
+  - `dqa_consistency_table()` — per-rule summary with traffic-light % colouring
+  - `dqa_consistency_detail_rule()` — drilldown of failed facility-periods for one rule
+
+#### Bug fixes
+
+- `R/api_data_function_revision.R`:
+  - **Update download on processed file:** detected processed `.rds` files (have `Month`/`Week`, no `period`) and reconstructed raw `period`/`COUNT`/`SUM` format before the update merge
+  - **Character SUM:** `sum(as.numeric(SUM), ...)` in the period-comparison aggregation
+- `R/outliers.R` (`seasonal_outliers`):
+  - Seasonal outlier furrr workers no longer try to load MG2 package: explicit `globals = list(...)` in `furrr_options`; `environment(.unseasonal) <- baseenv()`; `mad()` → `stats::mad()`
+
+#### README / About tab
+
+- `README.md`: expanded Reporting section explaining primary/secondary elements and the two counting modes
+- `inst/shiny/reporting_widget.r`: updated label and checkbox text for `count.any`
+- `inst/shiny/about_widget.R`: added server component; live **Environment** panel shows R + key package versions; yellow warning panel for known compatibility issues
+- `R/utils.R`: `check_mg2_dependencies()` — checks R version and key package versions, returns info/warnings for startup notifications and About tab display
+
+#### Map fixes (bslib 0.9.0 + leaflet 2.2.x compatibility)
+
+- **Root cause:** leaflet-providers plugin JS (`L.tileLayer.provider`) fails with `module` error in newer leaflet 2.2.x; crashing all page JavaScript (no polygons, no DT tables, no Shiny UI updates)
+- **Fix:** removed all `addProviderTiles()` calls from `regions_widget.R` and `reporting_widget.r`; maps now use plain `addTiles()` (OpenStreetMap) only. Provider tiles return automatically once `install.packages("leaflet.providers")` is run — `check_mg2_dependencies()` warns if the package is absent
+- `inst/shiny/regions_widget.R`:
+  - `fillPage` → `tagList`; single-tab `tabsetPanel` removed (Bootstrap 5 / bslib 0.9.0 hid tab content)
+  - `inputPanel` → `div(style="display:flex...")` (Bootstrap 5 removed `well` CSS class)
+  - `geoFeatures.ous()` semi_join restored to original structure
+  - `fitBounds` added using `sf::st_bbox`; `names(level.colors)` tibble-subscript bug fixed
+- `inst/shiny/app.R`: startup call to `check_mg2_dependencies()`; CSS override for leaflet SVG overflow retained for safety
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module

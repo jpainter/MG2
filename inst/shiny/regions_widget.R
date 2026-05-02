@@ -3,69 +3,42 @@ regions_widget_ui = function(id) {
 
   tagList(
     shinybusy::add_busy_spinner(
-      spin = "fading-circle", # "self-building-square",
+      spin = "fading-circle",
       position = 'bottom-right'
-      # , margins = c(70, 1200)
     ),
 
-    fillPage(
-      tabsetPanel(
-        type = "tabs",
+    h5('Filter Data to Selected Regions/Org Units'),
 
-        tabPanel(
-          "Regions",
+    div(
+      style = "background:#f5f5f5; padding:10px; border-radius:4px; margin-bottom:10px; display:flex; flex-wrap:wrap; gap:10px;",
+      div(style = "min-width:160px; flex:1;",
+        selectInput(ns("level2"), label = "OrgUnit Level2",
+                    choices = NULL, selected = NULL, multiple = TRUE)
+      ),
+      div(style = "min-width:160px; flex:1;",
+        selectInput(ns("level3"), label = "OrgUnit Level3",
+                    choices = NULL, selected = NULL, multiple = TRUE)
+      ),
+      div(style = "min-width:160px; flex:1;",
+        selectInput(ns("level4"), label = "OrgUnit Level4",
+                    choices = NULL, selected = NULL, multiple = TRUE)
+      ),
+      div(style = "min-width:160px; flex:1;",
+        selectInput(ns("level5"), label = "OrgUnit Level5",
+                    choices = NULL, selected = NULL, multiple = TRUE)
+      )
+    ),
 
-          h5('Filter Data to Selected Regions/Org Units'),
-
-          inputPanel(
-            selectInput(
-              ns("level2"),
-              label = "OrgUnit Level2",
-              choices = NULL,
-              selected = NULL,
-              multiple = TRUE
-            ),
-
-            selectInput(
-              ns("level3"),
-              label = "OrgUnit Level3",
-              choices = NULL,
-              selected = NULL,
-              multiple = TRUE
-            ),
-
-            selectInput(
-              ns("level4"),
-              label = "OrgUnit Level4",
-              choices = NULL,
-              selected = NULL,
-              multiple = TRUE
-            ),
-
-            selectInput(
-              ns("level5"),
-              label = "OrgUnit Level5",
-              choices = NULL,
-              selected = NULL,
-              multiple = TRUE
-            )
-
-            # actionButton( ns('select_regions') , label = "Update orgUnits ")
-          ),
-
-          fluidRow(
-            column(
-              6, # Half-width column for the map
-              leafletOutput(ns("geoFeatures_map"), height = "60vh") # Adjust height dynamically
-            ),
-            column(
-              6, # Half-width column for the table
-              div(
-                style = "overflow-y: auto; height: 60vh;", # Adjust height to fit within the viewport
-                DTOutput(ns("geoFeaturesTable"))
-              )
-            )
-          )
+    fluidRow(
+      column(
+        6,
+        leafletOutput(ns("geoFeatures_map"), height = "60vh")
+      ),
+      column(
+        6,
+        div(
+          style = "overflow-y: auto; height: 60vh;",
+          DTOutput(ns("geoFeaturesTable"))
         )
       )
     )
@@ -171,11 +144,8 @@ regions_widget_server <- function(
       observe({
         req(input$level2)
         cat('\n* regions_widget updating level3')
-
         ls = orgUnits() %>% dplyr::filter(parent %in% input$level2) %>% pull(name)
-
         cat("\n - level3 update to:", paste(ls, collapse = ""))
-
         updateSelectInput(session, 'level3', choices = ls, selected = NULL)
       })
 
@@ -335,7 +305,6 @@ regions_widget_server <- function(
       gf.map = reactive({
         req(geoFeatures.ous())
 
-        # req( orgUnitLevels() )
         cat('\n * gf.map():')
 
         gf = geoFeatures.ous()
@@ -361,7 +330,7 @@ regions_widget_server <- function(
         )
         # print( paste( 'not_all_empty_geo: ', not_all_empty_geo ) )
 
-        n_levels = sum(not_all_empty_geo) # length(split_geofeatures) #
+        n_levels = sum(not_all_empty_geo)
 
         cat(
           paste(
@@ -374,48 +343,31 @@ regions_widget_server <- function(
           '\n'
         )
 
-        level.colors = RColorBrewer::brewer.pal(n_levels, 'Set2')
-        names(level.colors) = levels[not_all_empty_geo, 'levelName']
-
-        split_gf = split_geofeatures[not_all_empty_geo]
+        # level.colors / split_gf are kept for reference but not used in the
+        # addPolygons loop below — guard against brewer.pal(n < 3) error
+        level.colors <- tryCatch(
+          RColorBrewer::brewer.pal(max(3L, n_levels), 'Set2')[seq_len(n_levels)],
+          error = function(e) rep("#4393c3", n_levels)
+        )
+        # pull a plain character vector (not a tibble column)
+        names(level.colors) <- levels$levelName[not_all_empty_geo]
 
         admins = gf %>%
           dplyr::filter(st_geometry_type(.) != 'POINT') %>%
           dplyr::filter(!st_is_empty(.))
         admin.levels = admins$levelName %>% unique
 
+        bbox <- tryCatch(sf::st_bbox(gf), error = function(e) NULL)
+        cat('\n - bbox:', if (is.null(bbox)) 'NULL' else paste(round(bbox, 2), collapse = " "))
+
         gf.map =
-          leaflet(
-            options = leafletOptions(preferCanvas = TRUE, updateWhen = FALSE)
-          ) %>%
-          addProviderTiles(
-            "Esri.WorldStreetMap",
-            group = "Esri World Street Map"
-          ) %>%
-          addProviderTiles("Esri.WorldImagery", group = "Esri.WorldImagery") %>%
-          addProviderTiles("OpenStreetMap", group = "OpenStreetMap") %>%
-          addProviderTiles(providers$Stadia.StamenToner, group = "Toner") %>%
-          addTiles(
-            group = "No Background",
-            options = providerTileOptions(opacity = 0)
-          ) %>%
-
-          addMeasure(
-            position = "bottomleft",
-            primaryLengthUnit = "meters",
-            primaryAreaUnit = "sqmeters"
-          ) %>%
-
-          # Layers control
+          leaflet() %>%
+          addTiles(group = "OpenStreetMap") %>%
+          addTiles(group = "No Background", options = providerTileOptions(opacity = 0)) %>%
           addLayersControl(
-            baseGroups = c(
-              "Esri World Street Map",
-              "Esri.WorldImagery",
-              "OpenStreetMap",
-              "Toner"
-            ),
+            baseGroups    = c("OpenStreetMap", "No Background"),
             overlayGroups = c("Facility", rev(admin.levels)),
-            options = layersControlOptions(collapsed = FALSE)
+            options       = layersControlOptions(collapsed = FALSE)
           )
 
         for (i in rev(seq_along(admin.levels))) {
@@ -432,41 +384,29 @@ regions_widget_server <- function(
               fillOpacity = 0,
               fillColor = "lightblue",
               highlightOptions = highlightOptions(
-                color = "white",
-                weight = 2,
-                bringToFront = TRUE
+                color = "white", weight = 2, bringToFront = TRUE
               ),
-              labelOptions = labelOptions(
-                noHide = FALSE,
-                direction = "auto",
-                opacity = 1
-              )
+              labelOptions = labelOptions(noHide = FALSE, direction = "auto", opacity = 1)
             )
         }
 
-        # add points, if available
         gf.points = gf %>% dplyr::filter(st_geometry_type(.) == 'POINT')
-
         if (nrow(gf.points) > 0) {
           gf.map = gf.map %>%
             addCircleMarkers(
-              data = gf.points,
-              group = "Facility",
-              radius = 3,
-              color = "blue",
-              stroke = FALSE,
-              fillOpacity = .9,
-              label = ~name,
-              layerId = ~name,
-              labelOptions = labelOptions(
-                noHide = FALSE,
-                direction = "auto",
-                opacity = 1
-              )
+              data = gf.points, group = "Facility",
+              radius = 3, color = "blue", stroke = FALSE, fillOpacity = .9,
+              label = ~name, layerId = ~name,
+              labelOptions = labelOptions(noHide = FALSE, direction = "auto", opacity = 1)
             )
         }
 
-        #   options = popupOptions(closeButton = FALSE)
+        bbox <- tryCatch(sf::st_bbox(gf), error = function(e) NULL)
+        if (!is.null(bbox)) {
+          gf.map <- gf.map %>%
+            fitBounds(lng1 = unname(bbox["xmin"]), lat1 = unname(bbox["ymin"]),
+                      lng2 = unname(bbox["xmax"]), lat2 = unname(bbox["ymax"]))
+        }
 
         return(gf.map)
       })

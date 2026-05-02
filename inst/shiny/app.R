@@ -101,7 +101,10 @@ ui <- bslib::page_navbar(
     shinyjs::useShinyjs(),
     tags$head(tags$style(
       "body { min-width: 1100px; }
-       table.dataTable td { vertical-align: top !important; }"
+       table.dataTable td { vertical-align: top !important; }
+       .leaflet-container svg,
+       .leaflet-pane svg,
+       .leaflet-overlay-pane svg { overflow: visible !important; }"
     )),
     shinyWidgets::setBackgroundColor(color = "#F5F5F5")
   ),
@@ -162,6 +165,14 @@ ui <- bslib::page_navbar(
 # Server --------------------------------------------------------------------
 server <- function(input, output, session) {
   session$onSessionEnded(stopApp)
+
+  # Dependency check — show notifications for warnings on startup
+  local({
+    deps <- check_mg2_dependencies()
+    for (w in deps$warnings) {
+      showNotification(w, type = "warning", duration = 12)
+    }
+  })
 
   directory_widget_output <- directory_widget_server("directory1")
 
@@ -261,6 +272,8 @@ server <- function(input, output, session) {
     regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
   )
+
+  about_widget_server("about")
 }
 
 # Run -----------------------------------------------------------------------

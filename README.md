@@ -98,8 +98,27 @@ Assess three dimensions of data quality before proceeding to analysis.
 Identify facilities that report consistently and adjust analyses for reporting bias.
 
 - Facilities are classified by their reporting regularity over the selected time window.
-- The "champion facilities" subset — those reporting in every period — is used to compute bias-adjusted national totals.
+- The **"champion facilities"** subset — those reporting in every period — is used to compute bias-adjusted national totals.
 - Outputs include a reporting regularity table and adjusted trend charts.
+
+#### What counts as "reported"?
+
+A facility-month is counted as *reported* when it meets the selected criterion:
+
+| Criterion | When to use |
+|---|---|
+| **Any checked element submitted** (default) | Use when your selected data elements are the ones that define whether a facility reported — a month with at least one checked value counts. |
+| **Any data submitted** (enable "Count facility as reporting if any data submitted") | Use when your formula contains **secondary** elements that are present in the data but not the primary focus of the analysis. A facility-month is counted as reported if *any* data element was submitted, even one that is unchecked. |
+
+#### Primary and secondary elements
+
+Formula elements can be designated **primary** (the indicators you are analysing and counting toward totals) or **secondary** (supporting context elements — e.g. a denominator or a related indicator pulled in via a validation rule).
+
+- Only **primary** elements are checked by default in the element selector and counted in totals.
+- **Secondary** elements appear in the selector unchecked and can be included in the "any data" reporting check without inflating the primary total.
+- When secondary elements are detected, "Count facility as reporting if any data submitted" is enabled automatically.
+
+To assign roles, go to **Data → Formula → Review tab** and edit the `role` column (primary / secondary), or use the **Check for Related Elements** button to find elements linked via DHIS2 validation rules.
 
 ### 6. Outliers
 

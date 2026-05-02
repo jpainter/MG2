@@ -12,7 +12,7 @@ cleaning_widget_ui = function(id) {
       type = "tabs",
 
       tabPanel(
-        ns("Outliers"),
+        "Summary",
 
         sidebarLayout(
           sidebarPanel(
@@ -32,6 +32,8 @@ cleaning_widget_ui = function(id) {
                 width = "100%"
               )
             ),
+
+            uiOutput(ns("reporting_mismatch_warning")),
 
             selectInput(
               ns("selectOrgType"),
@@ -187,15 +189,6 @@ cleaning_widget_ui = function(id) {
         )
       ),
 
-      tabPanel(
-        "Select Regions-Facilities",
-
-        fluidPage(
-          fluidRow(
-            DTOutput(ns('ouErrorTable'))
-          )
-        )
-      ),
       tabPanel(
         "Data View",
         div(
@@ -356,13 +349,48 @@ cleaning_widget_server <- function(
 
       selected_data_cats = reactiveValues(elements = NULL)
 
+      reporting_selected = reactive({
+        tryCatch(
+          reporting_widget_output$selected_data_categories(),
+          error = function(e) NULL
+        )
+      })
+
       observeEvent(input$update_dataElement, {
         selected_data_cats$elements = input$dataElement
       })
 
+      output$reporting_mismatch_warning <- renderUI({
+        checked   <- selected_data_cats$elements
+        rep_elems <- reporting_selected()
+
+        if (is.null(checked) || length(checked) == 0) return(NULL)
+        if (is.null(rep_elems)) return(NULL)
+
+        missing <- setdiff(checked, rep_elems)
+        if (length(missing) == 0) return(NULL)
+
+        div(
+          style = paste0(
+            "background:#fff3cd; padding:7px 10px;",
+            " border-left:4px solid #ffc107; border-radius:3px;",
+            " margin-top:6px; font-size:0.85em;"
+          ),
+          tags$strong(style = "color:#856404;", "⚠ Not selected in Reporting:"),
+          tags$ul(
+            style = "margin:4px 0 0 0; padding-left:14px;",
+            lapply(missing, tags$li)
+          ),
+          tags$span(
+            style = "color:#856404;",
+            "These elements have no data flowing through — check them in the Reporting tab to include them."
+          )
+        )
+      })
+
       observeEvent(input$select_all_dataElement, {
-        req(selected_data()$data)
-        choices = sort(unique(selected_data()$data))
+        req(data1()$data)
+        choices = sort(unique(data1()$data))
         updateCheckboxGroupInput(
           session,
           "dataElement",
@@ -370,20 +398,59 @@ cleaning_widget_server <- function(
         )
       }, ignoreInit = TRUE)
 
-      # data names — populate from selected_data() so the list reflects only
-      # what the reporting widget has filtered/selected, not the full dataset
-      observeEvent(selected_data(), {
-        req(selected_data())
-        cat('\n* cleaning_widget observe selected_data()')
-
-        choices = sort(unique(selected_data()$data))
-        updateCheckboxGroupInput(
-          session,
-          "dataElement",
-          choices  = choices,
-          selected = choices
+      # Shared helpers (same pattern as reporting_widget)
+      .cleaning_split_by_role <- function(choices, fe) {
+        if (is.null(fe) || nrow(fe) == 0 || !"role" %in% names(fe))
+          return(list(primary = choices, secondary = character(0)))
+        fe_exp <- tryCatch(
+          tidyr::separate_rows(fe, Categories, categoryOptionCombo.ids, sep = ";") %>%
+            dplyr::mutate(
+              Categories = trimws(Categories),
+              data_name  = dplyr::if_else(
+                is.na(Categories) | !nzchar(trimws(Categories)),
+                dataElement,
+                paste(dataElement, trimws(Categories), sep = "_")
+              )
+            ) %>%
+            dplyr::select(data_name, role) %>%
+            dplyr::distinct(data_name, .keep_all = TRUE),
+          error = function(e) NULL
         )
-        selected_data_cats$elements = choices
+        if (is.null(fe_exp)) return(list(primary = choices, secondary = character(0)))
+        role_map  <- setNames(fe_exp$role, fe_exp$data_name)
+        secondary <- choices[!is.na(role_map[choices]) & role_map[choices] == "secondary"]
+        primary   <- setdiff(choices, secondary)
+        list(primary = primary, secondary = secondary)
+      }
+
+      .cleaning_choice_names <- function(choices, secondary) {
+        lapply(choices, function(ch) {
+          if (ch %in% secondary)
+            tags$span(ch, tags$em(" (secondary)", style = "color:#999; font-size:0.85em;"))
+          else
+            ch
+        })
+      }
+
+      # data names — populate from data1() so ALL formula elements (primary and
+      # secondary) appear in the list.  selected_data() only contains elements
+      # that were checked in the reporting widget, so using it here would hide
+      # secondary elements entirely.
+      observeEvent(list(data1(), selected_data()), {
+        req(data1())
+        cat('\n* cleaning_widget observe data1() / selected_data()')
+
+        choices <- sort(unique(data1()$data))
+        fe      <- formula_elements()
+        roles   <- .cleaning_split_by_role(choices, fe)
+
+        updateCheckboxGroupInput(
+          session, "dataElement",
+          choiceNames  = .cleaning_choice_names(choices, roles$secondary),
+          choiceValues = choices,
+          selected     = roles$primary
+        )
+        selected_data_cats$elements <- roles$primary
       })
 
       # Dates

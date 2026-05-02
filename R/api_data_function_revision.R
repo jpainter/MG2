@@ -133,7 +133,7 @@ api_data = function(
 
     if (is_empty(prev.data) && file_test("-f", previous_dataset_file)) {
       cat('\n - reading previous dataset')
-      prev.data = readRDS(previous_dataset_file) # %>% select( - starts_with('aggr'))
+      prev.data = readRDS(previous_dataset_file)
     }
 
     if (nrow(prev.data) == 0) {
@@ -141,8 +141,39 @@ api_data = function(
       return()
     }
 
-    first.period = min(prev.data$period)
-    last.period = max(prev.data$period)
+    # Detect processed files (data_1() output): they have Month/Week + data.id
+    # + original but NOT the raw period/COUNT/SUM columns.  Reconstruct the
+    # raw format so the update merge path can treat them uniformly.
+    is_processed <- !'period' %in% names(prev.data) &&
+      ('Month' %in% names(prev.data) || 'Week' %in% names(prev.data))
+
+    if (is_processed) {
+      cat('\n - prev.data is a processed file — reconstructing raw format')
+      idx_var <- if ('Month' %in% names(prev.data)) 'Month' else 'Week'
+      idx_col <- prev.data[[idx_var]]
+      prev.data <- prev.data %>%
+        tibble::as_tibble() %>%
+        dplyr::ungroup() %>%
+        dplyr::mutate(
+          dataElement = sub("_.*$", "", data.id),
+          categoryOptionCombo = dplyr::if_else(
+            grepl("_", data.id, fixed = TRUE),
+            sub("^[^_]*_", "", data.id),
+            NA_character_
+          ),
+          period = if (idx_var == 'Month')
+            format(as.Date(idx_col), "%Y%m")
+          else
+            format(idx_col, "%YW%V"),
+          COUNT = 1L,
+          SUM   = original
+        ) %>%
+        dplyr::select(dataElement, categoryOptionCombo, orgUnit, period, COUNT, SUM) %>%
+        dplyr::mutate_all(as.character)
+    }
+
+    first.period = min(prev.data$period, na.rm = TRUE)
+    last.period  = max(prev.data$period, na.rm = TRUE)
 
     # excel version
     # des = prev.data %>% select( dataElement, dataElement.id , Categories ,
@@ -365,7 +396,7 @@ api_data = function(
         as_tibble() %>%
         ungroup() %>%
         group_by(period, dataElement) %>%
-        summarise(COUNT = n(), SUM = sum(SUM, na.rm = TRUE))
+        summarise(COUNT = n(), SUM = sum(as.numeric(SUM), na.rm = TRUE))
     } else {
       prev = prev.data %>% filter(level == 1, period %in% period_vectors)
     }
