@@ -94,13 +94,7 @@ source("chat_widget.R")        # Tab: Assistant (AI chat, requires ellmer + shin
 
 # User Interface ------------------------------------------------------------
 ui <- bslib::page_navbar(
-  title = tagList(
-    span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
-    tags$span("dev", style = paste0(
-      "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
-      " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:6px;"
-    ))
-  ),
+  title = span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
   id    = "tabs",
   theme = bslib::bs_theme(bootswatch = "yeti"),
   bg    = "#222222",
@@ -165,7 +159,17 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Reporting",  reporting_widget_ui("reporting1")),
   bslib::nav_panel("Outliers",   cleaning_widget_ui("cleaning1")),
   bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1")),
-  bslib::nav_panel("Assistant",  chat_widget_ui("chat1")),
+  bslib::nav_panel(
+    tagList(
+      "Assistant",
+      tags$span("dev", style = paste0(
+        "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
+        " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:5px;"
+      ))
+    ),
+    value = "Assistant",
+    chat_widget_ui("chat1")
+  ),
   bslib::nav_spacer(),
   bslib::nav_panel("About",      about_widget_ui("about"))
 )
