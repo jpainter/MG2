@@ -41,16 +41,15 @@ if (requireNamespace("plotly",  quietly = TRUE)) library(plotly)
 # These are loaded silently; widgets that need them will show errors if missing.
 optional_pkgs <- c(
   "flextable", "officer", "openxlsx",        # document generation
-  "sf", "leaflet", "leaflegend", "mapview",   # geospatial
-  "feasts", "fable", "fabletools",            # time-series modeling
+  "sf", "leaflet", "leaflegend",              # geospatial
+  "fable", "fabletools",                     # time-series modeling
   "fable.prophet", "prophet", "forecast",    # forecasting
   "future", "furrr", "promises",             # async/parallel
-  "data.table", "tidyfast",                  # performance
-  "patchwork", "dygraphs", "GGally",         # visualization
-  "slider", "sugrrants",                     # rolling windows / calendars
+  "data.table",                              # performance
+  "slider",                                  # rolling windows
   "data.tree", "igraph",                     # hierarchical data
-  "progress", "progressr", "tictoc",         # progress reporting
-  "hrbrthemes", "RColorBrewer", "scales",    # plot themes/colors
+  "progress", "progressr",                   # progress reporting
+  "RColorBrewer", "scales",                  # plot themes/colors
   "assertthat", "digest"                     # utilities
 )
 for (pkg in optional_pkgs) {
