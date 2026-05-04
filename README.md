@@ -87,11 +87,12 @@ Define the data elements for analysis, download data from the DHIS2 server, and 
 
 ### 4. Data Quality Assessment (DQA)
 
-Assess three dimensions of data quality before proceeding to analysis.
+Assess four dimensions of data quality before proceeding to analysis.
 
 - **Reporting completeness** — The proportion of expected facility-months with at least one report, shown as a time trend and by organisation unit level.
 - **Outliers** — A summary of flagged values by detection algorithm and time period.
 - **Forecast accuracy (MASE)** — Mean Absolute Scaled Error of a naive seasonal forecast, used as a signal of time-series stability. A rising MASE over time may indicate structural changes or data quality deterioration.
+- **Consistency** — Evaluates DHIS2 validation rules against the formula elements for each facility × period. Displays an annual pass-rate chart, a per-rule summary table with traffic-light colouring, and a facility-period drilldown for failed rules. Rules that reference elements not present in the formula are flagged as incomplete rather than failed, so the consistency score reflects only rules that can actually be evaluated with the current data.
 
 ### 5. Reporting
 
@@ -166,6 +167,55 @@ df <- api_data(url = session$url,
                password = session$password,
                formula = my_formula,
                periods = c("202301", "202302", "202303"))
+```
+
+---
+
+## AI Assistant
+
+The **Assistant** tab provides a conversational AI interface powered by [Claude](https://www.anthropic.com/) (Anthropic) or [GPT-4o](https://openai.com/) (OpenAI). It has read access to your current session context — formula elements, date range, facility count, and validation rules — so it can answer questions specific to your data, suggest related indicators, explain caveats, or help interpret findings.
+
+Individual facility records are never sent to the AI. Only element names and aggregate summaries are transmitted.
+
+### API key setup
+
+The assistant requires an API key from your chosen provider.
+
+**Option 1 — Recommended: store in `~/.Renviron`**
+
+Add one or both of the following lines to `~/.Renviron` (run `usethis::edit_r_environ()` to open it):
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+```
+
+Restart R. The key is then available in every session automatically — no code needed.
+
+**Option 2 — Set for the current session only**
+
+```r
+Sys.setenv(ANTHROPIC_API_KEY = "sk-ant-...")
+run_mg2()
+```
+
+**Option 3 — Paste at runtime**
+
+If no environment variable is found, a password input appears in the Assistant tab sidebar. Paste your key there — it is used only for the current session and is never saved to disk.
+
+### Getting an API key
+
+| Provider | Where to get a key |
+|---|---|
+| Anthropic (Claude) | [console.anthropic.com](https://console.anthropic.com) → API Keys |
+| OpenAI (GPT) | [platform.openai.com](https://platform.openai.com) → API Keys |
+
+Both providers charge per use (token-based pricing). Conversational assistant usage at this scale is inexpensive — typically a few cents per session.
+
+### Required packages
+
+```r
+install.packages(c("ellmer", "shinychat"))
 ```
 
 ---

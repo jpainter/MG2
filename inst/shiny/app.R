@@ -88,12 +88,19 @@ source("cleaning_widget.r")    # Tab: Outliers
 source("evaluation_widget_2.R")# Tab: Evaluation
 source("regions_widget.R")     # Tab: Regions
 source("about_widget.R")       # Tab: About
+source("chat_widget.R")        # Tab: Assistant (AI chat, requires ellmer + shinychat)
 # map_widget.R and facilities_widget.r are not standalone modules;
 # they are embedded within other widgets and sourced there when needed.
 
 # User Interface ------------------------------------------------------------
 ui <- bslib::page_navbar(
-  title = span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
+  title = tagList(
+    span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
+    tags$span("dev", style = paste0(
+      "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
+      " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:6px;"
+    ))
+  ),
   id    = "tabs",
   theme = bslib::bs_theme(bootswatch = "yeti"),
   bg    = "#222222",
@@ -158,6 +165,7 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Reporting",  reporting_widget_ui("reporting1")),
   bslib::nav_panel("Outliers",   cleaning_widget_ui("cleaning1")),
   bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1")),
+  bslib::nav_panel("Assistant",  chat_widget_ui("chat1")),
   bslib::nav_spacer(),
   bslib::nav_panel("About",      about_widget_ui("about"))
 )
@@ -271,6 +279,14 @@ server <- function(input, output, session) {
     cleaning_widget_output   = cleaning_widget_output,
     regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
+  )
+
+  chat_widget_server(
+    "chat1",
+    data_widget_output      = data1_Widget_output,
+    reporting_widget_output = reporting_widget_output,
+    cleaning_widget_output  = cleaning_widget_output,
+    metadata_widget_output  = metadata_widget_output
   )
 
   about_widget_server("about")

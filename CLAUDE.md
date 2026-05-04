@@ -743,6 +743,60 @@ Reporting → Outliers → Evaluation pipeline.
 
 ---
 
+### AI Assistant Module (2026-05-03)
+
+**Status:** ✅ Complete (prototype)
+
+**New files:**
+- `R/chat_functions.R` — context summarisation helpers + system prompt builder
+- `inst/shiny/chat_widget.R` — Shiny module (`chat_widget_ui` / `chat_widget_server`)
+- Accessible via **Assistant** tab (placed after Evaluation in navbar)
+
+**What it does:**
+Embeds a streaming AI chat panel powered by Claude (Anthropic) or GPT-4o (OpenAI)
+via the `ellmer` + `shinychat` packages. The AI receives a structured system prompt
+built from the current session state and can answer questions about data quality,
+trends, and anomalies specific to the loaded dataset.
+
+**Key functions in `R/chat_functions.R`:**
+- `build_mg2_system_prompt()` — assembles context into an ellmer system prompt;
+  includes formula elements (with primary/secondary roles), facility count, date
+  range, data summaries, and validation rules; lists exact MG2 tab names so the
+  AI refers to them correctly
+- `summarize_completeness_for_prompt()` — within-dataset completeness (% of
+  periods with non-missing values per facility in `data1`); annotated with caveat
+  that it overestimates true completeness since facilities with no records are absent
+- `summarize_reporting_for_prompt()` — champion-facility adjusted national totals
+  from `reporting_widget_output$data.total()`; only available after Reporting tab visit
+- `summarize_outliers_for_prompt()` — outlier flag counts by element and algorithm
+  from `cleaning_widget_output$data2()`; only available after Outliers tab visit
+
+**Architecture:**
+- Uses `ellmer::chat_anthropic()` / `ellmer::chat_openai()`; API key read from
+  `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` environment variables
+- `shinychat::chat_mod_ui()` + `shinychat::chat_mod_server()` for streaming UI
+- The ellmer Chat R6 object is created once and passed to `chat_mod_server`;
+  reset is handled by `client$set_system_prompt()` + `chat_mod_out$clear()` (R6
+  mutation in place — avoids re-calling `chat_mod_server`)
+- System prompt **auto-updates** (without clearing history) via `observeEvent` on
+  `data.total()` and `data2()` — no manual reset needed after visiting other tabs
+- Provider switching (Claude ↔ GPT) takes effect on app restart
+
+**UI:**
+- Full-width chat area; thin control bar at top with dataset context pill,
+  inline model selector, New Conversation button, and API key setup link
+- "dev" badge in navbar title indicates pre-release status
+
+**Known limitations:**
+- Within-dataset completeness overestimates true reporting completeness (Reporting
+  tab is authoritative); caveat is embedded in the system prompt
+- Evaluation tab outputs are not accessible (widget returns NULL); no summary sent
+- Provider cannot be switched at runtime without restarting the app
+
+**Dependencies added to `Suggests`:** `ellmer`, `shinychat`
+
+---
+
 ### Future Phases (planned)
 
 - Phase 7: Map module
