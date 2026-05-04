@@ -46,55 +46,55 @@ chat_widget_ui <- function(id) {
   }
 
   tagList(
-    # --- Control bar (full width, compact) ---------------------------------
-    div(
-      style = paste0(
-        "display:flex; align-items:center; gap:16px; flex-wrap:wrap;",
-        " padding:6px 12px 6px 12px; background:#f8f9fa;",
-        " border-bottom:1px solid #dee2e6; font-size:0.85em;"
-      ),
+    # Override shinychat's internal max-width so chat fills the main panel
+    tags$head(tags$style(
+      ".shiny-chat-container, .shiny-chat-messages { max-width: 100% !important; width: 100% !important; }
+       .shiny-chat-input-container { max-width: 100% !important; }"
+    )),
 
-      # Dataset context pill
-      div(
-        style = "color:#555; white-space:nowrap;",
-        icon("database", style = "margin-right:4px;"),
-        uiOutput(ns("context_inline"), inline = TRUE)
-      ),
+    fluidPage(
+      sidebarLayout(
+        sidebarPanel(
+          width = 2,
 
-      # Divider
-      div(style = "border-left:1px solid #ccc; height:20px; flex-shrink:0;"),
+          h5("Dataset Context"),
+          uiOutput(ns("context_summary")),
 
-      # Provider selector (inline radio)
-      uiOutput(ns("provider_ui")),
+          hr(),
 
-      # Divider
-      div(style = "border-left:1px solid #ccc; height:20px; flex-shrink:0;"),
+          h5("AI Provider"),
+          uiOutput(ns("provider_ui")),
 
-      # New Conversation button
-      actionButton(
-        ns("reset_chat"),
-        label = "New Conversation",
-        icon  = icon("rotate"),
-        class = "btn-sm btn-outline-secondary",
-        style = "white-space:nowrap;"
-      ),
+          div(
+            style = "font-size:0.78em; color:#777; margin-top:4px;",
+            actionLink(ns("go_about"), "API key setup instructions"),
+            " — About tab"
+          ),
 
-      # API key link (pushed right)
-      div(
-        style = "margin-left:auto; color:#999; font-size:0.78em; white-space:nowrap;",
-        actionLink(ns("go_about"), "API key setup"),
-        tags$span(" · ", style = "color:#ccc;"),
-        tags$span(
-          title = "Only element names and aggregate summaries are sent. Facility records stay local.",
-          icon("shield-halved"), " Privacy"
+          hr(),
+
+          actionButton(
+            ns("reset_chat"),
+            label = "New Conversation",
+            icon  = icon("rotate"),
+            class = "btn-sm btn-outline-secondary w-100"
+          ),
+
+          br(), br(),
+
+          div(
+            style = "font-size:0.78em; color:#777; line-height:1.5;",
+            tags$strong("Privacy note:"),
+            " Only element names and aggregate summaries are sent to the AI.",
+            " Individual facility records stay on your machine."
+          )
+        ),
+
+        mainPanel(
+          width = 10,
+          uiOutput(ns("chat_or_instructions"))
         )
       )
-    ),
-
-    # --- Chat area (fills remaining height) --------------------------------
-    div(
-      style = "height:calc(100vh - 110px); overflow:hidden;",
-      uiOutput(ns("chat_or_instructions"))
     )
   )
 }
@@ -126,20 +126,20 @@ chat_widget_server <- function(id,
       if (length(available) == 0) return(NULL)
 
       choices <- c(
-        if (nzchar(env_keys$anthropic)) c("Claude" = "anthropic"),
-        if (nzchar(env_keys$openai))    c("GPT-4o" = "openai")
+        if (nzchar(env_keys$anthropic)) c("Claude (Anthropic)" = "anthropic"),
+        if (nzchar(env_keys$openai))    c("GPT (OpenAI)"       = "openai")
       )
 
-      div(
-        style = "display:flex; align-items:center; gap:6px;",
-        tags$span("Model:", style = "color:#555; white-space:nowrap;"),
+      tagList(
         radioButtons(
           session$ns("provider"),
           label    = NULL,
           choices  = choices,
-          selected = names(available)[1],
-          inline   = TRUE
-        )
+          selected = names(available)[1]
+        ),
+        if (length(available) > 1)
+          helpText(style = "font-size:0.78em;",
+                   "Provider switch takes effect after restarting the app.")
       )
     })
 
@@ -216,13 +216,13 @@ chat_widget_server <- function(id,
 
     # Render the chat UI now that we have a valid client
     output$chat_or_instructions <- renderUI({
-      shinychat::chat_mod_ui(session$ns("chat"), height = "calc(100vh - 110px)")
+      shinychat::chat_mod_ui(session$ns("chat"), height = "calc(100vh - 160px)")
     })
 
     chat_mod_out <- shinychat::chat_mod_server("chat", client = client)
 
-    # --- Inline context summary (control bar) -----------------------------
-    output$context_inline <- renderUI({
+    # --- Context summary (sidebar) ----------------------------------------
+    output$context_summary <- renderUI({
       fe <- tryCatch(data_widget_output$formula_elements(), error = function(e) NULL)
       d1 <- tryCatch(data_widget_output$data1(),            error = function(e) NULL)
       sm <- tryCatch(reporting_widget_output$startingMonth(), error = function(e) NULL)
@@ -230,19 +230,22 @@ chat_widget_server <- function(id,
 
       n_fac <- if (!is.null(d1) && "orgUnit" %in% names(d1))
         length(unique(d1$orgUnit)) else NULL
-      n_el  <- if (!is.null(fe) && nrow(fe) > 0) nrow(fe) else NULL
 
-      parts <- c(
-        if (!is.null(n_el))  paste(n_el,  "elements"),
-        if (!is.null(n_fac)) paste(n_fac, "facilities"),
-        if (!is.null(sm) && !is.null(em))
-          paste(as.character(sm), "–", as.character(em))
-      )
-
-      if (length(parts) == 0)
-        tags$em("No dataset loaded", style = "color:#aaa;")
+      items <- list()
+      if (!is.null(fe) && nrow(fe) > 0)
+        items <- c(items, list(tags$li(paste(nrow(fe), "formula elements"))))
       else
-        tags$span(paste(parts, collapse = "  ·  "))
+        items <- c(items, list(tags$li(tags$em("No dataset loaded"))))
+      if (!is.null(n_fac))
+        items <- c(items, list(tags$li(paste(n_fac, "facilities"))))
+      if (!is.null(sm) && !is.null(em))
+        items <- c(items, list(tags$li(paste(as.character(sm), "–", as.character(em)))))
+
+      tagList(
+        tags$ul(style = "padding-left:16px; font-size:0.88em; margin:4px 0 8px 0;", items),
+        tags$p(style = "font-size:0.78em; color:#777; margin:0;",
+               "Context updates automatically as you visit other tabs.")
+      )
     })
 
     # --- Auto-update system prompt when data from other tabs arrives -------
