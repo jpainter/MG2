@@ -116,3 +116,41 @@
 #' data(mg2_demo_meta)
 #' names(mg2_demo_meta)
 "mg2_demo_meta"
+
+
+#' MG2 Demo Processed Dataset
+#'
+#' The Sierra Leone malaria demo data pre-processed through [data_1()]:
+#' a `tsibble` with org unit hierarchy joined, data element labels resolved,
+#' and time index built. This is the format expected by all downstream MG2
+#' analysis functions (DQA, Reporting, Outliers, Evaluation).
+#'
+#' Shipped pre-built so that [mg2_demo_setup()] can write it to disk
+#' instantly without re-running the pipeline.
+#'
+#' @format A `tsibble` with columns:
+#' \describe{
+#'   \item{orgUnit}{DHIS2 org unit UID (character).}
+#'   \item{dataElement}{Data element name (character).}
+#'   \item{dataSet}{Dataset name (character).}
+#'   \item{orgUnitName}{Facility name (character).}
+#'   \item{level}{Admin level integer (integer).}
+#'   \item{National, District, Chiefdom, Facility}{Org unit path at each
+#'     admin level (character).}
+#'   \item{effectiveLeaf}{Logical; `TRUE` when this row is the lowest
+#'     reporting unit (no children reported the same element).}
+#'   \item{Month}{`yearmonth` index (tsibble key dimension).}
+#'   \item{data}{Display label combining element and category (character).}
+#'   \item{data.id}{Internal element × category identifier (character).}
+#'   \item{original}{Raw reported value (numeric).}
+#'   \item{value}{Logical; `TRUE` when a non-missing value was reported.}
+#' }
+#'
+#' @seealso `mg2_demo`, `mg2_demo_formula`, `mg2_demo_meta`,
+#'   [mg2_demo_setup()], [data_1()]
+#' @examples
+#' data(mg2_demo_processed)
+#' \dontrun{
+#' tsibble::n_keys(mg2_demo_processed)   # number of facility × element series
+#' }
+"mg2_demo_processed"

@@ -41,7 +41,7 @@ login_widget_ui <- function(id) {
 
       fluidRow(
         column(
-          12,
+          6,
           hr(),
           h4("Or connect to a DHIS2 demo instance:"),
           actionButton(
@@ -50,6 +50,24 @@ login_widget_ui <- function(id) {
             icon  = icon("globe"),
             class = "btn-info"
           )
+        ),
+        column(
+          6,
+          hr(),
+          h4("Or load premade demo data:"),
+          tags$p(
+            tags$small(
+              "5 years of Sierra Leone malaria data — no server connection needed.",
+              tags$br(),
+              tags$a("See About tab for details.", href = "#")
+            ),
+            style = "color: #555; margin-bottom: 8px;"
+          ),
+          actionButton(
+            ns("load_demo"),
+            label = tagList(icon("play-circle"), " Load Demo Data"),
+            class = "btn-success"
+          )
         )
       )
     )
@@ -57,7 +75,7 @@ login_widget_ui <- function(id) {
 } # ui
 
 # Server function ####
-login_widget_server <- function(id, directory_widget_output = NULL) {
+login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = NULL) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -245,6 +263,37 @@ login_widget_server <- function(id, directory_widget_output = NULL) {
 
       username <- reactive({ input$username })
       password <- reactive({ input$password })
+
+      # Load Demo Data button ----
+      observeEvent(input$load_demo, {
+        req(!is.null(demo_dir))
+
+        default_dir <- file.path(path.expand("~"), "mg2_demo")
+
+        showModal(modalDialog(
+          title     = "Loading demo data...",
+          "Writing Sierra Leone malaria demo files to ~/mg2_demo.",
+          easyClose = FALSE,
+          footer    = NULL,
+          fade      = FALSE
+        ))
+
+        tryCatch({
+          result_dir <- mg2_demo_setup(dir = default_dir)
+          removeModal()
+          demo_dir(result_dir)
+          showNotification(
+            "Demo data ready. Directory set to ~/mg2_demo.",
+            type = "message", duration = 5
+          )
+        }, error = function(e) {
+          removeModal()
+          showNotification(
+            paste0("Demo setup failed: ", conditionMessage(e)),
+            type = "error", duration = 8
+          )
+        })
+      })
 
       # Demo instance picker ----
       observeEvent(input$demo_picker, {

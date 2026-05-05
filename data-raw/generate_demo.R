@@ -601,17 +601,35 @@ usethis::use_data(mg2_demo, overwrite = TRUE)
 usethis::use_data(mg2_demo_formula, overwrite = TRUE)
 usethis::use_data(mg2_demo_meta, overwrite = TRUE)
 
+# ---------------------------------------------------------------------------
+# 8. Pre-process through data_1() and save as mg2_demo_processed
+# ---------------------------------------------------------------------------
+
+message("\n=== Running data_1() to build mg2_demo_processed ===")
+
+mg2_demo_processed <- data_1(
+  data             = mg2_demo,
+  dataSets         = mg2_demo_meta[["dataSets."]],
+  formula_elements = mg2_demo_formula,
+  dataElements     = mg2_demo_meta$dataElementDictionary,
+  categories       = mg2_demo_meta$categories,
+  ousTree          = mg2_demo_meta$ousTree
+)
+
+usethis::use_data(mg2_demo_processed, overwrite = TRUE)
+
 message("\nDone. Objects saved:")
-message("  data/mg2_demo.rda         — ", nrow(mg2_demo), " rows")
+message("  data/mg2_demo.rda           — ", nrow(mg2_demo), " rows")
 message(
-  "  data/mg2_demo_formula.rda — ",
+  "  data/mg2_demo_formula.rda   — ",
   nrow(mg2_demo_formula),
   " rows, ",
   n_distinct(mg2_demo_formula$dataElement),
   " data elements"
 )
 message(
-  "  data/mg2_demo_meta.rda    — ",
+  "  data/mg2_demo_meta.rda      — ",
   length(mg2_demo_meta),
   " metadata components"
 )
+message("  data/mg2_demo_processed.rda — ", nrow(mg2_demo_processed), " rows (tsibble)")

@@ -84,7 +84,7 @@ mg2_demo_setup <- function(dir = file.path(path.expand("~"), "mg2_demo"),
   }
 
   # -------------------------------------------------------------------------
-  # 3. Processed dataset rds
+  # 3. Processed dataset rds  (pre-built — no pipeline run needed)
   # -------------------------------------------------------------------------
   n_years   <- round(length(unique(mg2_demo$period)) / 12)
   data_path <- file.path(
@@ -93,28 +93,8 @@ mg2_demo_setup <- function(dir = file.path(path.expand("~"), "mg2_demo"),
   )
 
   if (!file.exists(data_path) || overwrite) {
-    message("Processing data (this may take 30-60 seconds)...")
-    meta <- mg2_demo_meta
-    processed <- tryCatch(
-      data_1(
-        data             = mg2_demo,
-        dataSets         = meta$dataSets.,
-        formula_elements = mg2_demo_formula,
-        dataElements     = meta$dataElementDictionary,
-        categories       = meta$categories,
-        ousTree          = meta$ousTree
-      ),
-      error = function(e) {
-        warning("data_1() failed: ", conditionMessage(e),
-                "\nDataset .rds not written. Metadata and formula are still usable.")
-        NULL
-      }
-    )
-
-    if (!is.null(processed)) {
-      saveRDS(processed, data_path, compress = TRUE)
-      message("Dataset saved:         ", basename(data_path))
-    }
+    saveRDS(mg2_demo_processed, data_path, compress = TRUE)
+    message("Dataset saved:         ", basename(data_path))
   } else {
     message("Dataset exists (skipped): ", basename(data_path))
   }

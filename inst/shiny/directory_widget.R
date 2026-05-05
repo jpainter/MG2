@@ -34,15 +34,6 @@ directory_widget_ui = function(id) {
           style     = "width: 100%"
         )
       ),
-      column(
-        4,
-        actionButton(
-          ns("load_demo"),
-          label = tagList(icon("play-circle"), " Load Demo Data"),
-          class = "btn-info",
-          style = "width: 100%"
-        )
-      )
     ),
 
     # hr() ,
@@ -55,7 +46,7 @@ directory_widget_ui = function(id) {
 } # ui
 
 
-directory_widget_server <- function(id) {
+directory_widget_server <- function(id, demo_dir = NULL) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -121,41 +112,18 @@ directory_widget_server <- function(id) {
       })
 
 
-      # Load Demo Data button ####
-      observeEvent(input$load_demo, {
-        demo_dir <- file.path(path.expand("~"), "mg2_demo")
-
-        showModal(modalDialog(
-          title     = "Loading demo data...",
-          "Preparing Sierra Leone malaria demo dataset. This may take up to a minute.",
-          easyClose = FALSE,
-          footer    = NULL,
-          fade      = FALSE
-        ))
-
-        tryCatch({
-          result_dir <- mg2_demo_setup(dir = demo_dir)
-          removeModal()
-
-          # Add to selectize and select it
-          new_choices <- unique(c(result_dir, dir_history()))
+      # Watch for demo_dir signal from login_widget ####
+      observeEvent(demo_dir(), {
+        req(!is.null(demo_dir))
+        d <- demo_dir()
+        if (!is.null(d) && nzchar(d)) {
+          new_choices <- unique(c(d, dir_history()))
           updateSelectizeInput(session, "data.directory",
             choices  = new_choices,
-            selected = result_dir
+            selected = d
           )
-
-          showNotification(
-            "Demo data ready. Directory set to ~/mg2_demo.",
-            type = "message", duration = 5
-          )
-        }, error = function(e) {
-          removeModal()
-          showNotification(
-            paste0("Demo setup failed: ", conditionMessage(e)),
-            type = "error", duration = 8
-          )
-        })
-      })
+        }
+      }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
       data.folder = reactive({
         cat('\n* data.folder:\n')

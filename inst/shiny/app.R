@@ -185,11 +185,16 @@ server <- function(input, output, session) {
     }
   })
 
-  directory_widget_output <- directory_widget_server("directory1")
+  # Shared signal: login_widget sets this when "Load Demo Data" is clicked;
+  # directory_widget watches it to update the directory input automatically.
+  demo_dir <- reactiveVal(NULL)
+
+  directory_widget_output <- directory_widget_server("directory1", demo_dir = demo_dir)
 
   login_widget_output <- login_widget_server(
     "login1",
-    directory_widget_output = directory_widget_output
+    directory_widget_output = directory_widget_output,
+    demo_dir                = demo_dir
   )
 
   metadata_widget_output <- metadata_widget_server(
