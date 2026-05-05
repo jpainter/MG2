@@ -25,7 +25,6 @@
 #' @details
 #' **Data elements included:**
 #' \tabular{ll}{
-#'   `TV5zBFFkZLu` \tab Malaria cases confirmed \cr
 #'   `p4K11MFEWtw` \tab Inpatient malaria cases \cr
 #'   `wWy5TE9cQ0V` \tab Inpatient malaria deaths \cr
 #'   `wZwzzRnr9N4` \tab RDT positive \cr

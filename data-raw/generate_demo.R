@@ -14,7 +14,7 @@
 # Usage:
 #   source("data-raw/generate_demo.R")
 
-library(MG2) # for dhis2_get(), ous_tree(), date_code()
+devtools::load_all() # for dhis2_get(), ous_tree(), date_code()
 library(dplyr)
 library(tidyr)
 library(tibble)
@@ -29,18 +29,17 @@ BASEURL <- "https://play.im.dhis2.org/stable-2-41-8/"
 USERNAME <- "admin"
 PASSWORD <- "district"
 
-# 6 malaria data elements
+# 5 malaria data elements (TV5zBFFkZLu / Malaria cases confirmed excluded:
+# analytics table not built on this demo instance — returns HTTP 409)
 DE_IDS <- c(
-  "TV5zBFFkZLu", # Malaria cases confirmed
   "p4K11MFEWtw", # Inpatient malaria cases
   "wWy5TE9cQ0V", # Inpatient malaria deaths
   "wZwzzRnr9N4", # RDT positive
   "Qk9nnX0i7lZ", # RDT negative / tested
-  "AFM5H0wNq3t" # Malaria treated at PHU with ACT < 24 hrs new
+  "AFM5H0wNq3t"  # Malaria treated at PHU with ACT < 24 hrs new
 )
 
 DE_NAMES <- c(
-  "Malaria cases confirmed",
   "Inpatient malaria cases",
   "Inpatient malaria deaths",
   "RDT positive",
@@ -102,7 +101,7 @@ orgUnits <- orgUnits_raw %>%
   select(-parent)
 
 message("- building org unit tree")
-ousTree <- ous_tree(orgUnits, orgUnitLevels, .verbose = TRUE)
+ousTree <- ous_tree(orgUnits, orgUnitLevels)
 
 message("- data elements")
 de_raw <- get_sl(
