@@ -1562,6 +1562,19 @@ metadata_widget_server <- function(
 
             cat(' - reading from metadata')
             orgUnits = metadata()$orgUnits
+
+            # Join levelName if absent — older saved metadata and the demo
+            # metadata file may not have it (the live-fetch path joins it,
+            # but the save path did not historically).
+            if (!"levelName" %in% names(orgUnits)) {
+              lvl_nm <- tryCatch(
+                dplyr::select(metadata()$orgUnitLevels, level, levelName),
+                error = function(e) NULL
+              )
+              if (!is.null(lvl_nm))
+                orgUnits <- dplyr::left_join(orgUnits, lvl_nm, by = "level")
+            }
+
             cat('\n- orgUnits has', nrow(orgUnits), "rows")
 
             removeModal()
