@@ -274,7 +274,7 @@ data_1 <- function(data,
   # Build dataset → data element lookup
   dataSetElements <- dataSets |>
     tidyr::unnest(dataSetElements.id, names_sep = "_") |>
-    dplyr::select(1:3, 5) |>
+    dplyr::select(dataSet.id, dataSet, periodType, dataSetElements.id_dataElement) |>
     dplyr::rename(dataElement.id = dataSetElements.id_dataElement) |>
     dplyr::mutate(dataElement.id = as.character(dataElement.id$id)) |>
     dplyr::group_by(dataElement.id) |>
