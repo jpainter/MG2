@@ -69,13 +69,13 @@ systemInfo <- get_sl("api/system/info")
 
 message("- org unit levels")
 ouLevels_raw <- get_sl(
-  "api/organisationUnitLevels.json?fields=id,name,level&paging=false&order=level:asc"
+  "api/organisationUnitLevels.json?fields=id,name,level,lastUpdated,created,displayName&paging=false&order=level:asc"
 )
-orgUnitLevels <- tibble(
-  id = ouLevels_raw$organisationUnitLevels$id,
-  level = as.integer(ouLevels_raw$organisationUnitLevels$level),
-  levelName = ouLevels_raw$organisationUnitLevels$name
-)
+orgUnitLevels <- ouLevels_raw$organisationUnitLevels |>
+  as_tibble() |>
+  mutate(level = as.integer(level)) |>
+  rename(levelName = name) |>
+  select(id, level, levelName, lastUpdated, created, displayName)
 
 message("- org units (all levels; may take a moment)")
 ous_raw <- get_sl(
@@ -99,6 +99,13 @@ orgUnits <- orgUnits_raw %>%
     }
   ) %>%
   select(-parent)
+
+# Join levelName onto orgUnits (matches what metadata_widget does during live fetch)
+orgUnits <- orgUnits |>
+  dplyr::left_join(
+    dplyr::select(orgUnitLevels, level, levelName),
+    by = "level"
+  )
 
 message("- building org unit tree")
 ousTree <- ous_tree(orgUnits, orgUnitLevels)

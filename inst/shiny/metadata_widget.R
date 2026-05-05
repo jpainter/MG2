@@ -1438,18 +1438,12 @@ metadata_widget_server <- function(
         # if ( login() & loginFetch() ){
         cat('\n* reactive orgUnitLevels_with_counts')
 
+        display_cols <- c("level", "levelName", "Number_Units",
+                          "lastUpdated", "created", "displayName", "id")
         if ('Number_Units' %in% names(orgUnitLevels())) {
           ous_w_counts =
             orgUnitLevels() %>%
-            select(
-              level,
-              levelName,
-              Number_Units,
-              lastUpdated,
-              created,
-              displayName,
-              id
-            )
+            select(any_of(display_cols))
         } else {
           ous_w_counts = inner_join(
             orgUnitLevels(),
@@ -1457,15 +1451,7 @@ metadata_widget_server <- function(
             by = 'level'
           ) %>%
             rename(Number_Units = n) %>%
-            select(
-              level,
-              levelName,
-              Number_Units,
-              lastUpdated,
-              created,
-              displayName,
-              id
-            )
+            select(any_of(display_cols))
         }
         return(ous_w_counts)
       })
