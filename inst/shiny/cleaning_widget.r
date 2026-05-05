@@ -652,19 +652,17 @@ cleaning_widget_server <- function(
           )
 
           removeModal()
-          showModal(
-            modalDialog(
-              title = "Finished scanning for seasonal values; saving data",
-              easyClose = TRUE,
-              size = 'm',
-              footer = "(click anywhere to close dialog box)"
-            )
-          )
 
           cat('\n - saving data1.seasonal to replace dataset')
           cat('\n - names(data1.seasonal):', names(data1.seasonal))
 
           saveRDS(data1.seasonal, paste0(data.folder(), dataset.file()))
+
+          showNotification(
+            "Outlier scan complete — data saved.",
+            type = "message",
+            duration = 4
+          )
 
           # Signal data_widget to re-read the saved file (clears rescan_val so
           # dataset() picks up the freshly-scanned file on next access)
@@ -673,8 +671,6 @@ cleaning_widget_server <- function(
               data_widget_output$scan_done_counter() + 1L
             )
           }
-
-          removeModal()
         } # end if scan for mad
         return(data1.seasonal)
       })
