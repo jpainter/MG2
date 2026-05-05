@@ -14,7 +14,8 @@ tsmodels(
   covariate = NULL,
   ensemble = TRUE,
   msg = TRUE,
-  .set.seed = TRUE
+  .set.seed = TRUE,
+  base_models = NULL
 )
 }
 \arguments{
@@ -38,6 +39,11 @@ tsmodels(
 \item{msg}{Logical. Print progress messages.}
 
 \item{.set.seed}{Logical. Set random seed for reproducibility.}
+
+\item{base_models}{Character vector of base-model short names to fit
+(e.g. \code{c("a", "e")} for ARIMA + ETS only).  \code{NULL} (default) fits all.
+Valid names: \code{"a"} ARIMA, \code{"e"} ETS, \code{"n"} NNETAR, \code{"t"} TSLM,
+\code{"p1"}, \code{"p4"}, \code{"p8"} Prophet variants.}
 }
 \value{
 A fable object of forecasts (primary + ensemble if \code{ensemble = TRUE}).

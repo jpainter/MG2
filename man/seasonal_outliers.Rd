@@ -10,7 +10,8 @@ seasonal_outliers(
   .threshold = 50,
   mad = "mad10",
   tests = c("seasonal5", "seasonal3"),
-  progress = FALSE
+  progress = FALSE,
+  shiny_progress = FALSE
 )
 }
 \arguments{

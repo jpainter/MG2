@@ -6,8 +6,8 @@
 \usage{
 outlier.summary.tibble(
   data = NULL,
-  cols = c("AllSmall", "key_entry_error", "over_max", "mad15", "mad10", "mad5",
-    "seasonal5", "seasonal3"),
+  cols = c("AllSmall", "key_entry_error", "over_max", "missing_numerator",
+    "missing_denominator", "mad15", "mad10", "mad5", "seasonal5", "seasonal3"),
   .print = FALSE
 )
 }
