@@ -29,7 +29,8 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   # --- resolve directory interactively if not supplied ----------------------
   if (is.null(dir)) {
     if (requireNamespace("rstudioapi", quietly = TRUE) &&
-        rstudioapi::isAvailable()) {
+        rstudioapi::isAvailable() &&
+        exists("selectDirectory", envir = asNamespace("rstudioapi"))) {
       dir <- rstudioapi::selectDirectory(
         caption = "Choose a folder for MG2 demo data",
         label   = "Select",
