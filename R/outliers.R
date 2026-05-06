@@ -421,6 +421,10 @@ seasonal_outliers <- function(d,
     s$seasonal3 <- if ("seasonal3" %in% tests)
       .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = TRUE)
     else rep(NA, nrow(s))
+    # Store tsclean() forecast as 'expected' for use by dqa_mase()
+    s$expected  <- if (any(c("seasonal5", "seasonal3") %in% tests))
+      .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = FALSE)
+    else NA_real_
     s
   }
 

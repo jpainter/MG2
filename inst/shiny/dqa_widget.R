@@ -58,13 +58,6 @@ dqa_widget_ui = function(id) {
             ),
 
             tabPanel(
-              "Time-series Quality",
-              fluidPage(
-                fluidRow(style = "height:100vh;", plotOutput(ns("dqaMaseOutput")))
-              )
-            ),
-
-            tabPanel(
               "Consistency",
 
               tabsetPanel(
@@ -95,6 +88,13 @@ dqa_widget_ui = function(id) {
                   ),
                   DT::DTOutput(ns("dqaConsistencyDetail"))
                 )
+              )
+            ),
+
+            tabPanel(
+              "MASE",
+              fluidPage(
+                fluidRow(style = "height:100vh;", plotOutput(ns("dqaMaseOutput")))
               )
             )
           )
