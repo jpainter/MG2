@@ -28,18 +28,20 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
 
   # --- resolve directory interactively if not supplied ----------------------
   if (is.null(dir)) {
-    if (requireNamespace("rstudioapi", quietly = TRUE) &&
-        rstudioapi::isAvailable() &&
-        exists("selectDirectory", envir = asNamespace("rstudioapi"))) {
-      dir <- rstudioapi::selectDirectory(
-        caption = "Choose a folder for MG2 demo data",
-        label   = "Select",
-        path    = path.expand("~")
-      )
-      if (is.null(dir) || !nzchar(dir))
-        stop("No directory selected. Re-run mg2_demo_setup() and choose a folder.",
-             call. = FALSE)
-    } else {
+    # Try the IDE folder-picker; fall back to readline() if unavailable
+    dir <- tryCatch(
+      if (requireNamespace("rstudioapi", quietly = TRUE) &&
+          rstudioapi::isAvailable() &&
+          exists("selectDirectory", envir = asNamespace("rstudioapi")))
+        rstudioapi::selectDirectory(
+          caption = "Choose a folder for MG2 demo data",
+          label   = "Select",
+          path    = path.expand("~")
+        ),
+      error = function(e) NULL
+    )
+
+    if (is.null(dir) || !nzchar(dir)) {
       default_path <- file.path(path.expand("~"), "mg2_demo")
       answer <- readline(
         prompt = paste0("Directory for demo data [", default_path, "]: ")
