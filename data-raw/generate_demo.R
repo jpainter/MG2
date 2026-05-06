@@ -225,7 +225,18 @@ vr_raw <- tryCatch(
   error = function(e) NULL
 )
 validationRules <- if (!is.null(vr_raw)) {
-  vr_raw$validationRules %>% as_tibble()
+  vr <- vr_raw$validationRules %>% as_tibble()
+  # Extract raw expression strings from nested leftSide/rightSide objects so
+  # dqa_consistency() can evaluate rules without fetch_validation_rules()
+  # Extract raw expression strings so dqa_consistency() works without
+  # fetch_validation_rules(). The API returns leftSide/rightSide as nested
+  # data frames when parsed by jsonlite; $expression is a plain character column.
+  if ("leftSide" %in% names(vr) && is.data.frame(vr$leftSide) &&
+      "expression" %in% names(vr$leftSide)) {
+    vr$leftSide_expression_raw  <- vr$leftSide$expression
+    vr$rightSide_expression_raw <- vr$rightSide$expression
+  }
+  vr
 } else {
   tibble()
 }

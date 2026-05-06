@@ -96,6 +96,11 @@ dqa_consistency <- function(data, validation_rules, filter_data_ids = NULL) {
   if (is.null(validation_rules) || nrow(validation_rules) == 0) return(NULL)
   if (!"data.id" %in% names(data))               return(NULL)
 
+  # Require translated expression columns — absent when validation rules come
+  # directly from the raw API (not processed by fetch_validation_rules())
+  if (!all(c("leftSide_expression_raw", "rightSide_expression_raw") %in%
+           names(validation_rules)))              return(NULL)
+
   # Filter to rules that reference at least one selected element (by DE UID)
   if (!is.null(filter_data_ids) && length(filter_data_ids) > 0) {
     filter_de_uids <- unique(sub("_.*$", "", filter_data_ids))
