@@ -241,6 +241,66 @@ validationRules <- if (!is.null(vr_raw)) {
   tibble()
 }
 
+message("- adding demo-specific malaria validation rules")
+# The demo dataset has no COC disaggregation (analytics API returns totals),
+# so data.id = element UID only.  Rules use bare #{uid} (no .coc suffix) so
+# dqa_consistency() can evaluate them against val_<uid> wide columns.
+.make_vr_side <- function(expr, desc) {
+  df <- data.frame(expression = expr, description = desc, slidingWindow = FALSE,
+    missingValueStrategy = "NEVER_SKIP", displayDescription = desc,
+    stringsAsFactors = FALSE)
+  df$translations <- list(list())
+  df
+}
+.make_vr_row <- function(vr_template, name, desc, op, ls_expr, ls_desc,
+                         rs_expr, rs_desc, id) {
+  ls_df <- .make_vr_side(ls_expr, ls_desc)
+  rs_df <- .make_vr_side(rs_expr, rs_desc)
+  row <- vr_template[0L, ]
+  row[1L, "name"]                    <- name
+  row[1L, "description"]             <- desc
+  row[1L, "operator"]                <- op
+  row[1L, "id"]                      <- id
+  row[1L, "leftSide_expression_raw"] <- ls_expr
+  row[1L, "rightSide_expression_raw"]<- rs_expr
+  row[1L, "leftSide"]                <- list(ls_df)
+  row[1L, "rightSide"]               <- list(rs_df)
+  row
+}
+
+# Convert existing leftSide/rightSide nested-df columns to list-columns so
+# bind_rows() can combine them with the new rows.
+validationRules$leftSide  <- lapply(seq_len(nrow(validationRules)),
+                                    function(i) validationRules$leftSide[i, ])
+validationRules$rightSide <- lapply(seq_len(nrow(validationRules)),
+                                    function(i) validationRules$rightSide[i, ])
+
+demo_vr_rows <- dplyr::bind_rows(
+  .make_vr_row(validationRules,
+    "Inpatient malaria deaths <= inpatient malaria cases",
+    "Deaths from malaria cannot exceed total inpatient malaria cases",
+    "less_than_or_equal_to",
+    "#{wWy5TE9cQ0V}", "Inpatient malaria deaths",
+    "#{p4K11MFEWtw}", "Inpatient malaria cases",
+    "MG2DemoVR001"),
+  .make_vr_row(validationRules,
+    "RDT positive <= RDT tested",
+    "Number of positive RDTs cannot exceed total RDTs tested",
+    "less_than_or_equal_to",
+    "#{wZwzzRnr9N4}", "RDT positive",
+    "#{Qk9nnX0i7lZ}", "RDT tested",
+    "MG2DemoVR002"),
+  .make_vr_row(validationRules,
+    "ACT treatment <= RDT positive",
+    "ACT treatments given should not exceed RDT-positive cases",
+    "less_than_or_equal_to",
+    "#{AFM5H0wNq3t}", "ACT treatment",
+    "#{wZwzzRnr9N4}", "RDT positive",
+    "MG2DemoVR003")
+)
+validationRules <- dplyr::bind_rows(validationRules, demo_vr_rows)
+message("  Total validation rules: ", nrow(validationRules))
+
 message("- resources")
 res_raw <- tryCatch(
   get_sl("api/resources.json"),

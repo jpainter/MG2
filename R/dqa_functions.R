@@ -4,32 +4,55 @@
 
 # Validation Rule Consistency -------------------------------------------------
 
-#' Extract data.id values (de_uid_coc_uid) referenced in a raw rule expression
+#' Extract data.id values referenced in a raw rule expression
+#'
+#' Handles two formats:
+#'   \code{#\{de.coc\}} — standard DHIS2 format; returns \code{"de_coc"}
+#'   \code{#\{de\}}     — bare UID (data without COC disaggregation); returns \code{"de"}
 #' @noRd
 .extract_vr_uid_pairs <- function(raw_expr) {
   if (is.null(raw_expr) || is.na(raw_expr) || !nzchar(raw_expr))
     return(character(0))
-  m <- gregexpr(
-    "#\\{([A-Za-z][A-Za-z0-9]{10})\\.([A-Za-z][A-Za-z0-9]{10})\\}",
+  uid11 <- "[A-Za-z][A-Za-z0-9]{10}"
+  # #{de.coc} — standard form
+  m1 <- gregexpr(
+    paste0("#\\{(", uid11, ")\\.(", uid11, ")\\}"),
     raw_expr, perl = TRUE
   )
-  matches <- regmatches(raw_expr, m)[[1]]
-  if (length(matches) == 0) return(character(0))
-  unique(gsub(
-    "#\\{([A-Za-z][A-Za-z0-9]{10})\\.([A-Za-z][A-Za-z0-9]{10})\\}",
-    "\\1_\\2", matches, perl = TRUE
-  ))
+  matches1 <- regmatches(raw_expr, m1)[[1]]
+  ids1 <- if (length(matches1) > 0)
+    gsub(paste0("#\\{(", uid11, ")\\.(", uid11, ")\\}"),
+         "\\1_\\2", matches1, perl = TRUE)
+  else character(0)
+  # #{de} — bare UID (aggregated data, no COC)
+  m2 <- gregexpr(paste0("#\\{(", uid11, ")\\}"), raw_expr, perl = TRUE)
+  matches2 <- regmatches(raw_expr, m2)[[1]]
+  bare <- matches2[!grepl("\\.", matches2, fixed = TRUE)]
+  ids2 <- if (length(bare) > 0)
+    gsub(paste0("#\\{(", uid11, ")\\}"), "\\1", bare, perl = TRUE)
+  else character(0)
+  unique(c(ids1, ids2))
 }
 
 #' Convert a raw DHIS2 rule expression to an evaluatable R string
-#' Replaces \code{#\{de.coc\}} with \code{val_de_coc}
+#'
+#' Replaces \code{#\{de.coc\}} with \code{val_de_coc} and bare \code{#\{de\}}
+#' with \code{val_de} (for aggregated data where \code{data.id} has no COC part).
 #' @noRd
 .vr_expr_to_r <- function(raw_expr) {
   if (is.null(raw_expr) || is.na(raw_expr)) return(as.character(raw_expr))
-  gsub(
-    "#\\{([A-Za-z][A-Za-z0-9]{10})\\.([A-Za-z][A-Za-z0-9]{10})\\}",
+  uid11  <- "[A-Za-z][A-Za-z0-9]{10}"
+  # #{de.coc} first (more specific) → val_de_coc
+  result <- gsub(
+    paste0("#\\{(", uid11, ")\\.(", uid11, ")\\}"),
     "val_\\1_\\2", raw_expr, perl = TRUE
   )
+  # Then bare #{de} → val_de
+  result <- gsub(
+    paste0("#\\{(", uid11, ")\\}"),
+    "val_\\1", result, perl = TRUE
+  )
+  result
 }
 
 #' Apply a DHIS2 validation-rule operator to two numeric vectors
