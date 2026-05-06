@@ -508,12 +508,29 @@ message(
 )
 
 # ---------------------------------------------------------------------------
-# 5. Seasonal bootstrap: generate 48 months of prior history
+# 4b. Save raw real data (12 months) before bootstrapping
 # ---------------------------------------------------------------------------
 
-message("\n=== Bootstrapping prior 48 months ===")
+mg2_demo_raw <- real_data
 
-# Period helpers
+# ---------------------------------------------------------------------------
+# 5. Seasonal bootstrap: generate 48 months of prior history  (Option D)
+#
+# Four features added over the original simple tile:
+#   1. Higher per-facility noise  (sdlog 0.35 vs 0.12) — more realistic spread
+#   2. Element-specific year trends — visible national-level change over time
+#        AFM5H0wNq3t (ACT treatment) : step-up from 2023 (scale-up program)
+#        Qk9nnX0i7lZ / wZwzzRnr9N4  : gradual testing/positivity growth
+#        p4K11MFEWtw / wWy5TE9cQ0V  : declining inpatient cases/deaths
+#   3. Reporting gaps for multi-facility elements — earlier years have more
+#      missing facility-months (programme roll-out improving over time)
+#   4. One outlier year — wZwzzRnr9N4 (RDT positive) Jun–Aug 2022:
+#      ~5 % of facilities report 3–4× their expected value, leaving a
+#      detectable cluster of outliers for the Outliers tab to catch
+# ---------------------------------------------------------------------------
+
+message("\n=== Bootstrapping prior 48 months (Option D) ===")
+
 period_to_ym <- function(p) {
   as.integer(substr(p, 1, 4)) * 12 + as.integer(substr(p, 5, 6)) - 1
 }
@@ -526,32 +543,83 @@ ym_to_period <- function(ym) {
 
 set.seed(20260404)
 
-# For each facility × data element × categoryOptionCombo, tile the 12 real
-# months backward 4 times with lognormal multiplicative noise (SD ≈ 15%).
-bootstrap_series <- function(df) {
+# --- Option D parameters ---------------------------------------------------
+
+NOISE_SD <- 0.35   # facility-level lognormal noise (was 0.12)
+
+# Year-trend multipliers: how large is each prior year relative to 2025?
+# Multipliers < 1 → the programme grew to reach 2025 level
+# Multipliers > 1 → the outcome declined to reach 2025 level (e.g. deaths)
+YEAR_TRENDS <- list(
+  AFM5H0wNq3t = c(`2024` = 0.88, `2023` = 0.72, `2022` = 0.60, `2021` = 0.55),
+  Qk9nnX0i7lZ = c(`2024` = 0.93, `2023` = 0.87, `2022` = 0.80, `2021` = 0.75),
+  p4K11MFEWtw  = c(`2024` = 1.04, `2023` = 1.08, `2022` = 1.15, `2021` = 1.20),
+  wWy5TE9cQ0V  = c(`2024` = 1.08, `2023` = 1.15, `2022` = 1.25, `2021` = 1.35),
+  wZwzzRnr9N4  = c(`2024` = 0.95, `2023` = 0.90, `2022` = 0.84, `2021` = 0.78)
+)
+
+# Multi-facility elements: reporting gaps applied (single-facility inpatient
+# elements p4K11MFEWtw and wWy5TE9cQ0V are excluded — dropping their one
+# facility would delete the series entirely)
+MULTI_FAC_ELEMENTS <- c("AFM5H0wNq3t", "Qk9nnX0i7lZ", "wZwzzRnr9N4")
+
+# Probability of keeping a facility-month (incomplete reporting in early years)
+REPORT_PROB <- c(`2024` = 0.93, `2023` = 0.85, `2022` = 0.75, `2021` = 0.65)
+
+# Outlier cluster: ~5 % of facilities report 3–4× expected value
+OUTLIER_ELEMENT <- "wZwzzRnr9N4"
+OUTLIER_YEAR    <- 2022L
+OUTLIER_MONTHS  <- 6:8
+OUTLIER_FRAC    <- 0.05
+OUTLIER_FACTOR  <- c(3, 4)
+
+# ---------------------------------------------------------------------------
+
+bootstrap_series <- function(df, key) {
   df <- df %>% arrange(period)
-  n <- nrow(df)
-  if (n == 0) {
-    return(tibble())
-  }
+  n  <- nrow(df)
+  if (n == 0) return(tibble())
 
-  min_ym <- period_to_ym(min(df$period))
-
-  # Key columns (everything except period / SUM / COUNT)
-  key_cols <- setdiff(names(df), c("period", "SUM", "COUNT"))
+  de_id        <- key$dataElement[1]
+  is_multi_fac <- de_id %in% MULTI_FAC_ELEMENTS
+  trends       <- YEAR_TRENDS[[de_id]]
+  min_ym       <- period_to_ym(min(df$period))
 
   prior_rows <- vector("list", 4)
   for (tile in 4:1) {
-    noise <- rlnorm(n, meanlog = 0, sdlog = 0.12)
+    tile_year  <- 2025L - as.integer(tile)   # tile 4→2021, 3→2022, 2→2023, 1→2024
+    noise      <- rlnorm(n, meanlog = 0, sdlog = NOISE_SD)
+    multiplier <- trends[as.character(tile_year)]
+
     prior_df <- df %>%
       mutate(
-        ym = period_to_ym(period),
-        offset = min_ym - (tile * 12) + (ym - min(ym)),
+        ym     = period_to_ym(period),
+        offset = min_ym - (tile * 12L) + (ym - min(ym)),
         period = ym_to_period(offset),
-        SUM = round(SUM * noise),
-        COUNT = COUNT # keep count the same (same facilities)
+        SUM    = round(SUM * noise * multiplier),
+        COUNT  = COUNT
       ) %>%
       select(-ym, -offset)
+
+    # Reporting gaps (multi-facility elements only)
+    if (is_multi_fac) {
+      prob <- REPORT_PROB[as.character(tile_year)]
+      keep <- as.logical(rbinom(nrow(prior_df), 1, prob))
+      prior_df <- prior_df[keep, , drop = FALSE]
+    }
+
+    # Outlier spike
+    if (de_id == OUTLIER_ELEMENT && tile_year == OUTLIER_YEAR) {
+      spike_months <- as.integer(substr(prior_df$period, 5, 6)) %in% OUTLIER_MONTHS
+      spike_facs   <- runif(nrow(prior_df)) < OUTLIER_FRAC
+      spike_idx    <- which(spike_months & spike_facs)
+      if (length(spike_idx) > 0) {
+        mult <- runif(length(spike_idx),
+                      min = OUTLIER_FACTOR[1], max = OUTLIER_FACTOR[2])
+        prior_df$SUM[spike_idx] <- round(prior_df$SUM[spike_idx] * mult)
+      }
+    }
+
     prior_rows[[tile]] <- prior_df
   }
 
@@ -560,7 +628,7 @@ bootstrap_series <- function(df) {
 
 prior_data <- real_data %>%
   group_by(across(-c(period, SUM, COUNT))) %>%
-  group_modify(~ bootstrap_series(.x)) %>%
+  group_modify(bootstrap_series) %>%
   ungroup()
 
 message("  Prior data: ", nrow(prior_data), " rows")
@@ -615,6 +683,7 @@ mg2_demo_meta <- list(
 
 message("\n=== Saving to data/ ===")
 
+usethis::use_data(mg2_demo_raw, overwrite = TRUE)
 usethis::use_data(mg2_demo, overwrite = TRUE)
 usethis::use_data(mg2_demo_formula, overwrite = TRUE)
 usethis::use_data(mg2_demo_meta, overwrite = TRUE)
