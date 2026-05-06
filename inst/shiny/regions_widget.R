@@ -29,6 +29,8 @@ regions_widget_ui = function(id) {
       )
     ),
 
+    uiOutput(ns("table_selection_notice")),
+
     fluidRow(
       column(
         6,
@@ -131,6 +133,41 @@ regions_widget_server <- function(
 
         cat("\n - selected_regions:", unlist(sr))
         return(sr)
+      })
+
+      # Notice banner when table rows are driving the region filter ----
+      output$table_selection_notice <- renderUI({
+        sel_rows <- input$geoFeaturesTable_rows_selected
+        if (is.null(sel_rows) || length(sel_rows) == 0) return(NULL)
+
+        gf    <- geoFeatures.ous() %>% sf::st_drop_geometry()
+        names <- gf$name[sel_rows]
+        label <- if (length(names) <= 4)
+          paste(names, collapse = ", ")
+        else
+          paste0(paste(names[1:3], collapse = ", "), " … (", length(names), " selected)")
+
+        div(
+          style = paste(
+            "background:#fff3cd; border:1px solid #ffc107; border-radius:4px;",
+            "padding:8px 12px; margin-bottom:10px; font-size:13px;"
+          ),
+          icon("filter"),
+          tags$b(" Region filter active (from list selection): "),
+          label,
+          tags$span(
+            style = "float:right; cursor:pointer; color:#888;",
+            onclick = paste0(
+              "Shiny.setInputValue('", session$ns("clear_table_selection"), "',",
+              " Math.random())"
+            ),
+            icon("xmark"), " Clear"
+          )
+        )
+      })
+
+      observeEvent(input$clear_table_selection, {
+        DT::dataTableProxy("geoFeaturesTable") %>% DT::selectRows(NULL)
       })
 
       # Levels ####
