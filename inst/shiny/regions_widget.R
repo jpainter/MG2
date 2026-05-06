@@ -281,10 +281,6 @@ regions_widget_server <- function(
         if (!is.null(input$level2) & is.null(input$level3)) {
           cat("\n - input$level2: ", input$level2)
 
-          # TESTING
-          saveRDS(ousTree(), "ousTree.rds")
-          saveRDS(geoFeatures(), "geoFeatures.rds")
-
           # Get all descendant nodes for the selected node
           descendants <- getDescendantsRecursive(input$level2, gf.ous)
           # Include the selected node itself
@@ -324,9 +320,9 @@ regions_widget_server <- function(
         # Testing
         # saveRDS( gf.ous , "gf.ous.rds")
 
-        # Remove slashes from levelNames
-        # cat( '\n - remove slashes from levelName')
-        gf.ous$levelName = str_replace_all(gf.ous$levelName, fixed("/"), ";")
+        # Remove slashes from levelName (only if column exists)
+        if ("levelName" %in% names(gf.ous))
+          gf.ous$levelName <- str_replace_all(gf.ous$levelName, fixed("/"), ";")
 
         return(gf.ous)
       })
@@ -336,7 +332,7 @@ regions_widget_server <- function(
           geoFeatures.ous() %>%
             st_drop_geometry() %>%
             as_tibble() %>%
-            select(name, level, levelName, parentName, id, latitude, longitude),
+            select(any_of(c("name", "level", "levelName", "parentName", "id", "latitude", "longitude"))),
 
           rownames = FALSE,
           filter = 'top',
