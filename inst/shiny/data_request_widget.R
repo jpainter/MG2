@@ -204,8 +204,9 @@ data_request_widget_server <- function(
       # Update period: choose largest value of month or week
       observe({
         cat('\n* updating period')
-        if (!is.null(formula_elements())) {
-          p = min(formula_elements()$periodType, na.rm = T)
+        fe <- formula_elements()
+        if (!is.null(fe) && nrow(fe) > 0 && "periodType" %in% names(fe)) {
+          p = min(fe$periodType, na.rm = TRUE)
           updateSelectInput(session, 'period', selected = p)
         }
       })

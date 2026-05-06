@@ -258,9 +258,16 @@ data_widget_server <- function(
         req(input$formula)
         cat('\n* formula_elements:')
 
+        fe <- all_formula_elements()
+
+        # Guard: empty or malformed formula file (no elements saved yet)
+        if (!is.data.frame(fe) || nrow(fe) == 0 || !"Formula.Name" %in% names(fe)) {
+          cat('\n - formula elements empty or missing Formula.Name column')
+          return(tibble::tibble())
+        }
+
         cat('\n - selecting formula')
-        all_formula_elements() %>%
-          filter(Formula.Name %in% input$formula)
+        fe %>% filter(Formula.Name %in% input$formula)
       })
 
       data.dir_files = reactive({
