@@ -616,8 +616,33 @@ YEAR_TRENDS <- list(
 # facility would delete the series entirely)
 MULTI_FAC_ELEMENTS <- c("AFM5H0wNq3t", "Qk9nnX0i7lZ", "wZwzzRnr9N4")
 
-# Probability of keeping a facility-month (incomplete reporting in early years)
-REPORT_PROB <- c(`2024` = 0.93, `2023` = 0.85, `2022` = 0.75, `2021` = 0.65)
+# Per-facility reporting trajectories (replaces flat annual probability).
+# Champions (all 12 months in 2025) reported well historically: start prob
+# 75–92% in 2021. Non-champions start at 15–55% of their 2025 rate and
+# improve linearly each year, reflecting a maturing reporting system.
+fac_completeness_2025 <- real_data %>%
+  dplyr::filter(dataElement %in% MULTI_FAC_ELEMENTS) %>%
+  dplyr::group_by(orgUnit) %>%
+  dplyr::summarise(months_2025 = dplyr::n_distinct(period), .groups = "drop") %>%
+  dplyr::mutate(
+    rate_2025   = months_2025 / 12,
+    is_champion = months_2025 == 12,
+    start_prob  = ifelse(
+      is_champion,
+      runif(dplyr::n(), 0.75, 0.92),
+      pmax(0.10, rate_2025 * runif(dplyr::n(), 0.15, 0.55))
+    )
+  )
+
+fac_year_probs <- fac_completeness_2025 %>%
+  tidyr::crossing(tile_year = 2021L:2024L) %>%
+  dplyr::mutate(
+    alpha = (tile_year - 2021L) / 4L,
+    prob  = pmin(1, start_prob + alpha * (rate_2025 - start_prob))
+  ) %>%
+  dplyr::select(orgUnit, tile_year, prob)
+
+fac_year_probs_by_ou <- split(fac_year_probs, fac_year_probs$orgUnit)
 
 # Outlier cluster: ~5 % of facilities report 3–4× expected value
 OUTLIER_ELEMENT <- "wZwzzRnr9N4"
@@ -654,9 +679,13 @@ bootstrap_series <- function(df, key) {
       ) %>%
       select(-ym, -offset)
 
-    # Reporting gaps (multi-facility elements only)
+    # Reporting gaps — facility-specific probability from trajectory table
     if (is_multi_fac) {
-      prob <- REPORT_PROB[as.character(tile_year)]
+      fac_tbl <- fac_year_probs_by_ou[[key$orgUnit[1]]]
+      prob    <- if (!is.null(fac_tbl))
+        fac_tbl$prob[fac_tbl$tile_year == tile_year]
+      else 0.80
+      if (length(prob) == 0) prob <- 0.80
       keep <- as.logical(rbinom(nrow(prior_df), 1, prob))
       prior_df <- prior_df[keep, , drop = FALSE]
     }

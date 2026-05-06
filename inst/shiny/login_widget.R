@@ -59,13 +59,16 @@ login_widget_ui <- function(id) {
             tags$small(
               "5 years of Sierra Leone malaria data — no server connection needed.",
               tags$br(),
-              tags$a("See About tab for details.", href = "#")
+              tags$a("See About tab for details.", href = "#"),
+              tags$br(),
+              "Browse to choose where demo files will be written."
             ),
             style = "color: #555; margin-bottom: 8px;"
           ),
-          actionButton(
-            ns("load_demo"),
+          shinyFiles::shinyDirButton(
+            ns("demo_folder"),
             label = tagList(icon("play-circle"), " Load Demo Data"),
+            title = "Choose folder for demo data",
             class = "btn-success"
           )
         )
@@ -264,26 +267,41 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
       username <- reactive({ input$username })
       password <- reactive({ input$password })
 
-      # Load Demo Data button ----
-      observeEvent(input$load_demo, {
-        req(!is.null(demo_dir))
+      # Load Demo Data — shinyDirButton ----
+      demo_volumes <- c(Home = path.expand("~"))
+      icloud_path  <- file.path(path.expand("~"),
+                                "Library/Mobile Documents/com~apple~CloudDocs")
+      if (dir.exists(icloud_path))
+        demo_volumes <- c("iCloud Drive" = icloud_path, demo_volumes)
+      onedrive_path <- file.path(path.expand("~"), "OneDrive")
+      if (dir.exists(onedrive_path))
+        demo_volumes <- c("OneDrive" = onedrive_path, demo_volumes)
 
-        default_dir <- file.path(path.expand("~"), "mg2_demo")
+      shinyFiles::shinyDirChoose(input, "demo_folder",
+                                 roots = demo_volumes, session = session)
+
+      observeEvent(input$demo_folder, {
+        if (is.integer(input$demo_folder)) return()   # not yet chosen
+
+        chosen_dir <- shinyFiles::parseDirPath(demo_volumes, input$demo_folder)
+        if (length(chosen_dir) == 0 || !nzchar(chosen_dir)) return()
+
+        req(!is.null(demo_dir))
 
         showModal(modalDialog(
           title     = "Loading demo data...",
-          "Writing Sierra Leone malaria demo files to ~/mg2_demo.",
+          paste0("Writing Sierra Leone malaria demo files to:\n", chosen_dir),
           easyClose = FALSE,
           footer    = NULL,
           fade      = FALSE
         ))
 
         tryCatch({
-          result_dir <- mg2_demo_setup(dir = default_dir)
+          result_dir <- mg2_demo_setup(dir = chosen_dir, overwrite = TRUE)
           removeModal()
           demo_dir(result_dir)
           showNotification(
-            "Demo data ready. Directory set to ~/mg2_demo.",
+            paste0("Demo data ready. Directory: ", chosen_dir),
             type = "message", duration = 5
           )
         }, error = function(e) {

@@ -127,6 +127,18 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
     message("Dataset exists (skipped): ", basename(data_path))
   }
 
+  # -------------------------------------------------------------------------
+  # 4. Raw 12-month real data (one year from DHIS2 before bootstrapping)
+  # -------------------------------------------------------------------------
+  raw_path <- file.path(dir, paste0("Sierra Leone Malaria_raw_1yr_", today, ".rds"))
+
+  if (!file.exists(raw_path) || overwrite) {
+    saveRDS(mg2_demo_raw, raw_path, compress = TRUE)
+    message("Raw 1-yr data saved:   ", basename(raw_path))
+  } else {
+    message("Raw 1-yr data exists (skipped): ", basename(raw_path))
+  }
+
   message(
     "\nDemo data ready. In the MG2 app, paste this path into the Directory box:\n",
     "  ", dir
