@@ -1,6 +1,6 @@
 #' Set Up Demo Data Directory
 #'
-#' Writes the MG2 demo datasets (Sierra Leone malaria, 5 elements, 60 months)
+#' Writes the MG2 demo datasets (Sierra Leone malaria, 5 elements, 72 months)
 #' to a local directory in the format the Shiny app expects: a formula `.xlsx`,
 #' a metadata `.rds`, and a processed dataset `.rds`.
 #'
@@ -59,7 +59,7 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
     message("Using existing directory: ", dir)
   }
 
-  formula_name <- "Sierra Leone Malaria"
+  formula_name <- "Sierra Leone Malaria Demo"
   today        <- Sys.Date()
 
   # -------------------------------------------------------------------------
@@ -130,7 +130,7 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   # -------------------------------------------------------------------------
   # 4. Raw 12-month real data (one year from DHIS2 before bootstrapping)
   # -------------------------------------------------------------------------
-  raw_path <- file.path(dir, paste0("Sierra Leone Malaria_raw_1yr_", today, ".rds"))
+  raw_path <- file.path(dir, paste0(formula_name, "_raw_1yr_", today, ".rds"))
 
   if (!file.exists(raw_path) || overwrite) {
     saveRDS(mg2_demo_raw, raw_path, compress = TRUE)

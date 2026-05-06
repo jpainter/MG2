@@ -1758,6 +1758,87 @@ metadata_widget_server <- function(
       ## for description of properties, see table 1.59,
       ## https://docs.dhis2.org/2.22/en/developer/html/ch01s32.html
 
+      # Convert the old DHIS2 geoFeatures API response (columns co/ty/na/le/pn)
+      # to an sf object matching the structure produced by geoFeatures_download().
+      .geofeatures_raw_to_sf = function(gf, orgUnitLevels = NULL) {
+        geometries <- lapply(seq_len(nrow(gf)), function(i) {
+          co_str <- gf$co[i]
+          ty     <- gf$ty[i]
+          if (is.na(co_str) || !nzchar(co_str))
+            return(sf::st_geometrycollection())
+          coords <- tryCatch(jsonlite::fromJSON(co_str), error = function(e) NULL)
+          if (is.null(coords)) return(sf::st_geometrycollection())
+          tryCatch({
+            if (ty == 1L) {               # Point: [lng, lat]
+              sf::st_point(as.numeric(coords))
+            } else {                      # Polygon: [[[lng, lat], ...]]
+              # fromJSON gives a 3-dim array [rings, points, 2]
+              if (is.array(coords) && length(dim(coords)) == 3) {
+                rings <- lapply(seq_len(dim(coords)[1]),
+                                function(r) coords[r, , , drop = FALSE][1,,])
+                sf::st_polygon(rings)
+              } else if (is.list(coords)) {
+                # Each element of coords is one polygon (multipolygon case).
+                # Build each polygon, then wrap in st_multipolygon if > 1.
+                .make_polygon <- function(poly_elt) {
+                  if (is.array(poly_elt) && length(dim(poly_elt)) == 3) {
+                    # 3D array: [rings, points, 2]
+                    rings <- lapply(seq_len(dim(poly_elt)[1]),
+                                    function(r) poly_elt[r, , , drop = FALSE][1,,])
+                    sf::st_polygon(rings)
+                  } else if (is.list(poly_elt)) {
+                    rings <- lapply(poly_elt, function(r)
+                      if (is.list(r)) do.call(rbind, r) else as.matrix(r))
+                    sf::st_polygon(rings)
+                  } else {
+                    NULL
+                  }
+                }
+                polys <- Filter(Negate(is.null), lapply(coords, .make_polygon))
+                if (length(polys) == 0) {
+                  sf::st_geometrycollection()
+                } else if (length(polys) == 1) {
+                  polys[[1]]
+                } else {
+                  sf::st_multipolygon(lapply(polys, unclass))
+                }
+              } else {
+                sf::st_geometrycollection()
+              }
+            }
+          }, error = function(e) sf::st_geometrycollection())
+        })
+
+        out <- sf::st_sf(
+          id         = gf$id,
+          name       = gf$na,
+          level      = suppressWarnings(as.integer(gf$le)),
+          parentName = if ("pn" %in% names(gf)) gf$pn else NA_character_,
+          geometry   = sf::st_sfc(geometries, crs = 4326),
+          stringsAsFactors = FALSE
+        )
+
+        # Add levelName from orgUnitLevels if available
+        if (!is.null(orgUnitLevels) && "level" %in% names(orgUnitLevels) &&
+            "levelName" %in% names(orgUnitLevels)) {
+          out$levelName <- orgUnitLevels$levelName[
+            match(out$level, orgUnitLevels$level)
+          ]
+        }
+
+        # Add latitude/longitude for point features
+        out$latitude  <- NA_real_
+        out$longitude <- NA_real_
+        is_pt <- sf::st_geometry_type(out) == "POINT"
+        if (any(is_pt)) {
+          coords_pt <- sf::st_coordinates(out[is_pt, ])
+          out$longitude[is_pt] <- coords_pt[, "X"]
+          out$latitude[is_pt]  <- coords_pt[, "Y"]
+        }
+
+        out
+      }
+
       geoFeatures_download = function(level = 2, .pb = NULL) {
         cat("downloading geoFeatures level", level, "\n")
 
@@ -1849,19 +1930,25 @@ metadata_widget_server <- function(
             cat('\n- reading geofeatures from metadata file')
             geosf. = metadata()$geoFeatures
             cat('\n- geofeatures have', nrow(geosf.), "rows")
+
+            # If stored as raw DHIS2 geoFeatures API response (has 'co' column
+            # rather than an sf geometry column), convert to sf.
+            if (!inherits(geosf., "sf") && "co" %in% names(geosf.)) {
+              cat('\n- converting raw geoFeatures API response to sf')
+              geosf. <- tryCatch(
+                .geofeatures_raw_to_sf(geosf., orgUnitLevels()),
+                error = function(e) {
+                  cat('\n- conversion failed:', conditionMessage(e))
+                  NULL
+                }
+              )
+              if (is.null(geosf.)) return(NULL)
+              cat('\n- converted to sf:', nrow(geosf.), 'rows')
+            }
           } else {
             return(NULL)
           }
         }
-
-        # file = paste0( dir(), geofeatures.files()[1] )
-        # cat('\n - looking for geofeatures file:' , file )
-        #
-        # if ( file.exists( file ) & !dir.exists( file )){
-        #
-        #   cat('\n- reading from geofeatures file'  )
-        #   geosf. = readRDS( file )
-        #   cat('\n- geofeatures have' , nrow(geosf.) , "rows" )
 
         return(geosf.)
       })

@@ -2,212 +2,85 @@ cleaning_widget_ui = function(id) {
   ns <- NS(id)
 
   tagList(
-    shinybusy::add_busy_spinner(
-      spin = "fading-circle", # "self-building-square",
-      position = 'bottom-left'
-      # , margins = c(70, 1200)
-    ),
+    shinybusy::add_busy_spinner(spin = "fading-circle", position = 'bottom-left'),
 
-    tabsetPanel(
-      type = "tabs",
+    sidebarLayout(
+      sidebarPanel(
+        width = 3,
 
-      tabPanel(
-        "Summary",
+        actionButton(ns('update_dataElement'), label = "Update"),
 
-        sidebarLayout(
-          sidebarPanel(
-            width = 3,
+        checkboxInput(ns("select_all_dataElement"), "Select / deselect all", value = TRUE),
 
-            actionButton(ns('update_dataElement'), label = "Update"),
-
-            checkboxInput(ns("select_all_dataElement"), "Select / deselect all", value = TRUE),
-
-            div(
-              style = "max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
-              checkboxGroupInput(
-                ns("dataElement"),
-                label = "DataElement_Category:",
-                choices = NULL,
-                selected = NULL,
-                width = "100%"
-              )
-            ),
-
-            uiOutput(ns("reporting_mismatch_warning")),
-
-            selectInput(
-              ns("selectOrgType"),
-              label = "Filter results",
-              choices = c('Facilities only', 'Admin only', 'All'),
-              selected = 'Facilities only'
-            )
-          ),
-
-          mainPanel(
-            width = 9,
-
-            # h5( 'Use the buttons to search for extreme values using median absolute deviation (MAD), and then seasonally adjusted outliers') ,
-            #
-            # actionButton( ns("determineExtremeValues") ,
-            #               "Search for Extreme Values" , style='margin-top:25px'
-            # )   ,
-
-            # actionButton( ns("determineSeasonalOutliers") ,
-            #               "Search for Seasonal Outliers" , style='margin-top:25px'
-            # )  ,
-
-            htmlOutput(ns("region_filter_status")),
-
-            inputPanel(
-              selectizeInput(
-                ns("startingMonth"),
-                label = "Begining with",
-                choices = NULL,
-                selected = NULL
-              ),
-
-              selectizeInput(
-                ns("endingMonth"),
-                label = "Ending with",
-                choices = NULL,
-                selected = NULL
-              ),
-
-              selectizeInput(
-                ns("reporting"),
-                label = "Reporting frequency",
-                choices = c(
-                  "All",
-                  "Reporting Each Period",
-                  "Inconsistent Reporting"
-                ),
-                selected = "All"
-              ),
-
-              sliderInput(
-                ns('maxMASE'),
-                "Select facilities with MASE less than or equal to -",
-                min = 0.1,
-                max = 1.0,
-                value = .4,
-                step = .05
-              )
-            ),
-
-            tabsetPanel(
-              type = "tabs",
-
-              tabPanel(
-                "Outlier Table",
-                textOutput(ns("outlierSummaryText")),
-                tableOutput(ns("outlier.summary.table")),
-                br(),
-                htmltools::HTML(
-                  "For information on the outlier procedure and algorithms, see the <b>About</b> tab."
-                )
-              ),
-
-              tabPanel(
-                "Outlier Chart",
-                style = "height:60vh;",
-                fluidPage(
-                  fluidRow(
-                    style = "height:50vh;",
-                    # h5( 'Select orgUnit having error')
-                    # textOutput( ns("outlierSummaryText")) ,
-                    plotOutput(ns("outlier.summary.chart"), height = "auto")
-                  )
-                )
-              ),
-
-              tabPanel(
-                "Monthly Summary",
-                style = "height:60vh;",
-                fluidPage(
-                  fluidRow(
-                    style = "height:50vh;",
-                    # h5( 'Select orgUnit having error')
-                    # textOutput( ns("outlierSummaryText")) ,
-                    plotOutput(ns("monthly_summary_chart"))
-                  )
-                )
-              ),
-
-              tabPanel(
-                "Mean Absolute Scaled Error",
-                fluidRow(style = "height:50vh;", plotOutput(ns("mase.summary")))
-              ),
-
-              tabPanel(
-                "Inspect",
-                style = "height:60vh;",
-                fluidPage(
-                  fluidRow(
-                    style = "height:10vh;",
-                    # h5( 'Select orgUnit having error')     ,
-
-                    selectInput(
-                      ns('Error'),
-                      'Error Type',
-                      choices = c(
-                        'mad15',
-                        'mad10',
-                        'mad5',
-                        'seasonal5',
-                        'seasonal3'
-                      )
-                    ),
-
-                    # selectInput( ns('seasonalError'), 'Seasonally Adjusted error' ,
-                    #              choices = c( 'seasonal5', 'seasonal3' ) ) ,
-
-                    selectizeInput(
-                      ns('flaggedOrgUnit'),
-                      'Select orgUnit having this error',
-                      choices = ""
-                    ),
-
-                    checkboxInput(ns('showAllData'), 'Show all data elements')
-                  ),
-
-                  fluidRow(
-                    style = "height:40vh;",
-                    plotOutput(
-                      ns("inspect")
-                      # , hover = ns("plot_hover") ,
-                      # click = ns("plot_click") )
-                      # , uiOutput( ns("dynamic")
-                    )
-                  )
-
-                  # , fluidRow( style = "height:5vh;",
-                  #          verbatimTextOutput( ns("info") ))
-                )
-              )
-            )
+        div(
+          style = "max-height: 280px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+          checkboxGroupInput(
+            ns("dataElement"),
+            label = "DataElement_Category:",
+            choices = NULL,
+            selected = NULL,
+            width = "100%"
           )
+        ),
+
+        uiOutput(ns("reporting_mismatch_warning")),
+
+        selectizeInput(
+          ns("startingMonth"),
+          label = "Beginning with",
+          choices = NULL,
+          selected = NULL
+        ),
+
+        selectizeInput(
+          ns("endingMonth"),
+          label = "Ending with",
+          choices = NULL,
+          selected = NULL
+        ),
+
+        selectizeInput(
+          ns("reporting"),
+          label = "Reporting frequency",
+          choices = c("All", "Champion", "Non-champion"),
+          selected = "All"
         )
       ),
 
-      tabPanel(
-        "Data View",
-        div(
-          style = "padding: 6px 12px 2px 12px;",
-          tags$small(style = "color:#555;",
-            "Flagged values only — sorted by champion facilities first, then ratio (value ÷ median) descending. ",
-            "Click a row to view the full time series for that facility and indicator."
-          )
-        ),
-        DT::DTOutput(ns("flagged_dt")),
-        plotly::plotlyOutput(ns("drill_chart"), height = "380px")
-      )
+      mainPanel(
+        width = 9,
 
-      # tabPanel( "Summary (under construction)",
-      #                 html("<div style='display:flex;'>") ,
-      #                   htmlOutput( ns("profileSummary") ) ,
-      #                 html("<div>") ,
-      #
-      #       )
+        htmlOutput(ns("region_filter_status")),
+
+        tabsetPanel(
+          type = "tabs",
+
+          tabPanel(
+            "Outlier Table",
+            br(),
+            textOutput(ns("outlierSummaryText")),
+            tableOutput(ns("outlier.summary.table")),
+            br(),
+            htmltools::HTML(
+              "For information on the outlier procedure and algorithms, see the <b>About</b> tab."
+            )
+          ),
+
+          tabPanel(
+            "Data View",
+            div(
+              style = "padding: 6px 12px 2px 12px;",
+              tags$small(
+                style = "color:#555;",
+                "Flagged values only — sorted by champion facilities first, then ratio (value \u00f7 median) descending. ",
+                "Click a row to view the full time series for that facility and indicator."
+              )
+            ),
+            DT::DTOutput(ns("flagged_dt")),
+            plotly::plotlyOutput(ns("drill_chart"), height = "380px")
+          )
+        )
+      )
     )
   )
 } # ui
@@ -271,11 +144,6 @@ cleaning_widget_server <- function(
         metadata_widget_output$orgUnitLevels()
       })
 
-      reportingSelectedOUs = reactive({
-        req(input$tabs == "evaluation")
-        reporting_widget_output$reportingSelectedOUs()
-      })
-
       dates = reactive({
         reporting_widget_output$dates()
       })
@@ -324,18 +192,20 @@ cleaning_widget_server <- function(
       })
 
       output$region_filter_status <- renderUI({
-        sr <- regions_selected()
-        parts <- Filter(function(x) !is.null(x) && length(x) > 0,
-                        list(sr$level2, sr$level3, sr$level4, sr$level5))
-        label <- if (length(parts) == 0) "National" else
-          paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+        ct <- tryCatch(caption.text(), error = function(e) NULL)
+        label <- if (!is.null(ct) && nzchar(ct)) ct else {
+          sr <- regions_selected()
+          parts <- Filter(function(x) !is.null(x) && length(x) > 0,
+                          list(sr$level2, sr$level3, sr$level4, sr$level5))
+          if (length(parts) == 0) "National" else
+            paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+        }
         div(
           style = paste0(
             "background:#e8f4fd; padding:8px 14px;",
             " border-left:4px solid #2196F3; margin:6px 0 10px 0; border-radius:3px;"
           ),
-          tags$strong(style = "color:#1565C0; font-size:1.05em;",
-                      paste("Region:", label))
+          tags$strong(style = "color:#1565C0; font-size:1.05em;", label)
         )
       })
 
@@ -890,31 +760,6 @@ cleaning_widget_server <- function(
 
       # Summary ####
 
-      output$mase.summary <- renderPlot({
-        req(selected_data())
-        cat('\n* output$mase.summary')
-
-        # d = data1()
-        d = selected_data()
-
-        if (!'expected' %in% names(d)) {
-          cat('\n - "expected" column not found')
-          return()
-        }
-
-        reportingSelectedOUs = reportingSelectedOUs()
-
-        # Testing
-        # saveRDS( d , 'd.rds')
-        # saveRDS( reportingSelectedOUs,  'reportingSelectedOUs.rds' )
-
-        data_mase = d.mase(d, reportingSelectedOUs)
-
-        mase.summary.plot(data_mase, mase.cutpoint = input$maxMASE)
-
-        # }
-      })
-
       # ── Data View: flagged values table + drill-down chart ──────────────────
 
       flagged_table_data = reactive({
@@ -1156,74 +1001,6 @@ cleaning_widget_server <- function(
         out
       })
 
-      outlier.summary = reactive({
-        req(outlier.dataset())
-
-        cat("\n * outlier.summary")
-
-        outlier_dataset = outlier.dataset()
-
-        cat("\n - outlier.dataset has", nrow(outlier_dataset), 'rows')
-
-        # Testing
-        # saveRDS( data1 , 'outlier.dataset.rds')
-
-        # data.table?
-
-        d = outlier_dataset %>%
-          as_tibble() %>%
-          group_by(Month, seasonal3) %>%
-          summarise(original = sum(original, na.rm = T)) %>%
-          mutate(clean = seasonal3 %in% TRUE) %>%
-          group_by(Month, clean) %>%
-          summarise(original = sum(original, na.rm = T)) %>%
-          pivot_wider(names_from = clean, values_from = original) %>%
-          mutate(Raw = `TRUE` + `FALSE`) %>%
-          rename(Clean = `TRUE`) %>%
-          select(-`FALSE`) %>%
-          pivot_longer(cols = c(Clean, Raw))
-
-        cat("\n - outlier.summary has", nrow(d), 'rows')
-
-        # Testing
-        # saveRDS( d , 'outlier.summary.rds')
-
-        return(d)
-      })
-
-      output$outlier.summary.chart <- renderPlot({
-        req(outlier.dataset())
-
-        d = outlier.summary()
-
-        cat('\n * outlier.summary.chart')
-
-        g = d %>%
-          ggplot(aes(x = Month, y = value, group = name, color = name)) +
-          scale_color_brewer(type = 'qual') +
-          geom_line() +
-          labs(caption = region_caption_text()) +
-          theme_minimal()
-
-        g
-      })
-
-      output$monthly_summary_chart <- renderPlot({
-        req(outlier.dataset())
-
-        df.ts = data1()
-
-        # Testing
-        # saveRDS(df.ts, 'df.ts.rds')
-
-        cat('\n * cleaning_widget.r monthly_summary_chart')
-
-        d = monthly.outlier.summary(df.ts)
-        g = outlier.summary.chart(d) +
-          labs(caption = region_caption_text())
-        g
-      })
-
       # Inspect Outliers #####
       # observeEvent( afterSeasonal() ,{
       #   req( outlierData$df_data )
@@ -1264,8 +1041,18 @@ cleaning_widget_server <- function(
         # d. = as.data.table( data1() )
         d. = as.data.table(selected_data())
 
-        if (!input$reporting %in% "All") {
-          d. = d. %>% filter(Selected %in% input$reporting)
+        if (input$reporting != "All") {
+          champion_ous <- tryCatch(
+            reporting_widget_output$reportingSelectedOUs(),
+            error = function(e) NULL
+          )
+          if (!is.null(champion_ous) && length(champion_ous) > 0) {
+            if (input$reporting == "Champion") {
+              d. <- d.[orgUnit %in% champion_ous]
+            } else if (input$reporting == "Non-champion") {
+              d. <- d.[!orgUnit %in% champion_ous]
+            }
+          }
         }
 
         cat('\n - period():', period())
@@ -1306,21 +1093,6 @@ cleaning_widget_server <- function(
         }
         if ('seasonal3' %in% names(d)) {
           cat('\n - data has seasonal3')
-        }
-
-        # effectiveLeaf is always TRUE for modern DHIS2 downloads; these filters
-        # are no-ops on new datasets and are retained for legacy backward compatibility.
-        if (
-          'effectiveLeaf' %in%
-            names(d) &&
-            input$selectOrgType %in% 'Facilities only'
-        ) {
-          cat('\n - data has effectiveLeaf; facilities only')
-
-          d = setDT(d)[effectiveLeaf == TRUE, ]
-        } else if (input$selectOrgType %in% 'Admin only') {
-          cat('\n - Admin only')
-          d = setDT(d)[effectiveLeaf != TRUE, ]
         }
 
         # Filter by region — driven by the Regions page
@@ -1409,152 +1181,6 @@ cleaning_widget_server <- function(
       })
 
       output$outlier.summary.table = renderTable(outlier.summary.table())
-
-      ## Visualize cleaning (Inspect )  ####
-      errorFlag = reactive({
-        req(outlier.dataset())
-        req(input$Error)
-        req(selected_data_cats$elements)
-        cat('\n* errorFlag():')
-
-        # print( head( data1() ) )
-        d = outlier.dataset()
-
-        # testing
-        # saveRDS( d , 'outlier.dataset.rds')
-
-        # MAD Error
-        cat("\n - input$Error:", input$Error)
-        if (input$Error %in% names(d)) {
-          if (!is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
-            d = d %>% filter(data %in% selected_data_cats$elements)
-          }
-          flag = unique(
-            as_tibble(d) %>%
-              filter(
-                !!rlang::sym(input$Error) == FALSE
-              ) %>%
-              distinct(orgUnit, orgUnitName)
-          )
-          cat('\n -  nrow errorFlag() :', nrow(flag))
-        } else {
-          return()
-        }
-
-        return(flag)
-      })
-
-      observeEvent(errorFlag(), {
-        if (nrow(errorFlag()) > 0) {
-          updateSelectizeInput(
-            session,
-            "flaggedOrgUnit",
-            choices = paste0(errorFlag()$orgUnitName),
-            server = TRUE
-          )
-        }
-      })
-
-      output$ouErrorTable =
-        DT::renderDT(
-          DT::datatable(
-            outlier.dataset() %>%
-              as_tibble() %>%
-              select(
-                data,
-                period,
-                orgUnitName,
-                level,
-                original,
-                !!rlang::syms(outlier.summary.cols())
-              ) %>%
-              filter(
-                orgUnitName %in% errorFlag()$orgUnitName,
-                data %in% selected_data_cats$elements
-              ),
-
-            rownames = FALSE,
-            filter = 'top',
-            options = list(
-              # bPaginate = FALSE,
-              scrollY = "60vh",
-              info = TRUE,
-              lengthMenu = list(
-                c(-1, 1, 5, 10, 25, 100),
-                list('All', '1', '5', '10', '25', '100')
-              ),
-              server = TRUE
-            ),
-            fillContainer = TRUE
-          )
-          # options = DToptions_no_buttons()
-        )
-
-      plot.single.data.series = reactive({
-        req(outlier.dataset())
-
-        cat('\n* plot.single.data.series')
-
-        if (nrow(errorFlag()) == 0) {
-          return()
-        }
-
-        inspectOrgUnitData = outlier.dataset() %>%
-          as_tibble() %>%
-          filter(
-            orgUnitName %in% input$flaggedOrgUnit
-          )
-
-        if (!input$showAllData && !is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
-          inspectOrgUnitData = inspectOrgUnitData %>%
-            filter(data %in% selected_data_cats$elements)
-        }
-
-        cat('\n* inspectOrgUnitData points:', nrow(inspectOrgUnitData))
-
-        g = inspectOrgUnitData %>%
-          ggplot(aes(x = Month, y = original, group = data)) +
-          geom_line(alpha = .25) +
-          geom_point(aes(
-            color = !!rlang::sym(input$Error)
-            # , shape = seasonal3
-          )) +
-          labs(
-            title = paste(
-              unique(inspectOrgUnitData$orgUnitName),
-              collapse = ","
-            ) +
-              theme_minimal()
-          )
-
-        cat('\n -done')
-        return(g)
-      })
-
-      output$inspect = renderPlot({
-        plot.single.data.series()
-      })
-
-      output$dynamic <- renderUI({
-        req(input$plot_hover)
-        verbatimTextOutput("vals")
-      })
-
-      output$vals <- renderPrint({
-        hover <- input$plot_hover
-        # print(str(hover)) # list
-        y <- nearPoints(outlier.dataset(), input$plot_hover)["original"]
-        req(nrow(y) != 0)
-        y
-      })
-
-      output$info <- renderPrint({
-        req(input$plot_hover)
-        x <- input$plot_hover$x
-        y <- input$plot_hover$y
-        # group =
-        cat("[", x, ", ", y, "]", sep = "")
-      })
 
       # Return ####
       return(list(

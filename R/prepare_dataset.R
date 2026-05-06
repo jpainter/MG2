@@ -260,7 +260,7 @@ data_1 <- function(data,
   } else {
     min(formula_elements$periodType, na.rm = TRUE)
   }
-  if (is_null_or_empty(ptype)) ptype <- "Monthly"
+  if (is_null_or_empty(ptype) || is.na(ptype)) ptype <- "Monthly"
   if (.verbose) message("- ptype is ", ptype)
 
   p <- if (grepl("weekly", ptype, ignore.case = TRUE)) "Week" else "Month"

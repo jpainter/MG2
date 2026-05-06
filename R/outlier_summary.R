@@ -132,6 +132,22 @@ outlier.summary.tibble <- function(
     dplyr::mutate(dplyr::across(dplyr::everything(), as.character))
 
   out[out == "-Inf"] <- "-"
+
+  # Human-readable labels for Error Flag column
+  label_map <- c(
+    AllSmall            = "Small Values",
+    key_entry_error     = "Key Entry Error",
+    over_max            = "Over Maximum",
+    missing_numerator   = "Missing Numerator",
+    missing_denominator = "Missing Denominator",
+    mad15               = "MAD 15\u00d7",
+    mad10               = "MAD 10\u00d7",
+    mad5                = "MAD 5\u00d7",
+    seasonal5           = "Seasonal 5\u00d7",
+    seasonal3           = "Seasonal 3\u00d7"
+  )
+  out[["Error Flag"]] <- dplyr::recode(out[["Error Flag"]], !!!label_map, .default = out[["Error Flag"]])
+
   out
 }
 

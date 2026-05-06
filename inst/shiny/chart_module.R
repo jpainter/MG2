@@ -135,18 +135,18 @@ chartModuleServer <- function(id, plot_expr) {
 
     # Display plot
     output$plot <- renderPlot({
-      plot_expr() +
-        labs(
-          title = rv$title,
-          subtitle = rv$subtitle,
-          caption = rv$caption
-        ) +
+      p <- plot_expr() +
         get_theme(rv$theme) +
         theme(
           text = element_text(size = rv$base.size),
           legend.position = rv$legend.position,
           strip.text = element_text(face = "bold")
         )
+      # Only override labs that the user explicitly set — passing NULL clears them
+      overrides <- Filter(function(x) !is.null(x) && nzchar(x),
+                          list(title = rv$title, subtitle = rv$subtitle, caption = rv$caption))
+      if (length(overrides) > 0) p <- p + do.call(labs, overrides)
+      p
     })
 
     # Download handler
@@ -156,16 +156,14 @@ chartModuleServer <- function(id, plot_expr) {
       },
       content = function(file) {
         plot <- plot_expr() +
-          labs(
-            title = rv$title,
-            subtitle = rv$subtitle,
-            caption = rv$caption
-          ) +
           get_theme(rv$theme) +
           theme(
             text = element_text(size = rv$base.size),
             legend.position = rv$legend.position
           )
+        overrides <- Filter(function(x) !is.null(x) && nzchar(x),
+                            list(title = rv$title, subtitle = rv$subtitle, caption = rv$caption))
+        if (length(overrides) > 0) plot <- plot + do.call(labs, overrides)
 
         ggsave(
           filename = file,
