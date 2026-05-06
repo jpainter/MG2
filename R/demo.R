@@ -8,8 +8,10 @@
 #' directory to the path returned, and skip the Login step — the demo data
 #' is ready to explore from the Data tab onward.
 #'
-#' @param dir Path to the directory to create (or reuse). Defaults to
-#'   `~/mg2_demo`. The directory is created if it does not exist.
+#' @param dir Path to the directory to create (or reuse). If `NULL` (default),
+#'   an interactive directory chooser opens: a folder-picker dialog in
+#'   RStudio/Positron, or a `readline()` prompt in the console.
+#'   Pass an explicit path to skip the prompt, e.g. `dir = "~/mg2_demo"`.
 #' @param overwrite Logical. If `TRUE`, overwrites existing files in `dir`
 #'   (default `FALSE` — skips files that already exist).
 #'
@@ -17,12 +19,35 @@
 #'
 #' @examples
 #' \dontrun{
-#' mg2_demo_setup()        # writes to ~/mg2_demo
-#' run_mg2()               # open the app, paste ~/mg2_demo as the directory
+#' mg2_demo_setup()              # interactive directory chooser
+#' mg2_demo_setup("~/mg2_demo")  # explicit path, no prompt
+#' run_mg2()                     # open the app, paste the returned path
 #' }
 #' @export
-mg2_demo_setup <- function(dir = file.path(path.expand("~"), "mg2_demo"),
-                            overwrite = FALSE) {
+mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
+
+  # --- resolve directory interactively if not supplied ----------------------
+  if (is.null(dir)) {
+    if (requireNamespace("rstudioapi", quietly = TRUE) &&
+        rstudioapi::isAvailable()) {
+      dir <- rstudioapi::selectDirectory(
+        caption = "Choose a folder for MG2 demo data",
+        label   = "Select",
+        path    = path.expand("~")
+      )
+      if (is.null(dir) || !nzchar(dir))
+        stop("No directory selected. Re-run mg2_demo_setup() and choose a folder.",
+             call. = FALSE)
+    } else {
+      default_path <- file.path(path.expand("~"), "mg2_demo")
+      answer <- readline(
+        prompt = paste0("Directory for demo data [", default_path, "]: ")
+      )
+      dir <- if (nzchar(trimws(answer))) trimws(answer) else default_path
+    }
+  }
+
+  dir <- path.expand(dir)
 
   if (!dir.exists(dir)) {
     dir.create(dir, recursive = TRUE)

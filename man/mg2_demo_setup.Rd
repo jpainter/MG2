@@ -4,14 +4,13 @@
 \alias{mg2_demo_setup}
 \title{Set Up Demo Data Directory}
 \usage{
-mg2_demo_setup(
-  dir = file.path(path.expand("~"), "mg2_demo"),
-  overwrite = FALSE
-)
+mg2_demo_setup(dir = NULL, overwrite = FALSE)
 }
 \arguments{
-\item{dir}{Path to the directory to create (or reuse). Defaults to
-\verb{~/mg2_demo}. The directory is created if it does not exist.}
+\item{dir}{Path to the directory to create (or reuse). If \code{NULL} (default),
+an interactive directory chooser opens: a folder-picker dialog in
+RStudio/Positron, or a \code{readline()} prompt in the console.
+Pass an explicit path to skip the prompt, e.g. \code{dir = "~/mg2_demo"}.}
 
 \item{overwrite}{Logical. If \code{TRUE}, overwrites existing files in \code{dir}
 (default \code{FALSE} — skips files that already exist).}
@@ -31,7 +30,8 @@ is ready to explore from the Data tab onward.
 }
 \examples{
 \dontrun{
-mg2_demo_setup()        # writes to ~/mg2_demo
-run_mg2()               # open the app, paste ~/mg2_demo as the directory
+mg2_demo_setup()              # interactive directory chooser
+mg2_demo_setup("~/mg2_demo")  # explicit path, no prompt
+run_mg2()                     # open the app, paste the returned path
 }
 }
