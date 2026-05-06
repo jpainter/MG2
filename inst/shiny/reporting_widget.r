@@ -315,11 +315,8 @@ reporting_widget_ui = function(id) {
               ),
               tabPanel(
                 "Data",
-                style = "height:80vh;",
-                # miniTabPanel( ns("Data")  , icon = icon("table"),
-                # miniContentPanel(
+                style = "height:80vh; overflow: hidden;",
                 DT::dataTableOutput(ns("facility_table"))
-                # )
               )
             )
           )
@@ -2406,10 +2403,29 @@ reporting_widget_server <- function(
         facility_map()
       })
 
-      output$facility_table <- DT::renderDataTable({
-        champion_facilities() %>%
+      output$facility_table <- DT::renderDT({
+        df <- champion_facilities() %>%
           st_drop_geometry() %>%
           select(-parentGraph, -groups)
+
+        num_cols <- names(df)[sapply(df, is.numeric)]
+
+        DT::datatable(
+          df,
+          rownames  = FALSE,
+          filter    = "top",
+          options   = list(
+            DToptions_no_buttons(),
+            scrollX    = TRUE,
+            scrollY    = "60vh",
+            paging     = FALSE,
+            columnDefs = list(
+              list(className = "dt-left",   targets = "_all"),
+              list(className = "dt-right",
+                   targets  = which(names(df) %in% num_cols) - 1L)
+            )
+          )
+        )
       })
 
       # Return ####
