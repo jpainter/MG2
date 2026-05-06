@@ -182,8 +182,18 @@ dqa_widget_server <- function(
         sr    <- regions_selected()
         parts <- Filter(function(x) !is.null(x) && length(x) > 0,
                         list(sr$level2, sr$level3, sr$level4, sr$level5))
-        if (length(parts) == 0) "National" else
+        region <- if (length(parts) == 0) "National" else
           paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
+
+        # Add date range from reporting settings
+        start_str <- tryCatch(reporting_widget_output$startingMonth(), error = function(e) NULL)
+        end_str   <- tryCatch(reporting_widget_output$endingMonth(),   error = function(e) NULL)
+        date_range <- if (!is.null(start_str) && !is.null(end_str) &&
+                          nzchar(start_str) && nzchar(end_str))
+          paste0(start_str, "\u2013", end_str)
+        else NULL
+
+        paste(c(region, date_range), collapse = " | ")
       })
 
       region_filtered_data1 = reactive({

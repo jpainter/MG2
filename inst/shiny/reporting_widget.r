@@ -1953,10 +1953,24 @@ reporting_widget_server <- function(
         region_label <- if (length(parts) == 0) "National" else
           paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
 
-        facility_text <- if (length(rous) > 0)
-          paste(comma(length(rous)), "consistently reporting facilities") else ""
+        # Reporting criteria: "N/12 months, Jan 2020–Dec 2025"
+        months_required <- 12L - as.integer(input$missing_reports %||% 0L)
+        start_str <- startingMonth_debounced()
+        end_str   <- endingMonth_debounced()
+        date_range <- if (!is.null(start_str) && !is.null(end_str) &&
+                          nzchar(start_str) && nzchar(end_str))
+          paste0(start_str, "\u2013", end_str)
+        else NULL
+        criteria <- paste0(
+          months_required, "/12 months",
+          if (!is.null(date_range)) paste0(", ", date_range) else ""
+        )
 
-        paste(c(region_label, facility_text), collapse = " — ")
+        facility_text <- if (length(rous) > 0)
+          paste0(comma(length(rous)), " consistently reporting facilities (", criteria, ")")
+        else ""
+
+        paste(c(region_label, facility_text), collapse = " \u2014 ")
       })
 
       n_selected = reactive({

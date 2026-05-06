@@ -350,6 +350,11 @@ evaluation_widget_server <- function(
       })
 
       region_caption_text = reactive({
+        # Use caption.text from reporting_widget — already includes region,
+        # facility count, and reporting criteria (X/12 months, date range).
+        ct <- tryCatch(caption.text(), error = function(e) NULL)
+        if (!is.null(ct) && nzchar(ct)) return(ct)
+        # Fallback: region only
         sr <- regions_selected()
         parts <- Filter(function(x) !is.null(x) && length(x) > 0,
                         list(sr$level2, sr$level3, sr$level4, sr$level5))
