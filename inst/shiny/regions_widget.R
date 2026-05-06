@@ -106,20 +106,28 @@ regions_widget_server <- function(
       selected_regions = reactive({
         cat('\n * regions_widget selected_regions')
 
-        # selected_regions$level2 = input$level2
-        # selected_regions$level3 = input$level3
-        # selected_regions$level4 = input$level4
-        # selected_regions$level5 = input$level5
-
-        # Testing
         sr = list(
           level2 = input$level2,
           level3 = input$level3,
           level4 = input$level4,
           level5 = input$level5
         )
-        # TESTING
-        # saveRDS( sr , "selected_regions.rds")
+
+        # Also incorporate table row selections: clicking a row in the org unit
+        # list filters data to that region, just like using the dropdowns.
+        sel_rows <- input$geoFeaturesTable_rows_selected
+        if (!is.null(sel_rows) && length(sel_rows) > 0) {
+          gf       <- geoFeatures.ous() %>% sf::st_drop_geometry()
+          sel      <- gf[sel_rows, c("name", "level"), drop = FALSE]
+          lvl_nums <- levels()   # numeric level values, e.g. c(1, 2, 3, 4, 5)
+
+          for (i in seq(2, length(lvl_nums))) {
+            key <- paste0("level", i)
+            nms <- sel$name[!is.na(sel$level) & sel$level == lvl_nums[i]]
+            if (length(nms) > 0)
+              sr[[key]] <- unique(c(sr[[key]], nms))
+          }
+        }
 
         cat("\n - selected_regions:", unlist(sr))
         return(sr)
