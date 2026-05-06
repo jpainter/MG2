@@ -561,10 +561,57 @@ message(
 )
 
 # ---------------------------------------------------------------------------
-# 4b. Save raw real data (12 months) before bootstrapping
+# 4b. Save raw real data (12 months) before any modification
 # ---------------------------------------------------------------------------
 
 mg2_demo_raw <- real_data
+
+# ---------------------------------------------------------------------------
+# 4c. Apply 2025 malaria-reduction pattern
+#
+# In the demo's final year (2025), a programme intervention reduces malaria:
+#   - Inpatient cases, deaths, RDT positive, ACT treated: down ~15%
+#   - RDT negative: up ~15%
+# The reduction is seasonally amplified — months that are normally the
+# highest (rainy-season peak) show a proportionally larger change, making
+# the effect visible in both level and seasonal charts.
+# ---------------------------------------------------------------------------
+
+message("  Applying 2025 malaria-reduction pattern to real_data")
+
+MALARIA_DOWN_ELEMENTS <- c("p4K11MFEWtw", "wWy5TE9cQ0V", "wZwzzRnr9N4", "AFM5H0wNq3t")
+MALARIA_UP_ELEMENT    <- "Qk9nnX0i7lZ"
+REDUCTION_AMPLITUDE   <- 0.05   # extra ±reduction per unit of seasonal_index above 1
+
+# Seasonal index: normalised mean SUM per month (mean over 12 months = 1.0)
+seasonal_idx_2025 <- real_data %>%
+  filter(dataElement %in% c(MALARIA_DOWN_ELEMENTS, MALARIA_UP_ELEMENT)) %>%
+  mutate(month = as.integer(substr(period, 5, 6))) %>%
+  group_by(dataElement, month) %>%
+  summarise(mean_sum = mean(SUM, na.rm = TRUE), .groups = "drop") %>%
+  group_by(dataElement) %>%
+  mutate(
+    grand_mean     = mean(mean_sum, na.rm = TRUE),
+    seasonal_index = ifelse(grand_mean > 0, mean_sum / grand_mean, 1)
+  ) %>%
+  ungroup() %>%
+  select(dataElement, month, seasonal_index)
+
+real_data <- real_data %>%
+  mutate(month = as.integer(substr(period, 5, 6))) %>%
+  left_join(seasonal_idx_2025, by = c("dataElement", "month")) %>%
+  mutate(
+    seasonal_index = replace_na(seasonal_index, 1),
+    adjust_factor  = case_when(
+      dataElement %in% MALARIA_DOWN_ELEMENTS ~
+        pmax(0.50, 1 - (0.15 + REDUCTION_AMPLITUDE * pmax(0, seasonal_index - 1))),
+      dataElement == MALARIA_UP_ELEMENT ~
+        1 + (0.15 + REDUCTION_AMPLITUDE * pmax(0, seasonal_index - 1)),
+      TRUE ~ 1.0
+    ),
+    SUM = round(SUM * adjust_factor)
+  ) %>%
+  select(-month, -seasonal_index, -adjust_factor)
 
 # ---------------------------------------------------------------------------
 # 5. Seasonal bootstrap: generate 48 months of prior history  (Option D)
@@ -582,7 +629,7 @@ mg2_demo_raw <- real_data
 #      detectable cluster of outliers for the Outliers tab to catch
 # ---------------------------------------------------------------------------
 
-message("\n=== Bootstrapping prior 48 months (Option D) ===")
+message("\n=== Bootstrapping prior 60 months (Option D) ===")
 
 period_to_ym <- function(p) {
   as.integer(substr(p, 1, 4)) * 12 + as.integer(substr(p, 5, 6)) - 1
@@ -600,15 +647,17 @@ set.seed(20260404)
 
 NOISE_SD <- 0.35   # facility-level lognormal noise (was 0.12)
 
-# Year-trend multipliers: how large is each prior year relative to 2025?
+# Year-trend multipliers: how large is each prior year relative to modified 2025?
 # Multipliers < 1 → the programme grew to reach 2025 level
 # Multipliers > 1 → the outcome declined to reach 2025 level (e.g. deaths)
+# 2025 already has the malaria-reduction baked in; prior years reflect
+# higher burden (cases/deaths) or lower coverage (ACT, testing).
 YEAR_TRENDS <- list(
-  AFM5H0wNq3t = c(`2024` = 0.88, `2023` = 0.72, `2022` = 0.60, `2021` = 0.55),
-  Qk9nnX0i7lZ = c(`2024` = 0.93, `2023` = 0.87, `2022` = 0.80, `2021` = 0.75),
-  p4K11MFEWtw  = c(`2024` = 1.04, `2023` = 1.08, `2022` = 1.15, `2021` = 1.20),
-  wWy5TE9cQ0V  = c(`2024` = 1.08, `2023` = 1.15, `2022` = 1.25, `2021` = 1.35),
-  wZwzzRnr9N4  = c(`2024` = 0.95, `2023` = 0.90, `2022` = 0.84, `2021` = 0.78)
+  AFM5H0wNq3t = c(`2024` = 0.88, `2023` = 0.72, `2022` = 0.60, `2021` = 0.55, `2020` = 0.46),
+  Qk9nnX0i7lZ = c(`2024` = 0.93, `2023` = 0.87, `2022` = 0.80, `2021` = 0.75, `2020` = 0.68),
+  p4K11MFEWtw  = c(`2024` = 1.04, `2023` = 1.08, `2022` = 1.15, `2021` = 1.20, `2020` = 1.26),
+  wWy5TE9cQ0V  = c(`2024` = 1.08, `2023` = 1.15, `2022` = 1.25, `2021` = 1.35, `2020` = 1.45),
+  wZwzzRnr9N4  = c(`2024` = 0.95, `2023` = 0.90, `2022` = 0.84, `2021` = 0.78, `2020` = 0.72)
 )
 
 # Multi-facility elements: reporting gaps applied (single-facility inpatient
@@ -618,8 +667,8 @@ MULTI_FAC_ELEMENTS <- c("AFM5H0wNq3t", "Qk9nnX0i7lZ", "wZwzzRnr9N4")
 
 # Per-facility reporting trajectories (replaces flat annual probability).
 # Champions (all 12 months in 2025) reported well historically: start prob
-# 75–92% in 2021. Non-champions start at 15–55% of their 2025 rate and
-# improve linearly each year, reflecting a maturing reporting system.
+# 65–88% in 2020 (earliest year). Non-champions start at 12–50% of their
+# 2025 rate and improve linearly each year, reflecting a maturing system.
 fac_completeness_2025 <- real_data %>%
   dplyr::filter(dataElement %in% MULTI_FAC_ELEMENTS) %>%
   dplyr::group_by(orgUnit) %>%
@@ -629,15 +678,15 @@ fac_completeness_2025 <- real_data %>%
     is_champion = months_2025 == 12,
     start_prob  = ifelse(
       is_champion,
-      runif(dplyr::n(), 0.75, 0.92),
-      pmax(0.10, rate_2025 * runif(dplyr::n(), 0.15, 0.55))
+      runif(dplyr::n(), 0.65, 0.88),
+      pmax(0.08, rate_2025 * runif(dplyr::n(), 0.12, 0.50))
     )
   )
 
 fac_year_probs <- fac_completeness_2025 %>%
-  tidyr::crossing(tile_year = 2021L:2024L) %>%
+  tidyr::crossing(tile_year = 2020L:2024L) %>%
   dplyr::mutate(
-    alpha = (tile_year - 2021L) / 4L,
+    alpha = (tile_year - 2020L) / 5L,
     prob  = pmin(1, start_prob + alpha * (rate_2025 - start_prob))
   ) %>%
   dplyr::select(orgUnit, tile_year, prob)
@@ -663,9 +712,9 @@ bootstrap_series <- function(df, key) {
   trends       <- YEAR_TRENDS[[de_id]]
   min_ym       <- period_to_ym(min(df$period))
 
-  prior_rows <- vector("list", 4)
-  for (tile in 4:1) {
-    tile_year  <- 2025L - as.integer(tile)   # tile 4→2021, 3→2022, 2→2023, 1→2024
+  prior_rows <- vector("list", 5)
+  for (tile in 5:1) {
+    tile_year  <- 2025L - as.integer(tile)   # tile 5→2020, 4→2021, 3→2022, 2→2023, 1→2024
     noise      <- rlnorm(n, meanlog = 0, sdlog = NOISE_SD)
     multiplier <- trends[as.character(tile_year)]
 
