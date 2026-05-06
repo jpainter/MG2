@@ -2121,7 +2121,7 @@ evaluation_widget_server <- function(
           ""
         }
 
-        tic()
+        tictoc::tic()
 
         ## Main plot ####
         cat("\n - main plot")
@@ -2145,7 +2145,7 @@ evaluation_widget_server <- function(
           )
 
         cat('\n - basic plot done')
-        toc()
+        tictoc::toc()
 
         if (!input$legend) {
           g = g +
