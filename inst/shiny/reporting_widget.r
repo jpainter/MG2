@@ -2151,6 +2151,7 @@ reporting_widget_server <- function(
 
         sou = reportingSelectedOUs()
         gf = geoFeatures()
+        req(inherits(gf, "sf"))   # geoFeatures not available for this instance
         avgValues = avgValues()
 
         # testing
