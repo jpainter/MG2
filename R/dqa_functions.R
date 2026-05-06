@@ -456,7 +456,7 @@ dqa_reporting_plot <- function(data, text_size = 18) {
     ggplot2::labs(
       x        = "Year",
       y        = "Percent",
-      title    = "Percent of facilities consistently reporting each year",
+      title    = "Percent of facilities consistently reporting selected data elements each year",
       subtitle = paste(
         'Out of the number of facilities that have ever reported (',
         scales::comma(n_facilities), ")"
