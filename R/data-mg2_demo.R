@@ -96,7 +96,9 @@
 #' @format A data frame with columns:
 #' \describe{
 #'   \item{Formula.Name}{Formula label (character). All rows use
-#'     `"Sierra Leone Malaria"`.}
+#'     `"Sierra Leone Malaria Demo"`.}
+#'   \item{role}{Element role: `"primary"` for ACT treatment (the main
+#'     analytic indicator); `"secondary"` for all other elements.}
 #'   \item{dataElement}{Human-readable data element name (character).}
 #'   \item{Categories}{Category option combo name (character).}
 #'   \item{dataElement.id}{DHIS2 data element UID (character).}

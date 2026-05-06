@@ -47,7 +47,7 @@ DE_NAMES <- c(
   "Malaria treated at PHU with ACT < 24 hrs new"
 )
 
-FORMULA_NAME <- "Sierra Leone Malaria"
+FORMULA_NAME <- "Sierra Leone Malaria Demo"
 
 get_sl <- function(path, ...) {
   dhis2_get(
@@ -408,10 +408,12 @@ mg2_demo_formula <- dataElementDictionary %>%
   mutate(
     Categories = str_trim(Categories),
     categoryOptionCombo.ids = str_trim(categoryOptionCombo.ids),
-    Formula.Name = FORMULA_NAME
+    Formula.Name = FORMULA_NAME,
+    # ACT treatment is the primary analytic element; all others are secondary
+    role = ifelse(dataElement.id == "AFM5H0wNq3t", "primary", "secondary")
   ) %>%
-  select(Formula.Name, everything()) %>%
-  arrange(dataElement) %>%
+  select(Formula.Name, role, everything()) %>%
+  arrange(role, dataElement) %>%
   distinct()
 
 # ---------------------------------------------------------------------------

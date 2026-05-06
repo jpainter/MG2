@@ -33,6 +33,19 @@ load("data/mg2_demo_meta.rda")         # → mg2_demo_meta
 load("data/mg2_demo_formula.rda")      # → mg2_demo_formula
 message("  mg2_demo_raw: ", nrow(mg2_demo_raw), " rows, ", n_distinct(mg2_demo_raw$orgUnit), " facilities")
 
+# Ensure formula name and roles are current (idempotent — safe to re-run)
+mg2_demo_formula$Formula.Name <- "Sierra Leone Malaria Demo"
+if (!"role" %in% names(mg2_demo_formula)) {
+  mg2_demo_formula$role <- ifelse(
+    mg2_demo_formula$dataElement.id == "AFM5H0wNq3t", "primary", "secondary"
+  )
+} else {
+  mg2_demo_formula$role <- ifelse(
+    mg2_demo_formula$dataElement.id == "AFM5H0wNq3t", "primary", "secondary"
+  )
+}
+usethis::use_data(mg2_demo_formula, overwrite = TRUE)
+
 # ---------------------------------------------------------------------------
 # 1. Apply 2025 malaria-reduction pattern to real_data
 #
