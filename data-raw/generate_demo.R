@@ -35,7 +35,7 @@ DE_IDS <- c(
   "p4K11MFEWtw", # Inpatient malaria cases
   "wWy5TE9cQ0V", # Inpatient malaria deaths
   "wZwzzRnr9N4", # RDT positive
-  "Qk9nnX0i7lZ", # RDT negative / tested
+  "Qk9nnX0i7lZ", # RDT negative
   "AFM5H0wNq3t"  # Malaria treated at PHU with ACT < 24 hrs new
 )
 
@@ -43,7 +43,7 @@ DE_NAMES <- c(
   "Inpatient malaria cases",
   "Inpatient malaria deaths",
   "RDT positive",
-  "RDT negative / tested",
+  "RDT negative",
   "Malaria treated at PHU with ACT < 24 hrs new"
 )
 
@@ -283,13 +283,6 @@ demo_vr_rows <- dplyr::bind_rows(
     "#{wWy5TE9cQ0V}", "Inpatient malaria deaths",
     "#{p4K11MFEWtw}", "Inpatient malaria cases",
     "MG2DemoVR001"),
-  .make_vr_row(validationRules,
-    "RDT positive <= RDT tested",
-    "Number of positive RDTs cannot exceed total RDTs tested",
-    "less_than_or_equal_to",
-    "#{wZwzzRnr9N4}", "RDT positive",
-    "#{Qk9nnX0i7lZ}", "RDT tested",
-    "MG2DemoVR002"),
   .make_vr_row(validationRules,
     "ACT treatment <= RDT positive",
     "ACT treatments given should not exceed RDT-positive cases",

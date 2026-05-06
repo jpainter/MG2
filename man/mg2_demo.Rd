@@ -48,7 +48,7 @@ The raw 12-month real data are stored separately in \code{mg2_demo_raw}.
 \code{p4K11MFEWtw} \tab Inpatient malaria cases \cr
 \code{wWy5TE9cQ0V} \tab Inpatient malaria deaths \cr
 \code{wZwzzRnr9N4} \tab RDT positive \cr
-\code{Qk9nnX0i7lZ} \tab RDT negative / tested \cr
+\code{Qk9nnX0i7lZ} \tab RDT negative \cr
 \code{AFM5H0wNq3t} \tab Malaria treated at PHU with ACT < 24 hrs new \cr
 }
 

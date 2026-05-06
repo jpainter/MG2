@@ -39,7 +39,7 @@
 #'   `p4K11MFEWtw` \tab Inpatient malaria cases \cr
 #'   `wWy5TE9cQ0V` \tab Inpatient malaria deaths \cr
 #'   `wZwzzRnr9N4` \tab RDT positive \cr
-#'   `Qk9nnX0i7lZ` \tab RDT negative / tested \cr
+#'   `Qk9nnX0i7lZ` \tab RDT negative \cr
 #'   `AFM5H0wNq3t` \tab Malaria treated at PHU with ACT < 24 hrs new \cr
 #' }
 #'
