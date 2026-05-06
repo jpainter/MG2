@@ -67,8 +67,9 @@ login_widget_ui <- function(id) {
           ),
           shinyFiles::shinyDirButton(
             ns("demo_folder"),
-            label = tagList(icon("play-circle"), " Load Demo Data"),
+            label = "Load Demo Data",
             title = "Choose folder for demo data",
+            icon  = icon("play-circle"),
             class = "btn-success"
           )
         )
