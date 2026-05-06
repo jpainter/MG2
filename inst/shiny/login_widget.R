@@ -54,7 +54,7 @@ login_widget_ui <- function(id) {
         column(
           6,
           hr(),
-          h4("Or load premade demo data:"),
+          h4("Or load MG2 demo data:"),
           tags$p(
             tags$small(
               "5 years of Sierra Leone malaria data — no server connection needed.",
@@ -67,7 +67,7 @@ login_widget_ui <- function(id) {
           ),
           shinyFiles::shinyDirButton(
             ns("demo_folder"),
-            label = "Load Demo Data",
+            label = "Load MG2 Demo Data",
             title = "Choose folder for demo data",
             icon  = icon("play-circle"),
             class = "btn-success"
