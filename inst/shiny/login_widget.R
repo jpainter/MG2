@@ -349,7 +349,7 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
 
         showModal(modalDialog(
           title = "Choose a DHIS2 Demo Instance",
-          size  = "s",
+          size  = "m",
           selectInput(
             ns("demo_instance_url"),
             label   = "Instance:",

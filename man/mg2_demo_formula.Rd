@@ -8,7 +8,9 @@
 A data frame with columns:
 \describe{
 \item{Formula.Name}{Formula label (character). All rows use
-\code{"Sierra Leone Malaria"}.}
+\code{"Sierra Leone Malaria Demo"}.}
+\item{role}{Element role: \code{"primary"} for ACT treatment (the main
+analytic indicator); \code{"secondary"} for all other elements.}
 \item{dataElement}{Human-readable data element name (character).}
 \item{Categories}{Category option combo name (character).}
 \item{dataElement.id}{DHIS2 data element UID (character).}

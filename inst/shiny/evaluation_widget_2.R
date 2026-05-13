@@ -59,97 +59,59 @@ evaluation_widget_ui = function(id) {
 
                 tabPanel(
                   "Models",
-                  inputPanel(
+                  div(
+                    style = "padding: 6px 2px;",
+
+                    selectizeInput(
+                      ns("evaluation_month"),
+                      label = "Evaluation Start",
+                      choices = NULL, selected = NULL, width = "100%"
+                    ),
+
+                    selectInput(
+                      ns("horizon"),
+                      label = "Months of Evaluation:",
+                      choices = c(3, 6, 12, 18, 24, 36),
+                      selected = 12, width = "100%"
+                    ),
+
+                    actionButton(ns("forecast"), "Calculate Percent Change",
+                                 width = "100%", class = "btn-primary btn-sm",
+                                 style = "margin-bottom:6px;"),
+
+                    selectInput(
+                      ns("selected_model"),
+                      label = "Model:",
+                      choices = character(0), selected = NULL, width = "100%"
+                    ),
+
+                    hr(style = "margin: 6px 0;"),
+
                     selectInput(
                       ns("model"),
                       label = "Time-series model:",
-                      choices = c(
-                        'TSLM (trend)',
-                        'TSLM (trend+season)',
-                        'ETS',
-                        'ARIMA'
-
-                        # 'SNAIVE'
-                        # , 'NNETAR' , 'Prophet'
-                      ),
-
-                      selected = 'ETS'
+                      choices = c('TSLM (trend)', 'TSLM (trend+season)', 'ETS', 'ARIMA'),
+                      selected = 'ETS', width = "100%"
                     ),
 
-                    checkboxInput(
-                      ns("pre_evaluation"),
-                      label = 'Pre-intervention model fit',
-                      value = FALSE
-                    ),
+                    checkboxInput(ns("pre_evaluation"),  'Pre-intervention model fit',     FALSE),
+                    checkboxInput(ns("evaluation"),      'Post-intervention evaluation',   FALSE),
+                    checkboxInput(ns("transform"),       'Log transform count data',       TRUE),
+                    checkboxInput(ns("smooth"),          'Show smoothed trend line (loess)', FALSE),
+                    checkboxInput(ns("scale"),           'Scale values (x-mean)/sd + 1',   FALSE),
+                    checkboxInput(ns('components'),      'Visualize trend',                FALSE),
+                    checkboxInput(ns("forecast_ci"),     'Prediction interval',            TRUE),
+                    checkboxInput(ns("ensemble"),        'Use ensemble models',            TRUE),
 
-                    checkboxInput(
-                      ns("evaluation"),
-                      label = 'Post-intervention evaluation',
-                      value = FALSE
-                    ),
-
-                    textInput(
-                      ns('model.formula'),
-                      'Model Formula',
-                      value = "total ~ error() + trend() + season()"
-                    ),
-
-                    textInput(
-                      ns('covariates'),
-                      'Model covariates',
-                      value = NULL
-                    ),
-
-                    checkboxInput(
-                      ns("transform"),
-                      label = 'Log transform count data',
-                      value = TRUE
-                    ),
-
-                    checkboxInput(
-                      ns("smooth"),
-                      label = 'Show smoothed trend line (loess)',
-                      value = FALSE
-                    ),
-
-                    checkboxInput(
-                      ns("scale"),
-                      label = 'Scale values (x-mean)/sd + 1)',
-                      value = FALSE
-                    ),
-
-                    checkboxInput(
-                      ns('components'),
-                      label = 'Visualize trend',
-                      value = FALSE
-                    ),
-
-                    checkboxInput(
-                      ns("forecast_ci"),
-                      label = 'Prediction interval',
-                      value = TRUE
-                    ),
-
-                    # checkboxInput( ns( "annualChange" ) , label ='Show legend',
-                    #              value = FALSE  )
-
-                    # checkboxInput( ns( "bootstrap" ) , label ='Bootstrap estimate',
-                    #                value = FALSE  ) ,
-
-                    # checkboxInput( ns( "autoModel" ) , label ='Automatic nmodel selection',
-                    #                value = FALSE  ) ,
-
-                    checkboxInput(
-                      ns("ensemble"),
-                      label = 'Use ensemble models',
-                      value = TRUE
-                    ),
+                    textInput(ns('model.formula'), 'Model Formula',
+                              value = "total ~ error() + trend() + season()"),
+                    textInput(ns('covariates'), 'Model covariates', value = NULL),
 
                     selectInput(
                       ns("replicates"),
                       label = "Forecasting replicates:",
                       choices = c(100, 500, 1000, 5000),
-                      selected = 1
+                      selected = 1, width = "100%"
                     )
                   )
                 ),
@@ -212,32 +174,6 @@ evaluation_widget_ui = function(id) {
 
               htmlOutput(ns("region_filter_status")),
 
-              inputPanel(
-                selectizeInput(
-                  ns("evaluation_month"),
-                  label = "Evaluation Start",
-                  choices = NULL,
-                  selected = NULL
-                ),
-
-                # div(id = "expr-container",
-                selectInput(
-                  ns("horizon"),
-                  label = "Months of Evaluation:",
-                  choices = c(3, 6, 12, 18, 24, 36),
-                  selected = 12
-                ),
-
-                actionButton(ns("forecast"), "Calculate Percent Change"),
-
-                selectInput(
-                  ns("selected_model"),
-                  label = "Model:",
-                  choices = character(0),
-                  selected = NULL
-                )
-              ),
-
               tabsetPanel(
                 tabPanel(
                   "Time-Series Chart",
@@ -249,7 +185,10 @@ evaluation_widget_ui = function(id) {
                       chartModuleUI(ns('plotOutput'), "Trend Analysis")
                     ),
 
-                    fluidRow(tableOutput(ns("forecastResult")))
+                    fluidRow(
+                      div(style = "font-size: 1.3em;",
+                          tableOutput(ns("forecastResult")))
+                    )
                   )
                 ),
 
@@ -605,35 +544,57 @@ evaluation_widget_server <- function(
         }
       )
 
-      # Split plot
+      # Map the user-friendly split_data choice to the actual data column name
+      split_col <- reactive({
+        choice <- input$split_data
+        if (is.null(choice) || choice == "None") return(NULL)
+        if (choice == "Reporting")   return("Selected")
+        if (choice == "Categories")  return("data")
+        if (startsWith(choice, "Region"))  return(sub_agg_level())
+        NULL
+      })
+
+      # Populate split_data choices based on what is actually in the data
+      observeEvent(
+        list(region_filtered_selected_data(), input$agg_level, sub_agg_level()),
+        {
+          cat('\n* evaluation_widget update split_data choices')
+          d       <- tryCatch(region_filtered_selected_data(), error = function(e) NULL)
+          choices <- "None"
+
+          if (!is.null(d) && nrow(d) > 0) {
+            # Region: next org-unit level down from current agg_level
+            sub_lvl <- tryCatch(sub_agg_level(), error = function(e) NULL)
+            if (!is.null(sub_lvl) && nzchar(sub_lvl) && sub_lvl %in% names(d))
+              choices <- c(choices, paste0("Region (", sub_lvl, ")"))
+
+            # Reporting: champion vs non-champion
+            if ("Selected" %in% names(d) &&
+                length(unique(d$Selected)) > 1)
+              choices <- c(choices, "Reporting")
+
+            # Categories: multiple element-category combinations
+            if ("data" %in% names(d) && length(unique(d$data)) > 1)
+              choices <- c(choices, "Categories")
+          }
+
+          prev <- isolate(input$split_data)
+          updateSelectInput(session, 'split_data',
+                            choices  = choices,
+                            selected = if (prev %in% choices) prev else "None")
+        },
+        ignoreInit = TRUE
+      )
+
+      # Legacy observer kept for filter_display only
       observeEvent(
         split(),
         {
-          cat('\n* evaluation_widget update split:')
+          cat('\n* evaluation_widget update split (legacy filter_display):')
           if (!split() %in% 'None') {
-            print("split():")
-            print(split())
-            # print( "data.total():" ); # glimpse( data.total() )
-
-            # splits = data.total() %>% pull( .data[[ split() ]] ) %>% unique
-
             splits = data.total()[, split()] %>% unique
-
-            print(paste('splits: ', splits))
-
-            updateSelectInput(
-              session,
-              'split_data',
-              choices = c('None', splits)
-            )
-
-            updateSelectInput(
-              session,
-              'filter_display',
-              choices = c('None', splits)
-            )
+            updateSelectInput(session, 'filter_display', choices = c('None', splits))
           } else {
-            updateSelectInput(session, 'split_data', choices = c('None'))
             updateSelectInput(session, 'filter_display', choices = c('None'))
           }
         }
@@ -2040,11 +2001,7 @@ evaluation_widget_server <- function(
         agg_level = input$agg_level
         # missing_reports = missing_reports()
 
-        split = NULL
-        selected_split = split()
-        if (!input$split_data == 'None') {
-          split = input$split
-        }
+        split = split_col()
 
         if (testing) {
           save(
@@ -2134,14 +2091,17 @@ evaluation_widget_server <- function(
         g = mable_Data %>%
           filter(!is.na(total)) %>%
           autoplot(total) +
-          # ggplot( aes( x = !! rlang::sym( .period ), y = total
-          #
-          #            , group =  as.character( !! rlang::sym( input$agg_level  ) )
-          #
-          #            , color =  as.character( !! rlang::sym( input$agg_level  ) )
-          #           ) )  +
-          # geom_line() +
-          theme_minimal() +
+          theme_minimal(base_size = 16) +
+          theme(
+            axis.text        = element_text(size = 14),
+            axis.title       = element_text(size = 15),
+            strip.text       = element_text(size = 14),
+            plot.title       = element_text(size = 16),
+            plot.subtitle    = element_text(size = 13),
+            plot.caption     = element_text(size = 11),
+            legend.text      = element_text(size = 13),
+            legend.title     = element_text(size = 14)
+          ) +
 
           geom_vline(
             xintercept = as.Date(eval_date),
@@ -2220,9 +2180,14 @@ evaluation_widget_server <- function(
           labs(
             y = "",
             x = "",
-            title = str_wrap(input$indicator, 200),
-            subtitle = str_wrap(data.text, 200),
-            caption = str_wrap(caption.text(), 200)
+            title    = str_wrap(data.text, 100),
+            subtitle = {
+              ind <- input$indicator
+              if (!is.null(ind) && length(ind) > 0 && nzchar(trimws(ind)))
+                str_wrap(ind, 120)
+              else NULL
+            },
+            caption  = str_wrap(caption.text(), 200)
           )
 
         cat('\n - axis scales and labs done')

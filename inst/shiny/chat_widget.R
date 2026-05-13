@@ -103,7 +103,8 @@ chat_widget_server <- function(id,
                                 data_widget_output,
                                 reporting_widget_output,
                                 cleaning_widget_output,
-                                metadata_widget_output) {
+                                metadata_widget_output,
+                                current_tab = NULL) {
   moduleServer(id, function(input, output, session) {
 
     if (!requireNamespace("shinychat", quietly = TRUE) ||
@@ -257,16 +258,20 @@ chat_widget_server <- function(id,
       client$set_system_prompt(build_prompt())
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
+    on_assistant_tab <- function() isTRUE(!is.null(current_tab) && current_tab() == "Assistant")
+
     observeEvent(reporting_widget_output$data.total(), {
       client$set_system_prompt(build_prompt())
-      showNotification("Assistant context updated with Reporting data.",
-                       type = "message", duration = 3)
+      if (on_assistant_tab())
+        showNotification("Assistant context updated with Reporting data.",
+                         type = "message", duration = 3)
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     observeEvent(cleaning_widget_output$data2(), {
       client$set_system_prompt(build_prompt())
-      showNotification("Assistant context updated with Outlier data.",
-                       type = "message", duration = 3)
+      if (on_assistant_tab())
+        showNotification("Assistant context updated with Outlier data.",
+                         type = "message", duration = 3)
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
     # --- Reset: clears conversation history and rebuilds prompt -----------

@@ -14,7 +14,7 @@ reporting_widget_ui = function(id) {
         tabsetPanel(
           type = "tabs",
           tabPanel(
-            "Org Levels",
+            "Display",
 
             inputPanel(
               selectInput(
@@ -48,15 +48,6 @@ reporting_widget_ui = function(id) {
                 choices = NULL,
                 selected = NULL
               )
-            ),
-
-            h5('Aggregate Level'),
-
-            selectInput(
-              ns("level"),
-              label = 'Select data only at specific level ("leaf" is all facilities that enter data):',
-              choices = c('leaf'),
-              selected = NULL
             )
           ),
 
@@ -106,8 +97,7 @@ reporting_widget_ui = function(id) {
           ),
 
           tabPanel(
-            "dataElements and dataSets",
-            # inputPanel(
+            "Datasets",
 
             h5("Datasets (forms used to enter data)"),
 
@@ -119,7 +109,7 @@ reporting_widget_ui = function(id) {
 
             checkboxInput(
               ns("dataset_merge_average"),
-              label = 'When merging, average values reported by same facility to mutliple datasets',
+              label = 'When merging, average values reported by same facility to multiple datasets',
               value = FALSE
             ),
 
@@ -131,44 +121,42 @@ reporting_widget_ui = function(id) {
               width = "100%",
               multiple = TRUE,
               selectize = TRUE
-            ),
+            )
+          ),
 
-            h5("Data elements"),
-
-            # checkboxInput( ns("all_categories") ,
-            #                        label = 'Select all dataElements/Categories',
-            #                        value = TRUE )  ,
-
-            actionButton(ns('update_data_categories'), label = "Update"),
-
-            checkboxInput(ns("select_all_categories"), "Select / deselect all", value = TRUE),
-
-            div(
-              style = "max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
-              checkboxGroupInput(
-                ns("data_categories"),
-                label = "DataElement/Category",
-                choices = NULL,
-                selected = 1,
-                width = "100%"
-              )
-            ),
+          tabPanel(
+            "Data Elements",
 
             p(
-              style = "font-size:0.9em; color:#444; margin-bottom:4px;",
-              "A facility is counted as reporting for a month when at least one checked element was submitted. ",
-              "The option below extends this to count a facility as reporting if any data were submitted — ",
-              "including secondary (unchecked) elements. ",
+              style = "font-size:0.85em; color:#444; margin-top:6px; margin-bottom:2px;",
+              "Checked elements count as reporting. ",
               tags$em("See About for details.")
             ),
 
             checkboxInput(
               ns("count.any"),
-              label = 'Count facility as reporting if any data submitted (including unchecked elements)',
+              label = 'Count reporting if any data submitted (including unchecked)',
               value = TRUE
-            )
+            ),
 
-            # ) # end inputPanel
+            div(
+              style = "display:flex; align-items:center; gap:6px; margin-bottom:2px;",
+              actionButton(ns('update_data_categories'), label = "Update",
+                           class = "btn-info btn-sm"),
+              checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
+              checkboxInput(ns("select_all_categories"), "All", value = TRUE)
+            ),
+
+            div(
+              style = "max-height: calc(100vh - 380px); overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              checkboxGroupInput(
+                ns("data_categories"),
+                label = NULL,
+                choices = NULL,
+                selected = 1,
+                width = "100%"
+              )
+            )
           ) # end tabPanel
         ) # end tabset panel
       ), # end sidebar panel
@@ -527,14 +515,6 @@ reporting_widget_server <- function(
 
       selected_data_categories = reactiveValues()
 
-      observeEvent(input$update_data_categories, {
-        cat('\n * update_data_categories')
-
-        selected_data_categories$elements = input$data_categories
-
-        cat("\n - ", paste(selected_data_categories$elements, collapse = ", "))
-      })
-
       selected_org_levels = reactiveValues(
         level2 = NULL,
         level3 = NULL,
@@ -572,7 +552,7 @@ reporting_widget_server <- function(
         )
       })
 
-      # Internal helper: build (primary_choices, secondary_choices) from formula_elements role info
+      # Internal helpers
       .split_by_role <- function(choices, fe) {
         if (is.null(fe) || nrow(fe) == 0 || !"role" %in% names(fe))
           return(list(primary = choices, secondary = character(0)))
@@ -608,20 +588,71 @@ reporting_widget_server <- function(
         })
       }
 
-      .update_data_categories <- function(all_choices, fe) {
-        roles <- .split_by_role(all_choices, fe)
-        updateCheckboxGroupInput(
-          session, 'data_categories',
-          choiceNames  = .make_choice_names(all_choices, roles$secondary),
-          choiceValues = all_choices,
-          selected     = roles$primary
-        )
-        selected_data_categories$elements <- roles$primary
-        if (length(roles$secondary) > 0) {
+      # Build dataElement → data_names map using UID-based matching via data.id
+      .reporting_element_map <- function(choices, fe, d) {
+        tryCatch({
+          req_cols <- c("data", "data.id")
+          fe_cols  <- c("dataElement.id", "dataElement")
+          if (!is.null(d) && all(req_cols %in% names(d)) &&
+              !is.null(fe) && nrow(fe) > 0 && all(fe_cols %in% names(fe))) {
+            id_name <- as.data.frame(d)[, req_cols, drop = FALSE] %>%
+              dplyr::distinct() %>%
+              dplyr::filter(data %in% choices) %>%
+              dplyr::mutate(dataElement.id = sub("_.*$", "", data.id))
+            de_map  <- fe %>%
+              dplyr::select(dataElement.id, dataElement) %>%
+              dplyr::distinct()
+            result  <- dplyr::inner_join(id_name, de_map, by = "dataElement.id") %>%
+              dplyr::select(dataElement, data) %>%
+              dplyr::distinct()
+            if (nrow(result) > 0) {
+              map <- base::split(result$data, result$dataElement)
+              for (ch in setdiff(choices, unlist(map))) map[[ch]] <- ch
+              return(map)
+            }
+          }
+        }, error = function(e) NULL)
+        setNames(as.list(choices), choices)
+      }
+
+      reporting_elem_map_rv <- reactiveVal(list())
+
+      .update_data_categories <- function(all_choices, fe, d) {
+        map <- .reporting_element_map(all_choices, fe, d)
+        reporting_elem_map_rv(map)
+
+        has_secondary <- !is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe) &&
+          any(fe$role == "secondary", na.rm = TRUE)
+
+        if (!isTRUE(input$collapse_reporting)) {
+          roles <- .split_by_role(all_choices, fe)
+          updateCheckboxGroupInput(
+            session, 'data_categories',
+            choiceNames  = .make_choice_names(all_choices, roles$secondary),
+            choiceValues = all_choices,
+            selected     = roles$primary
+          )
+          selected_data_categories$elements <- roles$primary
+        } else {
+          elems     <- stringr::str_sort(names(map), numeric = TRUE)
+          fe_roles  <- if (!is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe))
+            setNames(fe$role[match(elems, fe$dataElement)], elems)
+          else character(0)
+          sec_elems  <- elems[!is.na(fe_roles) & fe_roles == "secondary"]
+          prim_elems <- setdiff(elems, sec_elems)
+          updateCheckboxGroupInput(
+            session, 'data_categories',
+            choiceNames  = .make_choice_names(elems, sec_elems),
+            choiceValues = elems,
+            selected     = prim_elems
+          )
+          selected_data_categories$elements <- unique(unlist(map[prim_elems], use.names = FALSE))
+        }
+
+        if (has_secondary) {
           updateCheckboxInput(session, 'count.any', value = TRUE)
           showNotification(
-            paste0(length(roles$secondary),
-                   " secondary element(s) detected — 'Count any report' enabled automatically."),
+            "Secondary element(s) detected — 'Count any report' enabled automatically.",
             type = "message", duration = 5
           )
         }
@@ -630,7 +661,7 @@ reporting_widget_server <- function(
       observeEvent('data' %in% names(data1()), {
         req(data1()$data)
         cat('\n* updating data_categories with primary/secondary distinction')
-        .update_data_categories(sort(unique(data1()$data)), formula_elements())
+        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1())
         cat('\n - done')
       })
 
@@ -638,17 +669,38 @@ reporting_widget_server <- function(
         req(data1()$data)
         req(formula_elements())
         cat('\n* reporting_widget: formula_elements changed, refreshing data_categories')
-        .update_data_categories(sort(unique(data1()$data)), formula_elements())
+        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1())
       }, ignoreInit = TRUE, ignoreNULL = TRUE)
+
+      observeEvent(input$collapse_reporting, {
+        req(data1()$data)
+        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1())
+      }, ignoreInit = TRUE)
+
+      observeEvent(input$update_data_categories, {
+        if (isTRUE(input$collapse_reporting)) {
+          map <- reporting_elem_map_rv()
+          selected_data_categories$elements <- unique(unlist(map[input$data_categories], use.names = FALSE))
+        } else {
+          selected_data_categories$elements <- input$data_categories
+        }
+      })
 
       observeEvent(input$select_all_categories, {
         req(data1()$data)
-        choices = unique(data1()$data)
-        updateCheckboxGroupInput(
-          session,
-          'data_categories',
-          selected = if (input$select_all_categories) choices else character(0)
-        )
+        choices <- stringr::str_sort(unique(data1()$data), numeric = TRUE)
+        if (isTRUE(input$collapse_reporting)) {
+          map <- reporting_elem_map_rv()
+          updateCheckboxGroupInput(
+            session, 'data_categories',
+            selected = if (input$select_all_categories) stringr::str_sort(names(map), numeric = TRUE) else character(0)
+          )
+        } else {
+          updateCheckboxGroupInput(
+            session, 'data_categories',
+            selected = if (input$select_all_categories) choices else character(0)
+          )
+        }
       }, ignoreInit = TRUE)
 
       # update split
@@ -845,19 +897,11 @@ reporting_widget_server <- function(
 
         cat('\n - nrow( d ):', nrow(data))
 
-        if (input$level %in% 'leaf') {
-          # effectiveLeaf is always TRUE for modern DHIS2 downloads; the all()
-          # check is a fast no-op in that case. Filter retained for legacy files.
-          if (!isTRUE(all(data$effectiveLeaf))) {
-            data = setDT(data)[effectiveLeaf == TRUE, , ]
-          }
-        } else {
-          # data = data %>% filter( levelName  %in% input$level  )
-          level. = count(orgUnits() %>% as_tibble, level, levelName) %>%
-            filter(levelName %in% input$level) %>%
-            pull(level)
-
-          data = setDT(data)[level %in% level., , ]
+        # Always filter to leaf (facility) level.
+        # effectiveLeaf is always TRUE for modern DHIS2 downloads; the all()
+        # check is a fast no-op in that case. Filter retained for legacy files.
+        if (!isTRUE(all(data$effectiveLeaf))) {
+          data = setDT(data)[effectiveLeaf == TRUE, , ]
         }
 
         # if ( input$exclude_recent_month ) data = data %>%
@@ -1434,8 +1478,7 @@ reporting_widget_server <- function(
             ylim(0, NA) +
             scale_color_manual(
               values = c('All' = 'black', 'Champion' = 'brown')
-            ) +
-            scale_fill_manual(values = c('All' = 'black', 'Champion' = 'brown'))
+            )
 
           if (!is.null(reportingSelectedOUs())) {
             cat('\n - g + selected facilities ')
@@ -1457,9 +1500,9 @@ reporting_widget_server <- function(
 
       output$plot_reporting_by_month <- renderPlot(
         {
-          plot2()
+          plot2() + theme_bw(base_size = 16)
         },
-        height = "auto"
+        res = 96, height = "auto"
       )
 
       verbatimTextOutput("info")
@@ -1578,9 +1621,9 @@ reporting_widget_server <- function(
 
       output$plot_reports_in_a_year <- renderPlot(
         {
-          plot1()
+          plot1() + theme_bw(base_size = 16)
         },
-        height = "auto"
+        res = 96, height = "auto"
       )
 
       # Cache the last successfully-computed selected_data so that downstream
@@ -2052,7 +2095,7 @@ reporting_widget_server <- function(
             group = grouping_var,
             colour = grouping_var
           )) +
-          geom_line()
+          geom_line(na.rm = TRUE)
 
         # Legend / color scale based on series_by selection
         if (isTRUE(input$series_by == "Dataset") && num_datasets() > 1) {
@@ -2119,7 +2162,7 @@ reporting_widget_server <- function(
         return(g)
       })
 
-      output$plot_values <- renderPlot({
+      output$plot_values <- renderPlot(res = 96, {
         plotAgregateValue()
       })
       outputOptions(output, "plot_values",               suspendWhenHidden = TRUE)
@@ -2410,7 +2453,7 @@ reporting_widget_server <- function(
         return(gf.map)
       })
 
-      output$facility_chart <- renderPlot({
+      output$facility_chart <- renderPlot(res = 96, {
         facility_chart()
       })
 

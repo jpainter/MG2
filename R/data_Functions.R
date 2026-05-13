@@ -286,22 +286,26 @@ mostFrequentReportingOUs <- function(
   ]
   if (.cat) cat('\n - mr rows:', nrow(mr), '| unique orgUnits:', uniqueN(mr$orgUnit), '| unique years:', uniqueN(mr$year))
 
-  max_years = uniqueN(mr$year)
-  if (.cat) {
-    cat('\n - max_years', max_years)
-  }
-
-  # count distinct periods per year across all orgunits (the denominator)
-  # dt is already filtered to the window; use it directly (no extra conversion)
-  ppy = unique(dt[, period, with = FALSE])
+  # Denominator: count distinct periods per year using SELECTED elements only,
+  # regardless of count.any. This ensures the time window is defined by when the
+  # selected data was being collected — not by all elements in the dataset.
+  dt_periods <- if (count.any && !is.null(data_categories) && length(data_categories) > 0)
+    dt[get("data") %chin% data_categories]
+  else
+    dt
+  ppy = unique(dt_periods[, period, with = FALSE])
   setnames(ppy, period, 'period_val')
   ppy[, year := year(period_val)]
   periods_per_year = ppy[, .(max = .N), by = year]
+  # max_years from selected-element denominator so count.any doesn't extend window
+  max_years = uniqueN(periods_per_year$year)
   if (.cat) {
+    cat('\n - max_years', max_years)
     cat('\n - periods per year:\n')
     print(periods_per_year)
   }
 
+  # Only count years that are in the denominator
   mr_j = merge(mr, periods_per_year, by = "year")
   if (.cat) cat('\n - mr_j rows:', nrow(mr_j))
 

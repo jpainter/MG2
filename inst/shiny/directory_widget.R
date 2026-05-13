@@ -36,7 +36,8 @@ directory_widget_ui = function(id) {
       ),
     ),
 
-    # hr() ,
+    br(),
+
     h4('This directory Contains:'),
 
     tableOutput(ns('folderInfo')),

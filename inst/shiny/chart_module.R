@@ -47,14 +47,14 @@ chartModuleServer <- function(id, plot_expr) {
       title = NULL,
       subtitle = NULL,
       caption = NULL,
-      base.size = 14,
+      base.size = 20,
       legend.position = "bottom",
       format = "png",
       width = 6,
       height = 4,
       dpi = 300,
-      transparent = TRUE,
-      theme = "Minimal",
+      transparent = FALSE,
+      theme = "bw",
       ready = TRUE
     )
 
@@ -120,27 +120,29 @@ chartModuleServer <- function(id, plot_expr) {
       removeModal()
     })
 
-    # Theme selector
-    get_theme <- function(theme_key = 'default') {
+    # Theme selector — pass base_size so all text scales correctly
+    get_theme <- function(theme_key = 'default', base_size = 20) {
       switch(
         theme_key,
-        "minimal" = theme_minimal(),
-        "classic" = theme_classic(),
-        "light" = theme_light(),
-        "dark" = theme_dark(),
-        "bw" = theme_bw(),
-        theme_gray()
+        "minimal"  = theme_minimal(base_size = base_size),
+        "classic"  = theme_classic(base_size = base_size),
+        "light"    = theme_light(base_size = base_size),
+        "dark"     = theme_dark(base_size = base_size),
+        "bw"       = theme_bw(base_size = base_size),
+        theme_gray(base_size = base_size)
       )
     }
 
-    # Display plot
-    output$plot <- renderPlot({
+    # Display plot — res = 96 prevents HiDPI double-scaling of text
+    output$plot <- renderPlot(res = 96, {
       p <- plot_expr() +
-        get_theme(rv$theme) +
+        get_theme(rv$theme, rv$base.size) +
         theme(
-          text = element_text(size = rv$base.size),
+          text           = element_text(size = rv$base.size),
           legend.position = rv$legend.position,
-          strip.text = element_text(face = "bold")
+          strip.text     = element_text(face = "bold", size = rv$base.size),
+          plot.background  = element_rect(fill = "white", colour = NA),
+          panel.background = element_rect(fill = "white", colour = NA)
         )
       # Only override labs that the user explicitly set — passing NULL clears them
       overrides <- Filter(function(x) !is.null(x) && nzchar(x),
@@ -156,10 +158,12 @@ chartModuleServer <- function(id, plot_expr) {
       },
       content = function(file) {
         plot <- plot_expr() +
-          get_theme(rv$theme) +
+          get_theme(rv$theme, rv$base.size) +
           theme(
-            text = element_text(size = rv$base.size),
-            legend.position = rv$legend.position
+            text             = element_text(size = rv$base.size),
+            legend.position  = rv$legend.position,
+            plot.background  = element_rect(fill = "white", colour = NA),
+            panel.background = element_rect(fill = "white", colour = NA)
           )
         overrides <- Filter(function(x) !is.null(x) && nzchar(x),
                             list(title = rv$title, subtitle = rv$subtitle, caption = rv$caption))

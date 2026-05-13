@@ -250,9 +250,9 @@ build_mg2_system_prompt <- function(
       paste0("Formula elements (", nrow(fe), " total):"))
 
     fmt_element <- function(row) {
-      nm  <- if (!is.null(row$name) && !is.na(row$name)) row$name else row$dataElement
-      cat <- if (!is.null(row$categories) && !is.na(row$categories) && nzchar(row$categories))
-        paste0(" [", row$categories, "]") else ""
+      nm  <- if (!is.null(row$dataElement) && !is.na(row$dataElement)) row$dataElement else ""
+      cat <- if (!is.null(row$Categories) && !is.na(row$Categories) && nzchar(row$Categories))
+        paste0(" [", row$Categories, "]") else ""
       paste0("  - ", nm, cat)
     }
 

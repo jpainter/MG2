@@ -4,7 +4,7 @@
 \alias{dqa_consistency_detail_rule}
 \title{Drilldown: Failed Facility-Periods for One Rule}
 \usage{
-dqa_consistency_detail_rule(data, validation_rules, rule_id)
+dqa_consistency_detail_rule(data, validation_rules, rule_id, max_rows = 2000L)
 }
 \arguments{
 \item{data}{Processed dataset (output of \code{data_1()}).}

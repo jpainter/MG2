@@ -17,7 +17,9 @@ dqa_widget_ui = function(id) {
 
           h5("Data Elements"),
 
-          actionButton(ns('update_dqa_elements'), "Update"),
+          actionButton(ns('update_dqa_elements'), "Update", class = "btn-info btn-sm"),
+
+          checkboxInput(ns("collapse_dqa"), "One row per data element", value = TRUE),
 
           checkboxInput(ns("select_all_dqa"), "Select / deselect all", value = TRUE),
 
@@ -216,8 +218,9 @@ dqa_widget_server <- function(
       # Element selector ####
 
       selected_dqa_elements = reactiveValues(elements = NULL)
+      dqa_elem_map_rv       = reactiveVal(list())
 
-      # Internal helpers (mirrors reporting_widget pattern)
+      # Internal helpers
       .dqa_split_by_role <- function(choices, fe) {
         if (is.null(fe) || nrow(fe) == 0 || !"role" %in% names(fe))
           return(list(primary = choices, secondary = character(0)))
@@ -248,32 +251,102 @@ dqa_widget_server <- function(
         })
       }
 
+      # Build dataElement → data_names map using UID-based matching via data.id
+      .dqa_element_map <- function(choices, fe, d) {
+        tryCatch({
+          req_cols <- c("data", "data.id")
+          fe_cols  <- c("dataElement.id", "dataElement")
+          if (!is.null(d) && all(req_cols %in% names(d)) &&
+              !is.null(fe) && nrow(fe) > 0 && all(fe_cols %in% names(fe))) {
+            id_name <- as.data.frame(d)[, req_cols, drop = FALSE] %>%
+              dplyr::distinct() %>%
+              dplyr::filter(data %in% choices) %>%
+              dplyr::mutate(dataElement.id = sub("_.*$", "", data.id))
+            de_map  <- fe %>%
+              dplyr::select(dataElement.id, dataElement) %>%
+              dplyr::distinct()
+            result  <- dplyr::inner_join(id_name, de_map, by = "dataElement.id") %>%
+              dplyr::select(dataElement, data) %>%
+              dplyr::distinct()
+            if (nrow(result) > 0) {
+              map <- base::split(result$data, result$dataElement)
+              for (ch in setdiff(choices, unlist(map))) map[[ch]] <- ch
+              return(map)
+            }
+          }
+        }, error = function(e) NULL)
+        setNames(as.list(choices), choices)
+      }
+
+      # Populate checkboxGroupInput in either expanded or collapsed mode
+      .update_dqa_checkbox <- function(choices, fe, collapsed, d) {
+        map <- .dqa_element_map(choices, fe, d)
+        dqa_elem_map_rv(map)
+
+        if (!collapsed) {
+          roles <- .dqa_split_by_role(choices, fe)
+          updateCheckboxGroupInput(
+            session, "dqa_elements",
+            choiceNames  = .dqa_choice_names(choices, roles$secondary),
+            choiceValues = choices,
+            selected     = roles$primary
+          )
+          selected_dqa_elements$elements <- roles$primary
+        } else {
+          elems     <- stringr::str_sort(names(map), numeric = TRUE)
+          fe_roles  <- if (!is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe))
+            setNames(fe$role[match(elems, fe$dataElement)], elems)
+          else character(0)
+          sec_elems  <- elems[!is.na(fe_roles) & fe_roles == "secondary"]
+          prim_elems <- setdiff(elems, sec_elems)
+          updateCheckboxGroupInput(
+            session, "dqa_elements",
+            choiceNames  = .dqa_choice_names(elems, sec_elems),
+            choiceValues = elems,
+            selected     = prim_elems
+          )
+          selected_dqa_elements$elements <- unique(unlist(map[prim_elems], use.names = FALSE))
+        }
+      }
+
       observeEvent(region_filtered_data1(), {
         req(region_filtered_data1()$data)
-        choices <- sort(unique(region_filtered_data1()$data))
-        fe      <- formula_elements()
-        roles   <- .dqa_split_by_role(choices, fe)
-
-        updateCheckboxGroupInput(
-          session, "dqa_elements",
-          choiceNames  = .dqa_choice_names(choices, roles$secondary),
-          choiceValues = choices,
-          selected     = roles$primary
-        )
-        selected_dqa_elements$elements <- roles$primary
+        choices <- stringr::str_sort(unique(region_filtered_data1()$data), numeric = TRUE)
+        .update_dqa_checkbox(choices, formula_elements(), isTRUE(input$collapse_dqa),
+                             region_filtered_data1())
       })
 
+      observeEvent(input$collapse_dqa, {
+        req(region_filtered_data1()$data)
+        choices <- stringr::str_sort(unique(region_filtered_data1()$data), numeric = TRUE)
+        .update_dqa_checkbox(choices, formula_elements(), isTRUE(input$collapse_dqa),
+                             region_filtered_data1())
+      }, ignoreInit = TRUE)
+
       observeEvent(input$update_dqa_elements, {
-        selected_dqa_elements$elements <- input$dqa_elements
+        if (isTRUE(input$collapse_dqa)) {
+          map <- dqa_elem_map_rv()
+          selected_dqa_elements$elements <- unique(unlist(map[input$dqa_elements], use.names = FALSE))
+        } else {
+          selected_dqa_elements$elements <- input$dqa_elements
+        }
       })
 
       observeEvent(input$select_all_dqa, {
         req(region_filtered_data1()$data)
-        choices <- sort(unique(region_filtered_data1()$data))
-        updateCheckboxGroupInput(
-          session, "dqa_elements",
-          selected = if (input$select_all_dqa) choices else character(0)
-        )
+        choices <- stringr::str_sort(unique(region_filtered_data1()$data), numeric = TRUE)
+        if (isTRUE(input$collapse_dqa)) {
+          map <- dqa_elem_map_rv()
+          updateCheckboxGroupInput(
+            session, "dqa_elements",
+            selected = if (input$select_all_dqa) stringr::str_sort(names(map), numeric = TRUE) else character(0)
+          )
+        } else {
+          updateCheckboxGroupInput(
+            session, "dqa_elements",
+            selected = if (input$select_all_dqa) choices else character(0)
+          )
+        }
       }, ignoreInit = TRUE)
 
       # DQA data filtered to selected elements
@@ -293,7 +366,7 @@ dqa_widget_server <- function(
         dqa_data() %>% dqaPercentReporting() %>% dqa_reporting_plot()
       })
 
-      output$dqaReportingOutput <- renderPlot({
+      output$dqaReportingOutput <- renderPlot(res = 96, {
         plotDqaReporting() + labs(caption = region_caption_text())
       })
 
@@ -306,7 +379,7 @@ dqa_widget_server <- function(
           yearly.outlier.summary_plot()
       })
 
-      output$dqaNoErrorsOutput <- renderPlot({
+      output$dqaNoErrorsOutput <- renderPlot(res = 96, {
         plotDqaNoError() + labs(caption = region_caption_text())
       })
 
@@ -315,7 +388,7 @@ dqa_widget_server <- function(
         dqa_data() %>% dqa_mase %>% dqa_mase_plot
       })
 
-      output$dqaMaseOutput <- renderPlot({
+      output$dqaMaseOutput <- renderPlot(res = 96, {
         plotDqaMASE() + labs(caption = region_caption_text())
       })
 
@@ -356,7 +429,7 @@ dqa_widget_server <- function(
         )
       })
 
-      output$dqaConsistencyChart <- renderPlot({
+      output$dqaConsistencyChart <- renderPlot(res = 96, {
         res <- consistency_results()
         dqa_consistency_plot(res) + labs(caption = region_caption_text())
       })
@@ -417,23 +490,47 @@ dqa_widget_server <- function(
         updateSelectInput(session, "consistency_rule_select", selected = rule_id_sel)
       })
 
-      output$dqaConsistencyDetail <- DT::renderDT({
+      consistency_detail_data <- reactive({
         req(input$consistency_rule_select)
-        detail <- dqa_consistency_detail_rule(
+        dqa_consistency_detail_rule(
           region_filtered_data1(),
           validationRules(),
-          input$consistency_rule_select
+          input$consistency_rule_select,
+          max_rows = 2000L
         )
+      })
+
+      output$dqaConsistencyDetail <- DT::renderDT({
+        detail <- consistency_detail_data()
+
+        # Show notification only when this table actually renders (lazy — only
+        # fires when the Detail Drilldown tab is visible)
+        n            <- attr(detail, "truncated")
+        n_incomplete <- if (!is.null(detail) && "Result" %in% names(detail))
+          sum(detail$Result == "Incomplete", na.rm = TRUE) else 0L
+        lines <- character(0)
+        if (!is.null(n))
+          lines <- c(lines, paste0("Showing most-recent 2,000 of ", n,
+            " records — use column filters to narrow results."))
+        if (n_incomplete > 0)
+          lines <- c(lines, paste0(n_incomplete,
+            " row(s) marked ‘Incomplete’: one element had no data",
+            " for that facility-period (Left/Right Side is blank)."))
+        if (length(lines) > 0)
+          showNotification(HTML(paste(lines, collapse = "<br>")),
+                           type = "warning", duration = NULL, closeButton = TRUE)
         DT::datatable(
           detail,
           rownames = FALSE,
           filter   = "top",
           options  = list(
-            scrollX       = TRUE,
-            scrollY       = "60vh",
+            scrollX        = TRUE,
+            scrollY        = "calc(100vh - 480px)",
             scrollCollapse = TRUE,
-            paging        = FALSE,
-            dom           = 'ti'
+            paging         = TRUE,
+            pageLength     = 25,
+            lengthMenu     = list(c(10, 25, 50, 100), list("10", "25", "50", "100")),
+            dom            = 'ltipr'
           )
         )
       })

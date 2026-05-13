@@ -96,6 +96,22 @@
   # Rename data.id columns to val_{data_id} for safe eval()
   id_cols <- setdiff(names(wide), c("orgUnit", "orgUnitName", "period", "year"))
   data.table::setnames(wide, id_cols, paste0("val_", id_cols))
+
+  # For bare DE UID references (rules written against pre-aggregated totals):
+  # add val_{de_uid} columns by summing all val_{de_uid}_* disaggregations.
+  # This lets rules like #{de} evaluate correctly when data is COC-disaggregated.
+  de_uids <- unique(sub("_.*$", "", id_cols))  # extract UID prefix from each data.id
+  for (de in de_uids) {
+    bare_col  <- paste0("val_", de)
+    if (bare_col %in% names(wide)) next  # already exists (no-COC element)
+    agg_cols  <- grep(paste0("^val_", de, "_"), names(wide), value = TRUE)
+    if (length(agg_cols) == 0) next
+    wide[, (bare_col) := {
+      mat <- as.matrix(.SD)
+      ifelse(rowSums(!is.na(mat)) == 0L, NA_real_, rowSums(mat, na.rm = TRUE))
+    }, .SDcols = agg_cols]
+  }
+
   wide
 }
 
@@ -279,22 +295,29 @@ dqa_consistency_table <- function(consistency_data) {
 #'
 #' @return A tibble of failed facility-periods.
 #' @export
-dqa_consistency_detail_rule <- function(data, validation_rules, rule_id) {
+dqa_consistency_detail_rule <- function(data, validation_rules, rule_id,
+                                        max_rows = 2000L) {
   if (is.null(data) || is.null(validation_rules)) return(tibble::tibble())
   rule <- dplyr::filter(validation_rules, id == rule_id)
   if (nrow(rule) == 0) return(tibble::tibble())
 
-  wide <- .vr_wide_data(data)
+  # Extract the DE UIDs the rule references and filter data to just those
+  # elements before pivoting — avoids a full-dataset wide pivot
+  required_ids <- c(
+    .extract_vr_uid_pairs(rule$leftSide_expression_raw[1]),
+    .extract_vr_uid_pairs(rule$rightSide_expression_raw[1])
+  )
+  required_de_uids <- unique(sub("_.*$", "", required_ids))
+  dt_all <- data.table::as.data.table(data)
+  data_filtered <- dt_all[sub("_.*$", "", data.id) %in% required_de_uids]
+
+  wide <- .vr_wide_data(data_filtered)
   wl   <- as.list(wide)
 
   ls_r <- .vr_expr_to_r(rule$leftSide_expression_raw[1])
   rs_r <- .vr_expr_to_r(rule$rightSide_expression_raw[1])
   op   <- rule$operator[1]
 
-  required_ids <- c(
-    .extract_vr_uid_pairs(rule$leftSide_expression_raw[1]),
-    .extract_vr_uid_pairs(rule$rightSide_expression_raw[1])
-  )
   needed_cols  <- paste0("val_", required_ids)
   missing_cols <- setdiff(needed_cols, names(wide))
 
@@ -320,7 +343,7 @@ dqa_consistency_detail_rule <- function(data, validation_rules, rule_id) {
 
   wide[, `:=`(ls_val = ls_vals, rs_val = rs_vals, pass = pass)]
 
-  wide[pass == FALSE | is.na(pass), ] %>%
+  result <- wide[pass == FALSE | is.na(pass), ] %>%
     tibble::as_tibble() %>%
     dplyr::transmute(
       `Org Unit`   = orgUnitName,
@@ -330,7 +353,13 @@ dqa_consistency_detail_rule <- function(data, validation_rules, rule_id) {
       `Right Side` = rs_val,
       Result       = dplyr::if_else(is.na(pass), "Incomplete", "Failed")
     ) %>%
-    dplyr::arrange(Year, Period, `Org Unit`)
+    dplyr::arrange(dplyr::desc(Year), Period, `Org Unit`)
+
+  if (!is.null(max_rows) && nrow(result) > max_rows) {
+    attr(result, "truncated") <- nrow(result)
+    result <- result[seq_len(max_rows), ]
+  }
+  result
 }
 
 # Reporting -------------------------------------------------------------------

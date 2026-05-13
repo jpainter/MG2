@@ -15,7 +15,6 @@ BugReports: https://github.com/jpainter/MG2/issues
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 Imports:
     assertthat,
     bslib,
@@ -24,7 +23,6 @@ Imports:
     dplyr,
     httr,
     data.tree,
-    igraph,
     jsonlite,
     lubridate,
     magrittr,
@@ -74,3 +72,4 @@ Suggests:
 Config/testthat/edition: 3
 Depends: 
     R (>= 3.5)
+Config/roxygen2/version: 8.0.0

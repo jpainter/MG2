@@ -19,7 +19,7 @@ Pass an explicit path to skip the prompt, e.g. \code{dir = "~/mg2_demo"}.}
 The path to \code{dir}, invisibly.
 }
 \description{
-Writes the MG2 demo datasets (Sierra Leone malaria, 5 elements, 60 months)
+Writes the MG2 demo datasets (Sierra Leone malaria, 5 elements, 72 months)
 to a local directory in the format the Shiny app expects: a formula \code{.xlsx},
 a metadata \code{.rds}, and a processed dataset \code{.rds}.
 }
