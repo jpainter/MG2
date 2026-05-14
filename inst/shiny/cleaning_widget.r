@@ -8,42 +8,64 @@ cleaning_widget_ui = function(id) {
       sidebarPanel(
         width = 3,
 
-        actionButton(ns('update_dataElement'), label = "Update"),
+        tabsetPanel(
+          type = "tabs",
 
-        checkboxInput(ns("select_all_dataElement"), "Select / deselect all", value = TRUE),
+          tabPanel(
+            "Data Elements",
 
-        div(
-          style = "max-height: 280px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
-          checkboxGroupInput(
-            ns("dataElement"),
-            label = "DataElement_Category:",
-            choices = NULL,
-            selected = NULL,
-            width = "100%"
+            tags$p(
+              style = "font-size:0.85em; color:#555; margin: 6px 0 4px 0;",
+              "Only elements checked in ",
+              tags$strong("Reporting → Data Elements"),
+              " appear here."
+            ),
+
+            actionButton(ns('update_dataElement'), label = "Update",
+                         class = "btn-info btn-sm", style = "margin-top:2px;"),
+
+            checkboxInput(ns("collapse_cleaning"), "One row per data element", value = TRUE),
+
+            checkboxInput(ns("select_all_dataElement"), "Select / deselect all", value = TRUE),
+
+            div(
+              style = "max-height: calc(100vh - 360px); overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              checkboxGroupInput(
+                ns("dataElement"),
+                label = NULL,
+                choices = NULL,
+                selected = NULL,
+                width = "100%"
+              )
+            ),
+
+            uiOutput(ns("reporting_mismatch_warning"))
+          ),
+
+          tabPanel(
+            "Reporting Period",
+
+            selectizeInput(
+              ns("startingMonth"),
+              label = "Beginning with",
+              choices = NULL,
+              selected = NULL
+            ),
+
+            selectizeInput(
+              ns("endingMonth"),
+              label = "Ending with",
+              choices = NULL,
+              selected = NULL
+            ),
+
+            selectizeInput(
+              ns("reporting"),
+              label = "Reporting frequency",
+              choices = c("All", "Champion", "Non-champion"),
+              selected = "All"
+            )
           )
-        ),
-
-        uiOutput(ns("reporting_mismatch_warning")),
-
-        selectizeInput(
-          ns("startingMonth"),
-          label = "Beginning with",
-          choices = NULL,
-          selected = NULL
-        ),
-
-        selectizeInput(
-          ns("endingMonth"),
-          label = "Ending with",
-          choices = NULL,
-          selected = NULL
-        ),
-
-        selectizeInput(
-          ns("reporting"),
-          label = "Reporting frequency",
-          choices = c("All", "Champion", "Non-champion"),
-          selected = "All"
         )
       ),
 
@@ -56,14 +78,14 @@ cleaning_widget_ui = function(id) {
           type = "tabs",
 
           tabPanel(
-            "Outlier Table",
+            "Summary",
             br(),
             textOutput(ns("outlierSummaryText")),
             tableOutput(ns("outlier.summary.table")),
-            br(),
-            htmltools::HTML(
-              "For information on the outlier procedure and algorithms, see the <b>About</b> tab."
-            )
+            tags$p(style = "font-size:0.9em; color:#555; margin-top:4px;",
+                   htmltools::HTML("For outlier procedure details see the <b>About</b> tab.")),
+            hr(style = "margin: 6px 0;"),
+            plotly::plotlyOutput(ns("outlier_cleaning_chart"), height = "calc(50vh - 80px)")
           ),
 
           tabPanel(
@@ -76,8 +98,12 @@ cleaning_widget_ui = function(id) {
                 "Click a row to view the full time series for that facility and indicator."
               )
             ),
-            DT::DTOutput(ns("flagged_dt")),
-            plotly::plotlyOutput(ns("drill_chart"), height = "380px")
+            div(
+              style = "max-height: calc(45vh - 80px); overflow-y: auto;",
+              DT::DTOutput(ns("flagged_dt"))
+            ),
+            hr(style = "margin: 4px 0;"),
+            plotly::plotlyOutput(ns("drill_chart"), height = "calc(45vh - 80px)")
           )
         )
       )
@@ -222,7 +248,8 @@ cleaning_widget_server <- function(
           paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
       })
 
-      selected_data_cats = reactiveValues(elements = NULL)
+      selected_data_cats   = reactiveValues(elements = NULL)
+      cleaning_elem_map_rv = reactiveVal(list())
 
       reporting_selected = reactive({
         tryCatch(
@@ -232,7 +259,12 @@ cleaning_widget_server <- function(
       })
 
       observeEvent(input$update_dataElement, {
-        selected_data_cats$elements = input$dataElement
+        if (isTRUE(input$collapse_cleaning)) {
+          map <- cleaning_elem_map_rv()
+          selected_data_cats$elements <- unique(unlist(map[input$dataElement], use.names = FALSE))
+        } else {
+          selected_data_cats$elements <- input$dataElement
+        }
       })
 
       output$reporting_mismatch_warning <- renderUI({
@@ -251,26 +283,35 @@ cleaning_widget_server <- function(
             " border-left:4px solid #ffc107; border-radius:3px;",
             " margin-top:6px; font-size:0.85em;"
           ),
-          tags$strong(style = "color:#856404;", "⚠ Not selected in Reporting:"),
+          tags$strong(style = "color:#856404;",
+            "⚠ Checked here but not enabled in the Reporting tab:"),
           tags$ul(
             style = "margin:4px 0 0 0; padding-left:14px;",
             lapply(missing, tags$li)
           ),
           tags$span(
             style = "color:#856404;",
-            "These elements have no data flowing through — check them in the Reporting tab to include them."
+            "These elements are selected above but were not checked in Reporting, so no data flows through for them. ",
+            "Enable them in the Reporting → Data Elements tab to include them here."
           )
         )
       })
 
       observeEvent(input$select_all_dataElement, {
         req(data1()$data)
-        choices = sort(unique(data1()$data))
-        updateCheckboxGroupInput(
-          session,
-          "dataElement",
-          selected = if (input$select_all_dataElement) choices else character(0)
-        )
+        choices <- stringr::str_sort(unique(data1()$data), numeric = TRUE)
+        if (isTRUE(input$collapse_cleaning)) {
+          map <- cleaning_elem_map_rv()
+          updateCheckboxGroupInput(
+            session, "dataElement",
+            selected = if (input$select_all_dataElement) stringr::str_sort(names(map), numeric = TRUE) else character(0)
+          )
+        } else {
+          updateCheckboxGroupInput(
+            session, "dataElement",
+            selected = if (input$select_all_dataElement) choices else character(0)
+          )
+        }
       }, ignoreInit = TRUE)
 
       # Shared helpers (same pattern as reporting_widget)
@@ -307,6 +348,64 @@ cleaning_widget_server <- function(
         })
       }
 
+      # Build dataElement → data_names map using UID-based matching via data.id
+      .cleaning_element_map <- function(choices, fe, d) {
+        tryCatch({
+          req_cols <- c("data", "data.id")
+          fe_cols  <- c("dataElement.id", "dataElement")
+          if (!is.null(d) && all(req_cols %in% names(d)) &&
+              !is.null(fe) && nrow(fe) > 0 && all(fe_cols %in% names(fe))) {
+            id_name <- as.data.frame(d)[, req_cols, drop = FALSE] %>%
+              dplyr::distinct() %>%
+              dplyr::filter(data %in% choices) %>%
+              dplyr::mutate(dataElement.id = sub("_.*$", "", data.id))
+            de_map  <- fe %>%
+              dplyr::select(dataElement.id, dataElement) %>%
+              dplyr::distinct()
+            result  <- dplyr::inner_join(id_name, de_map, by = "dataElement.id") %>%
+              dplyr::select(dataElement, data) %>%
+              dplyr::distinct()
+            if (nrow(result) > 0) {
+              map <- base::split(result$data, result$dataElement)
+              for (ch in setdiff(choices, unlist(map))) map[[ch]] <- ch
+              return(map)
+            }
+          }
+        }, error = function(e) NULL)
+        setNames(as.list(choices), choices)
+      }
+
+      # Central population function for the element checkbox group
+      .update_cleaning_checkbox <- function(choices, fe, collapsed, d) {
+        map <- .cleaning_element_map(choices, fe, d)
+        cleaning_elem_map_rv(map)
+
+        if (!collapsed) {
+          roles <- .cleaning_split_by_role(choices, fe)
+          updateCheckboxGroupInput(
+            session, "dataElement",
+            choiceNames  = .cleaning_choice_names(choices, roles$secondary),
+            choiceValues = choices,
+            selected     = roles$primary
+          )
+          selected_data_cats$elements <- roles$primary
+        } else {
+          elems     <- stringr::str_sort(names(map), numeric = TRUE)
+          fe_roles  <- if (!is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe))
+            setNames(fe$role[match(elems, fe$dataElement)], elems)
+          else character(0)
+          sec_elems  <- elems[!is.na(fe_roles) & fe_roles == "secondary"]
+          prim_elems <- setdiff(elems, sec_elems)
+          updateCheckboxGroupInput(
+            session, "dataElement",
+            choiceNames  = .cleaning_choice_names(elems, sec_elems),
+            choiceValues = elems,
+            selected     = prim_elems
+          )
+          selected_data_cats$elements <- unique(unlist(map[prim_elems], use.names = FALSE))
+        }
+      }
+
       # data names — populate from data1() so ALL formula elements (primary and
       # secondary) appear in the list.  selected_data() only contains elements
       # that were checked in the reporting widget, so using it here would hide
@@ -314,19 +413,17 @@ cleaning_widget_server <- function(
       observeEvent(list(data1(), selected_data()), {
         req(data1())
         cat('\n* cleaning_widget observe data1() / selected_data()')
-
-        choices <- sort(unique(data1()$data))
-        fe      <- formula_elements()
-        roles   <- .cleaning_split_by_role(choices, fe)
-
-        updateCheckboxGroupInput(
-          session, "dataElement",
-          choiceNames  = .cleaning_choice_names(choices, roles$secondary),
-          choiceValues = choices,
-          selected     = roles$primary
-        )
-        selected_data_cats$elements <- roles$primary
+        choices <- stringr::str_sort(unique(data1()$data), numeric = TRUE)
+        .update_cleaning_checkbox(choices, formula_elements(), isTRUE(input$collapse_cleaning),
+                                  data1())
       })
+
+      observeEvent(input$collapse_cleaning, {
+        req(data1())
+        choices <- stringr::str_sort(unique(data1()$data), numeric = TRUE)
+        .update_cleaning_checkbox(choices, formula_elements(), isTRUE(input$collapse_cleaning),
+                                  data1())
+      }, ignoreInit = TRUE)
 
       # Dates
       observeEvent(dates(), {
@@ -386,38 +483,57 @@ cleaning_widget_server <- function(
         # outlierData$df_data = data1.mad()
       })
 
+      # Auto-scan threshold: datasets larger than this many series are too slow
+      # to scan synchronously (R blocks the event loop, so withProgress never
+      # renders and the user sees only a spinning wheel).  Large datasets get a
+      # notification directing the user to the Outliers tab instead.
+      .auto_scan_series_limit <- 200000L
+
       # observeEvent( input$determineExtremeValues  , {
       observeEvent(data1(), {
-        # req( outlierData$df_data )
-        # req( data1() )
-        # No tab guard here: the scan should trigger automatically whenever
-        # data1() changes to data without mad15 flags — whether the user is on
-        # the Outliers tab or the Data tab (rescan checkbox).  The withProgress
-        # modal makes the scan visible on any tab.
         cat(
           '\n* cleaning_widget observeEvent determineExtremeValues.  searchForMAD():',
           searchForMAD()
         )
 
-        #1. Scan for extreme values (MAD)
-        x = data1()
-        # cat( "\n - determineExtremeValues.  mad15 %in% names( outlierData$df_data ):" , 'mad15' %in% names( outlierData$df_data ))
+        x <- data1()
         cat(
           "\n - determineExtremeValues.  mad15 %in% names( outlierData$df_data ):",
           'mad15' %in% names(x)
         )
-        # if ( 'mad15' %in% names( outlierData$df_data ) ){
-        if ('mad15' %in% names(x)) {
-          # showModal( rerunMadModal() )
-          # cat('\n - reRun extreme values button:' , searchForMAD() )
-        } else {
-          searchForMAD(FALSE)
-          searchForMAD(TRUE)
-          cat('\n - determine extreme values button:', searchForMAD())
-        }
 
-        # cat( "\n - outlierData$df_data = data1.mad()")
-        # outlierData$df_data = data1.mad()
+        if ('mad15' %in% names(x)) {
+          # Already scanned — nothing to do
+        } else {
+          # Count series to decide whether to auto-scan or prompt the user
+          n_series <- if (tsibble::is_tsibble(x))
+            tsibble::n_keys(x)
+          else
+            data.table::uniqueN(data.table::as.data.table(x),
+                                by = c("orgUnit", "data.id"))
+
+          cat('\n - n_series:', n_series,
+              ' limit:', .auto_scan_series_limit)
+
+          if (n_series > .auto_scan_series_limit) {
+            # Large dataset: skip auto-scan to avoid blocking the UI for minutes.
+            # Notify the user and let them trigger the scan from the Outliers tab.
+            showNotification(
+              ui = tags$span(
+                tags$b(format(n_series, big.mark = ","), " series loaded."),
+                " Outlier scan skipped (dataset too large for auto-scan). ",
+                "Go to the ", tags$b("Outliers"), " tab to start scanning."
+              ),
+              type     = "warning",
+              duration = 12
+            )
+            cat('\n - large dataset: skipping auto-scan')
+          } else {
+            searchForMAD(FALSE)
+            searchForMAD(TRUE)
+            cat('\n - determine extreme values button:', searchForMAD())
+          }
+        }
       })
 
       observeEvent(searchForMAD(), {
@@ -890,10 +1006,12 @@ cleaning_widget_server <- function(
               plotly::layout(
                 title = list(
                   text = "Select a row above to view the full time series",
-                  font = list(size = 13, color = "#888")
+                  font = list(size = 16, color = "#888")
                 ),
                 xaxis = list(visible = FALSE),
-                yaxis = list(visible = FALSE)
+                yaxis = list(visible = FALSE),
+                paper_bgcolor = "white",
+                plot_bgcolor  = "white"
               )
           )
         }
@@ -979,12 +1097,17 @@ cleaning_widget_server <- function(
           plotly::layout(
             title  = list(
               text = paste0(row$orgUnitName, " \u2014 ", row$data),
-              font = list(size = 13)
+              font = list(size = 18, color = "#222")
             ),
-            xaxis  = list(title = ""),
-            yaxis  = list(title = "Value"),
-            legend = list(orientation = "h", x = 0, y = -0.2),
-            margin = list(t = 40)
+            font   = list(size = 16, family = "sans-serif"),
+            xaxis  = list(title = "", tickfont = list(size = 14)),
+            yaxis  = list(title = "Value", titlefont = list(size = 15),
+                          tickfont = list(size = 14)),
+            legend = list(orientation = "h", x = 0, y = -0.18,
+                          font = list(size = 14)),
+            paper_bgcolor = "white",
+            plot_bgcolor  = "white",
+            margin = list(t = 50, b = 60)
           )
       })
 
@@ -1181,6 +1304,70 @@ cleaning_widget_server <- function(
       })
 
       output$outlier.summary.table = renderTable(outlier.summary.table())
+
+      # Outlier cleaning chart ####
+      output$outlier_cleaning_chart <- plotly::renderPlotly({
+        d <- tryCatch(outlier.dataset(), error = function(e) NULL)
+        if (is.null(d) || nrow(d) == 0) {
+          return(plotly::plot_ly() %>%
+            plotly::layout(
+              title = list(text = "No data — run outlier detection first",
+                           font = list(size = 16, color = "#888")),
+              paper_bgcolor = "white", plot_bgcolor = "white",
+              xaxis = list(visible = FALSE), yaxis = list(visible = FALSE)
+            ))
+        }
+
+        period_col <- if ("Month" %in% names(d)) "Month" else "Week"
+        dt <- data.table::as.data.table(d)
+        dt[, t := as.Date(get(period_col))]
+
+        # Build cumulative cleaning levels
+        flag_levels <- list(
+          "Original"         = character(0),
+          "Without MAD 15×"  = c("key_entry_error", "over_max", "mad15"),
+          "Without MAD 10×"  = c("key_entry_error", "over_max", "mad15", "mad10"),
+          "Without Season 5×" = c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5"),
+          "Without Season 3×" = c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3")
+        )
+
+        colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd")
+
+        p <- plotly::plot_ly()
+        for (i in seq_along(flag_levels)) {
+          nm    <- names(flag_levels)[i]
+          flags <- intersect(flag_levels[[i]], names(dt))
+          if (length(flags) == 0) {
+            agg <- dt[, .(total = sum(original, na.rm = TRUE)), by = t]
+          } else {
+            keep <- !Reduce(`|`, lapply(flags, function(f) !is.na(dt[[f]]) & dt[[f]] == TRUE))
+            agg  <- dt[keep, .(total = sum(original, na.rm = TRUE)), by = t]
+          }
+          data.table::setorder(agg, t)
+          p <- p %>% plotly::add_lines(
+            data       = agg,
+            x          = ~t, y = ~total,
+            name       = nm,
+            line       = list(color = colors[i],
+                               width = if (i == 1) 2 else 1.5,
+                               dash  = if (i == 1) "solid" else "solid")
+          )
+        }
+
+        p %>% plotly::layout(
+          title    = list(text = "National total — effect of progressive outlier removal",
+                          font = list(size = 20, color = "#222")),
+          font     = list(size = 17),
+          xaxis    = list(title = "", tickfont = list(size = 16)),
+          yaxis    = list(title = "Total", titlefont = list(size = 17),
+                          tickfont = list(size = 16)),
+          legend   = list(orientation = "h", x = 0, y = -0.22,
+                          font = list(size = 16)),
+          paper_bgcolor = "white",
+          plot_bgcolor  = "white",
+          margin = list(t = 50, b = 70)
+        )
+      })
 
       # Return ####
       return(list(

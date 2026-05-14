@@ -47,7 +47,7 @@ optional_pkgs <- c(
   "future", "furrr", "promises",             # async/parallel
   "data.table",                              # performance
   "slider",                                  # rolling windows
-  "data.tree", "igraph",                     # hierarchical data
+  "data.tree",                               # hierarchical data
   "progress", "progressr",                   # progress reporting
   "RColorBrewer", "scales",                  # plot themes/colors
   "assertthat", "digest"                     # utilities
@@ -95,17 +95,20 @@ source("chat_widget.R")        # Tab: Assistant (AI chat, requires ellmer + shin
 ui <- bslib::page_navbar(
   title = span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
   id    = "tabs",
-  theme = bslib::bs_theme(bootswatch = "yeti"),
+  theme = bslib::bs_theme(bootswatch = "yeti", base_font_size = "16px"),
   bg    = "#222222",
   header = tagList(
     shinyjs::useShinyjs(),
-    tags$head(tags$style(
-      "body { min-width: 1100px; }
-       table.dataTable td { vertical-align: top !important; }
-       .leaflet-container svg,
-       .leaflet-pane svg,
-       .leaflet-overlay-pane svg { overflow: visible !important; }"
-    )),
+    tags$head(
+      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
+      tags$style(
+        "body { min-width: 1100px; }
+         table.dataTable td { vertical-align: top !important; }
+         .leaflet-container svg,
+         .leaflet-pane svg,
+         .leaflet-overlay-pane svg { overflow: visible !important; }"
+      )
+    ),
     shinyWidgets::setBackgroundColor(color = "#F5F5F5")
   ),
 
@@ -294,7 +297,8 @@ server <- function(input, output, session) {
     data_widget_output      = data1_Widget_output,
     reporting_widget_output = reporting_widget_output,
     cleaning_widget_output  = cleaning_widget_output,
-    metadata_widget_output  = metadata_widget_output
+    metadata_widget_output  = metadata_widget_output,
+    current_tab             = current_tab
   )
 
   about_widget_server("about")
