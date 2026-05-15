@@ -215,24 +215,36 @@ data_request_widget_server <- function(
       request = reactiveVal(FALSE)
 
       observeEvent(input$requestDataButton, {
-        if (login()) {
-          request(TRUE)
-          cat('\n * data_request_widget requestData Button', request(), '\n')
+        # Collect any missing prerequisites and report them all at once
+        problems <- character(0)
 
-          x = formula.request()
-        } else {
-          request(FALSE)
+        if (!isTRUE(login()))
+          problems <- c(problems, "You are not logged in to a DHIS2 server (Setup tab).")
 
-          showModal(
-            modalDialog(
-              title = "Please logon before requesting data",
-              easyClose = TRUE,
-              fade = FALSE,
-              size = 'm',
-              footer = NULL
-            )
-          )
+        if (is_empty(orgUnitLevels()))
+          problems <- c(problems, "Metadata has not been loaded (Metadata tab).")
+
+        fn <- tryCatch(formulaName(), error = function(e) NULL)
+        if (is.null(fn) || !nzchar(trimws(fn)))
+          problems <- c(problems, "No formula is selected. Choose a formula from the Formula tab.")
+
+        fe <- tryCatch(formula_elements(), error = function(e) NULL)
+        if (is.null(fe) || nrow(fe) == 0)
+          problems <- c(problems,
+            "The selected formula has no data elements. Add elements on the Formula tab before requesting data.")
+
+        if (length(problems) > 0) {
+          showModal(modalDialog(
+            title = "Cannot start data request",
+            tags$ul(lapply(problems, tags$li)),
+            easyClose = TRUE, fade = FALSE, size = "m", footer = modalButton("OK")
+          ))
+          return()
         }
+
+        request(TRUE)
+        cat('\n * data_request_widget requestData Button', request(), '\n')
+        formula.request()
       })
 
       orgUnitRequest = reactive({
@@ -464,7 +476,7 @@ data_request_widget_server <- function(
             .periods,
             "_",
             Sys.Date(),
-            ".rds"
+            ".", mg2_data_ext()
           )
 
           cat('\n saving formula.request as', saveAs)
@@ -484,7 +496,7 @@ data_request_widget_server <- function(
             )
           )
 
-          saveRDS(x, saveAs, compress = TRUE)
+          save_file(x, saveAs)
           removeModal()
 
           # showModal(
@@ -498,28 +510,60 @@ data_request_widget_server <- function(
           cat('\n* finished downloading', .formula.name, '\n')
           completedRequest(completedRequest() + 1)
 
-          showModal(
-            modalDialog(
-              title = "Preparing raw data for analysis.  Just a moment...",
-              easyClose = TRUE,
-              fade = FALSE,
-              size = 's',
-              footer = '(click anywhere to continue)'
+          cat('\n -- preparing data1 + outlier scans')
+
+          # Prepare + scan in one pass with per-element progress notification ####
+          n_fe <- if (!is.null(formula_elements())) nrow(formula_elements()) else 0L
+
+          d1 <- withProgress(
+            message = sprintf("Preparing dataset: element 1 of %d...", n_fe),
+            detail  = "starting",
+            value   = 0,
+            tryCatch(
+              data_1(
+                x,
+                formula_elements = formula_elements(),
+                dataSets         = dataSets(),
+                dataElements     = dataElements(),
+                categories       = categories(),
+                ousTree          = ousTree(),
+                .scan_outliers   = TRUE,
+                .shiny_progress  = TRUE,
+                .progress        = function(i, n, element_name, phase) {
+                  if (i == 0L) {
+                    setProgress(value = 0, message = "Preparing dataset...", detail = phase)
+                  } else if (startsWith(phase, "MAD:") || startsWith(phase, "seasonal:")) {
+                    scan_label <- if (startsWith(phase, "MAD:")) "MAD outliers" else "Seasonal outliers"
+                    pct_str    <- sub("^(MAD|seasonal):\\s*", "", phase)
+                    setProgress(
+                      message = sprintf("Element %d of %d \u2014 %s: %s", i, n, scan_label, pct_str),
+                      detail  = substr(element_name, 1, 55)
+                    )
+                  } else {
+                    setProgress(
+                      message = sprintf(
+                        "Preparing dataset: element %d of %d \u2014 %s",
+                        i, n, phase
+                      ),
+                      detail = substr(element_name, 1, 55)
+                    )
+                  }
+                }
+              ),
+              error = function(e) {
+                showModal(modalDialog(
+                  title = "Error preparing dataset",
+                  conditionMessage(e),
+                  easyClose = TRUE, fade = FALSE
+                ))
+                NULL
+              }
             )
           )
-
-          cat('\n -- preparing data1')
-
-          # Prepare data d1 ####
-          d1 = data_1(
-            x,
-            formula_elements = formula_elements(),
-            dataSets = dataSets(),
-            dataElements = dataElements(),
-            categories = categories(),
-            ousTree = ousTree()
-          )
         }
+
+        if (is.null(d1)) return()
+
         # Search for duplicated rows ####
         nrow1 = nrow(d1)
 
@@ -535,68 +579,6 @@ data_request_widget_server <- function(
         nrow2 = nrow(u)
         cat('\n - There were', nrow1 - nrow2, 'duplicates')
 
-        # MAD Search for extreme values  ####
-        cat('\n - scanning for MAD outliers')
-
-        removeModal()
-        showModal(
-          modalDialog(
-            title = "Scanning for extreme values (MAD) — please wait",
-            easyClose = FALSE,
-            fade = FALSE,
-            size = 'm',
-            footer = "This may take several minutes for large datasets"
-          )
-        )
-
-        .total = length(key_size(d1))
-        .threshold = 50
-
-        data.mad = tryCatch(
-          mad_outliers(d1, .total = .total, .threshold = 50),
-          error = function(e) {
-            removeModal()
-            showModal(modalDialog(
-              title = "Error scanning for extreme values",
-              easyClose = TRUE, fade = FALSE,
-              footer = conditionMessage(e)
-            ))
-            NULL
-          }
-        )
-
-        if (is.null(data.mad)) return()
-
-        cat('\n - scanning for Seasonal outliers')
-
-        .total = length(key_size(data.mad))
-        cat('\n - .total', .total)
-
-        showModal(
-          modalDialog(
-            title = "Scanning for seasonal outliers — please wait",
-            easyClose = FALSE,
-            fade = FALSE,
-            size = 'm',
-            footer = "This may take several minutes for large datasets"
-          )
-        )
-
-        data1.seasonal = tryCatch(
-          seasonal_outliers(data.mad, .total = .total, .threshold = 50),
-          error = function(e) {
-            removeModal()
-            showModal(modalDialog(
-              title = "Error scanning for seasonal outliers",
-              easyClose = TRUE, fade = FALSE,
-              footer = conditionMessage(e)
-            ))
-            NULL
-          }
-        )
-
-        if (is.null(data1.seasonal)) return()
-
         showModal(
           modalDialog(
             title = "Saving data — please wait",
@@ -608,9 +590,9 @@ data_request_widget_server <- function(
         )
 
         # Saving ####
-        cat('\n - saving data1.seasonal to replace dataset')
+        cat('\n - saving dataset to', saveAs)
 
-        saveRDS(data1.seasonal, saveAs, compress = TRUE)
+        save_file(u, saveAs)
         removeModal()
       })
 

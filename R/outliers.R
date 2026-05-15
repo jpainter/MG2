@@ -10,6 +10,29 @@
 .mg2_scan_state$last_t   <- 0     # proc.time elapsed at last UI update
 .mg2_scan_state$interval <- 10    # minimum seconds between UI updates
 
+# Worker count helper ---------------------------------------------------------
+#
+# On macOS/Linux: multicore (fork) is used — workers inherit the parent process
+# so packages are not reloaded and data is not serialized.  Use all cores minus
+# 2 (reserved for main R session + OS), no memory cap needed.
+#
+# On Windows: multisession spawns separate R processes that each load packages
+# independently.  `per_worker_mb` is the estimated RAM cost per worker (e.g.
+# ~200 MB for MAD-only workers, ~400 MB for seasonal workers that load forecast).
+# We reserve 2 GB for the main session and cap by free memory.
+#
+# @noRd
+.mg2_n_workers <- function(per_worker_mb = 400L) {
+  n_cores <- max(1L, parallelly::availableCores() - 2L)
+  if (.Platform$OS.type == "unix") return(n_cores)   # fork: no per-worker memory cost
+  free_mb <- tryCatch(
+    as.integer(parallelly::freeMemory() / 1024^2),
+    error = function(e) 4000L                         # conservative fallback if unavailable
+  )
+  mem_limit <- max(1L, floor((free_mb - 2000L) / per_worker_mb))
+  min(n_cores, mem_limit)
+}
+
 #' Flag Values Exceeding a MAD-Based Threshold
 #'
 #' For a numeric vector `x`, computes the median and median absolute deviation
@@ -64,14 +87,14 @@ extremely_mad <- function(x,
     return(if (logical) rep(NA, length(y)) else y)
   }
 
-  medianVal          <- median(y, na.rm = TRUE)
-  medianAbsDeviation <- mad(y, na.rm = TRUE)
+  medianVal          <- stats::median(y, na.rm = TRUE)
+  medianAbsDeviation <- stats::mad(y, na.rm = TRUE)
 
   # When MAD is negligible, fall back to trimmed SD × 0.6745
   if (medianAbsDeviation < .01 * medianVal) {
-    q01 <- quantile(x, .01, na.rm = TRUE)
-    q99 <- quantile(x, .99, na.rm = TRUE)
-    medianAbsDeviation <- 0.6745 * sd(x[x > q01 & x < q99], na.rm = TRUE)
+    q01 <- stats::quantile(x, .01, na.rm = TRUE)
+    q99 <- stats::quantile(x, .99, na.rm = TRUE)
+    medianAbsDeviation <- 0.6745 * stats::sd(x[x > q01 & x < q99], na.rm = TRUE)
   }
 
   extreme <- y > (medianVal + deviation * medianAbsDeviation) |
@@ -130,14 +153,18 @@ unseasonal <- function(x,
   }
 
   x.ts       <- stats::ts(x, frequency = 12)
-  x.forecast <- as.integer(forecast::tsclean(x.ts,
+  x.forecast <- as.numeric(forecast::tsclean(x.ts,
                                              replace.missing = interpolate,
                                              lambda          = .lambda))
 
   if (!logical) return(x.forecast)
 
   MAD     <- stats::mad(x, na.rm = TRUE)
-  outlier <- abs((x.forecast - x.ts) / MAD) >= deviation
+  # as.logical() strips the "ts" class that `>= deviation` inherits when x.ts
+  # is a ts object — without it, rbindlist sees a class mismatch between buckets
+  # where some series were processed (class "ts") and others were skipped
+  # (class "logical" from rep(NA, n)).
+  outlier <- as.logical(abs((x.forecast - x.ts) / MAD) >= deviation)
 
   return(outlier)
 }
@@ -165,7 +192,8 @@ mad_outliers <- function(d,
                          .total          = NULL,
                          .threshold      = 50,
                          key_entry_errors = NULL,
-                         progress        = TRUE) {
+                         progress        = TRUE,
+                         .progress_fn    = NULL) {
   if (is.null(.total)) {
     .total <- if (tsibble::is_tsibble(d)) tsibble::n_keys(d) else
       data.table::uniqueN(data.table::as.data.table(d), by = c("orgUnit", "data.id"))
@@ -207,32 +235,26 @@ mad_outliers <- function(d,
       key_vars <- c("orgUnit", "data.id")
       idx_var  <- if ("Month" %in% names(d)) "Month" else "Week"
     }
-    dt       <- data.table::as.data.table(tibble::as_tibble(d))
+    dt <- data.table::as.data.table(tibble::as_tibble(d))
 
-    # Row-level (no grouping): .max cap, key_entry_error, over_max
+    # ── Fast vectorized pre-processing (no per-group R calls) ────────────────
     dt[, .max := dplyr::if_else(
       grepl("stock", data, ignore.case = TRUE) &
         grepl("out|rupture", data, ignore.case = TRUE) &
         effectiveLeaf,
       31, NA_real_
     )]
-
     if (!all(is.na(key_entry_errors))) {
       dt[, key_entry_error := dplyr::if_else(!is.na(original),
                                               original %in% key_entry_errors, NA)]
     } else {
       dt[, key_entry_error := NA]
     }
-
     dt[, over_max := dplyr::if_else(!is.na(.max) & !is.na(original),
                                     original > .max, NA)]
-
-    # Group-level: AllSmall (scalar per group, broadcast to rows)
     dt[, AllSmall := !is.null(.threshold) &&
          all(is.na(original) | original <= .threshold),
        by = key_vars]
-
-    # Row-level: not_key_or_over_under (uses AllSmall already set above)
     dt[, not_key_or_over_under := dplyr::if_else(
       (is.na(over_max) | !over_max) &
         (is.na(key_entry_error) | !key_entry_error) &
@@ -240,43 +262,124 @@ mad_outliers <- function(d,
       original, NA_real_
     )]
 
-    # Group-level: MAD outlier flags via extremely_mad()
-    dt[, mad15 := extremely_mad(
-      not_key_or_over_under,
-      deviation       = 15,
-      smallThreshold  = .threshold,
-      key_entry_error = key_entry_error,
-      over_max        = over_max,
-      maximum_allowed = .max,
-      logical         = TRUE,
-      .progress       = progress,
-      total           = .total
-    ), by = key_vars]
+    # ── Determine parallelism ─────────────────────────────────────────────────
+    use_parallel <- .total > 1L &&
+      requireNamespace("furrr",  quietly = TRUE) &&
+      requireNamespace("future", quietly = TRUE)
+    # MAD workers only need data.table (~200 MB on multisession Windows).
+    # On macOS/Linux multicore is used, so no per-worker memory cost.
+    n_workers <- if (use_parallel) .mg2_n_workers(per_worker_mb = 200L) else 1L
+    use_parallel <- use_parallel && n_workers > 1L
 
-    dt[, mad10 := extremely_mad(
-      not_key_or_over_under,
-      deviation       = 10,
-      smallThreshold  = .threshold,
-      maximum_allowed = .max,
-      logical         = TRUE,
-      .progress       = FALSE
-    ), by = key_vars]
+    if (is.function(.progress_fn))
+      .progress_fn(sprintf("MAD: starting%s",
+        if (use_parallel) sprintf(" — %d cores", n_workers) else ""))
 
-    dt[, mad5 := extremely_mad(
-      not_key_or_over_under,
-      deviation       = 5,
-      smallThreshold  = .threshold,
-      maximum_allowed = .max,
-      logical         = TRUE,
-      .progress       = FALSE
-    ), by = key_vars]
+    if (use_parallel) {
+      # ── Bucket-parallel path (same pattern as seasonal_outliers) ─────────
+      old_plan <- future::plan()
+      on.exit(future::plan(old_plan), add = TRUE)
+      old_max_size <- getOption("future.globals.maxSize")
+      on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
+      options(future.globals.maxSize = 2 * 1024^3)   # 2 GB — for large bucket data.tables
+      # multicore (fork) on macOS/Linux: workers inherit parent memory — no
+      # package reload, no data serialization, copy-on-write overhead only.
+      # multisession on Windows (fork unavailable).
+      .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
+      future::plan(.plan_type, workers = n_workers)
+
+      n_buckets   <- n_workers * 10L
+      unique_keys <- unique(dt[, .SD, .SDcols = key_vars])
+      unique_keys[, mg2_bucket := (seq_len(.N) - 1L) %% n_buckets]
+      data.table::setkeyv(dt,          key_vars)
+      data.table::setkeyv(unique_keys, key_vars)
+      dt[unique_keys, mg2_bucket := i.mg2_bucket]
+      bucket_list <- lapply(seq_len(n_buckets) - 1L, function(b) dt[mg2_bucket == b])
+
+      .xmad <- extremely_mad
+      environment(.xmad) <- baseenv()
+
+      .opts <- furrr::furrr_options(
+        seed     = NULL,
+        packages = "data.table",
+        globals  = list(.xmad = .xmad, key_vars = key_vars, .threshold = .threshold)
+      )
+
+      .process_bucket_mad <- function(sub) {
+        sub[, mad15 := .xmad(not_key_or_over_under, deviation = 15,
+                              smallThreshold  = .threshold,
+                              key_entry_error = key_entry_error,
+                              over_max        = over_max,
+                              maximum_allowed = .max,
+                              logical         = TRUE), by = key_vars]
+        sub[, mad10 := .xmad(not_key_or_over_under, deviation = 10,
+                              smallThreshold  = .threshold,
+                              maximum_allowed = .max,
+                              logical         = TRUE), by = key_vars]
+        sub[, mad5  := .xmad(not_key_or_over_under, deviation = 5,
+                              smallThreshold  = .threshold,
+                              maximum_allowed = .max,
+                              logical         = TRUE), by = key_vars]
+        sub
+      }
+      environment(.process_bucket_mad) <- list2env(
+        list(.xmad = .xmad, key_vars = key_vars, .threshold = .threshold),
+        parent = baseenv()
+      )
+
+      n_steps        <- 10L
+      step_sz        <- ceiling(n_buckets / n_steps)
+      bucket_results <- vector("list", n_buckets)
+
+      for (.step in seq_len(n_steps)) {
+        step_idx     <- seq((.step - 1L) * step_sz + 1L,
+                            min(.step * step_sz, n_buckets))
+        bucket_results[step_idx] <- suppressWarnings(
+          furrr::future_map(bucket_list[step_idx], .process_bucket_mad, .options = .opts)
+        )
+        pct    <- min(.step / n_steps, 1)
+        n_done <- round(pct * .total)
+        cat(sprintf("\r    MAD: %d/%d series (%.0f%%)", n_done, .total, pct * 100))
+        flush.console()
+        if (is.function(.progress_fn))
+          .progress_fn(sprintf("MAD: %d/%d (%.0f%%)", n_done, .total, pct * 100))
+      }
+      cat("\n")
+
+      dt <- data.table::rbindlist(bucket_results, use.names = TRUE, fill = TRUE)
+      dt[, mg2_bucket := NULL]
+
+      # Restore index class if rbindlist stripped it
+      if (idx_var %in% names(dt)) {
+        idx_cls <- if (idx_var == "Month") "yearmonth" else "yearweek"
+        if (!inherits(dt[[idx_var]], idx_cls))
+          data.table::set(dt, j = idx_var,
+                          value = structure(as.numeric(dt[[idx_var]]), class = idx_cls))
+      }
+
+    } else {
+      # ── Sequential path ───────────────────────────────────────────────────
+      dt[, mad15 := extremely_mad(
+        not_key_or_over_under, deviation = 15, smallThreshold = .threshold,
+        key_entry_error = key_entry_error, over_max = over_max,
+        maximum_allowed = .max, logical = TRUE,
+        .progress = progress, total = .total
+      ), by = key_vars]
+      dt[, mad10 := extremely_mad(
+        not_key_or_over_under, deviation = 10, smallThreshold = .threshold,
+        maximum_allowed = .max, logical = TRUE, .progress = FALSE
+      ), by = key_vars]
+      dt[, mad5  := extremely_mad(
+        not_key_or_over_under, deviation = 5, smallThreshold = .threshold,
+        maximum_allowed = .max, logical = TRUE, .progress = FALSE
+      ), by = key_vars]
+    }
 
     m_o <- tsibble::as_tsibble(
       tibble::as_tibble(dt),
       key   = dplyr::all_of(key_vars),
       index = dplyr::all_of(idx_var)
     )
-
     return(m_o)
   }
 
@@ -366,12 +469,9 @@ seasonal_outliers <- function(d,
                               mad            = "mad10",
                               tests          = c("seasonal5", "seasonal3"),
                               progress       = FALSE,
-                              shiny_progress = FALSE) {
+                              shiny_progress = FALSE,
+                              .progress_fn   = NULL) {
 
-  if (is.null(.total)) {
-    .total <- if (tsibble::is_tsibble(d)) tsibble::n_keys(d) else
-      data.table::uniqueN(data.table::as.data.table(d), by = c("orgUnit", "data.id"))
-  }
   if (tsibble::is_tsibble(d)) {
     key_vars <- tsibble::key_vars(d)
     idx_var  <- tsibble::index_var(d)
@@ -380,112 +480,182 @@ seasonal_outliers <- function(d,
     idx_var  <- if ("Month" %in% names(d)) "Month" else "Week"
   }
 
+  # Convert to data.table once; all operations below stay in data.table
+  dt <- data.table::as.data.table(tibble::as_tibble(d))
+
+  if (is.null(.total))
+    .total <- data.table::uniqueN(dt, by = key_vars)
+
   # Determine whether parallel execution is available
   use_parallel <- .total > 1L &&
     requireNamespace("furrr",  quietly = TRUE) &&
     requireNamespace("future", quietly = TRUE)
 
-  n_workers <- if (use_parallel) {
-    max(1L, parallelly::availableCores() - 1L)
-  } else 1L
-
+  # Seasonal workers load forecast (~400 MB on multisession Windows).
+  # On macOS/Linux multicore is used, so no per-worker memory cost.
+  n_workers <- if (use_parallel) .mg2_n_workers(per_worker_mb = 400L) else 1L
   use_parallel <- use_parallel && n_workers > 1L
 
-  # Initialise Shiny progress
-  if (shiny_progress) {
-    .mg2_scan_state$n      <- 0L
-    .mg2_scan_state$total  <- .total
-    .mg2_scan_state$last_t <- proc.time()[["elapsed"]]
-    shiny::setProgress(
-      value  = 0,
-      detail = if (use_parallel)
-        sprintf("%d series on %d cores...", .total, n_workers)
-      else
-        "starting"
-    )
-  }
+  if (is.function(.progress_fn))
+    .progress_fn(sprintf("starting%s",
+      if (use_parallel) sprintf(" — %d cores", n_workers) else ""))
 
-  # Capture unseasonal() explicitly so furrr workers can find it regardless
-  # of whether the package was loaded via install or devtools::load_all().
-  # Strip the MG2 namespace environment so workers don't try to load the package;
-  # all calls inside unseasonal() use :: notation or are in base/stats.
+  # Capture unseasonal() for workers — strip MG2 namespace so workers don't
+  # attempt to load the package; all calls inside use :: notation or base/stats.
   .unseasonal <- unseasonal
   environment(.unseasonal) <- baseenv()
 
-  # Per-series worker — closed over mad, .threshold, tests, .unseasonal
-  .process_one <- function(s) {
-    s$not_mad   <- dplyr::if_else(!s[[mad]], s$original, NA_real_)
-    s$seasonal5 <- if ("seasonal5" %in% tests)
-      .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 5, logical = TRUE)
-    else rep(NA, nrow(s))
-    s$seasonal3 <- if ("seasonal3" %in% tests)
-      .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = TRUE)
-    else rep(NA, nrow(s))
-    # Store tsclean() forecast as 'expected' for use by dqa_mase()
-    s$expected  <- if (any(c("seasonal5", "seasonal3") %in% tests))
-      .unseasonal(s$not_mad, smallThreshold = .threshold, deviation = 3, logical = FALSE)
-    else NA_real_
-    s
-  }
-
-  # Split tsibble into a list of per-key tibbles
-  d_tbl       <- tibble::as_tibble(d)
-  series_list <- dplyr::group_split(
-    d_tbl, dplyr::across(dplyr::all_of(key_vars)), .keep = TRUE
-  )
+  # ── Vectorised not_mad (row-level, no group context needed) ──────────────
+  # Compute once globally so workers receive it pre-filled rather than
+  # recomputing it per series inside the by expression.
+  mad_vec <- dt[[mad]]
+  dt[, not_mad := data.table::fifelse(!mad_vec, original, NA_real_)]
 
   if (use_parallel) {
-    # ── Parallel path ───────────────────────────────────────────────────────
+    # ── Bucket-parallel path ────────────────────────────────────────────────
+    # Problem with the old per-series split: splitting into .total (~149k) R
+    # objects and then rbind-ing them back is the dominant bottleneck —
+    # dplyr/vctrs type-checks every one of them.
+    #
+    # New approach: create (n_workers × 10) coarse buckets so each furrr call
+    # dispatches exactly n_workers tasks.  Each task receives one compact
+    # data.table (~.total / n_buckets rows) and applies tsclean() per key via
+    # data.table `by`.  Final rbindlist over n_buckets objects is instant.
+    #
+    # Object count: n_buckets (e.g. 80)  vs old: .total (e.g. 149 176)
+    # rbindlist calls: 1 over n_buckets  vs old: 1 over .total
+
     old_plan <- future::plan()
     on.exit(future::plan(old_plan), add = TRUE)
-    future::plan(future::multisession, workers = n_workers)
+    old_max_size <- getOption("future.globals.maxSize")
+    on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
+    options(future.globals.maxSize = 2 * 1024^3)   # 2 GB — for large bucket data.tables
+    # multicore (fork) on macOS/Linux: workers inherit parent memory — forecast
+    # is not reloaded, bucket data is not serialized, copy-on-write only.
+    # multisession on Windows (fork unavailable).
+    .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
+    future::plan(.plan_type, workers = n_workers)
 
-    # Explicitly list every global that .process_one needs so that furrr
-    # does NOT auto-detect the full closure chain (which would cause it to
-    # try loading the MG2 package on workers that only have it installed,
-    # not load_all()'d).  dplyr is added to packages for dplyr::if_else.
-    results <- furrr::future_map(
-      series_list,
-      .process_one,
-      .options = furrr::furrr_options(
-        seed     = NULL,
-        packages = c("forecast", "dplyr"),
-        globals  = list(
-          .unseasonal = .unseasonal,
-          mad         = mad,
-          .threshold  = .threshold,
-          tests       = tests
-        )
+    n_buckets <- n_workers * 10L
+
+    # Assign a bucket ID to each unique key, then join to all rows
+    unique_keys <- unique(dt[, .SD, .SDcols = key_vars])
+    unique_keys[, mg2_bucket := (seq_len(.N) - 1L) %% n_buckets]
+    data.table::setkeyv(dt,          key_vars)
+    data.table::setkeyv(unique_keys, key_vars)
+    dt[unique_keys, mg2_bucket := i.mg2_bucket]
+
+    # Pre-split into n_buckets data.tables (cheap — no per-series overhead)
+    bucket_list <- lapply(seq_len(n_buckets) - 1L, function(b) dt[mg2_bucket == b])
+
+    .opts <- furrr::furrr_options(
+      seed     = NULL,
+      packages = c("forecast", "data.table"),
+      globals  = list(
+        .unseasonal = .unseasonal,
+        key_vars    = key_vars,
+        .threshold  = .threshold,
+        tests       = tests
       )
     )
+
+    # Worker: apply tsclean() per key within the bucket using data.table by
+    .process_bucket <- function(sub) {
+      sub[, c("seasonal5", "seasonal3", "expected") := {
+        nm <- not_mad
+        list(
+          if ("seasonal5" %in% tests)
+            .unseasonal(nm, smallThreshold = .threshold, deviation = 5, logical = TRUE)
+          else
+            rep(NA, .N),
+          if ("seasonal3" %in% tests)
+            .unseasonal(nm, smallThreshold = .threshold, deviation = 3, logical = TRUE)
+          else
+            rep(NA, .N),
+          if (any(c("seasonal5", "seasonal3") %in% tests))
+            .unseasonal(nm, smallThreshold = .threshold, deviation = 3, logical = FALSE)
+          else
+            rep(NA_real_, .N)
+        )
+      }, by = key_vars]
+      sub
+    }
+    # Strip closure to prevent furrr serializing the entire call frame
+    environment(.process_bucket) <- list2env(
+      list(.unseasonal = .unseasonal, key_vars = key_vars,
+           .threshold = .threshold, tests = tests),
+      parent = baseenv()
+    )
+
+    # Process in 10 rounds of n_workers buckets each — gives 10 progress ticks
+    n_steps      <- 10L
+    step_sz      <- ceiling(n_buckets / n_steps)   # buckets per round
+    bucket_results <- vector("list", n_buckets)
+
+    for (.step in seq_len(n_steps)) {
+      step_idx <- seq(
+        from = (.step - 1L) * step_sz + 1L,
+        to   = min(.step * step_sz, n_buckets)
+      )
+      step_results <- suppressWarnings(
+        furrr::future_map(bucket_list[step_idx], .process_bucket, .options = .opts)
+      )
+      bucket_results[step_idx] <- step_results
+
+      pct    <- min(.step / n_steps, 1)
+      n_done <- round(pct * .total)
+      cat(sprintf("\r    seasonal: %d/%d series (%.0f%%)", n_done, .total, pct * 100))
+      flush.console()
+      if (is.function(.progress_fn))
+        .progress_fn(sprintf("seasonal: %d/%d (%.0f%%)", n_done, .total, pct * 100))
+    }
+    cat("\n")
+
+    if (is.function(.progress_fn))
+      .progress_fn(sprintf("seasonal: %d series — building tsibble", .total))
+
+    # Combine: n_buckets objects instead of .total — fast
+    cat(sprintf("  combining %d bucket results...\n", n_buckets))
+    flush.console()
+
+    dt_result <- data.table::rbindlist(bucket_results, use.names = TRUE, fill = TRUE)
+    dt_result[, mg2_bucket := NULL]
+
+  } else {
+    # ── Sequential path: data.table by (no split/bind overhead) ─────────────
+    # For small datasets (n_workers == 1) there is no parallelism benefit, so
+    # we apply tsclean() per key directly via data.table's by engine.
+    dt[, c("seasonal5", "seasonal3", "expected") := {
+      nm <- not_mad
+      list(
+        if ("seasonal5" %in% tests)
+          .unseasonal(nm, smallThreshold = .threshold, deviation = 5, logical = TRUE)
+        else
+          rep(NA, .N),
+        if ("seasonal3" %in% tests)
+          .unseasonal(nm, smallThreshold = .threshold, deviation = 3, logical = TRUE)
+        else
+          rep(NA, .N),
+        if (any(c("seasonal5", "seasonal3") %in% tests))
+          .unseasonal(nm, smallThreshold = .threshold, deviation = 3, logical = FALSE)
+        else
+          rep(NA_real_, .N)
+      )
+    }, by = key_vars]
 
     if (shiny_progress)
       shiny::setProgress(value = 1, detail = sprintf("%d series complete", .total))
 
-  } else {
-    # ── Sequential path with time-throttled progress ─────────────────────
-    results <- vector("list", length(series_list))
-    for (i in seq_along(series_list)) {
-      results[[i]] <- .process_one(series_list[[i]])
-
-      if (shiny_progress) {
-        .mg2_scan_state$n <- .mg2_scan_state$n + 1L
-        now <- proc.time()[["elapsed"]]
-        if (now - .mg2_scan_state$last_t >= .mg2_scan_state$interval) {
-          .mg2_scan_state$last_t <- now
-          pct <- min(.mg2_scan_state$n / max(.mg2_scan_state$total, 1L), 1)
-          shiny::setProgress(
-            value  = pct,
-            detail = sprintf("%d of %d series (%.0f%%)",
-                             .mg2_scan_state$n, .mg2_scan_state$total, pct * 100)
-          )
-        }
-      }
-    }
+    dt_result <- dt
   }
 
-  # Reconstruct tsibble from list of per-key tibbles
-  data1.seasonal <- dplyr::bind_rows(results) |>
+  # Reconstruct tsibble
+  cat("  rebuilding tsibble...\n")
+  flush.console()
+  if (shiny_progress)
+    shiny::setProgress(detail = "building result...")
+
+  data1.seasonal <- tibble::as_tibble(dt_result) |>
     tsibble::as_tsibble(
       key   = dplyr::all_of(key_vars),
       index = dplyr::all_of(idx_var)

@@ -291,16 +291,11 @@ data_widget_server <- function(
         formula = input$formula # paste0( input$formula , "_" )
         cat('\n* rds_data_file formula: ', input$formula, '\n')
 
-        file.type = 'rds' # input$file.type
-        # file.other = ifelse( input$cleaned %in% "Cleaned" , '_Seasonal' , "" )  # input$file.other
-
-        # file.keywords = input$file.keywords # '_formulaData|Seasonal|dts|rds'
-        file.keywords = 'rds'
+        file.type = 'rds|fst'
+        file.keywords = 'rds|fst'
 
         data.files = dir.files[
-          # grepl( 'All levels' , dir.files ) &
           grepl(file.type, dir.files, ignore.case = T) &
-            # grepl( file.other, dir.files, fixed = TRUE  ) &
             grepl(file.keywords, dir.files, ignore.case = T) &
             !grepl("Update_", dir.files, ignore.case = T)
         ]
@@ -395,12 +390,6 @@ data_widget_server <- function(
         # Reset any previously cached rescan result
         rescan_val(NULL)
 
-        showModal(modalDialog(
-          title = "Preparing raw data for rescan.  Just a moment...",
-          easyClose = TRUE, size = 's',
-          footer = '(click anywhere to continue)'
-        ))
-
         idx_var <- if ('Month' %in% names(dataset())) 'Month' else 'Week'
         data = dataset() %>%
           as_tibble() %>%
@@ -412,9 +401,13 @@ data_widget_server <- function(
               sub("^[^_]*_", "", data.id),
               NA_character_
             ),
-            period = if (idx_var == 'Month')
-              format(as.Date(Month), "%Y%m")
-            else
+            period = if (idx_var == 'Month') {
+              ym_int <- as.integer(floor(as.numeric(Month)))
+              ifelse(is.na(ym_int), NA_character_,
+                     sprintf("%04d%02d",
+                             1970L + ym_int %/% 12L,
+                             ym_int %% 12L + 1L))
+            } else
               format(Week, "%YW%V"),
             COUNT = 1L,
             SUM   = original
@@ -423,17 +416,45 @@ data_widget_server <- function(
           mutate(COUNT = as.integer(COUNT), SUM = as.numeric(SUM)) %>%
           mutate_all(as.character)
 
-        d1 = data_1(
-          data,
-          formula_elements = formula_elements(),
-          dataSets         = dataSets(),
-          dataElements     = dataElements(),
-          categories       = categories(),
-          ousTree          = ousTree()
+        withProgress(
+          message = "Rescanning dataset: element 1 of ...",
+          detail  = "starting",
+          value   = 0, {
+            d1 = data_1(
+              data,
+              formula_elements = formula_elements(),
+              dataSets         = dataSets(),
+              dataElements     = dataElements(),
+              categories       = categories(),
+              ousTree          = ousTree(),
+              .progress        = function(i, n, element_name, phase) {
+                if (startsWith(phase, "MAD:") || startsWith(phase, "seasonal:")) {
+                  scan_label <- if (startsWith(phase, "MAD:")) "MAD outliers" else "Seasonal outliers"
+                  pct_str    <- sub("^(MAD|seasonal):\\s*", "", phase)
+                  setProgress(
+                    value   = (i - 1) / max(n, 1L),
+                    message = sprintf("Rescan element %d of %d \u2014 %s: %s", i, n, scan_label, pct_str),
+                    detail  = substr(element_name, 1, 55)
+                  )
+                } else {
+                  setProgress(
+                    value   = (i - 1) / n,
+                    message = sprintf("Rescanning dataset: element %d of %d", i, n),
+                    detail  = paste0(
+                      substr(element_name, 1, 45),
+                      if (nzchar(phase)) paste0(" \u2014 ", phase) else ""
+                    )
+                  )
+                }
+              }
+            )
+          }
         )
 
         cat('\n - rescan data_1 done:', nrow(d1), 'rows')
-        removeModal()
+
+        save_file(d1, dataset.file())
+        cat('\n - rescan dataset saved to', dataset.file())
 
         if (!is.data.table(d1)) setDT(d1)
         rescan_val(d1)
@@ -470,8 +491,8 @@ data_widget_server <- function(
             )
           )
 
-          cat('\n - reading selected rds file', file)
-          d = readRDS(file)
+          cat('\n - reading selected file', file)
+          d = read_file(file)
 
           removeModal()
 
@@ -520,15 +541,6 @@ data_widget_server <- function(
         }
 
         if (!is_processed) {
-          showModal(
-            modalDialog(
-              title = "Preparing raw data for analysis.  Just a moment...",
-              easyClose = TRUE,
-              size = 's',
-              footer = '(click anywhere to continue)'
-            )
-          )
-
           cat('\n -- preparing data1 from raw download')
 
           data = dataset()
@@ -551,19 +563,55 @@ data_widget_server <- function(
               rename(dataElement = dataElement.id)
           }
 
-          d1 = data_1(
-            data,
-            formula_elements = formula_elements(),
-            dataSets = dataSets(),
-            dataElements = dataElements(),
-            categories = categories(),
-            ousTree = ousTree()
+          withProgress(
+            message = "Preparing dataset: element 1 of ...",
+            detail  = "starting",
+            value   = 0, {
+              d1 <- data_1(
+                data,
+                formula_elements = formula_elements(),
+                dataSets         = dataSets(),
+                dataElements     = dataElements(),
+                categories       = categories(),
+                ousTree          = ousTree(),
+                .shiny_progress  = TRUE,
+                .progress        = function(i, n, element_name, phase) {
+                  if (i == 0L) {
+                    setProgress(
+                      value   = 0,
+                      message = "Preparing dataset...",
+                      detail  = phase
+                    )
+                  } else if (startsWith(phase, "MAD:") || startsWith(phase, "seasonal:")) {
+                    scan_label <- if (startsWith(phase, "MAD:")) "MAD outliers" else "Seasonal outliers"
+                    pct_str    <- sub("^(MAD|seasonal):\\s*", "", phase)
+                    setProgress(
+                      value   = (i - 1) / max(n, 1L),
+                      message = sprintf("Element %d of %d \u2014 %s: %s", i, n, scan_label, pct_str),
+                      detail  = substr(element_name, 1, 55)
+                    )
+                  } else {
+                    setProgress(
+                      value   = (i - 1) / max(n, 1L),
+                      message = sprintf("Preparing dataset: element %d of %d", i, n),
+                      detail  = paste0(
+                        substr(element_name, 1, 45),
+                        if (nzchar(phase)) paste0(" \u2014 ", phase) else ""
+                      )
+                    )
+                  }
+                }
+              )
+            }
           )
 
           cat('\n - data1 names:', names(d1))
           cat('\n - data1 rows:', nrow(d1))
 
-          removeModal()
+          # Save the processed result so subsequent loads skip data_1() entirely
+          cat('\n - saving processed dataset to', dataset.file())
+          save_file(d1, dataset.file())
+          showNotification("Dataset processed and saved.", type = "message", duration = 3)
         } else {
           cat('\n -- data1 already prepared')
           # as.data.frame() forces a copy so the subsequent setDT() does not
@@ -611,7 +659,6 @@ data_widget_server <- function(
         formula_elements = formula_elements,
         formulaFile = reactive({
           req(data.folder())
-          req(input$formula)
           if (is.null(input$formula.file) || input$formula.file == "") {
             paste0(data.folder(), "Formulas_", format(Sys.Date(), "%Y_%b%d"), ".xlsx")
           } else {

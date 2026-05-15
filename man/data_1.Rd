@@ -11,6 +11,9 @@ data_1(
   dataElements = NULL,
   categories = NULL,
   ousTree = NULL,
+  .scan_outliers = TRUE,
+  .progress = NULL,
+  .shiny_progress = FALSE,
   .verbose = FALSE
 )
 }
@@ -26,6 +29,25 @@ data_1(
 \item{categories}{Categories metadata.}
 
 \item{ousTree}{Org unit hierarchy table from \code{\link[=ous_tree]{ous_tree()}}.}
+
+\item{.scan_outliers}{Logical. Run MAD and seasonal outlier scans per element
+inside \code{data_1()} (default: \code{TRUE}). Set to \code{FALSE} to skip outlier
+detection and produce a "raw processed" tsibble (useful for fast previews
+or when outliers will be re-run later via the Outliers tab).}
+
+\item{.progress}{Optional callback \verb{function(i, n, element_name, phase)}
+called at the start and after each scan phase for each element. Useful for
+driving a Shiny \code{withProgress} / \code{setProgress} UI. \code{i} is the 1-based
+element index, \code{n} is the total number of elements, \code{element_name} is the
+human-readable element label (first value of the \code{dataElement} column in
+the chunk), and \code{phase} is a short string describing the current stage
+(\code{"preparing"}, \code{"MAD scan — X series"}, \code{"seasonal — X series"},
+\code{"combining"}).}
+
+\item{.shiny_progress}{Logical. When \code{TRUE} and \code{.scan_outliers = TRUE},
+passes \code{shiny_progress = TRUE} to \code{\link[=seasonal_outliers]{seasonal_outliers()}} so that per-series
+completion counts appear in the \code{withProgress} detail line while the
+seasonal scan is running (default: \code{FALSE}).}
 
 \item{.verbose}{Logical. Print progress messages (default: \code{FALSE}).}
 }
