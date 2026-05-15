@@ -124,6 +124,56 @@ read_file <- function(filename) {
   )
 }
 
+
+#' Return the Preferred Data File Extension
+#'
+#' Returns `"fst"` when the `fst` package is installed (faster I/O), otherwise
+#' `"rds"`. Use this to build filenames for [save_file()].
+#'
+#' @return `"fst"` or `"rds"`.
+#' @export
+mg2_data_ext <- function() {
+  if (requireNamespace("fst", quietly = TRUE)) "fst" else "rds"
+}
+
+
+#' Save a Data Frame to Disk
+#'
+#' Writes a data frame to an `.fst` or `.rds` file based on the file extension
+#' in `filename`. `.fst` is 5–10× faster than compressed `.rds` for large flat
+#' data frames and is preferred when the `fst` package is available.
+#'
+#' Existing `.rds` files are always readable by [read_file()] regardless of
+#' how they were written.
+#'
+#' @param x A data frame or data.table.
+#' @param filename Character. Destination path. Extension must be `".fst"` or
+#'   `".rds"`.
+#' @param compress Integer (0–100). Compression level for `.fst` files (default
+#'   `100` — best compression while still ~4× faster than RDS). Ignored for
+#'   `.rds` files (which always use `compress = TRUE`).
+#'
+#' @return `filename`, invisibly.
+#' @export
+save_file <- function(x, filename, compress = 100) {
+  ext <- tolower(tools::file_ext(filename))
+
+  if (ext == "fst") {
+    if (!requireNamespace("fst", quietly = TRUE)) {
+      stop("Package 'fst' required to write .fst files. Install with: install.packages('fst')")
+    }
+    fst::write_fst(as.data.frame(x), filename, compress = compress)
+    return(invisible(filename))
+  }
+
+  if (ext == "rds") {
+    saveRDS(x, filename, compress = TRUE)
+    return(invisible(filename))
+  }
+
+  stop("Unsupported file extension '", ext, "'. Use .fst or .rds.")
+}
+
 # Directory helpers ---------------------------------------------------------
 
 #' List Files in a Directory Matching a Pattern

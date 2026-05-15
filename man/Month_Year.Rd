@@ -14,7 +14,7 @@ A \code{tsibble::yearmonth} vector.
 }
 \description{
 Parses DHIS2 monthly period codes (format \code{"YYYYMM"}, e.g., \code{"201901"})
-to \code{\link[tsibble:year-month]{tsibble::yearmonth()}} objects.
+to \code{\link[tsibble:yearmonth]{tsibble::yearmonth()}} objects.
 }
 \examples{
 Month_Year("201901")

@@ -51,19 +51,19 @@ formula_widget_ui <- function(id) {
             )
           ),
 
-          br(),
-
           fluidRow(
-            column(6,
-              checkboxInput(
-                ns("collapse_to_element"),
-                "One row per data element (collapse categories)",
-                value = TRUE
-              )
-            ),
-            column(6,
+            column(12,
               div(
-                style = "display:flex; justify-content:flex-end; align-items:center;",
+                style = "display:flex; align-items:center; justify-content:space-between; margin-top:4px;",
+                div(
+                  style = "white-space:nowrap;",
+                  checkboxInput(
+                    ns("collapse_to_element"),
+                    "One row per data element (collapse categories)",
+                    value = TRUE
+                  )
+                ),
+                uiOutput(ns("secondary_note_badge")),
                 actionButton(
                   ns("check_related"),
                   "Check for Related Elements",
@@ -72,8 +72,6 @@ formula_widget_ui <- function(id) {
               )
             )
           ),
-
-          fluidRow(column(12, uiOutput(ns("secondary_note")))),
 
           fluidRow(
             column(
@@ -185,6 +183,16 @@ formula_widget_server <- function(
         tibble::tibble(data_name = counts$data, n_rows = counts$N)
       })
 
+      # Total rows per dataElement.id (summed across all categories) for collapsed view
+      element_id_totals = reactive({
+        d <- tryCatch(data1(), error = function(e) NULL)
+        if (is.null(d) || nrow(d) == 0 || !"data.id" %in% names(d)) return(NULL)
+        dt <- data.table::as.data.table(d)
+        totals <- dt[!is.na(data), .N,
+                     by = .(dataElement.id = sub("_.*$", "", data.id))]
+        tibble::tibble(dataElement.id = totals$dataElement.id, n_rows = totals$N)
+      })
+
       ## Browse and Select Elements/Indicators Here ####
       formulaChoices = reactive({
         req(dataElementDictionary())
@@ -209,29 +217,35 @@ formula_widget_server <- function(
         }
       })
 
-      output$dataElementDictionaryTable =
-        DT::renderDT(DT::datatable(
-          formulaChoices(),
+      output$dataElementDictionaryTable <- DT::renderDT({
+        df <- req(formulaChoices())
+        # Hide technical/redundant columns — they remain in the data so that
+        # selected_elements() can return the full row for formula construction.
+        hide_cols <- c("dataElement.id", "categoryOptionCombo.ids",
+                       "categoryCombo.id", "n_categoryOptions",
+                       "shortName", "displayShortName",
+                       "zeroIsSignificant", "zerolsSignificant",
+                       "displayName", "Formula.Name")
+        hide_idx <- which(names(df) %in% hide_cols) - 1L  # 0-based for DT
 
+        DT::datatable(
+          df,
           selection = 'multiple',
-          rownames = FALSE,
-          filter = 'top',
-          options = list(
-            scrollY = "55vh",
-            scrollX = TRUE,
-            scrollCollapse = TRUE,
-            paging = TRUE,
-            searching = TRUE,
-            info = TRUE,
-            lengthMenu = list(
-              c(10, 25, 100, -1),
-              list('10', '25', '100', 'All')
-            ),
-            pageLength = 10,
-            server = TRUE,
-            dom = 'tirp'
+          rownames  = FALSE,
+          filter    = 'top',
+          options   = list(
+            scrollY        = "calc(100vh - 310px)",
+            scrollX        = TRUE,
+            scrollCollapse = FALSE,
+            paging         = FALSE,
+            dom            = 'it',   # info above table so row count is always visible
+            columnDefs     = if (length(hide_idx) > 0)
+              list(list(visible = FALSE, targets = hide_idx))
+            else
+              list()
           )
-        ))
+        )
+      })
 
       # Clear row selection when switching between data elements and indicators
       # so stale row numbers from the previous table don't go out of bounds
@@ -301,10 +315,9 @@ formula_widget_server <- function(
       # Clear the review table immediately when the formula name changes,
       # before formula_elements() repopulates it from the file.
       observeEvent(formulaName(), {
-        req(formulaName())
         cat('\n* formulaName changed — clearing review table')
         updated_formula_elements$df <- dataElementDictionary()[0, ]
-      }, ignoreInit = TRUE)
+      }, ignoreInit = TRUE, ignoreNULL = FALSE)
 
       observeEvent(formula_elements(), {
         cat("\n* updated_formula_elements = formula_elements()")
@@ -404,34 +417,51 @@ formula_widget_server <- function(
           # Hide Formula.Name from display (it's in the underlying df for save logic)
           display_df <- dplyr::select(df, -dplyr::any_of("Formula.Name"))
 
-          # Join row counts from the current dataset when available,
-          # then put "Rows in dataset" first and "role" second
-          counts <- element_row_counts()
-          if (!is.null(counts) && all(c("dataElement", "Categories") %in% names(display_df))) {
-            display_df <- tryCatch({
-              display_df %>%
-                dplyr::mutate(
-                  .key = dplyr::if_else(
-                    is.na(Categories) | !nzchar(trimws(sub(" ;.*", "", Categories))),
-                    trimws(dataElement),
-                    paste(trimws(dataElement), trimws(sub(" ;.*", "", Categories)), sep = "_")
+          # Join row counts — collapsed mode uses UID-based element totals;
+          # expanded mode uses per-category text key
+          display_df <- tryCatch({
+            if (isTRUE(input$collapse_to_element) &&
+                "dataElement.id" %in% names(display_df)) {
+              id_totals <- element_id_totals()
+              if (!is.null(id_totals)) {
+                display_df %>%
+                  dplyr::left_join(
+                    dplyr::rename(id_totals, `Rows in dataset` = n_rows),
+                    by = "dataElement.id"
+                  ) %>%
+                  dplyr::select(
+                    dplyr::any_of("Rows in dataset"),
+                    dplyr::any_of("role"),
+                    dplyr::everything()
                   )
-                ) %>%
-                dplyr::left_join(
-                  dplyr::rename(counts, .key = data_name, `Rows in dataset` = n_rows),
-                  by = ".key"
-                ) %>%
-                dplyr::select(-.key) %>%
-                dplyr::select(
-                  dplyr::any_of("Rows in dataset"),
-                  dplyr::any_of("role"),
-                  dplyr::everything()
-                )
-            }, error = function(e) {
-              cat('\n - element_row_counts join error:', conditionMessage(e))
-              display_df
-            })
-          }
+              } else display_df
+            } else {
+              counts <- element_row_counts()
+              if (!is.null(counts) && all(c("dataElement", "Categories") %in% names(display_df))) {
+                display_df %>%
+                  dplyr::mutate(
+                    .key = dplyr::if_else(
+                      is.na(Categories) | !nzchar(trimws(sub(" ;.*", "", Categories))),
+                      trimws(dataElement),
+                      paste(trimws(dataElement), trimws(sub(" ;.*", "", Categories)), sep = "_")
+                    )
+                  ) %>%
+                  dplyr::left_join(
+                    dplyr::rename(counts, .key = data_name, `Rows in dataset` = n_rows),
+                    by = ".key"
+                  ) %>%
+                  dplyr::select(-.key) %>%
+                  dplyr::select(
+                    dplyr::any_of("Rows in dataset"),
+                    dplyr::any_of("role"),
+                    dplyr::everything()
+                  )
+              } else display_df
+            }
+          }, error = function(e) {
+            cat('\n - element_row_counts join error:', conditionMessage(e))
+            display_df
+          })
 
           role_col_idx <- if ("role" %in% names(display_df)) which(names(display_df) == "role") - 1L else NULL
 
@@ -444,16 +474,13 @@ formula_widget_server <- function(
             else
               FALSE,
             options = list(
-              scrollY = "55vh",
+              scrollY = "calc(100vh - 460px)",
               scrollX = TRUE,
-              scrollCollapse = TRUE,
-              paging = TRUE,
+              scrollCollapse = FALSE,
+              paging = FALSE,
               searching = TRUE,
               info = TRUE,
-              lengthMenu = list(c(5, 10, 25, -1), list('5', '10', '25', 'All')),
-              pageLength = 10,
-              server = TRUE,
-              dom = 'tirp'
+              dom = 'it'
             )
           )
           # Colour-code the role column
@@ -515,21 +542,34 @@ formula_widget_server <- function(
       })
 
       # Secondary note banner ####
-      output$secondary_note <- renderUI({
+      output$secondary_note_badge <- renderUI({
         df <- updated_formula_elements$df
         if (is.null(df) || nrow(df) == 0 || !"role" %in% names(df)) return(NULL)
         n_sec <- sum(df$role == "secondary", na.rm = TRUE)
         if (n_sec == 0) return(NULL)
-        div(
-          style = paste0(
-            "background:#fff3cd; padding:8px 14px;",
-            " border-left:4px solid #ffc107; margin:6px 0 6px 0; border-radius:3px;"
-          ),
-          tags$strong(style = "color:#856404;",
-            paste0(n_sec, " secondary category row(s) detected. ",
-                   "Secondary elements inform reporting completeness ",
-                   "but are excluded from totals by default."))
+        actionButton(
+          ns("show_secondary_info"),
+          label = paste0("⚠ ", n_sec, " secondary"),
+          class = "btn-warning btn-sm",
+          style = "white-space:nowrap;"
         )
+      })
+
+      observeEvent(input$show_secondary_info, {
+        df    <- updated_formula_elements$df
+        n_sec <- sum(df$role == "secondary", na.rm = TRUE)
+        showModal(modalDialog(
+          title = paste0(n_sec, " secondary element row(s)"),
+          tags$p(
+            "Secondary elements inform reporting completeness ",
+            "but are ", tags$strong("excluded from totals"), " by default."
+          ),
+          tags$p(
+            "In the Reporting tab, select ", tags$em("Count facility as reporting if any data submitted"),
+            " to include secondary elements when assessing completeness."
+          ),
+          easyClose = TRUE, fade = FALSE, size = "s", footer = modalButton("OK")
+        ))
       })
 
       # Check for Related Elements ####

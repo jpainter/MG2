@@ -9,7 +9,7 @@ as.yearmonth(date.string, fmt = NULL)
 \arguments{
 \item{date.string}{Character vector of date strings, or a \code{yearmonth} vector.}
 
-\item{fmt}{Character. Optional format string passed to \code{\link[zoo:yearmon]{zoo::as.yearmon()}}.
+\item{fmt}{Character. Optional format string passed to \code{\link[zoo:as.yearmon]{zoo::as.yearmon()}}.
 When \code{NULL} (default) several common formats are tried in order.}
 }
 \value{
@@ -17,12 +17,12 @@ A \code{tsibble::yearmonth} vector.
 }
 \description{
 Converts a character string (or existing \code{yearmonth}) to a
-\code{\link[tsibble:year-month]{tsibble::yearmonth()}} object.  Multiple formats are tried automatically:
+\code{\link[tsibble:yearmonth]{tsibble::yearmonth()}} object.  Multiple formats are tried automatically:
 \itemize{
 \item \code{"January2020"} / \code{"Jan2020"} (full or abbreviated month + year)
 \item \code{"2025 Jan"} (tsibble's \code{as.character()} output)
 \item \code{"202501"} / \code{"2025-01"} (DHIS2 / ISO numeric)
-\item Any format recognised by \code{\link[zoo:yearmon]{zoo::as.yearmon()}} or \code{\link[lubridate:ymd]{lubridate::ym()}}
+\item Any format recognised by \code{\link[zoo:as.yearmon]{zoo::as.yearmon()}} or \code{\link[lubridate:ym]{lubridate::ym()}}
 }
 }
 \details{

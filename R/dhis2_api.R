@@ -154,7 +154,16 @@ fetch_get <- function(baseurl., username = NULL, password = NULL,
     data.return <- dplyr::select(fetch, -dplyr::all_of(drop_cols)) |>
       dplyr::as_tibble()
 
-    if (get.print) cat(nrow(data.return), "records\n")
+    # DHIS2 dataValueSets treats period/orgUnit as filter parameters and may
+    # omit them from individual dataValues records. Inject from the request
+    # parameters when the column is absent or entirely NA.
+    if (!"period" %in% names(data.return) || all(is.na(data.return$period))) {
+      data.return[["period"]] <- periods.
+    }
+    if (!"orgUnit" %in% names(data.return) || all(is.na(data.return$orgUnit))) {
+      data.return[["orgUnit"]] <- orgUnits.
+    }
+
   } else {
     de_parts <- strsplit(de., ".", fixed = TRUE)[[1]]
     data.return <- tibble::tibble(
@@ -247,8 +256,7 @@ ous_tree <- function(ous, ouLevels, .verbose = FALSE) {
 
   if (.verbose) message("- building tree from ", nrow(ous_edges), " edges")
   ous_tree_obj <- data.tree::FromDataFrameNetwork(ous_edges)
-  dti           <- data.tree::as.igraph.Node(ous_tree_obj)
-  ids           <- names(igraph::V(dti))
+  ids           <- ous_tree_obj$Get("name")
 
   n_levels <- nrow(ouLevels)
 

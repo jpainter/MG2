@@ -161,9 +161,16 @@ api_data = function(
             sub("^[^_]*_", "", data.id),
             NA_character_
           ),
-          period = if (idx_var == 'Month')
-            format(as.Date(idx_col), "%Y%m")
-          else
+          period = if (idx_var == 'Month') {
+            # Direct integer arithmetic avoids depending on the yearmonth S3
+            # class being present (data.table::rbindlist strips custom classes).
+            # yearmonth stores months since January 1970, so month 660 = 2025-01.
+            ym_int <- as.integer(floor(as.numeric(idx_col)))
+            ifelse(is.na(ym_int), NA_character_,
+                   sprintf("%04d%02d",
+                           1970L + ym_int %/% 12L,
+                           ym_int %% 12L + 1L))
+          } else
             format(idx_col, "%YW%V"),
           COUNT = 1L,
           SUM   = original
@@ -746,7 +753,7 @@ api_data = function(
               d[[i]] = d.sum %>% rename(SUM = value) %>% mutate(COUNT = 1)
             }
 
-            cat(nrow(d[[i]]), 'records\n')
+            if (print && !all(is.na(d[[i]]$SUM))) cat(nrow(d[[i]]), 'records\n')
 
             #Testing
             # saveRDS( d, "d.rds")

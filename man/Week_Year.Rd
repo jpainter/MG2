@@ -13,7 +13,7 @@ Week_Year(x)
 A \code{tsibble::yearweek} vector.
 }
 \description{
-Parses DHIS2 weekly period codes to \code{\link[tsibble:year-week]{tsibble::yearweek()}} objects.
+Parses DHIS2 weekly period codes to \code{\link[tsibble:yearweek]{tsibble::yearweek()}} objects.
 }
 \examples{
 Week_Year("2019W01")
