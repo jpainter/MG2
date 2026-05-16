@@ -198,6 +198,176 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
   )
 }
 
+# Internal: build an HTML table representation of a DHIS2 data entry form.
+# `form_data` is the parsed JSON response from
+#   GET /api/dataSets/{id}?fields=sections[...],dataSetElements[...]
+# Returns an HTML string suitable for display inside a Shiny modalDialog.
+#
+# Layout rules:
+#   - If the dataset has sections, each section gets its own table with a
+#     coloured header row. Data elements within the section are rows.
+#   - If all data elements in a section share the same non-default category
+#     combo, the COC names become column headers.
+#   - If there are no sections, `dataSetElements` are used as a single table.
+.build_dhis2_form_html <- function(form_data, ds_name) {
+  esc <- function(x) gsub("&", "&amp;",
+          gsub("<", "&lt;",
+          gsub(">", "&gt;",
+          gsub('"', "&quot;", as.character(x)))))
+
+  css <- paste0(
+    "<style>",
+    ".mg2-form h3{font-size:15px;font-weight:bold;margin:14px 0 6px;color:#1a4a6e;}",
+    ".mg2-form table{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:14px;}",
+    ".mg2-form th{background:#2c7bb6;color:#fff;padding:5px 9px;text-align:left;white-space:nowrap;}",
+    ".mg2-form td{padding:4px 9px;border-bottom:1px solid #e0e0e0;vertical-align:top;}",
+    ".mg2-form tr:nth-child(even) td{background:#f7fbff;}",
+    ".mg2-form td.na-cell{background:#ececec;}",
+    ".mg2-form .ds-title{font-size:17px;font-weight:bold;margin-bottom:10px;}",
+    "</style>"
+  )
+
+  # ---- helpers --------------------------------------------------------
+
+  # Extract COC names from a categoryCombo object (list or 1-row data.frame)
+  .get_coc_names <- function(cc) {
+    if (is.null(cc)) return(character(0))
+    # isDefault may be a column or element
+    is_def <- tryCatch(isTRUE(cc$isDefault) || isTRUE(cc$isDefault[[1]]),
+                       error = function(e) FALSE)
+    if (is_def) return(character(0))
+    cocs <- tryCatch(cc$categoryOptionCombos, error = function(e) NULL)
+    if (is.null(cocs)) return(character(0))
+    if (is.data.frame(cocs)) return(cocs$displayName)
+    if (is.list(cocs)) return(vapply(cocs, function(x) x$displayName %||% "", character(1)))
+    character(0)
+  }
+
+  # Render one section (or the whole form when no sections exist)
+  .render_section <- function(de_list, section_name = NULL) {
+    if (length(de_list) == 0) return("")
+
+    # Collect all unique COC names across every DE in this section
+    all_coc_names <- unique(unlist(lapply(de_list, function(de) {
+      .get_coc_names(de$categoryCombo)
+    })))
+
+    n_extra <- length(all_coc_names)
+    n_cols  <- n_extra + 1L   # DE name + COC columns (or "Value")
+
+    # Header
+    if (n_extra == 0) {
+      col_headers <- "<th>Value</th>"
+    } else {
+      col_headers <- paste0("<th>", esc(all_coc_names), "</th>", collapse = "")
+    }
+
+    out <- "<table>"
+    out <- paste0(out, "<thead><tr><th>Data Element</th>", col_headers, "</tr></thead><tbody>")
+
+    if (!is.null(section_name)) {
+      out <- paste0(out,
+        '<tr><td colspan="', n_cols, '" style="background:#d9eaf7;font-weight:bold;',
+        'color:#1a4a6e;padding:5px 9px;">', esc(section_name), "</td></tr>"
+      )
+    }
+
+    for (de in de_list) {
+      de_name  <- esc(de$displayName %||% de$id %||% "")
+      coc_here <- .get_coc_names(de$categoryCombo)
+
+      if (n_extra == 0) {
+        # All DEs use default category — single value cell
+        out <- paste0(out, "<tr><td>", de_name, "</td><td></td></tr>")
+      } else {
+        # Align this DE's COCs against the master column list
+        td_cells <- vapply(all_coc_names, function(cn) {
+          if (cn %in% coc_here) '<td></td>' else '<td class="na-cell"></td>'
+        }, character(1))
+        out <- paste0(out, "<tr><td>", de_name, "</td>",
+                      paste(td_cells, collapse = ""), "</tr>")
+      }
+    }
+    out <- paste0(out, "</tbody></table>")
+    out
+  }
+
+  # ---- extract data elements from a dataSetElements list ---------------
+  .de_from_dse <- function(dse) {
+    if (is.null(dse) || length(dse) == 0) return(list())
+    if (is.data.frame(dse)) {
+      # jsonlite simplified it: dse$dataElement is a nested data.frame
+      de_col <- tryCatch(dse$dataElement, error = function(e) NULL)
+      if (is.data.frame(de_col)) {
+        return(lapply(seq_len(nrow(de_col)), function(i) as.list(de_col[i, ])))
+      }
+    }
+    if (is.list(dse)) {
+      return(lapply(dse, function(x) x$dataElement %||% x))
+    }
+    list()
+  }
+
+  # ---- build HTML -------------------------------------------------------
+  html <- paste0(css,
+    '<div class="mg2-form">',
+    '<div class="ds-title">', esc(ds_name), '</div>'
+  )
+
+  sections    <- tryCatch(form_data$sections,    error = function(e) NULL)
+  dse_raw     <- tryCatch(form_data$dataSetElements, error = function(e) NULL)
+
+  has_sections <- !is.null(sections) && (
+    (is.data.frame(sections) && nrow(sections) > 0) ||
+    (is.list(sections) && length(sections) > 0)
+  )
+
+  if (has_sections) {
+    if (is.data.frame(sections)) {
+      if ("sortOrder" %in% names(sections))
+        sections <- sections[order(sections$sortOrder), ]
+      for (i in seq_len(nrow(sections))) {
+        sec_name  <- sections$displayName[i]
+        sec_des   <- tryCatch(sections$dataElements[[i]], error = function(e) NULL)
+        if (is.data.frame(sec_des) && nrow(sec_des) > 0) {
+          de_list <- lapply(seq_len(nrow(sec_des)), function(j) as.list(sec_des[j, ]))
+        } else {
+          de_list <- list()
+        }
+        html <- paste0(html, .render_section(de_list, sec_name))
+      }
+    } else {
+      for (sec in sections) {
+        sec_name <- sec$displayName %||% ""
+        sec_des  <- sec$dataElements
+        if (is.data.frame(sec_des) && nrow(sec_des) > 0) {
+          de_list <- lapply(seq_len(nrow(sec_des)), function(j) as.list(sec_des[j, ]))
+        } else if (is.list(sec_des)) {
+          de_list <- sec_des
+        } else {
+          de_list <- list()
+        }
+        html <- paste0(html, .render_section(de_list, sec_name))
+      }
+    }
+  } else {
+    de_list <- .de_from_dse(dse_raw)
+    if (length(de_list) == 0) {
+      html <- paste0(html,
+        '<p style="color:#888;font-style:italic;">',
+        'No form structure available for this dataset.</p>'
+      )
+    } else {
+      html <- paste0(html, .render_section(de_list, NULL))
+    }
+  }
+
+  paste0(html, "</div>")
+}
+
+# NULL-coalescing operator (avoid importing rlang just for this)
+`%||%` <- function(a, b) if (!is.null(a) && length(a) > 0 && !is.na(a[[1]])) a else b
+
 # Internal: replace DHIS2 UID references in an expression string with
 # human-readable names. Handles #{uid}, #{uid.uid}, and I{uid} patterns.
 # DHIS2 UIDs are 11-character alphanumeric strings starting with a letter.

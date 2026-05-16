@@ -112,7 +112,28 @@ read_file <- function(filename) {
     if (!requireNamespace("fst", quietly = TRUE)) {
       stop("Package 'fst' is required to read .fst files. Install with: install.packages('fst')")
     }
-    return(fst::read_fst(filename))
+    df <- fst::read_fst(filename)
+
+    # FST stores yearmonth/yearweek as plain numeric — restore the S3 class
+    # so downstream tsibble operations work correctly.
+    if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth"))
+      df[["Month"]] <- structure(as.numeric(df[["Month"]]), class = "yearmonth")
+    if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek"))
+      df[["Week"]] <- structure(as.numeric(df[["Week"]]), class = "yearweek")
+
+    # If this looks like a processed MG2 dataset (has orgUnit + data.id + index),
+    # rebuild the tsibble so it behaves identically to one loaded from .rds.
+    idx_var  <- if ("Month" %in% names(df)) "Month" else if ("Week" %in% names(df)) "Week" else NULL
+    key_vars <- intersect(c("orgUnit", "data.id"), names(df))
+    if (!is.null(idx_var) && length(key_vars) == 2L) {
+      df <- tryCatch(
+        tsibble::as_tsibble(df, index = idx_var, key = dplyr::all_of(key_vars),
+                            validate = FALSE),
+        error = function(e) df   # fall back to plain data.frame on any error
+      )
+    }
+
+    return(df)
   }
 
   if (tolower(ext) == "rds") {

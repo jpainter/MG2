@@ -274,6 +274,8 @@ metadata_widget_server <- function(
           zz = resources()
           cat("\n--- login fetch validationRules")
           vr = validationRules()
+          cat("\n--- login fetch dataSetForms")
+          df = dataSetForms()
 
           # also save as RDS
           meta = list(
@@ -290,7 +292,8 @@ metadata_widget_server <- function(
             ousTree = q,
             geoFeatures = w,
             validationRules = vr,
-            resources = zz
+            resources = zz,
+            dataSetForms = df
           )
 
           new_meta_file <- paste0("metadata_", Sys.Date(), ".rds")
@@ -1056,16 +1059,210 @@ metadata_widget_server <- function(
           )
         ))
 
-      output$dataSets =
-        DT::renderDT(DT::datatable(
-          if (!is.null(dataSets.())) {
-            dataSets.()
-          },
+      output$dataSets <- DT::renderDT({
+        ds <- dataSets.()
+        req(ds)
 
-          rownames = FALSE,
-          filter = 'top',
-          options = DToptions_no_buttons()
+        ds$Form <- paste0(
+          '<button class="btn btn-xs btn-default form-btn" data-id="',
+          ds$dataSet.id, '">View Form</button>'
+        )
+        ds <- dplyr::select(ds, Form, dplyr::everything())
+
+        DT::datatable(
+          ds,
+          rownames  = FALSE,
+          filter    = 'top',
+          escape    = FALSE,
+          selection = "none",
+          callback  = DT::JS(sprintf(
+            "table.on('click', 'button.form-btn', function() {
+               var id = $(this).data('id');
+               Shiny.setInputValue('%s', {id: id, nonce: Math.random()}, {priority: 'event'});
+             });",
+            session$ns("formClick")
+          )),
+          options = list(
+            scrollX        = TRUE,
+            scrollY        = "calc(100vh - 300px)",
+            scrollCollapse = FALSE,
+            paging         = FALSE,
+            searching      = TRUE,
+            info           = TRUE,
+            server         = TRUE,
+            dom            = 'ti'
+          )
+        )
+      })
+
+      ## dataSets form viewer ####
+
+      # Download all dataset form structures in one API call.
+      # Stored as a named list: ds_id -> list(sections, dataSetElements).
+      # Loaded from saved metadata when offline.
+      dataSetForms = reactive({
+        if (login() & loginFetch()) {
+          cat('\n - reactive dataSetForms: downloading')
+
+          showModal(modalDialog(
+            title = "Downloading dataset form structures",
+            easyClose = TRUE, fade = FALSE, size = 'm', footer = NULL
+          ))
+          on.exit(removeModal(), add = TRUE)
+
+          sec_fields <- paste0(
+            "sections[id,displayName,sortOrder,",
+            "dataElements[id,displayName,",
+            "categoryCombo[id,isDefault,categoryOptionCombos[id,displayName]]]]"
+          )
+          dse_fields <- paste0(
+            "dataSetElements[dataElement[id,displayName,",
+            "categoryCombo[id,isDefault,categoryOptionCombos[id,displayName]]]]"
+          )
+          url <- paste0(
+            baseurl(),
+            "api/dataSets.json?fields=id,", sec_fields, ",", dse_fields,
+            "&paging=false"
+          )
+
+          raw <- tryCatch(
+            dhis2_get(source_url = url, username = username(), password = password()),
+            error = function(e) { cat("\n- dataSetForms API error:", conditionMessage(e)); NULL }
+          )
+
+          if (is.null(raw) || !is.data.frame(raw[[1]])) {
+            cat("\n- dataSetForms: empty or error response")
+            return(list())
+          }
+
+          ds_list <- raw[[1]]
+          forms   <- setNames(
+            lapply(seq_len(nrow(ds_list)), function(i) {
+              list(
+                sections        = tryCatch(ds_list$sections[[i]],        error = function(e) NULL),
+                dataSetElements = tryCatch(ds_list$dataSetElements[[i]], error = function(e) NULL)
+              )
+            }),
+            ds_list$id
+          )
+          cat("\n- dataSetForms: downloaded", length(forms), "forms")
+          removeModal()
+          return(forms)
+
+        } else {
+          # Load from saved metadata
+          md <- tryCatch(metadata(), error = function(e) NULL)
+          if (!is.null(md) && !is.null(md$dataSetForms)) {
+            cat("\n- dataSetForms: loaded from metadata file,", length(md$dataSetForms), "forms")
+            return(md$dataSetForms)
+          }
+          return(NULL)   # NULL = not present in this metadata file
+        }
+      })
+
+      # Internal: fetch a single dataset's form from the live API
+      .fetch_single_form <- function(ds_id) {
+        fields <- paste0(
+          "sections[id,displayName,sortOrder,",
+          "dataElements[id,displayName,",
+          "categoryCombo[id,isDefault,categoryOptionCombos[id,displayName]]]]",
+          ",dataSetElements[dataElement[id,displayName,",
+          "categoryCombo[id,isDefault,categoryOptionCombos[id,displayName]]]]"
+        )
+        url <- paste0(baseurl(), "api/dataSets/", ds_id, "?fields=", fields)
+        tryCatch(
+          dhis2_get(source_url = url, username = username(), password = password()),
+          error = function(e) { cat("\n- fetch_single_form error:", conditionMessage(e)); NULL }
+        )
+      }
+
+      observeEvent(input$formClick, {
+        ds_id <- input$formClick$id
+
+        ds      <- dataSets.()
+        ds_name <- if (!is.null(ds) && ds_id %in% ds$dataSet.id)
+                     ds$dataSet[ds$dataSet.id == ds_id][1]
+                   else ds_id
+
+        forms <- dataSetForms()
+
+        # ---- Case 1: forms object is NULL → old metadata file, no form data saved ----
+        if (is.null(forms)) {
+          if (login()) {
+            # Can fetch live — do so
+            showModal(modalDialog(
+              title = paste("Loading:", ds_name),
+              "Fetching form from DHIS2...",
+              easyClose = TRUE, fade = FALSE, size = "m", footer = NULL
+            ))
+            form_data <- .fetch_single_form(ds_id)
+            removeModal()
+          } else {
+            showModal(modalDialog(
+              title     = paste("Form:", ds_name),
+              p("This metadata file does not contain form structures."),
+              p(strong("To view forms offline, please re-download the metadata"),
+                " while connected to DHIS2 (click \"Request Metadata\" on the",
+                " System Info tab)."),
+              easyClose = TRUE, fade = FALSE, size = "m",
+              footer    = modalButton("Close")
+            ))
+            return()
+          }
+        } else {
+          form_data <- forms[[ds_id]]
+
+          # ---- Case 2: forms object exists but this dataset's entry is missing ----
+          if (is.null(form_data)) {
+            if (login()) {
+              showModal(modalDialog(
+                title = paste("Loading:", ds_name),
+                "Fetching form from DHIS2...",
+                easyClose = TRUE, fade = FALSE, size = "m", footer = NULL
+              ))
+              form_data <- .fetch_single_form(ds_id)
+              removeModal()
+            } else {
+              showModal(modalDialog(
+                title     = paste("Form:", ds_name),
+                p("Form data for this dataset is not available in the saved metadata file."),
+                p(strong("Re-download the metadata"), " while connected to DHIS2 to",
+                  " enable offline form viewing."),
+                easyClose = TRUE, fade = FALSE, size = "m",
+                footer    = modalButton("Close")
+              ))
+              return()
+            }
+          }
+        }
+
+        if (is.null(form_data)) {
+          showModal(modalDialog(
+            title     = "Error",
+            "Could not retrieve form structure from DHIS2.",
+            easyClose = TRUE, fade = FALSE,
+            footer    = modalButton("Close")
+          ))
+          return()
+        }
+
+        form_html <- tryCatch(
+          .build_dhis2_form_html(form_data, ds_name),
+          error = function(e) {
+            cat("\n- formClick render error:", conditionMessage(e))
+            paste0("<p>Could not render form: ", conditionMessage(e), "</p>")
+          }
+        )
+
+        showModal(modalDialog(
+          title     = paste("Form:", ds_name),
+          div(style = "max-height: 70vh; overflow-y: auto;", HTML(form_html)),
+          easyClose = TRUE,
+          fade      = FALSE,
+          size      = "xl",
+          footer    = modalButton("Close")
         ))
+      })
 
       ## Indicators ####
 

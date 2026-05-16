@@ -277,6 +277,7 @@ data_1 <- function(data,
                    .shiny_progress = FALSE,
                    .verbose        = FALSE) {
   if (.verbose) message("data_1: preparing dataset")
+  .t_start <- proc.time()[["elapsed"]]
 
   if (!'COUNT' %in% names(data)) {
     if (.verbose) message("- no COUNT column, returning NULL")
@@ -342,6 +343,7 @@ data_1 <- function(data,
   data.table::setkeyv(dt.,  "orgUnit")
   data.table::setkeyv(ous., "orgUnit")
   dt. <- ous.[dt., on = "orgUnit"]
+  rm(dse., ous.)
 
   # Skip the expensive leaf-detection join when every row has COUNT == 1.
   # The new DHIS2 download API returns only org units where data was entered,
@@ -364,30 +366,70 @@ data_1 <- function(data,
     )
   }
 
+  # Free raw inputs — no longer needed once dt. is built
+  rm(data, d.)
+  gc(verbose = FALSE)
+
   # --------------------------------------------------------------------------
-  # Per-element loop: df_pre_ts → df_ts → mutate(original, value) → outliers
+  # Per-chunk loop with adaptive category splitting
+  #
+  # Large data elements are split by category option combo so each chunk fits
+  # comfortably in memory during the outlier scan.  Small elements stay as one
+  # chunk to avoid fork/gc overhead (~25s) dominating over computation time.
+  #
+  # Decision rule: split only when the estimated series count per individual
+  # category >= split_threshold (default 15 000).  Below that the categories
+  # are batched together as a single chunk.
   # --------------------------------------------------------------------------
-  element_ids <- unique(dt.$dataElement.id)
-  n_elements  <- length(element_ids)
-  idx_var     <- p   # "Month" or "Week"
-  key_vars    <- c("orgUnit", "data.id")
+  idx_var  <- p   # "Month" or "Week"
+  key_vars <- c("orgUnit", "data.id")
 
-  message("data_1: processing ", n_elements, " element(s) per-element")
-  if (is.function(.progress)) .progress(0L, n_elements, "", sprintf("Starting per-element scan (%d elements)...", n_elements))
+  split_threshold <- 15000L
 
-  results <- vector("list", n_elements)
+  # Approximate series count and category count per data element
+  de_sizes <- dt.[, .(
+    n_series = data.table::uniqueN(paste0(orgUnit, "|",
+      data.table::fifelse(is.na(categoryOptionCombo.ids), "", categoryOptionCombo.ids))),
+    n_cats   = data.table::uniqueN(
+      data.table::fifelse(is.na(categoryOptionCombo.ids), "__NA__", categoryOptionCombo.ids))
+  ), by = dataElement.id]
+  de_sizes[, do_split := n_cats > 1L & (n_series %/% n_cats) >= split_threshold]
 
-  for (i in seq_along(element_ids)) {
-    eid   <- element_ids[[i]]
-    chunk <- dt.[dataElement.id == eid]
+  dt.[de_sizes, do_split := i.do_split, on = "dataElement.id"]
+  dt.[, .chunk_key := data.table::fifelse(
+    do_split,
+    paste0(dataElement.id, "|||",
+      data.table::fifelse(is.na(categoryOptionCombo.ids), "__NA__", categoryOptionCombo.ids)),
+    dataElement.id          # keep all categories together as one chunk
+  )]
+  dt.[, do_split := NULL]
+  rm(de_sizes)
 
-    # Human-readable element name (first non-NA value of dataElement column)
-    element_name <- if ("dataElement" %in% names(chunk)) {
-      el <- chunk$dataElement[!is.na(chunk$dataElement)]
-      if (length(el) > 0) el[[1L]] else eid
-    } else {
-      eid
-    }
+  # One labelled row per chunk key
+  .ck_raw <- unique(dt.[, .(dataElement.id, .chunk_key, dataElement, Category)])
+  combo_keys <- .ck_raw[, {
+    de  <- dataElement[!is.na(dataElement)][1L]
+    if (is.na(de) || !nzchar(de)) de <- dataElement.id[1L]
+    is_split <- grepl("|||", .chunk_key[1L], fixed = TRUE)
+    cat <- if (is_split) Category[!is.na(Category) & nzchar(trimws(Category))][1L] else NA_character_
+    label <- if (!is.na(cat) && nzchar(cat)) paste0(de, " / ", cat) else de
+    .(dataElement.id = dataElement.id[1L], label = label)
+  }, by = ".chunk_key"]
+  rm(.ck_raw)
+  data.table::setorder(combo_keys, dataElement.id, .chunk_key)
+  n_elements <- nrow(combo_keys)
+
+  message("data_1: processing ", n_elements, " chunk(s)")
+  if (is.function(.progress))
+    .progress(0L, n_elements, "", sprintf("Starting scan (%d chunks)...", n_elements))
+
+  combined_dt <- NULL   # accumulated result; grown one chunk at a time
+
+  for (i in seq_len(n_elements)) {
+    key_i        <- combo_keys$.chunk_key[i]
+    chunk        <- dt.[.chunk_key == key_i]
+    chunk[, .chunk_key := NULL]   # drop helper column from this copy
+    element_name <- combo_keys$label[i]
 
     message(sprintf("data_1: element %d/%d — %s", i, n_elements, element_name))
     .t0 <- proc.time()[["elapsed"]]
@@ -436,19 +478,46 @@ data_1 <- function(data,
                                     .progress_fn = .seas_fn)
     }
 
-    results[[i]] <- tibble::as_tibble(chunk_ts)
+    # Drop internal processing columns and columns removed at data_1() end
+    # before accumulating — significantly reduces per-element memory footprint.
+    .drop_early <- intersect(
+      names(chunk_ts),
+      c("SUM", "COUNT", "dataElement.id", "categoryOptionCombo.ids",
+        "Category", "categoryCombo", "categoryCombo.id", "n_datasets",
+        "dataSet.ids", "leaf", "period",
+        "AllSmall", "not_key_or_over_under", ".max", "not_mad")
+    )
+    if (length(.drop_early) > 0)
+      chunk_ts <- dplyr::select(chunk_ts, -dplyr::all_of(.drop_early))
+
+    result_i <- data.table::as.data.table(tibble::as_tibble(chunk_ts))
     message(sprintf("data_1:   done in %.0f s", proc.time()[["elapsed"]] - .t0))
+    # Free the large intermediate objects before the next element so they are
+    # not part of the parent heap when multicore workers fork.
+    rm(chunk, chunk_tbl, chunk_ts)
+    message("data_1:   gc...")
+    gc(verbose = FALSE)
+
+    # Accumulate incrementally — never hold all N element results simultaneously.
+    # rbindlist(all_results_at_once) would require 2× total memory at combine.
+    if (is.null(combined_dt)) {
+      combined_dt <- result_i
+    } else {
+      combined_dt <- data.table::rbindlist(list(combined_dt, result_i),
+                                           fill = TRUE, use.names = TRUE)
+      rm(result_i)
+    }
+    gc(verbose = FALSE)
   }
 
   # --------------------------------------------------------------------------
-  # Combine all element chunks
+  # Finish up — free dt. (no longer needed), restore index class
   # --------------------------------------------------------------------------
-  message("data_1: combining ", n_elements, " element chunk(s)")
-  if (is.function(.progress)) {
-    .progress(n_elements, n_elements, "", "combining")
-  }
+  # Elements were accumulated incrementally inside the loop so combined_dt is
+  # already complete.  Free the raw joined dataset and loop helpers.
+  rm(dt., combo_keys)
+  gc(verbose = FALSE)
 
-  combined_dt <- data.table::rbindlist(results, fill = TRUE)
   # Restore the yearmonth/yearweek S3 class that rbindlist may strip from the
   # index column (data.table concatenates raw doubles without preserving class).
   if (idx_var %in% names(combined_dt)) {
@@ -468,7 +537,13 @@ data_1 <- function(data,
     validate = FALSE
   )
 
-  message("data_1: done — ", nrow(d..), " rows, ", tsibble::n_keys(d..), " series")
+  .t_total <- proc.time()[["elapsed"]] - .t_start
+  message(sprintf(
+    "data_1: done — %s rows, %s series, total %.0f s (%.1f min)",
+    format(nrow(d..), big.mark = ","),
+    format(tsibble::n_keys(d..), big.mark = ","),
+    .t_total, .t_total / 60
+  ))
 
   # Drop columns that were only needed during processing.
   # SUM/COUNT: used to build original/value and effectiveLeaf; not needed downstream.

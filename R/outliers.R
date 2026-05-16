@@ -263,7 +263,7 @@ mad_outliers <- function(d,
     )]
 
     # ── Determine parallelism ─────────────────────────────────────────────────
-    use_parallel <- .total > 1L &&
+    use_parallel <- .total >= 5000L &&   # sequential is faster for tiny series counts
       requireNamespace("furrr",  quietly = TRUE) &&
       requireNamespace("future", quietly = TRUE)
     # MAD workers only need data.table (~200 MB on multisession Windows).
@@ -277,6 +277,8 @@ mad_outliers <- function(d,
 
     if (use_parallel) {
       # ── Bucket-parallel path (same pattern as seasonal_outliers) ─────────
+      cat("    gc before MAD fork...\n"); flush.console()
+      gc(verbose = FALSE)   # release accumulated garbage before forking — workers inherit parent heap
       old_plan <- future::plan()
       on.exit(future::plan(old_plan), add = TRUE)
       old_max_size <- getOption("future.globals.maxSize")
@@ -288,21 +290,39 @@ mad_outliers <- function(d,
       .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
       future::plan(.plan_type, workers = n_workers)
 
-      n_buckets   <- n_workers * 10L
+      # Compute n_steps_target first: n_buckets = n_workers × n_steps_target so
+      # step_sz == n_workers — every step dispatches exactly n_workers buckets in
+      # parallel and seq(from, to) in the loop is never descending.
+      n_steps_target <- max(10L, min(50L, as.integer(.total / 5000L)))
+      n_buckets      <- n_workers * n_steps_target
+
       unique_keys <- unique(dt[, .SD, .SDcols = key_vars])
       unique_keys[, mg2_bucket := (seq_len(.N) - 1L) %% n_buckets]
       data.table::setkeyv(dt,          key_vars)
       data.table::setkeyv(unique_keys, key_vars)
       dt[unique_keys, mg2_bucket := i.mg2_bucket]
-      bucket_list <- lapply(seq_len(n_buckets) - 1L, function(b) dt[mg2_bucket == b])
+
+      # Slim bucket data: workers only need the columns used in MAD calculations.
+      # Sending all ~45 columns makes buckets ~6 GB; slim keeps them ~0.5 GB.
+      slim_cols_mad <- c(key_vars, idx_var,
+                         "not_key_or_over_under", "key_entry_error", "over_max", ".max",
+                         "mg2_bucket")
+      slim_cols_mad <- intersect(slim_cols_mad, names(dt))
+      dt_slim_mad   <- dt[, .SD, .SDcols = slim_cols_mad]
+      bucket_list   <- lapply(seq_len(n_buckets) - 1L, function(b) dt_slim_mad[mg2_bucket == b])
+      rm(dt_slim_mad)
 
       .xmad <- extremely_mad
       environment(.xmad) <- baseenv()
 
+      .keep_cols_mad <- c(key_vars, idx_var, "mad15", "mad10", "mad5")
       .opts <- furrr::furrr_options(
         seed     = NULL,
         packages = "data.table",
-        globals  = list(.xmad = .xmad, key_vars = key_vars, .threshold = .threshold)
+        globals  = list(.xmad      = .xmad,
+                        key_vars   = key_vars,
+                        .threshold = .threshold,
+                        .keep_cols = .keep_cols_mad)
       )
 
       .process_bucket_mad <- function(sub) {
@@ -320,20 +340,27 @@ mad_outliers <- function(d,
                               smallThreshold  = .threshold,
                               maximum_allowed = .max,
                               logical         = TRUE), by = key_vars]
-        sub
+        # Return only key + index + MAD outputs.
+        # Use with=FALSE (character vector selection) — avoids calling := NULL
+        # which fails in baseenv() where := is not on the search path.
+        sub[, .keep_cols, with = FALSE]
       }
       environment(.process_bucket_mad) <- list2env(
-        list(.xmad = .xmad, key_vars = key_vars, .threshold = .threshold),
+        list(.xmad      = .xmad,
+             key_vars   = key_vars,
+             .threshold = .threshold,
+             .keep_cols = c(key_vars, idx_var, "mad15", "mad10", "mad5")),
         parent = baseenv()
       )
 
-      n_steps        <- 10L
-      step_sz        <- ceiling(n_buckets / n_steps)
+      # n_buckets = n_workers × n_steps_target → step_sz = n_workers exactly:
+      # every step fills all workers and seq(from, to) is never descending.
+      step_sz        <- n_workers
+      n_steps        <- n_steps_target
       bucket_results <- vector("list", n_buckets)
 
       for (.step in seq_len(n_steps)) {
-        step_idx     <- seq((.step - 1L) * step_sz + 1L,
-                            min(.step * step_sz, n_buckets))
+        step_idx     <- seq((.step - 1L) * step_sz + 1L, .step * step_sz)
         bucket_results[step_idx] <- suppressWarnings(
           furrr::future_map(bucket_list[step_idx], .process_bucket_mad, .options = .opts)
         )
@@ -346,10 +373,21 @@ mad_outliers <- function(d,
       }
       cat("\n")
 
-      dt <- data.table::rbindlist(bucket_results, use.names = TRUE, fill = TRUE)
+      # Free bucket_list before combining — no longer needed
+      rm(bucket_list); gc(verbose = FALSE)
+
+      # Combine slim results (key + index + mad15/mad10/mad5 only)
+      dt_mad <- data.table::rbindlist(bucket_results, use.names = TRUE, fill = TRUE)
+      rm(bucket_results); gc(verbose = FALSE)
+
+      # Join MAD columns back into the full dt
+      data.table::setkeyv(dt,     c(key_vars, idx_var))
+      data.table::setkeyv(dt_mad, c(key_vars, idx_var))
+      dt[dt_mad, c("mad15", "mad10", "mad5") := list(i.mad15, i.mad10, i.mad5)]
+      rm(dt_mad)
       dt[, mg2_bucket := NULL]
 
-      # Restore index class if rbindlist stripped it
+      # Restore index class if rbindlist stripped it (applied to dt, not dt_mad)
       if (idx_var %in% names(dt)) {
         idx_cls <- if (idx_var == "Month") "yearmonth" else "yearweek"
         if (!inherits(dt[[idx_var]], idx_cls))
@@ -487,13 +525,23 @@ seasonal_outliers <- function(d,
     .total <- data.table::uniqueN(dt, by = key_vars)
 
   # Determine whether parallel execution is available
-  use_parallel <- .total > 1L &&
+  use_parallel <- .total >= 5000L &&   # sequential is faster for tiny series counts
     requireNamespace("furrr",  quietly = TRUE) &&
     requireNamespace("future", quietly = TRUE)
 
   # Seasonal workers load forecast (~400 MB on multisession Windows).
-  # On macOS/Linux multicore is used, so no per-worker memory cost.
+  # On macOS/Linux multicore (fork) is used; workers inherit the parent heap via
+  # CoW.  As successive elements are loaded the parent grows, and CoW overhead
+  # per worker increases.  Scale workers down for large elements so the OS does
+  # not kill forked workers under memory pressure.
   n_workers <- if (use_parallel) .mg2_n_workers(per_worker_mb = 400L) else 1L
+  if (use_parallel && .Platform$OS.type == "unix" && .total > 50000L) {
+    scale <- if      (.total > 400000L) 0.40
+              else if (.total > 200000L) 0.55
+              else if (.total > 100000L) 0.70
+              else                       0.85
+    n_workers <- max(1L, as.integer(n_workers * scale))
+  }
   use_parallel <- use_parallel && n_workers > 1L
 
   if (is.function(.progress_fn))
@@ -513,18 +561,14 @@ seasonal_outliers <- function(d,
 
   if (use_parallel) {
     # ── Bucket-parallel path ────────────────────────────────────────────────
-    # Problem with the old per-series split: splitting into .total (~149k) R
-    # objects and then rbind-ing them back is the dominant bottleneck —
-    # dplyr/vctrs type-checks every one of them.
-    #
-    # New approach: create (n_workers × 10) coarse buckets so each furrr call
-    # dispatches exactly n_workers tasks.  Each task receives one compact
-    # data.table (~.total / n_buckets rows) and applies tsclean() per key via
-    # data.table `by`.  Final rbindlist over n_buckets objects is instant.
-    #
-    # Object count: n_buckets (e.g. 80)  vs old: .total (e.g. 149 176)
-    # rbindlist calls: 1 over n_buckets  vs old: 1 over .total
+    # Split into (n_workers × n_steps_target) buckets.  Each step of the progress
+    # loop dispatches exactly n_workers buckets in parallel.  Each task receives
+    # one compact data.table and applies tsclean() per key via data.table `by`.
+    # Final rbindlist over n_buckets objects is instant vs. the old approach of
+    # splitting into .total individual series.
 
+    cat("    gc before seasonal fork...\n"); flush.console()
+    gc(verbose = FALSE)   # release accumulated garbage before forking — workers inherit parent heap
     old_plan <- future::plan()
     on.exit(future::plan(old_plan), add = TRUE)
     old_max_size <- getOption("future.globals.maxSize")
@@ -536,7 +580,11 @@ seasonal_outliers <- function(d,
     .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
     future::plan(.plan_type, workers = n_workers)
 
-    n_buckets <- n_workers * 10L
+    # Compute n_steps_target first: n_buckets = n_workers × n_steps_target so
+    # step_sz == n_workers — every step dispatches exactly n_workers buckets in
+    # parallel and seq(from, to) in the loop is never descending.
+    n_steps_target <- max(10L, min(50L, as.integer(.total / 5000L)))
+    n_buckets      <- n_workers * n_steps_target
 
     # Assign a bucket ID to each unique key, then join to all rows
     unique_keys <- unique(dt[, .SD, .SDcols = key_vars])
@@ -545,21 +593,30 @@ seasonal_outliers <- function(d,
     data.table::setkeyv(unique_keys, key_vars)
     dt[unique_keys, mg2_bucket := i.mg2_bucket]
 
-    # Pre-split into n_buckets data.tables (cheap — no per-series overhead)
-    bucket_list <- lapply(seq_len(n_buckets) - 1L, function(b) dt[mg2_bucket == b])
+    # Slim bucket data: workers only need keys + time index + not_mad.
+    # Sending all ~45 columns would make bucket_list and bucket_results ~6 GB
+    # each, causing OOM at the combine step.  The slim approach keeps them ~0.5 GB.
+    slim_cols <- c(key_vars, idx_var, "not_mad", "mg2_bucket")
+    dt_slim   <- dt[, .SD, .SDcols = slim_cols]
+    bucket_list <- lapply(seq_len(n_buckets) - 1L, function(b) dt_slim[mg2_bucket == b])
+    rm(dt_slim)
 
+    .keep_cols_seasonal <- c(key_vars, idx_var, "seasonal5", "seasonal3", "expected")
     .opts <- furrr::furrr_options(
       seed     = NULL,
       packages = c("forecast", "data.table"),
       globals  = list(
-        .unseasonal = .unseasonal,
-        key_vars    = key_vars,
-        .threshold  = .threshold,
-        tests       = tests
+        .unseasonal        = .unseasonal,
+        key_vars           = key_vars,
+        .threshold         = .threshold,
+        tests              = tests,
+        .keep_cols         = .keep_cols_seasonal
       )
     )
 
-    # Worker: apply tsclean() per key within the bucket using data.table by
+    # Worker: compute seasonal columns then return only key + index + outputs.
+    # Dropping not_mad and mg2_bucket from the return minimises data transferred
+    # back to the parent process.
     .process_bucket <- function(sub) {
       sub[, c("seasonal5", "seasonal3", "expected") := {
         nm <- not_mad
@@ -578,24 +635,29 @@ seasonal_outliers <- function(d,
             rep(NA_real_, .N)
         )
       }, by = key_vars]
-      sub
+      # Return only key + index + seasonal outputs.
+      # Use with=FALSE (character vector selection) — avoids calling := NULL
+      # which fails in baseenv() where := is not on the search path.
+      sub[, .keep_cols, with = FALSE]
     }
     # Strip closure to prevent furrr serializing the entire call frame
     environment(.process_bucket) <- list2env(
       list(.unseasonal = .unseasonal, key_vars = key_vars,
-           .threshold = .threshold, tests = tests),
+           .threshold  = .threshold, tests = tests,
+           .keep_cols  = c(key_vars, idx_var, "seasonal5", "seasonal3", "expected")),
       parent = baseenv()
     )
 
-    # Process in 10 rounds of n_workers buckets each — gives 10 progress ticks
-    n_steps      <- 10L
-    step_sz      <- ceiling(n_buckets / n_steps)   # buckets per round
+    # n_buckets = n_workers × n_steps_target → step_sz = n_workers exactly:
+    # every step fills all workers and seq(from, to) is never descending.
+    step_sz        <- n_workers
+    n_steps        <- n_steps_target
     bucket_results <- vector("list", n_buckets)
 
     for (.step in seq_len(n_steps)) {
       step_idx <- seq(
         from = (.step - 1L) * step_sz + 1L,
-        to   = min(.step * step_sz, n_buckets)
+        to   = .step * step_sz
       )
       step_results <- suppressWarnings(
         furrr::future_map(bucket_list[step_idx], .process_bucket, .options = .opts)
@@ -614,12 +676,25 @@ seasonal_outliers <- function(d,
     if (is.function(.progress_fn))
       .progress_fn(sprintf("seasonal: %d series — building tsibble", .total))
 
-    # Combine: n_buckets objects instead of .total — fast
+    # Free bucket_list before combining — no longer needed and would otherwise
+    # sit alongside bucket_results and the rbindlist output (~18 GB peak total).
+    rm(bucket_list); gc(verbose = FALSE)
+
     cat(sprintf("  combining %d bucket results...\n", n_buckets))
     flush.console()
 
-    dt_result <- data.table::rbindlist(bucket_results, use.names = TRUE, fill = TRUE)
-    dt_result[, mg2_bucket := NULL]
+    # Combine slim results (key + index + 3 seasonal cols only)
+    dt_seasonal <- data.table::rbindlist(bucket_results, use.names = TRUE, fill = TRUE)
+    rm(bucket_results); gc(verbose = FALSE)
+
+    # Join seasonal columns back into the full dt by key + time index
+    data.table::setkeyv(dt,          c(key_vars, idx_var))
+    data.table::setkeyv(dt_seasonal, c(key_vars, idx_var))
+    dt[dt_seasonal, c("seasonal5", "seasonal3", "expected") :=
+         list(i.seasonal5, i.seasonal3, i.expected)]
+    rm(dt_seasonal)
+    dt[, mg2_bucket := NULL]
+    dt_result <- dt
 
   } else {
     # ── Sequential path: data.table by (no split/bind overhead) ─────────────
