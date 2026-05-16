@@ -229,17 +229,28 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
 
   # ---- helpers --------------------------------------------------------
 
-  # Extract COC names from a categoryCombo object (list or 1-row data.frame)
+  # Extract COC names from a categoryCombo object.
+  # jsonlite can wrap nested list-columns in an extra list layer when rows are
+  # extracted with df[j,] — e.g. categoryOptionCombos comes back as
+  # list(df_of_12_cocs) instead of the data.frame directly.  We unwrap once.
+  .unwrap <- function(x) {
+    if (is.list(x) && !is.data.frame(x) && length(x) == 1L) x[[1L]] else x
+  }
+
   .get_coc_names <- function(cc) {
     if (is.null(cc)) return(character(0))
-    # isDefault may be a column or element
-    is_def <- tryCatch(isTRUE(cc$isDefault) || isTRUE(cc$isDefault[[1]]),
+    cc <- .unwrap(cc)   # remove list-column wrapping on categoryCombo itself
+    is_def <- tryCatch(isTRUE(cc$isDefault) || isTRUE(cc$isDefault[[1L]]),
                        error = function(e) FALSE)
     if (is_def) return(character(0))
     cocs <- tryCatch(cc$categoryOptionCombos, error = function(e) NULL)
     if (is.null(cocs)) return(character(0))
-    if (is.data.frame(cocs)) return(cocs$displayName)
-    if (is.list(cocs)) return(vapply(cocs, function(x) x$displayName %||% "", character(1)))
+    cocs <- .unwrap(cocs)   # remove list-column wrapping on categoryOptionCombos
+    if (is.data.frame(cocs)) return(as.character(cocs$displayName))
+    if (is.list(cocs)) return(vapply(cocs, function(x) {
+      nm <- x$displayName
+      if (is.character(nm) && length(nm) == 1L) nm else ""
+    }, character(1)))
     character(0)
   }
 
@@ -299,7 +310,13 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
       # jsonlite simplified it: dse$dataElement is a nested data.frame
       de_col <- tryCatch(dse$dataElement, error = function(e) NULL)
       if (is.data.frame(de_col)) {
-        return(lapply(seq_len(nrow(de_col)), function(i) as.list(de_col[i, ])))
+        return(lapply(seq_len(nrow(de_col)), function(i) {
+          list(
+            id            = de_col$id[i],
+            displayName   = de_col$displayName[i],
+            categoryCombo = de_col$categoryCombo[[i]]
+          )
+        }))
       }
     }
     if (is.list(dse)) {
@@ -330,7 +347,15 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
         sec_name  <- sections$displayName[i]
         sec_des   <- tryCatch(sections$dataElements[[i]], error = function(e) NULL)
         if (is.data.frame(sec_des) && nrow(sec_des) > 0) {
-          de_list <- lapply(seq_len(nrow(sec_des)), function(j) as.list(sec_des[j, ]))
+          # Use [[j]] on the list-column rather than as.list(df[j,]) to avoid
+          # an extra list-wrapping layer on nested columns like categoryCombo.
+          de_list <- lapply(seq_len(nrow(sec_des)), function(j) {
+            list(
+              id            = sec_des$id[j],
+              displayName   = sec_des$displayName[j],
+              categoryCombo = sec_des$categoryCombo[[j]]
+            )
+          })
         } else {
           de_list <- list()
         }
@@ -341,7 +366,13 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
         sec_name <- sec$displayName %||% ""
         sec_des  <- sec$dataElements
         if (is.data.frame(sec_des) && nrow(sec_des) > 0) {
-          de_list <- lapply(seq_len(nrow(sec_des)), function(j) as.list(sec_des[j, ]))
+          de_list <- lapply(seq_len(nrow(sec_des)), function(j) {
+            list(
+              id            = sec_des$id[j],
+              displayName   = sec_des$displayName[j],
+              categoryCombo = sec_des$categoryCombo[[j]]
+            )
+          })
         } else if (is.list(sec_des)) {
           de_list <- sec_des
         } else {
