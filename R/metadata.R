@@ -210,10 +210,10 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
 #     combo, the COC names become column headers.
 #   - If there are no sections, `dataSetElements` are used as a single table.
 .build_dhis2_form_html <- function(form_data, ds_name) {
-  esc <- function(x) gsub("&", "&amp;",
+  esc <- function(x) gsub('"', "&quot;",
           gsub("<", "&lt;",
           gsub(">", "&gt;",
-          gsub('"', "&quot;", as.character(x)))))
+          gsub("&", "&amp;", as.character(x)))))
 
   css <- paste0(
     "<style>",
