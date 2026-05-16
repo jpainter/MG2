@@ -314,7 +314,7 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
           list(
             id            = de_col$id[i],
             displayName   = de_col$displayName[i],
-            categoryCombo = de_col$categoryCombo[[i]]
+            categoryCombo = if ("categoryCombo" %in% names(de_col)) de_col$categoryCombo[[i]] else NULL
           )
         }))
       }
@@ -353,7 +353,7 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
             list(
               id            = sec_des$id[j],
               displayName   = sec_des$displayName[j],
-              categoryCombo = sec_des$categoryCombo[[j]]
+              categoryCombo = if ("categoryCombo" %in% names(sec_des)) sec_des$categoryCombo[[j]] else NULL
             )
           })
         } else {
@@ -370,7 +370,7 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
             list(
               id            = sec_des$id[j],
               displayName   = sec_des$displayName[j],
-              categoryCombo = sec_des$categoryCombo[[j]]
+              categoryCombo = if ("categoryCombo" %in% names(sec_des)) sec_des$categoryCombo[[j]] else NULL
             )
           })
         } else if (is.list(sec_des)) {
