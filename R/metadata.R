@@ -237,6 +237,15 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
     if (is.list(x) && !is.data.frame(x) && length(x) == 1L) x[[1L]] else x
   }
 
+  # Extract row i from a categoryCombo column.
+  # When jsonlite fully simplifies the API response, categoryCombo is stored as
+  # a nested data.frame (N rows × 3 cols: id, isDefault, categoryOptionCombos).
+  # [[i]] on a data.frame extracts column i (wrong); [i, drop=FALSE] gives row i.
+  # When it is a plain list-column, [[i]] is correct.
+  .get_cc_row <- function(col, i) {
+    if (is.data.frame(col)) col[i, , drop = FALSE] else col[[i]]
+  }
+
   .get_coc_names <- function(cc) {
     if (is.null(cc)) return(character(0))
     cc <- .unwrap(cc)   # remove list-column wrapping on categoryCombo itself
@@ -314,7 +323,7 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
           list(
             id            = de_col$id[i],
             displayName   = de_col$displayName[i],
-            categoryCombo = if ("categoryCombo" %in% names(de_col)) de_col$categoryCombo[[i]] else NULL
+            categoryCombo = if ("categoryCombo" %in% names(de_col)) .get_cc_row(de_col$categoryCombo, i) else NULL
           )
         }))
       }
@@ -347,13 +356,11 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
         sec_name  <- sections$displayName[i]
         sec_des   <- tryCatch(sections$dataElements[[i]], error = function(e) NULL)
         if (is.data.frame(sec_des) && nrow(sec_des) > 0) {
-          # Use [[j]] on the list-column rather than as.list(df[j,]) to avoid
-          # an extra list-wrapping layer on nested columns like categoryCombo.
           de_list <- lapply(seq_len(nrow(sec_des)), function(j) {
             list(
               id            = sec_des$id[j],
               displayName   = sec_des$displayName[j],
-              categoryCombo = if ("categoryCombo" %in% names(sec_des)) sec_des$categoryCombo[[j]] else NULL
+              categoryCombo = if ("categoryCombo" %in% names(sec_des)) .get_cc_row(sec_des$categoryCombo, j) else NULL
             )
           })
         } else {
@@ -370,7 +377,7 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
             list(
               id            = sec_des$id[j],
               displayName   = sec_des$displayName[j],
-              categoryCombo = if ("categoryCombo" %in% names(sec_des)) sec_des$categoryCombo[[j]] else NULL
+              categoryCombo = if ("categoryCombo" %in% names(sec_des)) .get_cc_row(sec_des$categoryCombo, j) else NULL
             )
           })
         } else if (is.list(sec_des)) {
