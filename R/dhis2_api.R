@@ -33,9 +33,9 @@ dhis2_get <- function(source_url, username = NULL, password = NULL, .print = FAL
   if (.print) message("Requesting: ", source_url)
 
   response <- if (!is.null(username) && nchar(username) > 0) {
-    httr::GET(source_url, httr::authenticate(username, password))
+    httr::GET(source_url, httr::authenticate(username, password), httr::timeout(300))
   } else {
-    httr::GET(source_url)
+    httr::GET(source_url, httr::timeout(300))
   }
 
   if (response$status_code != 200L) {
