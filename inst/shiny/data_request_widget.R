@@ -481,22 +481,34 @@ data_request_widget_server <- function(
 
           cat('\n saving formula.request as', saveAs)
 
+          .partial <- isTRUE(attr(x, "partial_download"))
+
           showModal(
             modalDialog(
-              title = "Finished downloading.  Now saving the raw data download",
+              title = if (.partial) "Download interrupted -- partial data saved" else "Finished downloading.  Now saving the raw data download",
               easyClose = TRUE,
               fade = FALSE,
-              size = 's',
-              footer = cat(
-                nrow(x),
-                'records downloaded.Of these, there was no value for',
-                sum(is.na(x$SUM)),
-                'records'
-              )
+              size = if (.partial) "m" else "s",
+              if (.partial) tagList(
+                tags$p(paste0(
+                  nrow(x), " records collected before the connection failed."
+                )),
+                tags$p(tags$b("Error: "), attr(x, "partial_message")),
+                tags$p(
+                  "The partial data has been saved. ",
+                  "To resume: select this file as your dataset, then re-run the download — ",
+                  "it will automatically fetch only the missing periods."
+                )
+              ),
+              footer = modalButton("OK")
             )
           )
 
           save_file(x, saveAs)
+          if (.partial) {
+            cat('\n* partial download saved — stopping early\n')
+            return()
+          }
           removeModal()
 
           # showModal(

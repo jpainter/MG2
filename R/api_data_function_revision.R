@@ -643,6 +643,7 @@ api_data = function(
       plan(sequential)
       cat('\n begining request for data')
       d = list()
+      fetch_error <- NULL
 
       withProgress(
         message = "Requesting data",
@@ -689,71 +690,89 @@ api_data = function(
 
             cat('\n - api_data for:', baseurl, username)
 
-            d.sum = fetch_get(
-              baseurl. = baseurl,
-              username = username,
-              password = password,
-              de. = pmap.df[i, 3],
-              periods. = pmap.df[i, 2],
-              orgUnits. = pmap.df[i, 1],
-              aggregationType. = "SUM",
-              childOnly = childOnly,
-              get.print = print
-            )
+            tryCatch({
+              # Retry up to 3 times on transient network errors
+              .fetch_attempt <- 0L
+              repeat {
+                .fetch_attempt <- .fetch_attempt + 1L
+                result <- tryCatch({
+                  d.sum <- fetch_get(
+                    baseurl. = baseurl,
+                    username = username,
+                    password = password,
+                    de. = pmap.df[i, 3],
+                    periods. = pmap.df[i, 2],
+                    orgUnits. = pmap.df[i, 1],
+                    aggregationType. = "SUM",
+                    childOnly = childOnly,
+                    get.print = print
+                  )
+                  "ok"
+                }, error = function(e) e)
 
-            # progress$set( value = i , detail = paste( "COUNT" , i ) )
-            # p( sprintf("requesting count for %d of %d", i , nrow( pmap.df ) ) )
-            # setProgress(
-            #   detail = sprintf("requesting COUNT for %d of %d", i , nrow( pmap.df ) )
-            #   )
-
-            if (!childOnly) {
-              d.count = fetch_get(
-                baseurl. = baseurl,
-                username = username,
-                password = password,
-                de. = pmap.df[i, 3],
-                periods. = pmap.df[i, 2],
-                orgUnits. = pmap.df[i, 1],
-                aggregationType. = "COUNT",
-                childOnly = childOnly,
-                get.print = print
-              )
-
-              # Join d.sum and d.count
-              # progress$set( detail = paste( "combining" , i ) )
-              # p( sprintf("combining %d", i ) )
-              # setProgress(
-              #   detail = sprintf("Combining SUM and COUNT for %d of %d", i , nrow( pmap.df ) )
-              #   )
-              #if elements have a period, then include categoryOptionCombo
-              #if elements have a category , then include categoryOptionCombo
-              if (any(str_detect(pmap.df[i, 3], fixed(".")))) {
-                .by = c(
-                  "dataElement",
-                  "period",
-                  "orgUnit",
-                  "categoryOptionCombo"
-                )
-              } else {
-                .by = c("dataElement", "period", "orgUnit")
+                if (identical(result, "ok")) break
+                if (.fetch_attempt >= 3L) stop(result)
+                cat('\n - transient error on request', i, '(attempt', .fetch_attempt, ') -- retrying in 5s...')
+                Sys.sleep(5)
               }
 
-              # Testing
-              cat("\n - ", i, "-joining sum and count downloads by", .by, "...")
+              if (!childOnly) {
+                .fetch_attempt <- 0L
+                repeat {
+                  .fetch_attempt <- .fetch_attempt + 1L
+                  result <- tryCatch({
+                    d.count <- fetch_get(
+                      baseurl. = baseurl,
+                      username = username,
+                      password = password,
+                      de. = pmap.df[i, 3],
+                      periods. = pmap.df[i, 2],
+                      orgUnits. = pmap.df[i, 1],
+                      aggregationType. = "COUNT",
+                      childOnly = childOnly,
+                      get.print = print
+                    )
+                    "ok"
+                  }, error = function(e) e)
 
-              d[[i]] = d.count %>%
-                rename(COUNT = value) %>%
-                full_join(
-                  d.sum %>% rename(SUM = value),
-                  # ,  by = c("dataElement", "dataElement.id", "Categories" , "categoryOptionCombo.ids", "period", "orgUnit", "orgUnitName" ,  "level" , "levelName")
-                  by = .by
-                )
-            } else {
-              d[[i]] = d.sum %>% rename(SUM = value) %>% mutate(COUNT = 1)
-            }
+                  if (identical(result, "ok")) break
+                  if (.fetch_attempt >= 3L) stop(result)
+                  cat('\n - transient error on COUNT request', i, '(attempt', .fetch_attempt, ') -- retrying in 5s...')
+                  Sys.sleep(5)
+                }
 
-            if (print && !all(is.na(d[[i]]$SUM))) cat(nrow(d[[i]]), 'records\n')
+                #if elements have a period, then include categoryOptionCombo
+                #if elements have a category , then include categoryOptionCombo
+                if (any(str_detect(pmap.df[i, 3], fixed(".")))) {
+                  .by = c(
+                    "dataElement",
+                    "period",
+                    "orgUnit",
+                    "categoryOptionCombo"
+                  )
+                } else {
+                  .by = c("dataElement", "period", "orgUnit")
+                }
+
+                cat("\n - ", i, "-joining sum and count downloads by", .by, "...")
+
+                d[[i]] = d.count %>%
+                  rename(COUNT = value) %>%
+                  full_join(
+                    d.sum %>% rename(SUM = value),
+                    by = .by
+                  )
+              } else {
+                d[[i]] = d.sum %>% rename(SUM = value) %>% mutate(COUNT = 1)
+              }
+
+              if (print && !all(is.na(d[[i]]$SUM))) cat(nrow(d[[i]]), 'records\n')
+            }, error = function(e) {
+              fetch_error <<- conditionMessage(e)
+              cat('\n - download error at request', i, 'of', nrow(pmap.df), ':', fetch_error)
+            })
+
+            if (!is.null(fetch_error)) break
 
             #Testing
             # saveRDS( d, "d.rds")
@@ -763,6 +782,13 @@ api_data = function(
       )
 
       # progress$close() # Close the progress bar
+
+      # Propagate partial-download flag for the caller to detect
+      if (!is.null(fetch_error)) {
+        d <- Filter(Negate(is.null), d)  # remove any NULL slots from skipped or errored iterations
+        if (length(d) == 0) stop(fetch_error)
+        cat('\n - partial download: returning', length(d), 'completed requests of', nrow(pmap.df))
+      }
     }
   } else {
     # Non shiny evalution:
@@ -872,6 +898,11 @@ api_data = function(
 
   cat('\n\n compiling requested data ')
   d = bind_rows(d)
+
+  if (exists("fetch_error") && !is.null(fetch_error)) {
+    attr(d, "partial_download") <- TRUE
+    attr(d, "partial_message") <- fetch_error
+  }
 
   # Testing
   # saveRDS( d, 'data_download.rds')

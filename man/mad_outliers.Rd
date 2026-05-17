@@ -9,7 +9,8 @@ mad_outliers(
   .total = NULL,
   .threshold = 50,
   key_entry_errors = NULL,
-  progress = TRUE
+  progress = TRUE,
+  .progress_fn = NULL
 )
 }
 \arguments{
