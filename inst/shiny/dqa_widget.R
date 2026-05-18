@@ -41,6 +41,8 @@ dqa_widget_ui = function(id) {
         mainPanel(
           width = 10,
 
+          uiOutput(ns("dqa_no_elements_hint")),
+
           tabsetPanel(
             type = "tabs",
 
@@ -278,20 +280,25 @@ dqa_widget_server <- function(
         setNames(as.list(choices), choices)
       }
 
-      # Populate checkboxGroupInput in either expanded or collapsed mode
+      # Populate checkboxGroupInput in either expanded or collapsed mode.
+      # When there are more than 5 primary elements, default to none selected
+      # so a large dataset doesn't silently trigger a long computation on load.
+      .dqa_max_auto_select <- 5L
+
       .update_dqa_checkbox <- function(choices, fe, collapsed, d) {
         map <- .dqa_element_map(choices, fe, d)
         dqa_elem_map_rv(map)
 
         if (!collapsed) {
-          roles <- .dqa_split_by_role(choices, fe)
+          roles  <- .dqa_split_by_role(choices, fe)
+          sel    <- if (length(roles$primary) > .dqa_max_auto_select) character(0) else roles$primary
           updateCheckboxGroupInput(
             session, "dqa_elements",
             choiceNames  = .dqa_choice_names(choices, roles$secondary),
             choiceValues = choices,
-            selected     = roles$primary
+            selected     = sel
           )
-          selected_dqa_elements$elements <- roles$primary
+          selected_dqa_elements$elements <- sel
         } else {
           elems     <- stringr::str_sort(names(map), numeric = TRUE)
           fe_roles  <- if (!is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe))
@@ -299,13 +306,14 @@ dqa_widget_server <- function(
           else character(0)
           sec_elems  <- elems[!is.na(fe_roles) & fe_roles == "secondary"]
           prim_elems <- setdiff(elems, sec_elems)
+          sel        <- if (length(prim_elems) > .dqa_max_auto_select) character(0) else prim_elems
           updateCheckboxGroupInput(
             session, "dqa_elements",
             choiceNames  = .dqa_choice_names(elems, sec_elems),
             choiceValues = elems,
-            selected     = prim_elems
+            selected     = sel
           )
-          selected_dqa_elements$elements <- unique(unlist(map[prim_elems], use.names = FALSE))
+          selected_dqa_elements$elements <- unique(unlist(map[sel], use.names = FALSE))
         }
       }
 
@@ -352,18 +360,33 @@ dqa_widget_server <- function(
       # DQA data filtered to selected elements
       dqa_data = reactive({
         req(region_filtered_data1())
+        req(length(selected_dqa_elements$elements) > 0)
         d     <- region_filtered_data1()
         elems <- selected_dqa_elements$elements
-        if (!is.null(elems) && length(elems) > 0)
-          d <- d[d$data %in% elems, ]
+        d <- d[d$data %in% elems, ]
         d
+      })
+
+      output$dqa_no_elements_hint <- renderUI({
+        if (length(selected_dqa_elements$elements) > 0) return(NULL)
+        div(
+          style = paste0(
+            "background:#fff3cd; padding:10px 16px;",
+            " border-left:4px solid #ffc107; border-radius:3px; margin:10px 0;"
+          ),
+          tags$strong("No elements selected."),
+          " Select one or more elements in the sidebar and press ",
+          tags$strong("Update"), " to compute DQA."
+        )
       })
 
       # Existing DQA plots (now use dqa_data() so element filter applies) ####
 
       plotDqaReporting = reactive({
         cat('\n*  dqa_widget plotDqaReporting')
-        dqa_data() %>% dqaPercentReporting() %>% dqa_reporting_plot()
+        withProgress(message = "DQA: computing reporting completeness...", value = NULL, {
+          dqa_data() %>% dqaPercentReporting() %>% dqa_reporting_plot()
+        })
       })
 
       output$dqaReportingOutput <- renderPlot(res = 96, {
@@ -372,11 +395,13 @@ dqa_widget_server <- function(
 
       plotDqaNoError = reactive({
         cat('\n*  dqa_widget plotDqaNoError')
-        dqa_data() %>%
-          monthly.outlier.summary() %>%
-          yearly.outlier.summary() %>%
-          dqa_outliers %>%
-          yearly.outlier.summary_plot()
+        withProgress(message = "DQA: computing outlier summary...", value = NULL, {
+          dqa_data() %>%
+            monthly.outlier.summary() %>%
+            yearly.outlier.summary() %>%
+            dqa_outliers %>%
+            yearly.outlier.summary_plot()
+        })
       })
 
       output$dqaNoErrorsOutput <- renderPlot(res = 96, {
@@ -385,7 +410,9 @@ dqa_widget_server <- function(
 
       plotDqaMASE = reactive({
         cat('\n*  dqa_widget plotDqaMASE')
-        dqa_data() %>% dqa_mase %>% dqa_mase_plot
+        withProgress(message = "DQA: computing MASE stability...", value = NULL, {
+          dqa_data() %>% dqa_mase %>% dqa_mase_plot
+        })
       })
 
       output$dqaMaseOutput <- renderPlot(res = 96, {
@@ -398,6 +425,7 @@ dqa_widget_server <- function(
         if (!is.null(current_tab)) req(current_tab() == "DQA")
         req(region_filtered_data1())
         req(validationRules())
+        req(length(selected_dqa_elements$elements) > 0)
         cat('\n*  dqa_widget consistency_results')
 
         d     <- region_filtered_data1()
@@ -409,7 +437,9 @@ dqa_widget_server <- function(
           filter_ids <- unique(d$data.id[d$data %in% elems & !is.na(d$data.id)])
         }
 
-        dqa_consistency(d, validationRules(), filter_data_ids = filter_ids)
+        withProgress(message = "DQA: evaluating validation rules...", value = NULL, {
+          dqa_consistency(d, validationRules(), filter_data_ids = filter_ids)
+        })
       })
 
       output$consistency_status <- renderUI({
