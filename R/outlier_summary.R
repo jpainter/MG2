@@ -197,13 +197,13 @@ monthly.outlier.summary <- function(df.ts,
   if (.cat) cat("\n - totals for all data combined")
   errors_all <- errors_by_data |>
     dplyr::group_by(Month, Alg) |>
-    dplyr::summarise(dplyr::across(c(e, n.e), sum, na.rm = TRUE),
+    dplyr::summarise(dplyr::across(c(e, n.e), \(x) sum(x, na.rm = TRUE)),
                      .groups = "keep") |>
     dplyr::mutate(data = "All")
 
   totals_all <- data_totals |>
     dplyr::group_by(Month) |>
-    dplyr::summarise(dplyr::across(c(t, n.t), sum, na.rm = TRUE),
+    dplyr::summarise(dplyr::across(c(t, n.t), \(x) sum(x, na.rm = TRUE)),
                      .groups = "keep") |>
     dplyr::mutate(data = "All")
 
@@ -242,7 +242,7 @@ yearly.outlier.summary <- function(grand.data.error.totals, .cat = TRUE) {
     tibble::as_tibble() |>
     dplyr::filter(Alg %in% "Combined") |>
     dplyr::group_by(year, data) |>
-    dplyr::summarise(dplyr::across(c(e, n.e, t, n.t), sum, na.rm = TRUE),
+    dplyr::summarise(dplyr::across(c(e, n.e, t, n.t), \(x) sum(x, na.rm = TRUE)),
                      .groups = "drop") |>
     dplyr::mutate(pe = e / t, pn = n.e / n.t)
 }
