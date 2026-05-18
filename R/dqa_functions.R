@@ -498,6 +498,67 @@ dqa_reporting_plot <- function(data, text_size = 18) {
 }
 
 
+#' Compute Reporting Completeness per Year per Region
+#'
+#' Calls [mostFrequentReportingOUs()] for each calendar year and groups
+#' results by an org-unit hierarchy column (typically level 2 / province).
+#'
+#' @param dqa_data Processed dataset from `data_1()`.
+#' @param level_col Character. Name of the column that identifies the region
+#'   (e.g. `"Province (DPS)"`).  Must be a column in `dqa_data`.
+#' @param missing_reports Integer. Allowed missing months (default `0`).
+#' @param .progress Optional function `(i, n)` called after each year.
+#'
+#' @return A tibble with columns `Year`, `region_name`, `n_reporting`,
+#'   `n_total`, `pr` (proportion 0–1).
+#' @export
+dqa_reporting_by_region <- function(dqa_data, level_col,
+                                    missing_reports = 0L,
+                                    .progress = NULL) {
+  if (!level_col %in% names(dqa_data)) return(NULL)
+
+  # region lookup: orgUnit → region name
+  region_map <- dqa_data |>
+    tibble::as_tibble() |>
+    dplyr::distinct(orgUnit, region_name = .data[[level_col]])
+
+  # total distinct facilities per region (denominator is all-time, matching
+  # dqaPercentReporting which uses length(unique(dqa_data$orgUnit)))
+  n_by_region <- region_map |>
+    dplyr::filter(!is.na(region_name)) |>
+    dplyr::group_by(region_name) |>
+    dplyr::summarise(n_total = dplyr::n(), .groups = "drop")
+
+  # year windows (matches dqa_reporting(): last year end − 1 month)
+  year_ranges <- dqa_data |>
+    tibble::as_tibble() |>
+    dplyr::group_by(Year = as.integer(format(Month, "%Y"))) |>
+    dplyr::summarise(start = min(Month), end = max(Month), .groups = "drop") |>
+    dplyr::arrange(Year)
+  n <- nrow(year_ranges)
+  year_ranges$end[n] <- year_ranges$end[n] - 1L
+
+  purrr::map_df(seq_len(n), function(i) {
+    yr <- year_ranges$Year[i]
+    reporting_ous <- mostFrequentReportingOUs(
+      data            = dqa_data,
+      startingMonth   = year_ranges$start[i],
+      endingMonth     = year_ranges$end[i],
+      missing_reports = missing_reports
+    )
+    if (is.function(.progress)) .progress(i, n)
+
+    region_map |>
+      dplyr::filter(!is.na(region_name)) |>
+      dplyr::mutate(reporting = orgUnit %in% reporting_ous) |>
+      dplyr::group_by(region_name) |>
+      dplyr::summarise(n_reporting = sum(reporting), .groups = "drop") |>
+      dplyr::left_join(n_by_region, by = "region_name") |>
+      dplyr::mutate(Year = yr, pr = n_reporting / n_total)
+  })
+}
+
+
 # Outliers --------------------------------------------------------------------
 
 #' Summarise Yearly Outlier Flags from DQA Data

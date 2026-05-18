@@ -48,7 +48,21 @@ dqa_widget_ui = function(id) {
 
             tabPanel(
               "Reporting",
-              plotOutput(ns("dqaReportingOutput"), height = "75vh")
+              tabsetPanel(
+                type = "pills",
+                tabPanel(
+                  "Chart",
+                  plotOutput(ns("dqaReportingOutput"), height = "75vh")
+                ),
+                tabPanel(
+                  "Map",
+                  div(
+                    style = "padding: 6px 0 2px 0;",
+                    uiOutput(ns("dqa_map_year_ui"))
+                  ),
+                  leaflet::leafletOutput(ns("dqaReportingMap"), height = "72vh")
+                )
+              )
             ),
 
             tabPanel(
@@ -119,10 +133,11 @@ dqa_widget_server <- function(
       options(shiny.reactlog = FALSE)
       options(dplyr.summarise.inform = FALSE)
 
-      data.folder = reactive({ directory_widget_output$directory() })
-      indicator   = reactive({ data_widget_output$indicator() })
-      formulas    = reactive({ data_widget_output$formulas() })
+      data.folder  = reactive({ directory_widget_output$directory() })
+      indicator    = reactive({ data_widget_output$indicator() })
+      formulas     = reactive({ data_widget_output$formulas() })
       dataset.file = reactive({ data_widget_output$dataset.file() })
+      geoFeatures  = reactive({ metadata_widget_output$geoFeatures() })
 
       data1 = reactive({ data_widget_output$data1() })
 
@@ -443,6 +458,114 @@ dqa_widget_server <- function(
 
       output$dqaMaseOutput <- renderPlot(res = 96, {
         plotDqaMASE() + labs(caption = region_caption_text())
+      })
+
+      # Reporting Map ####
+
+      dqa_region_reporting = reactive({
+        req(dqa_data())
+        req(levelNames())
+        level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
+        req(level_col %in% names(dqa_data()))
+
+        withProgress(message = "DQA map: computing per-region reporting — year 1...", value = 0, {
+          dqa_reporting_by_region(
+            dqa_data(),
+            level_col       = level_col,
+            missing_reports = 0L,
+            .progress       = function(i, n) {
+              setProgress(
+                value   = i / n,
+                message = sprintf("DQA map: per-region reporting — year %d of %d", i, n)
+              )
+              tryCatch(httpuv::run_now(timeoutMs = 0L), error = function(e) NULL)
+            }
+          )
+        })
+      })
+
+      output$dqa_map_year_ui <- renderUI({
+        res <- dqa_region_reporting()
+        req(res)
+        years <- sort(unique(res$Year))
+        sliderInput(
+          ns("dqa_map_year"),
+          label   = NULL,
+          min     = min(years),
+          max     = max(years),
+          value   = max(years),
+          step    = 1L,
+          sep     = "",
+          width   = "60%",
+          animate = animationOptions(interval = 2000L, loop = FALSE)
+        )
+      })
+
+      output$dqaReportingMap <- leaflet::renderLeaflet({
+        req(dqa_region_reporting())
+        req(geoFeatures())
+
+        gf2  <- geoFeatures() |> dplyr::filter(level == 2L)
+        req(nrow(gf2) > 0)
+        bbox <- sf::st_bbox(gf2)
+
+        leaflet::leaflet() |>
+          leaflet::addTiles() |>
+          leaflet::fitBounds(
+            lng1 = unname(bbox["xmin"]), lat1 = unname(bbox["ymin"]),
+            lng2 = unname(bbox["xmax"]), lat2 = unname(bbox["ymax"])
+          )
+      })
+
+      observe({
+        req(dqa_region_reporting())
+        req(geoFeatures())
+        req(input$dqa_map_year)
+
+        yr       <- input$dqa_map_year
+        rep_yr   <- dqa_region_reporting() |> dplyr::filter(Year == yr)
+        gf2      <- geoFeatures() |>
+          dplyr::filter(level == 2L) |>
+          dplyr::left_join(rep_yr, by = c("name" = "region_name"))
+
+        pal <- leaflet::colorNumeric(
+          palette  = "RdYlGn",
+          domain   = c(0, 1),
+          na.color = "#cccccc"
+        )
+
+        leaflet::leafletProxy("dqaReportingMap", session = session) |>
+          leaflet::clearShapes() |>
+          leaflet::clearControls() |>
+          leaflet::addPolygons(
+            data             = gf2,
+            fillColor        = ~pal(pr),
+            fillOpacity      = 0.75,
+            color            = "white",
+            weight           = 1,
+            label            = ~paste0(
+              name, ": ",
+              dplyr::if_else(
+                is.na(pr),
+                "no data",
+                paste0(round(pr * 100, 1), "%")
+              )
+            ),
+            highlightOptions = leaflet::highlightOptions(
+              weight      = 2,
+              color       = "#444",
+              bringToFront = TRUE
+            )
+          ) |>
+          leaflet::addLegend(
+            pal       = pal,
+            values    = c(0, 1),
+            title     = paste0("% Reporting<br>", yr),
+            labFormat = leaflet::labelFormat(
+              suffix    = "%",
+              transform = function(x) round(x * 100)
+            )
+          )
       })
 
       # Consistency tab ####
