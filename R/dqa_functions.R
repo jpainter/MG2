@@ -529,21 +529,26 @@ dqa_reporting_by_region <- function(dqa_data, level_col,
     dplyr::group_by(region_name) |>
     dplyr::summarise(n_total = dplyr::n(), .groups = "drop")
 
-  # year windows (matches dqa_reporting(): last year end − 1 month)
-  year_ranges <- dqa_data |>
+  # Use IDENTICAL year windows to dqa_reporting() so chart and map are consistent:
+  # startingMonth = yearmonth("YYYYJan"), endingMonth = max(Month) per year,
+  # with the last year's end reduced by 1 month (partial year).
+  years_df    <- dqa_years(dqa_data)
+  startMonths <- tsibble::yearmonth(paste0(years_df$Year, "Jan"))
+  endMonths   <- dqa_data |>
     tibble::as_tibble() |>
-    dplyr::group_by(Year = as.integer(format(Month, "%Y"))) |>
-    dplyr::summarise(start = min(Month), end = max(Month), .groups = "drop") |>
-    dplyr::arrange(Year)
-  n <- nrow(year_ranges)
-  year_ranges$end[n] <- year_ranges$end[n] - 1L
+    dplyr::ungroup() |>
+    dplyr::group_by(year = as.integer(format(Month, "%Y"))) |>
+    dplyr::summarize(latest_month = max(Month), .groups = "drop") |>
+    dplyr::pull(latest_month)
+  endMonths[length(endMonths)] <- endMonths[length(endMonths)] - 1L
+  n <- length(startMonths)
 
   purrr::map_df(seq_len(n), function(i) {
-    yr <- year_ranges$Year[i]
+    yr <- years_df$Year[i]
     reporting_ous <- mostFrequentReportingOUs(
       data            = dqa_data,
-      startingMonth   = year_ranges$start[i],
-      endingMonth     = year_ranges$end[i],
+      startingMonth   = startMonths[i],
+      endingMonth     = endMonths[i],
       missing_reports = missing_reports
     )
     if (is.function(.progress)) .progress(i, n)
