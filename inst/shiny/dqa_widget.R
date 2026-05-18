@@ -48,17 +48,12 @@ dqa_widget_ui = function(id) {
 
             tabPanel(
               "Reporting",
-              plotOutput(ns("dqaReportingOutput"))
+              plotOutput(ns("dqaReportingOutput"), height = "75vh")
             ),
 
             tabPanel(
               "Outliers",
-              fluidPage(
-                fluidRow(
-                  style = "height:90vh;",
-                  plotOutput(ns("dqaNoErrorsOutput"))
-                )
-              )
+              plotOutput(ns("dqaNoErrorsOutput"), height = "75vh")
             ),
 
             tabPanel(
@@ -71,7 +66,7 @@ dqa_widget_ui = function(id) {
                   "Chart",
                   br(),
                   uiOutput(ns("consistency_status")),
-                  plotOutput(ns("dqaConsistencyChart"), height = "500px")
+                  plotOutput(ns("dqaConsistencyChart"), height = "70vh")
                 ),
 
                 tabPanel(
@@ -97,9 +92,7 @@ dqa_widget_ui = function(id) {
 
             tabPanel(
               "MASE",
-              fluidPage(
-                fluidRow(style = "height:100vh;", plotOutput(ns("dqaMaseOutput")))
-              )
+              plotOutput(ns("dqaMaseOutput"), height = "75vh")
             )
           )
         )
