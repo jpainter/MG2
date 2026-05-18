@@ -30,6 +30,24 @@ remotes::install_github("https://github.com/jpainter/MG2", dependencies = TRUE)
 
 ---
 
+## Data file storage
+
+MG2 saves processed datasets as **`.fst`** files when the [`fst`](https://www.fstpackage.org/) package is installed, falling back to **`.rds`** otherwise. FST is a binary columnar format that reads and writes 5–10× faster than compressed RDS — important when working with national-level datasets that can reach several hundred megabytes.
+
+`fst` is installed automatically with `dependencies = TRUE` (see above). To install it separately:
+
+```r
+install.packages("fst")
+```
+
+MG2 selects the format at runtime — no configuration needed. New downloads and processed files are saved with the `.fst` extension when `fst` is available.
+
+**Older `.rds` files continue to work.** The app detects the extension and reads either format transparently via `read_file()`. Files downloaded before `fst` was installed load without any changes.
+
+**Metadata files always remain `.rds`** — FST only handles flat data frames. The metadata objects (`metadata_*.rds`, `geoFeatures_*.rds`) contain spatial objects and nested lists that FST cannot serialize.
+
+---
+
 ## Getting started
 
 ```r
