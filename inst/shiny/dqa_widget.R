@@ -561,8 +561,8 @@ dqa_widget_server <- function(
       # The req(isTRUE(input$dqa_reporting_subtab == "Map")) guard inside
       # dqa_region_reporting() prevents the expensive computation from
       # running when the user is on the Chart sub-tab.
-      outputOptions(session, "dqaReportingMap",  suspendWhenHidden = FALSE)
-      outputOptions(session, "dqa_map_year_ui",  suspendWhenHidden = FALSE)
+      outputOptions(output, "dqaReportingMap",  suspendWhenHidden = FALSE)
+      outputOptions(output, "dqa_map_year_ui",  suspendWhenHidden = FALSE)
 
       # Consistency tab ####
 
