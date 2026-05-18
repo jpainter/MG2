@@ -388,9 +388,31 @@ dqa_widget_server <- function(
       plotDqaReporting = reactive({
         cat('\n*  dqa_widget plotDqaReporting')
         on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
-        dqa_data() %>%
-          dqaPercentReporting() %>%
-          dqa_reporting_plot()
+        withProgress(
+          message = "DQA: reporting completeness — year 1...",
+          value   = 0,
+          {
+            dqa_data() %>%
+              dqaPercentReporting(
+                .progress = function(i, n) {
+                  setProgress(
+                    value   = i / n,
+                    message = sprintf(
+                      "DQA: reporting completeness — year %d of %d", i, n
+                    )
+                  )
+                  # Force httpuv to flush queued WebSocket sends so the
+                  # browser receives the progress update before R blocks
+                  # again on the next year's computation.
+                  tryCatch(
+                    httpuv::run_now(timeoutMs = 0L),
+                    error = function(e) NULL
+                  )
+                }
+              ) %>%
+              dqa_reporting_plot()
+          }
+        )
       })
 
       output$dqaReportingOutput <- renderPlot(res = 96, {
