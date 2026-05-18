@@ -581,6 +581,7 @@ dqa_widget_server <- function(
 
       consistency_results = reactive({
         if (!is.null(current_tab)) req(current_tab() == "DQA")
+        req(is.null(input$dqa_tab) || input$dqa_tab == "Consistency")
         req(region_filtered_data1())
         req(validationRules())
         req(length(selected_dqa_elements$elements) > 0)
