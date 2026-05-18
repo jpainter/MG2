@@ -405,10 +405,8 @@ dqa_widget_server <- function(
       # Existing DQA plots (now use dqa_data() so element filter applies) ####
 
       plotDqaReporting = reactive({
-        req(isTRUE(input$dqa_tab == "Reporting"))
         cat('\n*  dqa_widget plotDqaReporting |', nrow(dqa_data()), 'rows |',
             length(selected_dqa_elements$elements), 'series')
-        on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
         withProgress(
           message = "DQA: reporting completeness — year 1...",
           value   = 0,
@@ -437,6 +435,7 @@ dqa_widget_server <- function(
       })
 
       output$dqaReportingOutput <- renderPlot(res = 96, {
+        on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
         plotDqaReporting() + labs(caption = region_caption_text())
       })
 
