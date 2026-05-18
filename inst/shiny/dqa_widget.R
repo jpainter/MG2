@@ -338,6 +338,16 @@ dqa_widget_server <- function(
         } else {
           selected_dqa_elements$elements <- input$dqa_elements
         }
+        # Show notification NOW — this observer flushes to the client before
+        # the blocking render fires, so the user sees the message during computation
+        if (length(selected_dqa_elements$elements) > 0)
+          showNotification(
+            "DQA: computing reporting completeness — please wait...",
+            id          = "dqa_reporting_computing",
+            type        = "message",
+            duration    = NULL,
+            closeButton = FALSE
+          )
       })
 
       observeEvent(input$select_all_dqa, {
@@ -384,24 +394,10 @@ dqa_widget_server <- function(
 
       plotDqaReporting = reactive({
         cat('\n*  dqa_widget plotDqaReporting')
-        withProgress(
-          message = "DQA: reporting completeness — year 1...",
-          value   = 0,
-          {
-            dqa_data() %>%
-              dqaPercentReporting(
-                .progress = function(i, n) {
-                  setProgress(
-                    value   = i / n,
-                    message = sprintf(
-                      "DQA: reporting completeness — year %d of %d", i, n
-                    )
-                  )
-                }
-              ) %>%
-              dqa_reporting_plot()
-          }
-        )
+        on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
+        dqa_data() %>%
+          dqaPercentReporting() %>%
+          dqa_reporting_plot()
       })
 
       output$dqaReportingOutput <- renderPlot(res = 96, {
