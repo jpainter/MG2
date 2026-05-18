@@ -216,8 +216,8 @@ monthly.outlier.summary <- function(df.ts,
     dplyr::mutate(
       pe    = e / t,
       pn    = n.e / n.t,
-      year  = lubridate::year(Month),
-      month = lubridate::month(Month)
+      year  = as.integer(format(Month, "%Y")),
+      month = as.integer(format(Month, "%m"))
     ) |>
     tsibble::as_tsibble(index = Month, key = c(data, Alg))
 

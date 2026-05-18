@@ -380,7 +380,7 @@ dqa_years <- function(dqa_data) {
   dqa_data |>
     tibble::as_tibble() |>
     dplyr::ungroup() |>
-    dplyr::count(Year = lubridate::year(Month)) |>
+    dplyr::count(Year = as.integer(format(Month, "%Y"))) |>
     dplyr::select(-n)
 }
 
@@ -404,7 +404,7 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
   endingMonth <- dqa_data |>
     tibble::as_tibble() |>
     dplyr::ungroup() |>
-    dplyr::group_by(year = lubridate::year(Month)) |>
+    dplyr::group_by(year = as.integer(format(Month, "%Y"))) |>
     dplyr::summarize(latest_month = max(Month), .groups = "drop") |>
     dplyr::pull(latest_month)
 
@@ -588,7 +588,7 @@ mase <- function(actual, predicted, step_size = 1) {
 #' @noRd
 mase_year <- function(dqa_data, .year) {
   d_all <- data.table::setDT(tibble::as_tibble(dqa_data))[
-    lubridate::year(Month) <= .year,
+    as.integer(format(Month, "%Y")) <= .year,
     .(
       expected = sum(expected, na.rm = TRUE),
       original = sum(original, na.rm = TRUE)

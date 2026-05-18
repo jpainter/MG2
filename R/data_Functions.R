@@ -2685,9 +2685,9 @@ yearly_summary_table <- function(
   # Detect whether the most recent year is partial (< 12 months of data).
   idx_sym     <- tsibble::index(data)
   idx_var     <- tsibble::index_var(data)
-  all_years   <- lubridate::year(data[[idx_var]])
+  all_years   <- as.integer(format(data[[idx_var]], "%Y"))
   last_year   <- max(all_years, na.rm = TRUE)
-  last_months <- sort(unique(lubridate::month(data[[idx_var]][all_years == last_year])))
+  last_months <- sort(unique(as.integer(format(data[[idx_var]][all_years == last_year], "%m"))))
   is_partial  <- length(last_months) < 12
 
   # Full-year totals for all years (used for all rows except the last when partial).
@@ -2695,7 +2695,7 @@ yearly_summary_table <- function(
   # (which is the tsibble index) don't trigger "Unsupported index type" errors.
   yearly_full <- data %>%
     dplyr::ungroup() %>%
-    tsibble::index_by(Year = lubridate::year(!!idx_sym)) %>%
+    tsibble::index_by(Year = as.integer(format(!!idx_sym, "%Y"))) %>%
     dplyr::summarise(
       Total        = sum(!!rlang::sym(value_col), na.rm = TRUE),
       months_count = dplyr::n(),
@@ -2711,8 +2711,8 @@ yearly_summary_table <- function(
     prior_partial_total <- data %>%
       tibble::as_tibble() %>%
       dplyr::filter(
-        lubridate::year(.data[[idx_var]])  == last_year - 1,
-        lubridate::month(.data[[idx_var]]) %in% last_months
+        as.integer(format(.data[[idx_var]], "%Y"))  == last_year - 1,
+        as.integer(format(.data[[idx_var]], "%m")) %in% last_months
       ) %>%
       dplyr::summarise(Total = sum(.data[[value_col]], na.rm = TRUE)) %>%
       dplyr::pull(Total)
