@@ -504,11 +504,14 @@ dqa_widget_server <- function(
           )
       })
 
-      # Populate drilldown rule selector from summary table
+      # Populate drilldown rule selector — exclude incomplete rules (missing elements)
       observeEvent(consistency_results(), {
         res <- consistency_results()
         if (is.null(res) || nrow(res) == 0) return()
-        rule_choices <- dplyr::distinct(res, rule_id, rule_name)
+        rule_choices <- res |>
+          dplyr::filter(!incomplete) |>
+          dplyr::distinct(rule_id, rule_name)
+        if (nrow(rule_choices) == 0) return()
         updateSelectInput(
           session, "consistency_rule_select",
           choices  = setNames(rule_choices$rule_id, rule_choices$rule_name),
