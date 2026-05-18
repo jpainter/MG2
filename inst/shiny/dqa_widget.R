@@ -510,59 +510,39 @@ dqa_widget_server <- function(
       })
 
       output$dqaReportingMap <- leaflet::renderLeaflet({
-        req(dqa_region_reporting())
+        res <- dqa_region_reporting()
+        req(res)
         req(geoFeatures())
 
-        gf2  <- geoFeatures() |> dplyr::filter(level == 2L)
+        # Use slider year if available; otherwise default to the most recent year
+        yr <- if (!is.null(input$dqa_map_year)) input$dqa_map_year else max(res$Year)
+
+        rep_yr <- res |> dplyr::filter(Year == yr)
+        gf2    <- geoFeatures() |>
+          dplyr::filter(level == 2L) |>
+          dplyr::left_join(rep_yr, by = c("name" = "region_name"))
         req(nrow(gf2) > 0)
+
+        pal  <- leaflet::colorNumeric("RdYlGn", domain = c(0, 1), na.color = "#cccccc")
         bbox <- sf::st_bbox(gf2)
 
-        leaflet::leaflet() |>
+        leaflet::leaflet(gf2) |>
           leaflet::addTiles() |>
           leaflet::fitBounds(
             lng1 = unname(bbox["xmin"]), lat1 = unname(bbox["ymin"]),
             lng2 = unname(bbox["xmax"]), lat2 = unname(bbox["ymax"])
-          )
-      })
-
-      observe({
-        req(dqa_region_reporting())
-        req(geoFeatures())
-        req(input$dqa_map_year)
-
-        yr       <- input$dqa_map_year
-        rep_yr   <- dqa_region_reporting() |> dplyr::filter(Year == yr)
-        gf2      <- geoFeatures() |>
-          dplyr::filter(level == 2L) |>
-          dplyr::left_join(rep_yr, by = c("name" = "region_name"))
-
-        pal <- leaflet::colorNumeric(
-          palette  = "RdYlGn",
-          domain   = c(0, 1),
-          na.color = "#cccccc"
-        )
-
-        leaflet::leafletProxy("dqaReportingMap", session = session) |>
-          leaflet::clearShapes() |>
-          leaflet::clearControls() |>
+          ) |>
           leaflet::addPolygons(
-            data             = gf2,
             fillColor        = ~pal(pr),
             fillOpacity      = 0.75,
             color            = "white",
             weight           = 1,
             label            = ~paste0(
               name, ": ",
-              dplyr::if_else(
-                is.na(pr),
-                "no data",
-                paste0(round(pr * 100, 1), "%")
-              )
+              dplyr::if_else(is.na(pr), "no data", paste0(round(pr * 100, 1), "%"))
             ),
             highlightOptions = leaflet::highlightOptions(
-              weight      = 2,
-              color       = "#444",
-              bringToFront = TRUE
+              weight = 2, color = "#444", bringToFront = TRUE
             )
           ) |>
           leaflet::addLegend(
