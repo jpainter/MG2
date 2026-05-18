@@ -441,9 +441,7 @@ dqa_widget_server <- function(
           filter_ids <- unique(d$data.id[d$data %in% elems & !is.na(d$data.id)])
         }
 
-        withProgress(message = "DQA: evaluating validation rules...", value = NULL, {
-          dqa_consistency(d, validationRules(), filter_data_ids = filter_ids)
-        })
+        dqa_consistency(d, validationRules(), filter_data_ids = filter_ids)
       })
 
       output$consistency_status <- renderUI({
@@ -465,8 +463,10 @@ dqa_widget_server <- function(
       })
 
       output$dqaConsistencyChart <- renderPlot(res = 96, {
-        res <- consistency_results()
-        dqa_consistency_plot(res) + labs(caption = region_caption_text())
+        withProgress(message = "DQA: evaluating validation rules...", value = NULL, {
+          res <- consistency_results()
+          dqa_consistency_plot(res) + labs(caption = region_caption_text())
+        })
       })
 
       output$consistency_summary_note <- renderUI({
