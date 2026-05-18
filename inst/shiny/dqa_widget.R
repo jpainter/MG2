@@ -556,6 +556,14 @@ dqa_widget_server <- function(
           )
       })
 
+      # Nested pill-tabs don't reliably unsuspend leaflet/UI outputs via
+      # Shiny's default JS tab events, so disable suspension for the map.
+      # The req(isTRUE(input$dqa_reporting_subtab == "Map")) guard inside
+      # dqa_region_reporting() prevents the expensive computation from
+      # running when the user is on the Chart sub-tab.
+      outputOptions(session, "dqaReportingMap",  suspendWhenHidden = FALSE)
+      outputOptions(session, "dqa_map_year_ui",  suspendWhenHidden = FALSE)
+
       # Consistency tab ####
 
       consistency_results = reactive({
