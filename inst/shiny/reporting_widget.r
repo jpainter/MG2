@@ -595,9 +595,10 @@ reporting_widget_server <- function(
           fe_cols  <- c("dataElement.id", "dataElement")
           if (!is.null(d) && all(req_cols %in% names(d)) &&
               !is.null(fe) && nrow(fe) > 0 && all(fe_cols %in% names(fe))) {
-            id_name <- as.data.frame(d)[, req_cols, drop = FALSE] %>%
-              dplyr::distinct() %>%
-              dplyr::filter(data %in% choices) %>%
+            id_name <- data.table::as.data.table(d)[
+                data %in% choices, .(data, data.id)
+              ] |>
+              unique() |>
               dplyr::mutate(dataElement.id = sub("_.*$", "", data.id))
             de_map  <- fe %>%
               dplyr::select(dataElement.id, dataElement) %>%
@@ -1153,15 +1154,11 @@ reporting_widget_server <- function(
       observeEvent(data1(), {
         if (nrow(data1()) > 0 && 'level' %in% names(data1())) {
           cat('\n* reporting_widget updating level2')
-          updateSelectInput(
-            session,
-            'level2',
-            choices = data1() %>%
-              pull(!!rlang::sym(levelNames()[2])) %>%
-              unique %>%
-              str_sort(),
-            selected = NULL
-          )
+          # Use data.table for fast unique extraction on large datasets
+          choices <- data.table::setDT(data1())[[levelNames()[2]]] |>
+            unique() |>
+            stringr::str_sort()
+          updateSelectInput(session, 'level2', choices = choices, selected = NULL)
         }
       })
 
