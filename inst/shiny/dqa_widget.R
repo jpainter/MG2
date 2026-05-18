@@ -384,9 +384,24 @@ dqa_widget_server <- function(
 
       plotDqaReporting = reactive({
         cat('\n*  dqa_widget plotDqaReporting')
-        withProgress(message = "DQA: computing reporting completeness...", value = NULL, {
-          dqa_data() %>% dqaPercentReporting() %>% dqa_reporting_plot()
-        })
+        withProgress(
+          message = "DQA: reporting completeness — year 1...",
+          value   = 0,
+          {
+            dqa_data() %>%
+              dqaPercentReporting(
+                .progress = function(i, n) {
+                  setProgress(
+                    value   = i / n,
+                    message = sprintf(
+                      "DQA: reporting completeness — year %d of %d", i, n
+                    )
+                  )
+                }
+              ) %>%
+              dqa_reporting_plot()
+          }
+        )
       })
 
       output$dqaReportingOutput <- renderPlot(res = 96, {

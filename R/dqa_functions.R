@@ -396,7 +396,7 @@ dqa_years <- function(dqa_data) {
 #' @return Numeric vector with count of consistently reporting facilities per year.
 #' @export
 dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
-                          .cat = FALSE, ...) {
+                          .cat = FALSE, .progress = NULL, ...) {
   startingMonth <- tsibble::yearmonth(
     paste0(dqa_years(dqa_data)$Year, "Jan")
   )
@@ -412,17 +412,19 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
 
   if (.cat) cat("\n *dqa_reporting - mostFrequentReportingOUs")
 
-  reportingOUS <- purrr::map(
-    seq_along(startingMonth),
-    ~ mostFrequentReportingOUs(
-      data           = dqa_data,
-      startingMonth  = startingMonth[.x],
-      endingMonth    = endingMonth[.x],
+  n_years      <- length(startingMonth)
+  reportingOUS <- vector("list", n_years)
+  for (i in seq_len(n_years)) {
+    reportingOUS[[i]] <- mostFrequentReportingOUs(
+      data            = dqa_data,
+      startingMonth   = startingMonth[i],
+      endingMonth     = endingMonth[i],
       missing_reports = missing_reports,
-      count.any      = count.any,
-      .cat           = FALSE
+      count.any       = count.any,
+      .cat            = FALSE
     )
-  )
+    if (is.function(.progress)) .progress(i, n_years)
+  }
 
   purrr::map_dbl(reportingOUS, length)
 }
@@ -436,13 +438,14 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
 #' @return A tibble with columns `Year`, `n_frequently_reporting`,
 #'   `n_facilities`, `pr`, `label`.
 #' @export
-dqaPercentReporting <- function(dqa_data, .cat = FALSE) {
+dqaPercentReporting <- function(dqa_data, .cat = FALSE, .progress = NULL) {
   if (.cat) cat('\n*  dqa_functions.R dqaPercentReporting')
 
   year <- dqa_years(dqa_data)
   if (.cat) cat('\n -  years:', paste(year$Year, collapse = ","))
 
-  n_frequently_reporting <- dqa_reporting(dqa_data, missing_reports = 0)
+  n_frequently_reporting <- dqa_reporting(dqa_data, missing_reports = 0,
+                                          .progress = .progress)
   n_facilities           <- length(unique(dqa_data$orgUnit))
   pr                     <- n_frequently_reporting / n_facilities
 
