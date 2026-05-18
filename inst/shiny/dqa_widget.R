@@ -489,7 +489,7 @@ dqa_widget_server <- function(
         req(res)
         years <- sort(unique(res$Year))
         sliderInput(
-          ns("dqa_map_year"),
+          session$ns("dqa_map_year"),
           label   = NULL,
           min     = min(years),
           max     = max(years),
