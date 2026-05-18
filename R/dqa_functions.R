@@ -77,7 +77,7 @@
 .vr_wide_data <- function(data) {
   period_col <- if ("Month" %in% names(data)) "Month" else "Week"
   dt <- data.table::as.data.table(data)
-  dt[, year_col := lubridate::year(get(period_col))]
+  dt[, year_col := as.integer(format(get(period_col), "%Y"))]
 
   # Only leaf-level rows; need orgUnit, period, year, data.id, original
   dt_leaf <- dt[effectiveLeaf == TRUE,
