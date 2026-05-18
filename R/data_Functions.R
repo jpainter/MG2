@@ -276,9 +276,8 @@ mostFrequentReportingOUs <- function(
   }
   .t0_mr <- proc.time()["elapsed"]
 
-  dt[, year := year(.SD[[1L]]), .SDcols = period]
+  dt[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = period]
   if (.cat) cat('\n - nrow(dt) after !is.na(original):', nrow(dt), '| unique orgUnits:', uniqueN(dt$orgUnit))
-  dt[, year := year(.SD[[1L]]), .SDcols = period]
 
   # distinct (year, orgUnit, period) tuples → count reported periods per org/year
   mr = unique(dt[, c('year', 'orgUnit', period), with = FALSE])[
@@ -295,7 +294,7 @@ mostFrequentReportingOUs <- function(
     dt
   ppy = unique(dt_periods[, period, with = FALSE])
   setnames(ppy, period, 'period_val')
-  ppy[, year := year(period_val)]
+  ppy[, year := as.integer(format(period_val, "%Y"))]
   periods_per_year = ppy[, .(max = .N), by = year]
   # max_years from selected-element denominator so count.any doesn't extend window
   max_years = uniqueN(periods_per_year$year)
