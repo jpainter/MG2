@@ -44,11 +44,13 @@ dqa_widget_ui = function(id) {
           uiOutput(ns("dqa_no_elements_hint")),
 
           tabsetPanel(
+            id   = ns("dqa_tab"),
             type = "tabs",
 
             tabPanel(
               "Reporting",
               tabsetPanel(
+                id   = ns("dqa_reporting_subtab"),
                 type = "pills",
                 tabPanel(
                   "Chart",
@@ -382,6 +384,8 @@ dqa_widget_server <- function(
         d     <- region_filtered_data1()
         elems <- selected_dqa_elements$elements
         d <- d[d$data %in% elems, ]
+        cat('\n* dqa_data: selected', length(elems), 'series |',
+            nrow(d), 'rows | elements:', paste(unique(elems), collapse = '; '))
         d
       })
 
@@ -401,7 +405,9 @@ dqa_widget_server <- function(
       # Existing DQA plots (now use dqa_data() so element filter applies) ####
 
       plotDqaReporting = reactive({
-        cat('\n*  dqa_widget plotDqaReporting')
+        req(is.null(input$dqa_tab) || input$dqa_tab == "Reporting")
+        cat('\n*  dqa_widget plotDqaReporting |', nrow(dqa_data()), 'rows |',
+            length(selected_dqa_elements$elements), 'series')
         on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
         withProgress(
           message = "DQA: reporting completeness — year 1...",
@@ -435,6 +441,7 @@ dqa_widget_server <- function(
       })
 
       plotDqaNoError = reactive({
+        req(is.null(input$dqa_tab) || input$dqa_tab == "Outliers")
         cat('\n*  dqa_widget plotDqaNoError')
         withProgress(message = "DQA: computing outlier summary...", value = NULL, {
           dqa_data() %>%
@@ -450,6 +457,7 @@ dqa_widget_server <- function(
       })
 
       plotDqaMASE = reactive({
+        req(is.null(input$dqa_tab) || input$dqa_tab == "MASE")
         cat('\n*  dqa_widget plotDqaMASE')
         withProgress(message = "DQA: computing MASE stability...", value = NULL, {
           dqa_data() %>% dqa_mase %>% dqa_mase_plot
@@ -463,6 +471,7 @@ dqa_widget_server <- function(
       # Reporting Map ####
 
       dqa_region_reporting = reactive({
+        req(isTRUE(input$dqa_reporting_subtab == "Map"))
         req(dqa_data())
         req(levelNames())
         level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
