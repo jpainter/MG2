@@ -312,24 +312,36 @@ formula_widget_server <- function(
         )
       })
 
-      # Clear the review table immediately when the formula name changes,
-      # before formula_elements() repopulates it from the file.
+      # Clear the review table when the formula name changes, before formula_elements()
+      # repopulates it from the file.  Priority = 10 ensures this observer runs BEFORE
+      # the formula_elements observer (priority = 0), regardless of FIFO/LIFO scheduling.
       observeEvent(formulaName(), {
         cat('\n* formulaName changed — clearing review table')
-        updated_formula_elements$df <- dataElementDictionary()[0, ]
-      }, ignoreInit = TRUE, ignoreNULL = FALSE)
+        dict <- tryCatch(dataElementDictionary(), error = function(e) NULL)
+        updated_formula_elements$df <- if (!is.null(dict)) dict[0, ] else tibble::tibble()
+      }, ignoreInit = TRUE, ignoreNULL = FALSE, priority = 10)
 
       observeEvent(formula_elements(), {
         cat("\n* updated_formula_elements = formula_elements()")
 
-        if (nrow(formula_elements()) == 0) {
+        fe <- formula_elements()
+        if (nrow(fe) == 0) {
           cat("\n - formula_elements() is empty")
-          updated_formula_elements$df = dataElementDictionary()[0, ]
+          dict <- tryCatch(dataElementDictionary(), error = function(e) NULL)
+          updated_formula_elements$df = if (!is.null(dict)) dict[0, ] else tibble::tibble()
+          nm <- tryCatch(formulaName(), error = function(e) NULL)
+          if (!is.null(nm) && nzchar(trimws(nm))) {
+            showNotification(
+              paste0("No saved elements found for formula '", nm,
+                     "'. Use the 'Select' tab to add elements, then save."),
+              type = "warning",
+              duration = 8
+            )
+          }
         } else {
           cat("\n - setting formula_elements()")
-          df <- formula_elements()
-          if (!"role" %in% names(df)) df[["role"]] <- "primary"
-          updated_formula_elements$df = df
+          if (!"role" %in% names(fe)) fe[["role"]] <- "primary"
+          updated_formula_elements$df = fe
         }
       })
 
@@ -373,8 +385,8 @@ formula_widget_server <- function(
           df <- df %>%
             dplyr::group_by(dplyr::across(dplyr::all_of(collapse_cols))) %>%
             dplyr::summarise(
-              Categories              = paste(trimws(Categories), collapse = " ;\n "),
-              categoryOptionCombo.ids = paste(trimws(categoryOptionCombo.ids), collapse = " ;\n "),
+              Categories              = paste(trimws(Categories), collapse = " ; "),
+              categoryOptionCombo.ids = paste(trimws(categoryOptionCombo.ids), collapse = " ; "),
               n_categoryOptions       = dplyr::n(),
               .groups = "drop"
             )
@@ -463,7 +475,24 @@ formula_widget_server <- function(
             display_df
           })
 
+          # Reorder: dataElement + Categories together near front; push ID columns to right
+          if (all(c("dataElement", "Categories") %in% names(display_df))) {
+            front_cols   <- intersect(c("Rows in dataset", "role", "dataElement", "Categories"), names(display_df))
+            back_id_cols <- intersect(c("dataElement.id", "categoryOptionCombo.ids"), names(display_df))
+            mid_cols     <- setdiff(names(display_df), c(front_cols, back_id_cols))
+            display_df   <- dplyr::select(display_df,
+              dplyr::all_of(front_cols),
+              dplyr::all_of(mid_cols),
+              dplyr::all_of(back_id_cols)
+            )
+          }
+
           role_col_idx <- if ("role" %in% names(display_df)) which(names(display_df) == "role") - 1L else NULL
+          cat_col_idx  <- if ("Categories" %in% names(display_df)) which(names(display_df) == "Categories") - 1L else NULL
+
+          col_defs <- list()
+          if (!is.null(cat_col_idx))
+            col_defs <- c(col_defs, list(list(width = "220px", targets = cat_col_idx)))
 
           dt <- DT::datatable(
             display_df,
@@ -480,7 +509,8 @@ formula_widget_server <- function(
               paging = FALSE,
               searching = TRUE,
               info = TRUE,
-              dom = 'it'
+              dom = 'it',
+              columnDefs = if (length(col_defs) > 0) col_defs else NULL
             )
           )
           # Colour-code the role column
@@ -836,6 +866,27 @@ formula_widget_server <- function(
         }
         req(formulaFile())
 
+        # Guard: warn if saving would write 0 elements (prevents accidental data loss)
+        if (nrow(updated_formula_elements$df) == 0) {
+          showModal(modalDialog(
+            title = "No elements to save",
+            tags$p(paste0("Formula '", formulaName(), "' currently has no elements.")),
+            tags$p(
+              "Saving now will ", tags$strong("remove all existing elements"),
+              " for this formula from the file.",
+              style = "color:#c0392b;"
+            ),
+            tags$p("Use the 'Select' tab to add elements before saving."),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("save_empty_confirm"), "Save Anyway (clear elements)", class = "btn-danger btn-sm")
+            ),
+            easyClose = TRUE,
+            fade = FALSE
+          ))
+          return()
+        }
+
         target <- formulaFile()
 
         if (file.exists(target)) {
@@ -859,6 +910,27 @@ formula_widget_server <- function(
           ))
         } else {
           # New file — save immediately with the dated default name
+          perform_save(target)
+        }
+      })
+
+      observeEvent(input$save_empty_confirm, {
+        removeModal()
+        req(formulaFile())
+        target <- formulaFile()
+        if (file.exists(target)) {
+          pending_save_path(target)
+          showModal(modalDialog(
+            title = "Save Empty Formula",
+            tags$p("Save to the current file or start a new file?"),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("save_new_file"),  "Save to New File",    class = "btn-default"),
+              actionButton(ns("save_same_file"), "Add to Current File", class = "btn-primary")
+            ),
+            easyClose = TRUE, fade = FALSE
+          ))
+        } else {
           perform_save(target)
         }
       })
