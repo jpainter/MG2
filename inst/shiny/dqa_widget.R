@@ -59,10 +59,14 @@ dqa_widget_ui = function(id) {
                 tabPanel(
                   "Map",
                   div(
-                    style = "padding: 6px 0 2px 0;",
-                    uiOutput(ns("dqa_map_year_ui"))
+                    style = "padding: 8px 0 4px 0;",
+                    fluidRow(
+                      column(3, actionButton(ns("run_dqa_map_btn"), "Compute Map",
+                                            class = "btn-info btn-sm", icon = icon("play"))),
+                      column(9, uiOutput(ns("dqa_map_year_ui")))
+                    )
                   ),
-                  leaflet::leafletOutput(ns("dqaReportingMap"), height = "72vh")
+                  leaflet::leafletOutput(ns("dqaReportingMap"), height = "70vh")
                 )
               )
             ),
@@ -81,6 +85,9 @@ dqa_widget_ui = function(id) {
                 tabPanel(
                   "Chart",
                   br(),
+                  actionButton(ns("run_consistency_btn"), "Compute Consistency",
+                               class = "btn-primary btn-sm", icon = icon("play")),
+                  br(), br(),
                   uiOutput(ns("consistency_status")),
                   plotOutput(ns("dqaConsistencyChart"), height = "70vh")
                 ),
@@ -440,7 +447,6 @@ dqa_widget_server <- function(
       })
 
       plotDqaNoError = reactive({
-        req(isTRUE(input$dqa_tab == "Outliers"))
         cat('\n*  dqa_widget plotDqaNoError')
         withProgress(message = "DQA: computing outlier summary...", value = NULL, {
           dqa_data() %>%
@@ -456,7 +462,6 @@ dqa_widget_server <- function(
       })
 
       plotDqaMASE = reactive({
-        req(isTRUE(input$dqa_tab == "MASE"))
         cat('\n*  dqa_widget plotDqaMASE')
         withProgress(message = "DQA: computing MASE stability...", value = NULL, {
           dqa_data() %>% dqa_mase %>% dqa_mase_plot
@@ -469,8 +474,7 @@ dqa_widget_server <- function(
 
       # Reporting Map ####
 
-      dqa_region_reporting = reactive({
-        req(isTRUE(input$dqa_reporting_subtab == "Map"))
+      dqa_region_reporting = eventReactive(input$run_dqa_map_btn, {
         req(dqa_data())
         req(levelNames())
         level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
@@ -556,19 +560,9 @@ dqa_widget_server <- function(
           )
       })
 
-      # Nested pill-tabs don't reliably unsuspend leaflet/UI outputs via
-      # Shiny's default JS tab events, so disable suspension for the map.
-      # The req(isTRUE(input$dqa_reporting_subtab == "Map")) guard inside
-      # dqa_region_reporting() prevents the expensive computation from
-      # running when the user is on the Chart sub-tab.
-      outputOptions(output, "dqaReportingMap",  suspendWhenHidden = FALSE)
-      outputOptions(output, "dqa_map_year_ui",  suspendWhenHidden = FALSE)
-
       # Consistency tab ####
 
-      consistency_results = reactive({
-        if (!is.null(current_tab)) req(current_tab() == "DQA")
-        req(isTRUE(input$dqa_tab == "Consistency"))
+      consistency_results = eventReactive(input$run_consistency_btn, {
         req(region_filtered_data1())
         req(validationRules())
         req(length(selected_dqa_elements$elements) > 0)
