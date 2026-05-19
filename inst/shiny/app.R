@@ -131,8 +131,16 @@ ui <- bslib::page_navbar(
     p("(Adjust screen layout and text size with Ctrl- or Ctrl+)"),
     p(paste0("MG2 package version ", utils::packageVersion("MG2"),
              local({
-               d <- tryCatch(utils::packageDescription("MG2")$Date, error = function(e) NULL)
-               if (!is.null(d) && nzchar(d)) paste0(" (", d, ")") else ""
+               # Prefer git commit date (works when running from source repo);
+               # fall back to DESCRIPTION Date field when installed without git.
+               git_date <- tryCatch(
+                 trimws(system2("git", c("log", "-1", "--format=%cd", "--date=short"),
+                                stdout = TRUE, stderr = FALSE)),
+                 error = function(e) character(0)
+               )
+               d <- if (length(git_date) == 1 && nzchar(git_date)) git_date
+                    else tryCatch(utils::packageDescription("MG2")$Date, error = function(e) NULL)
+               if (!is.null(d) && nzchar(d %||% "")) paste0(" (", d, ")") else ""
              })))
   ),
 
