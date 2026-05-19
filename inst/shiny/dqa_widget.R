@@ -460,13 +460,7 @@ dqa_widget_server <- function(
 
       # Reporting Map ####
 
-      observe({
-        cat('\n* dqa_tab =', input$dqa_tab,
-            '| dqa_reporting_subtab =', input$dqa_reporting_subtab)
-      })
-
       dqa_region_reporting = reactive({
-        req(isTRUE(input$dqa_reporting_subtab == "Map"))
         req(dqa_data())
         req(levelNames())
         level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
@@ -559,7 +553,6 @@ dqa_widget_server <- function(
 
       consistency_results = reactive({
         if (!is.null(current_tab)) req(current_tab() == "DQA")
-        req(isTRUE(input$dqa_tab == "Consistency"))
         req(region_filtered_data1())
         req(validationRules())
         req(length(selected_dqa_elements$elements) > 0)
@@ -598,6 +591,15 @@ dqa_widget_server <- function(
       output$dqaConsistencyChart <- renderPlot(res = 96, {
         withProgress(message = "DQA: evaluating validation rules...", value = NULL, {
           res <- consistency_results()
+          # Update rule selector here (lazy — only fires when Chart tab is visible)
+          rule_choices <- if (!is.null(res) && nrow(res) > 0)
+            res |> dplyr::filter(!incomplete) |> dplyr::distinct(rule_id, rule_name)
+          else
+            NULL
+          if (!is.null(rule_choices) && nrow(rule_choices) > 0)
+            updateSelectInput(session, "consistency_rule_select",
+              choices  = setNames(rule_choices$rule_id, rule_choices$rule_name),
+              selected = rule_choices$rule_id[1])
           dqa_consistency_plot(res) + labs(caption = region_caption_text())
         })
       })
@@ -637,22 +639,7 @@ dqa_widget_server <- function(
           )
       })
 
-      # Populate drilldown rule selector — exclude incomplete rules (missing elements)
-      observeEvent(consistency_results(), {
-        res <- consistency_results()
-        if (is.null(res) || nrow(res) == 0) return()
-        rule_choices <- res |>
-          dplyr::filter(!incomplete) |>
-          dplyr::distinct(rule_id, rule_name)
-        if (nrow(rule_choices) == 0) return()
-        updateSelectInput(
-          session, "consistency_rule_select",
-          choices  = setNames(rule_choices$rule_id, rule_choices$rule_name),
-          selected = rule_choices$rule_id[1]
-        )
-      })
-
-      # Also update when user clicks a row in summary table
+      # Update when user clicks a row in summary table
       observeEvent(input$dqaConsistencyTable_rows_selected, {
         tbl <- dqa_consistency_table(consistency_results())
         sel <- input$dqaConsistencyTable_rows_selected
