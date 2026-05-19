@@ -460,6 +460,11 @@ dqa_widget_server <- function(
 
       # Reporting Map ####
 
+      observe({
+        cat('\n* dqa_tab =', input$dqa_tab,
+            '| dqa_reporting_subtab =', input$dqa_reporting_subtab)
+      })
+
       dqa_region_reporting = reactive({
         req(isTRUE(input$dqa_reporting_subtab == "Map"))
         req(dqa_data())
