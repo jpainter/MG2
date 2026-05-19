@@ -43,63 +43,49 @@ dqa_widget_ui = function(id) {
 
           uiOutput(ns("dqa_no_elements_hint")),
 
-          tabsetPanel(
-            id   = ns("dqa_tab"),
-            type = "tabs",
+          bslib::navset_tab(
+            id = ns("dqa_tab"),
 
-            tabPanel(
+            bslib::nav_panel(
               "Reporting",
-              tabsetPanel(
-                id   = ns("dqa_reporting_subtab"),
-                type = "pills",
-                tabPanel(
+              bslib::navset_pill(
+                id = ns("dqa_reporting_subtab"),
+                bslib::nav_panel(
                   "Chart",
                   plotOutput(ns("dqaReportingOutput"), height = "75vh")
                 ),
-                tabPanel(
+                bslib::nav_panel(
                   "Map",
                   div(
-                    style = "padding: 8px 0 4px 0;",
-                    fluidRow(
-                      column(3, actionButton(ns("run_dqa_map_btn"), "Compute Map",
-                                            class = "btn-info btn-sm", icon = icon("play"))),
-                      column(9, uiOutput(ns("dqa_map_year_ui")))
-                    )
+                    style = "padding: 6px 0 2px 0;",
+                    uiOutput(ns("dqa_map_year_ui"))
                   ),
-                  leaflet::leafletOutput(ns("dqaReportingMap"), height = "70vh")
+                  leaflet::leafletOutput(ns("dqaReportingMap"), height = "72vh")
                 )
               )
             ),
 
-            tabPanel(
+            bslib::nav_panel(
               "Outliers",
               plotOutput(ns("dqaNoErrorsOutput"), height = "75vh")
             ),
 
-            tabPanel(
+            bslib::nav_panel(
               "Consistency",
-
-              tabsetPanel(
-                type = "tabs",
-
-                tabPanel(
+              bslib::navset_tab(
+                bslib::nav_panel(
                   "Chart",
                   br(),
-                  actionButton(ns("run_consistency_btn"), "Compute Consistency",
-                               class = "btn-primary btn-sm", icon = icon("play")),
-                  br(), br(),
                   uiOutput(ns("consistency_status")),
                   plotOutput(ns("dqaConsistencyChart"), height = "70vh")
                 ),
-
-                tabPanel(
+                bslib::nav_panel(
                   "Summary Table",
                   br(),
                   uiOutput(ns("consistency_summary_note")),
                   DT::DTOutput(ns("dqaConsistencyTable"))
                 ),
-
-                tabPanel(
+                bslib::nav_panel(
                   "Detail Drilldown",
                   br(),
                   selectInput(
@@ -113,7 +99,7 @@ dqa_widget_ui = function(id) {
               )
             ),
 
-            tabPanel(
+            bslib::nav_panel(
               "MASE",
               plotOutput(ns("dqaMaseOutput"), height = "75vh")
             )
@@ -474,7 +460,8 @@ dqa_widget_server <- function(
 
       # Reporting Map ####
 
-      dqa_region_reporting = eventReactive(input$run_dqa_map_btn, {
+      dqa_region_reporting = reactive({
+        req(isTRUE(input$dqa_reporting_subtab == "Map"))
         req(dqa_data())
         req(levelNames())
         level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
@@ -560,9 +547,14 @@ dqa_widget_server <- function(
           )
       })
 
+      outputOptions(output, "dqaReportingMap", suspendWhenHidden = FALSE)
+      outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = FALSE)
+
       # Consistency tab ####
 
-      consistency_results = eventReactive(input$run_consistency_btn, {
+      consistency_results = reactive({
+        if (!is.null(current_tab)) req(current_tab() == "DQA")
+        req(isTRUE(input$dqa_tab == "Consistency"))
         req(region_filtered_data1())
         req(validationRules())
         req(length(selected_dqa_elements$elements) > 0)
