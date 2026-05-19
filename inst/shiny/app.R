@@ -129,7 +129,11 @@ ui <- bslib::page_navbar(
       span("(Evaluation)", style = "color:blue")),
     br(),
     p("(Adjust screen layout and text size with Ctrl- or Ctrl+)"),
-    p(paste("MG2 package version", utils::packageVersion("MG2")))
+    p(paste0("MG2 package version ", utils::packageVersion("MG2"),
+             local({
+               d <- tryCatch(utils::packageDescription("MG2")$Date, error = function(e) NULL)
+               if (!is.null(d) && nzchar(d)) paste0(" (", d, ")") else ""
+             })))
   ),
 
   bslib::nav_panel(
