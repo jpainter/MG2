@@ -2122,10 +2122,16 @@ reporting_widget_server <- function(
           paste0(x, " ( n= ", comma(y), " )")
         }
 
-        # facet when selected > 0
+        # facet when selected > 0 and Selected column is present with values
+        # (aggregate_key marginalises Selected when it is not in the key formula,
+        # so the column may be absent or all-NA after aggregation)
         rous = reportingSelectedOUs()
 
-        if (isTRUE(input$facet_by == "Champion/Non-Champion") && length(rous) > 0) {
+        has_selected <- "Selected" %in% names(.d) &&
+          length(unique(na.omit(.d[["Selected"]]))) > 0
+
+        if (isTRUE(input$facet_by == "Champion/Non-Champion") && length(rous) > 0 &&
+            has_selected) {
           g = g +
             facet_wrap(
               vars(Selected),
