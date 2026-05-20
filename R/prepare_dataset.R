@@ -520,9 +520,13 @@ data_1 <- function(data,
 
   # Restore the yearmonth/yearweek S3 class that rbindlist may strip from the
   # index column (data.table concatenates raw doubles without preserving class).
+  # Must include "vctrs_vctr" in the class vector; without it as.double.yearmonth
+  # does not dispatch and as.numeric() returns the raw days value instead of months,
+  # which corrupts period reconstruction in the api_data() update path.
   if (idx_var %in% names(combined_dt)) {
-    idx_cls <- if (idx_var == "Month") "yearmonth" else "yearweek"
-    if (!inherits(combined_dt[[idx_var]], idx_cls)) {
+    idx_cls <- if (idx_var == "Month") c("yearmonth", "vctrs_vctr") else c("yearweek", "vctrs_vctr")
+    idx_base <- if (idx_var == "Month") "yearmonth" else "yearweek"
+    if (!inherits(combined_dt[[idx_var]], idx_base)) {
       data.table::set(combined_dt, j = idx_var,
                       value = structure(as.numeric(combined_dt[[idx_var]]),
                                         class = idx_cls))

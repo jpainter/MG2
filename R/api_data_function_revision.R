@@ -162,14 +162,18 @@ api_data = function(
             NA_character_
           ),
           period = if (idx_var == 'Month') {
-            # Direct integer arithmetic avoids depending on the yearmonth S3
-            # class being present (data.table::rbindlist strips custom classes).
-            # yearmonth stores months since January 1970, so month 660 = 2025-01.
-            ym_int <- as.integer(floor(as.numeric(idx_col)))
-            ifelse(is.na(ym_int), NA_character_,
-                   sprintf("%04d%02d",
-                           1970L + ym_int %/% 12L,
-                           ym_int %% 12L + 1L))
+            # Restore class if stripped (data.table operations can drop vctrs_vctr),
+            # then use as.Date() → format() to produce YYYYMM.  This avoids the
+            # fragile as.numeric() arithmetic which returns days (not months) when
+            # the vctrs_vctr class is absent, causing year-3583 period corruption.
+            safe_ym <- if (tsibble::is_yearmonth(idx_col)) idx_col else
+              structure(as.numeric(idx_col), class = c("yearmonth", "vctrs_vctr"))
+            dt_dates <- tryCatch(as.Date(safe_ym), error = function(e) {
+              # Fallback: arithmetic on unclassed value (plain numeric = days)
+              ym_int <- as.integer(floor(as.numeric(idx_col)))
+              as.Date(ym_int, origin = "1970-01-01")
+            })
+            ifelse(is.na(dt_dates), NA_character_, format(dt_dates, "%Y%m"))
           } else
             format(idx_col, "%YW%V"),
           COUNT = 1L,
