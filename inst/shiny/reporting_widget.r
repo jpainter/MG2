@@ -1029,7 +1029,7 @@ reporting_widget_server <- function(
         # Add year in-place on d()'s cached data.table — avoids a ~530ms full copy.
         # The year column persists in the cache across calls, which is safe and saves
         # recomputation when both orgunit.reports and orgunit.monthly.reports run.
-        if (!'year' %in% names(data)) data[, year := year(.SD[[1L]]), .SDcols = .period]
+        if (!'year' %in% names(data)) data[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = .period]
         o.r. = data
 
         # Use integer key for period to bypass vctrs dispatch in unique() —
@@ -1083,7 +1083,7 @@ reporting_widget_server <- function(
         }
 
         # Add year in-place — avoids ~530ms copy (same pattern as orgunit.reports).
-        if (!'year' %in% names(data)) data[, year := year(.SD[[1L]]), .SDcols = .period]
+        if (!'year' %in% names(data)) data[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = .period]
         o.m.r = data
         # %>%
         # mutate( year = factor( year ) )
