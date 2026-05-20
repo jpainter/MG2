@@ -1500,6 +1500,15 @@ aggData = function(
   if (is.null(group_by_cols)) {
     group_by_cols = groupByCols(period = dataPeriod(data))
   }
+
+  # Drop any group-by columns that don't exist in the data (e.g. when agg_level
+  # column isn't present at Federal level after a directory switch).
+  missing_cols <- setdiff(group_by_cols, names(data.total))
+  if (length(missing_cols) > 0) {
+    if (.cat) cat("\n - dropping missing group_by_cols:", missing_cols)
+    group_by_cols <- intersect(group_by_cols, names(data.total))
+  }
+
   # if ( "orgUnit" %in% group_by_cols ) group_by_cols = setdiff( group_by_cols , "orgUnit" )
 
   # Testing
