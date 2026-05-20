@@ -235,36 +235,31 @@ regions_widget_server <- function(
         return(levels)
       })
 
-      # Recursive function with cycle detection
+      # Build a parent->children lookup once, then BFS — O(n) vs O(n * depth)
       getDescendantsRecursive <- function(node, df, visited = character()) {
-        # If the node is already visited, return an empty vector to prevent cycles.
-        if (any(node %in% visited)) {
-          return(character(0))
-        }
-
-        # Mark the node as visited.
-        visited <- c(visited, node)
-
-        # Find direct children of the node.
+        lower_name   <- trimws(tolower(df$name))
         lower_parent <- trimws(tolower(df$parentName))
-        lower_node <- trimws(tolower(node))
 
-        children <- df$name[lower_parent %in% lower_node] %>% na.omit()
+        # Build lookup: parent name -> vector of child names (one pass)
+        children_of <- split(df$name, lower_parent)
 
-        # If no children, return an empty vector.
-        if (length(children) == 0) {
-          return(character(0))
+        # BFS over descendants
+        queue      <- trimws(tolower(node))
+        visited_lc <- character(0)
+        result     <- character(0)
+
+        while (length(queue) > 0) {
+          cur        <- queue[1]
+          queue      <- queue[-1]
+          if (cur %in% visited_lc) next
+          visited_lc <- c(visited_lc, cur)
+          kids <- children_of[[cur]]
+          if (length(kids) > 0) {
+            result <- c(result, kids)
+            queue  <- c(queue, trimws(tolower(kids)))
+          }
         }
-
-        # Recursively find descendants of each child, passing along the visited nodes.
-        allDescendants <- children
-        for (child in children) {
-          allDescendants <- c(
-            allDescendants,
-            getDescendantsRecursive(child, df, visited)
-          )
-        }
-        return(allDescendants)
+        return(result)
       }
 
       # OrgUnit Table ####

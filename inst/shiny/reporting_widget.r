@@ -2238,6 +2238,13 @@ reporting_widget_server <- function(
             sf::st_centroid()
         }
 
+        # Restrict to facilities present in avgValues, which is already filtered
+        # to the selected region via selected_data(). Without this, all facilities
+        # in the full geoFeatures dataset are shown and only the champion subset
+        # get labelled correctly — the rest appear as "Inconsistent".
+        facilities_sf <- facilities_sf %>%
+          filter(id %in% avgValues$orgUnit)
+
         champion_facilities = facilities_sf %>%
           mutate(
             champion = ifelse(
@@ -2412,48 +2419,99 @@ reporting_widget_server <- function(
 
         cat('\n - add markers')
 
-        # Scale radius by median value; floor at 4px so markers are always visible
-        radius_vals <- ifelse(
-          is.na(facilities$medianValue) | facilities$medianValue == 0,
+        # Helper: cluster icon JS — color/alpha encode by group, count in white text
+        cluster_icon_js <- function(r, g, b) {
+          JS(sprintf(
+            "function(cluster) {
+              var n = cluster.getChildCount();
+              var a = Math.min(0.30 + n / 150, 0.88);
+              var sz = n < 10 ? 34 : n < 100 ? 42 : 50;
+              return new L.DivIcon({
+                html: '<div style=\"background:rgba(%d,%d,%d,' + a + ');' +
+                  'border-radius:50%%;width:' + sz + 'px;height:' + sz + 'px;' +
+                  'display:flex;align-items:center;justify-content:center;' +
+                  'color:white;font-weight:bold;font-size:12px;\">' + n + '</div>',
+                className: '',
+                iconSize: new L.Point(sz, sz)
+              });
+            }", r, g, b
+          ))
+        }
+
+        champion_cluster_opts    <- markerClusterOptions(
+          maxClusterRadius = 40,
+          iconCreateFunction = cluster_icon_js(139, 0, 0)   # red4
+        )
+        nonchampion_cluster_opts <- markerClusterOptions(
+          maxClusterRadius = 40,
+          iconCreateFunction = cluster_icon_js(32, 32, 32)  # grey20
+        )
+
+        # Split into champion / non-champion for separate coloured cluster layers
+        champ    <- facilities %>% filter(champion == "Consistent Reporting (Champion)")
+        nonchamp <- facilities %>% filter(champion != "Consistent Reporting (Champion)")
+
+        mk_radius <- function(fac) ifelse(
+          is.na(fac$medianValue) | fac$medianValue == 0,
           4,
-          pmax(4, pmin(20, log1p(facilities$medianValue)))
+          pmax(4, pmin(20, log1p(fac$medianValue)))
         )
 
         # Cluster markers so the browser renders ~dozens of bubbles on load
         # rather than thousands of individual SVG circles (which crashes tabs
         # with large datasets like DRC).  Clusters expand automatically on zoom.
-        gf.map = base.map %>%
+        gf.map = base.map
 
-          addCircleMarkers(
-            lng            = sf::st_coordinates(facilities)[, 1],
-            lat            = sf::st_coordinates(facilities)[, 2],
-            group          = "Reporting",
-            radius         = radius_vals,
-            fillColor      = factpal(facilities$champion),
-            color          = factpal(facilities$champion),
-            stroke         = TRUE,
-            weight         = 1,
-            fillOpacity    = 0.8,
-            opacity        = 1,
-            label          = paste0(facilities$name, " (", facilities$champion, ")"),
-            clusterOptions = markerClusterOptions(maxClusterRadius = 40)
-          ) %>%
+        if (nrow(champ) > 0) {
+          gf.map = gf.map %>%
+            addCircleMarkers(
+              lng            = sf::st_coordinates(champ)[, 1],
+              lat            = sf::st_coordinates(champ)[, 2],
+              group          = "Champions",
+              radius         = mk_radius(champ),
+              fillColor      = "red4",
+              color          = "red4",
+              stroke         = TRUE,
+              weight         = 1,
+              fillOpacity    = 0.8,
+              opacity        = 1,
+              label          = paste0(champ$name, " (Champion)"),
+              clusterOptions = champion_cluster_opts
+            )
+        }
 
+        if (nrow(nonchamp) > 0) {
+          gf.map = gf.map %>%
+            addCircleMarkers(
+              lng            = sf::st_coordinates(nonchamp)[, 1],
+              lat            = sf::st_coordinates(nonchamp)[, 2],
+              group          = "Non-Champions",
+              radius         = mk_radius(nonchamp),
+              fillColor      = "grey20",
+              color          = "grey20",
+              stroke         = TRUE,
+              weight         = 1,
+              fillOpacity    = 0.8,
+              opacity        = 1,
+              label          = paste0(nonchamp$name, " (Non-Champion)"),
+              clusterOptions = nonchampion_cluster_opts
+            )
+        }
+
+        gf.map = gf.map %>%
           addLayersControl(
-            baseGroups = c("OpenStreetMap", "No Background"),
-            overlayGroups = c(admin.levels, "Reporting"),
+            baseGroups    = c("OpenStreetMap", "No Background"),
+            overlayGroups = c(admin.levels, "Champions", "Non-Champions"),
             options = layersControlOptions(collapsed = TRUE)
           )
-
-        # size legend with library(  leaflegend )
 
         cat('\n - add legend')
 
         gf.map = gf.map %>%
           addLegend(
             "bottomright",
-            values  = facilities$champion,
-            pal     = factpal,
+            colors  = c("red4", "grey20"),
+            labels  = c("Consistent Reporting (Champion)", "Inconsistent Reporting"),
             title   = 'Reporting Consistency',
             opacity = 0.8
           )
