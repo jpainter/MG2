@@ -116,10 +116,12 @@ read_file <- function(filename) {
 
     # FST stores yearmonth/yearweek as plain numeric — restore the S3 class
     # so downstream tsibble operations work correctly.
+    # Must include "vctrs_vctr" in the class vector; without it as.Date()
+    # falls through to as.Date.default and throws "do not know how to convert".
     if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth"))
-      df[["Month"]] <- structure(as.numeric(df[["Month"]]), class = "yearmonth")
+      df[["Month"]] <- structure(as.numeric(df[["Month"]]), class = c("yearmonth", "vctrs_vctr"))
     if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek"))
-      df[["Week"]] <- structure(as.numeric(df[["Week"]]), class = "yearweek")
+      df[["Week"]] <- structure(as.numeric(df[["Week"]]), class = c("yearweek", "vctrs_vctr"))
 
     # If this looks like a processed MG2 dataset (has orgUnit + data.id + index),
     # rebuild the tsibble so it behaves identically to one loaded from .rds.
