@@ -2419,32 +2419,40 @@ reporting_widget_server <- function(
 
         cat('\n - add markers')
 
-        # Helper: cluster icon JS — color/alpha encode by group, count in white text
+        # Helper: cluster icon JS
+        # - solid-color outer ring so the group is identifiable even at low counts
+        # - fill alpha scales with count (density encoding)
         cluster_icon_js <- function(r, g, b) {
           JS(sprintf(
             "function(cluster) {
               var n = cluster.getChildCount();
-              var a = Math.min(0.30 + n / 150, 0.88);
+              var a = Math.min(0.25 + n / 120, 0.85);
               var sz = n < 10 ? 34 : n < 100 ? 42 : 50;
               return new L.DivIcon({
-                html: '<div style=\"background:rgba(%d,%d,%d,' + a + ');' +
-                  'border-radius:50%%;width:' + sz + 'px;height:' + sz + 'px;' +
+                html: '<div style=\"' +
+                  'background:rgba(%d,%d,%d,' + a + ');' +
+                  'border:3px solid rgba(%d,%d,%d,1);' +
+                  'border-radius:50%%;' +
+                  'width:' + sz + 'px;height:' + sz + 'px;' +
+                  'box-sizing:border-box;' +
                   'display:flex;align-items:center;justify-content:center;' +
-                  'color:white;font-weight:bold;font-size:12px;\">' + n + '</div>',
+                  'color:white;font-weight:bold;font-size:12px;' +
+                  'text-shadow:0 0 3px rgba(0,0,0,0.8);' +
+                  '\">' + n + '</div>',
                 className: '',
                 iconSize: new L.Point(sz, sz)
               });
-            }", r, g, b
+            }", r, g, b, r, g, b
           ))
         }
 
         champion_cluster_opts    <- markerClusterOptions(
           maxClusterRadius = 40,
-          iconCreateFunction = cluster_icon_js(139, 0, 0)   # red4
+          iconCreateFunction = cluster_icon_js(139, 0, 0)   # red4  = #8B0000
         )
         nonchampion_cluster_opts <- markerClusterOptions(
           maxClusterRadius = 40,
-          iconCreateFunction = cluster_icon_js(32, 32, 32)  # grey20
+          iconCreateFunction = cluster_icon_js(32, 32, 32)  # grey20 = #202020
         )
 
         # Split into champion / non-champion for separate coloured cluster layers
@@ -2510,7 +2518,7 @@ reporting_widget_server <- function(
         gf.map = gf.map %>%
           addLegend(
             "bottomright",
-            colors  = c("red4", "grey20"),
+            colors  = c("#8B0000", "#333333"),
             labels  = c("Consistent Reporting (Champion)", "Inconsistent Reporting"),
             title   = 'Reporting Consistency',
             opacity = 0.8
