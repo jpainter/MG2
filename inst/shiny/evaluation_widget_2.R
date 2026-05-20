@@ -634,7 +634,7 @@ evaluation_widget_server <- function(
           filter(parent == input$agg_level) %>%
           pull(levelName)
         cat('\n - done:', x)
-        if (is.na(x)) {
+        if (length(x) == 0 || is.na(x)) {
           return(NULL)
         }
         return(x)
