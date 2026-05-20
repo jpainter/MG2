@@ -403,11 +403,18 @@ api_data = function(
     if (is_empty(level1.id) | !'level' %in% names(prev.data)) {
       message('\n aggregating data by month ')
 
+      # Include categoryOptionCombo in grouping when available so the comparison
+      # works correctly for disaggregated formulas.  When the formula changes
+      # (e.g. categories added), prev may lack categoryOptionCombo; the join
+      # falls back to by_cols_prev (the intersection) below.
+      grp_vars <- intersect(c("period", "dataElement", "categoryOptionCombo"),
+                            names(prev.data))
       prev = prev.data %>%
         as_tibble() %>%
         ungroup() %>%
-        group_by(period, dataElement) %>%
-        summarise(COUNT = n(), SUM = sum(as.numeric(SUM), na.rm = TRUE))
+        group_by(across(all_of(grp_vars))) %>%
+        summarise(COUNT = n(), SUM = sum(as.numeric(SUM), na.rm = TRUE),
+                  .groups = "drop")
     } else {
       prev = prev.data %>% filter(level == 1, period %in% period_vectors)
     }
@@ -418,6 +425,10 @@ api_data = function(
     } else {
       by_cols = c("dataElement", "period")
     }
+
+    # When the formula was extended (e.g. categories added), prev may not have
+    # all columns in by_cols.  Use the intersection so left_join does not error.
+    by_cols_prev <- intersect(by_cols, names(prev))
 
     # Testing
     # save( prev, current.values, current.counts, file =  'apiTesting.rda')
@@ -436,7 +447,7 @@ api_data = function(
           ) %>%
           select(-COUNT, -SUM),
 
-        by = by_cols
+        by = by_cols_prev
       ) %>%
       mutate(
         same = (current.count == prev.count) &
