@@ -546,8 +546,8 @@ dqa_widget_server <- function(
           )
       })
 
-      outputOptions(output, "dqaReportingMap", suspendWhenHidden = FALSE)
-      outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = FALSE)
+      outputOptions(output, "dqaReportingMap", suspendWhenHidden = TRUE)
+      outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = TRUE)
 
       # Consistency tab ####
 
