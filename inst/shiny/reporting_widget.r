@@ -382,11 +382,17 @@ reporting_widget_server <- function(
       # Flag: has the user visited the Reporting tab at least once?
       # selected_data() and reportingSelectedOUs() are expensive; this flag
       # keeps them dormant during initial data load.  Once TRUE it never goes
-      # back to FALSE, so it does NOT create a per-tab-switch invalidation loop.
+      # back to FALSE within a dataset session, so it does NOT create a
+      # per-tab-switch invalidation loop.
+      # Reset to FALSE on dataset file change so loading a new dataset does not
+      # immediately trigger expensive computations from a prior session visit.
       hasVisitedReporting = reactiveVal(FALSE)
       observeEvent(current_tab(), {
         if (isTRUE(current_tab() == "Reporting")) hasVisitedReporting(TRUE)
       }, ignoreInit = TRUE)
+      observeEvent(data_widget_output$dataset.file(), {
+        hasVisitedReporting(FALSE)
+      }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
       # see https://stackoverflow.com/questions/54438495/shift-legend-into-empty-facets-of-a-faceted-plot-in-ggplot2
       shift_legend3 <- function(p) {

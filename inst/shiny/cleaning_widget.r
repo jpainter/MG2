@@ -410,9 +410,12 @@ cleaning_widget_server <- function(
       # secondary) appear in the list.  selected_data() only contains elements
       # that were checked in the reporting widget, so using it here would hide
       # secondary elements entirely.
-      observeEvent(list(data1(), selected_data()), {
+      # NOTE: do NOT include selected_data() in the trigger — it is not used in
+      # the body and its presence forces the entire reporting computation chain
+      # to run eagerly whenever data loads.
+      observeEvent(data1(), {
         req(data1())
-        cat('\n* cleaning_widget observe data1() / selected_data()')
+        cat('\n* cleaning_widget observe data1()')
         choices <- stringr::str_sort(unique(data1()$data), numeric = TRUE)
         .update_cleaning_checkbox(choices, formula_elements(), isTRUE(input$collapse_cleaning),
                                   data1())
