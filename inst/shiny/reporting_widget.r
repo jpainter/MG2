@@ -2107,11 +2107,15 @@ reporting_widget_server <- function(
           dataSet_labels[dataSet_labels == ""] <- "Combined"
           g = g +
             scale_color_discrete(breaks = dataSet_breaks, labels = dataSet_labels, drop = TRUE) +
-            guides(color = guide_legend(title = "Dataset"))
+            guides(color = guide_legend(title = "Dataset", nrow = 3, byrow = TRUE))
         } else if (isTRUE(input$series_by == "Category")) {
-          g = g + guides(color = guide_legend(title = "Category", ncol = 1))
+          # Truncate long category names so the legend doesn't dominate;
+          # max 3 rows so entries spread across columns rather than stacking.
+          g = g +
+            scale_color_discrete(labels = function(x) stringr::str_trunc(x, 40)) +
+            guides(color = guide_legend(title = "Category", nrow = 3, byrow = TRUE))
         } else if (!input$split %in% 'None') {
-          g = g + guides(color = guide_legend(title = input$split))
+          g = g + guides(color = guide_legend(title = input$split, nrow = 3, byrow = TRUE))
         } else {
           g = g + guides(color = "none")
         }
@@ -2163,6 +2167,9 @@ reporting_widget_server <- function(
           theme_minimal() +
           theme(
             legend.position = "bottom",
+            legend.text     = element_text(size = 8),
+            legend.key.size = unit(0.35, "cm"),
+            legend.spacing.x = unit(0.2, "cm"),
             strip.text = element_text(size = 20) # facet label text size
           )
 
