@@ -2419,20 +2419,24 @@ reporting_widget_server <- function(
           pmax(4, pmin(20, log1p(facilities$medianValue)))
         )
 
+        # Cluster markers so the browser renders ~dozens of bubbles on load
+        # rather than thousands of individual SVG circles (which crashes tabs
+        # with large datasets like DRC).  Clusters expand automatically on zoom.
         gf.map = base.map %>%
 
           addCircleMarkers(
-            lng         = sf::st_coordinates(facilities)[, 1],
-            lat         = sf::st_coordinates(facilities)[, 2],
-            group       = "Reporting",
-            radius      = radius_vals,
-            fillColor   = factpal(facilities$champion),
-            color       = factpal(facilities$champion),
-            stroke      = TRUE,
-            weight      = 1,
-            fillOpacity = 0.8,
-            opacity     = 1,
-            label       = paste0(facilities$name, " (", facilities$champion, ")")
+            lng            = sf::st_coordinates(facilities)[, 1],
+            lat            = sf::st_coordinates(facilities)[, 2],
+            group          = "Reporting",
+            radius         = radius_vals,
+            fillColor      = factpal(facilities$champion),
+            color          = factpal(facilities$champion),
+            stroke         = TRUE,
+            weight         = 1,
+            fillOpacity    = 0.8,
+            opacity        = 1,
+            label          = paste0(facilities$name, " (", facilities$champion, ")"),
+            clusterOptions = markerClusterOptions(maxClusterRadius = 40)
           ) %>%
 
           addLayersControl(
