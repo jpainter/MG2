@@ -466,20 +466,16 @@ dqa_widget_server <- function(
         level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
         req(level_col %in% names(dqa_data()))
 
-        withProgress(message = "DQA map: computing per-region reporting — year 1...", value = 0, {
-          dqa_reporting_by_region(
-            dqa_data(),
-            level_col       = level_col,
-            missing_reports = 0L,
-            .progress       = function(i, n) {
-              setProgress(
-                value   = i / n,
-                message = sprintf("DQA map: per-region reporting — year %d of %d", i, n)
-              )
-              tryCatch(httpuv::run_now(timeoutMs = 0L), error = function(e) NULL)
-            }
-          )
-        })
+        notif_id <- showNotification("DQA map: computing per-region reporting…",
+                                     duration = NULL, type = "message", closeButton = FALSE)
+        on.exit(removeNotification(notif_id), add = TRUE)
+
+        dqa_reporting_by_region(
+          dqa_data(),
+          level_col       = level_col,
+          missing_reports = 0L,
+          .progress       = NULL
+        )
       })
 
       output$dqa_map_year_ui <- renderUI({
