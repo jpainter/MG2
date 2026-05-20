@@ -449,6 +449,11 @@ regions_widget_server <- function(
                       lng2 = unname(bbox["xmax"]), lat2 = unname(bbox["ymax"]))
         }
 
+        # Hide facility dots by default — skips initial draw of potentially
+        # tens of thousands of SVG circles, which is the main render bottleneck.
+        # User can re-enable via the layer control.
+        gf.map <- gf.map %>% hideGroup("Facility")
+
         return(gf.map)
       })
 
