@@ -4,7 +4,7 @@
 \alias{dqaPercentReporting}
 \title{Compute Percent of Facilities Consistently Reporting per Year}
 \usage{
-dqaPercentReporting(dqa_data, .cat = FALSE)
+dqaPercentReporting(dqa_data, .cat = FALSE, .progress = NULL)
 }
 \arguments{
 \item{dqa_data}{tsibble of prepared data.}

@@ -9,6 +9,7 @@ dqa_reporting(
   missing_reports = 0,
   count.any = TRUE,
   .cat = FALSE,
+  .progress = NULL,
   ...
 )
 }
