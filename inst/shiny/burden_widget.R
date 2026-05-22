@@ -203,12 +203,25 @@ burden_widget_ui <- function(id) {
               )
             ),
 
-            div(
-              style = "font-size:0.83em; color:#555; margin-bottom:4px;",
-              tags$em(
-                "\U0001F4CC Click a region to compare it with all others ",
-                "(red = higher burden, green = lower burden). ",
-                "Click again to return to standard view."
+            fluidRow(
+              column(6,
+                div(
+                  style = "font-size:0.83em; color:#555; padding-top:6px;",
+                  tags$em(
+                    "\U0001F4CC Click a region to compare it with all others. ",
+                    "Click again to reset."
+                  )
+                )
+              ),
+              column(6,
+                sliderInput(
+                  ns("sig_threshold"),
+                  label    = "Significance threshold:",
+                  min      = 0.80, max = 0.99,
+                  value    = 0.90, step = 0.01,
+                  width    = "100%",
+                  ticks    = FALSE
+                )
               )
             ),
 
@@ -969,115 +982,154 @@ burden_widget_server <- function(
       }
     })
 
-    # Idiopleth: redraw polygons colored by comparison to selected region
+    # Reset to standard choropleth when region is deselected
     observeEvent(selected_region(), {
+      req(is.null(selected_region()))
       gf2    <- isolate(map_gf2())
       method <- isolate(input$map_method)
       yr     <- isolate(input$map_year)
       cat_s  <- isolate(input$map_category)
       if (is.null(gf2)) return()
 
-      reg <- selected_region()
-
-      if (is.null(reg)) {
-        # Return to standard choropleth
-        pal <- leaflet::colorNumeric("YlOrRd",
-                                     domain = range(gf2$estimate, na.rm = TRUE),
-                                     na.color = "#cccccc")
-        leaflet::leafletProxy(ns("burden_map"), data = gf2) |>
-          leaflet::removeControl("legend_comparison") |>
-          leaflet::addLegend(
-            pal       = pal,
-            values    = ~estimate,
-            title     = paste0("Method ", method, "<br>", cat_s, "<br>", yr),
-            layerId   = "legend_standard",
-            labFormat = leaflet::labelFormat(
-              transform = function(x) formatC(as.integer(x), format = "d", big.mark = ",")
-            )
-          ) |>
-          leaflet::addPolygons(
-            fillColor   = ~pal(estimate),
-            fillOpacity = 0.75,
-            color       = "white",
-            weight      = 1,
-            layerId     = ~name,
-            label       = ~paste0(
-              name, ": ",
-              dplyr::if_else(is.na(estimate), "no data",
-                             format_burden_estimate(estimate, lower, upper))
-            ),
-            highlightOptions = leaflet::highlightOptions(
-              weight = 2, color = "#666", bringToFront = TRUE
-            )
-          )
-        return()
-      }
-
-      # Compute idiopleth comparison values: other - selected
-      ref_val <- gf2$estimate[gf2$name == reg]
-      if (length(ref_val) == 0 || is.na(ref_val[1])) return()
-      ref_val <- ref_val[1]
-
-      gf2$comparison <- gf2$estimate - ref_val
-
-      # Symmetric domain for diverging palette
-      max_abs <- max(abs(gf2$comparison), na.rm = TRUE)
-      if (max_abs == 0) max_abs <- 1
-      sym_domain <- c(-max_abs, max_abs)
-
-      cmp_pal <- leaflet::colorNumeric(
-        palette   = c("#1a9641", "#ffffbf", "#d7191c"),
-        domain    = sym_domain,
-        na.color  = "#cccccc"
-      )
-
+      pal <- leaflet::colorNumeric("YlOrRd",
+                                   domain = range(gf2$estimate, na.rm = TRUE),
+                                   na.color = "#cccccc")
       leaflet::leafletProxy(ns("burden_map"), data = gf2) |>
-        leaflet::removeControl("legend_standard") |>
+        leaflet::removeControl("legend_comparison") |>
         leaflet::addLegend(
-          pal     = cmp_pal,
-          values  = sym_domain,
-          title   = paste0("vs. ", reg, "<br><small>red = higher burden</small>"),
-          layerId = "legend_comparison",
+          pal     = pal, values = ~estimate,
+          title   = paste0("Method ", method, "<br>", cat_s, "<br>", yr),
+          layerId = "legend_standard",
           labFormat = leaflet::labelFormat(
             transform = function(x) formatC(as.integer(x), format = "d", big.mark = ",")
           )
         ) |>
         leaflet::addPolygons(
-          fillColor   = ~cmp_pal(comparison),
+          fillColor   = ~pal(estimate), fillOpacity = 0.75,
+          color = "white", weight = 1, layerId = ~name,
+          label = ~paste0(name, ": ",
+            dplyr::if_else(is.na(estimate), "no data",
+                           format_burden_estimate(estimate, lower, upper))),
+          highlightOptions = leaflet::highlightOptions(
+            weight = 2, color = "#666", bringToFront = TRUE)
+        )
+    })
+
+    # Idiopleth: significance-based comparison coloring.
+    # Reacts to both region selection AND threshold slider.
+    observe({
+      reg       <- selected_region()
+      threshold <- input$sig_threshold
+      req(!is.null(reg), !is.null(threshold))
+
+      gf2    <- isolate(map_gf2())
+      method <- isolate(input$map_method)
+      yr     <- isolate(input$map_year)
+      cat_s  <- isolate(input$map_category)
+      if (is.null(gf2)) return()
+
+      ref_row <- gf2[gf2$name == reg, ]
+      if (nrow(ref_row) == 0 || is.na(ref_row$estimate[1])) return()
+
+      ref_est   <- ref_row$estimate[1]
+      ref_lower <- ref_row$lower[1]
+      ref_upper <- ref_row$upper[1]
+
+      # ── Significance via Gaussian approximation ─────────────────────────
+      # SE approximated from 95% CI width (2.5th / 97.5th percentiles).
+      # P(region_i > reference) computed as P(Z > 0) for Z ~ N(diff, se_diff²).
+      z975    <- stats::qnorm(0.975)
+      se_ref  <- (ref_upper  - ref_lower)  / (2 * z975)
+      gf2$se  <- (gf2$upper  - gf2$lower)  / (2 * z975)
+      gf2$se  <- pmax(gf2$se, 1)           # floor: avoid division by zero
+      se_ref  <- max(se_ref, 1)
+
+      gf2$diff     <- gf2$estimate - ref_est
+      gf2$se_diff  <- sqrt(gf2$se^2 + se_ref^2)
+      gf2$p_higher <- stats::pnorm(gf2$diff / gf2$se_diff)
+
+      # ── Three-category significance classification ───────────────────────
+      gf2$sig_cat <- dplyr::case_when(
+        is.na(gf2$p_higher)              ~ "No data",
+        gf2$name == reg                  ~ "Reference",
+        gf2$p_higher >  threshold        ~ "Significantly higher",
+        gf2$p_higher < (1 - threshold)   ~ "Significantly lower",
+        TRUE                             ~ "Not significantly different"
+      )
+
+      sig_levels <- c("Significantly higher", "Not significantly different",
+                      "Significantly lower",  "Reference", "No data")
+      sig_colors <- c("#d73027", "#d9d9d9", "#1a9641", "#ffffff", "#cccccc")
+
+      cat_pal <- leaflet::colorFactor(
+        palette = sig_colors,
+        levels  = sig_levels,
+        na.color = "#cccccc"
+      )
+
+      # ── Labels ───────────────────────────────────────────────────────────
+      fmt_label <- function(nm, est, lo, hi, diff, p, is_ref) {
+        if (is.na(est)) return(paste0(nm, ": no data"))
+        base <- format_burden_estimate(as.integer(est), as.integer(lo), as.integer(hi))
+        if (is_ref) return(paste0(nm, ": ", base, " (reference)"))
+        sign_str  <- ifelse(diff >= 0, "+", "")
+        diff_str  <- formatC(as.integer(diff), format = "d", big.mark = ",")
+        p_str     <- formatC(round(p, 2), format = "f", digits = 2)
+        paste0(nm, ": ", base,
+               " — ", ifelse(p > threshold, "significantly higher",
+                           ifelse(p < 1 - threshold, "significantly lower",
+                                  "not significantly different")),
+               " (", sign_str, diff_str, "; p=", p_str, ")")
+      }
+
+      labels <- mapply(fmt_label,
+        nm     = gf2$name,
+        est    = gf2$estimate,
+        lo     = gf2$lower,
+        hi     = gf2$upper,
+        diff   = gf2$diff,
+        p      = gf2$p_higher,
+        is_ref = gf2$name == reg,
+        SIMPLIFY = TRUE, USE.NAMES = FALSE
+      )
+
+      leaflet::leafletProxy(ns("burden_map"), data = gf2) |>
+        leaflet::removeControl("legend_standard") |>
+        leaflet::addLegend(
+          colors  = sig_colors[seq_along(sig_levels)],
+          labels  = sig_levels,
+          title   = paste0("vs. ", reg,
+                           "<br><small>threshold: p≥", threshold, "</small>"),
+          layerId = "legend_comparison",
+          opacity = 0.85
+        ) |>
+        leaflet::addPolygons(
+          fillColor   = ~cat_pal(sig_cat),
           fillOpacity = 0.80,
           color       = ~ifelse(name == reg, "#000000", "white"),
-          weight      = ~ifelse(name == reg, 3, 1),
+          weight      = ~ifelse(name == reg, 3L, 1L),
           layerId     = ~name,
-          label       = ~paste0(
-            name, ": ",
-            dplyr::if_else(is.na(estimate), "no data",
-              paste0(
-                format_burden_estimate(estimate, lower, upper),
-                dplyr::if_else(
-                  name == reg, " (reference)",
-                  paste0(" (", ifelse(comparison >= 0, "+", ""),
-                         formatC(as.integer(comparison), format = "d", big.mark = ","),
-                         " vs ", reg, ")")
-                )
-              )
-            )
-          ),
+          label       = labels,
           highlightOptions = leaflet::highlightOptions(
             weight = 2, color = "#333", bringToFront = TRUE
           )
         )
-    }, ignoreNULL = FALSE)
+    })
 
-    # Show/hide idiopleth status label below map
+    # Status label below map
     output$idiopleth_label <- renderUI({
-      reg <- selected_region()
+      reg       <- selected_region()
+      threshold <- input$sig_threshold
       if (!is.null(reg)) {
         div(
           style = paste0(
             "margin-top:4px; padding:4px 10px; background:#fff3cd;",
             " border-radius:4px; font-size:0.82em; color:#555;"
           ),
-          tags$strong("Comparing to: "), reg,
+          tags$strong("Reference: "), reg,
+          tags$span(style = "margin-left:8px;",
+            paste0("p ≥ ", threshold, " = significantly higher (red);  ",
+                   "p ≤ ", round(1 - threshold, 2), " = significantly lower (green)")),
           tags$span(style = "margin-left:10px; color:#888;",
                     "— click region again to reset")
         )
