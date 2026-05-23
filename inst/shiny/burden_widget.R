@@ -10,21 +10,16 @@ burden_widget_ui <- function(id) {
   tagList(
     shinybusy::add_busy_spinner(spin = "fading-circle", position = "bottom-right"),
 
-    # Under-development banner
+    # Under-development banner (no emoji — clean text only)
     div(
       style = paste0(
-        "background:#fff3cd; border:1px solid #ffc107; border-radius:6px;",
-        " padding:8px 14px; margin-bottom:12px; display:flex;",
-        " align-items:center; gap:10px;"
+        "background:#fff3cd; border:1px solid #ffc107; border-radius:4px;",
+        " padding:7px 14px; margin-bottom:10px;"
       ),
-      tags$span("\U0001F6A7",
-                style = "font-size:1.4em; line-height:1;"),
-      div(
-        tags$strong("Under Development"),
-        tags$span(
-          style = "font-size:0.85em; color:#555; margin-left:6px;",
-          "Methods and outputs are being refined.  Results are experimental."
-        )
+      tags$strong("Under Development"),
+      tags$span(
+        style = "font-size:0.88em; color:#555; margin-left:8px;",
+        "Methods and outputs are being refined.  Results are experimental."
       )
     ),
 
@@ -32,116 +27,97 @@ burden_widget_ui <- function(id) {
       sidebarPanel(
         width = 3,
 
-        h5("Data"),
+        # ── Sidebar tabs: Data | Model ──────────────────────────────────
+        tabsetPanel(
+          type = "tabs",
 
-        selectInput(
-          ns("target_elements"),
-          label   = "Target data element(s):",
-          choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
-        ),
-
-        selectInput(
-          ns("attendance_elements"),
-          label   = "Attendance element(s) — for Methods B & E:",
-          choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
-        ),
-
-        selectInput(
-          ns("tested_elements"),
-          label   = "Patients tested element(s) — for Method E:",
-          choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
-        ),
-
-        selectInput(
-          ns("population_element"),
-          label   = "Population element (optional — for per-100k rates):",
-          choices = NULL, multiple = FALSE, selectize = TRUE, width = "100%"
-        ),
-
-        uiOutput(ns("cat_map_ui")),
-
-        selectInput(
-          ns("years"),
-          label    = "Year(s):",
-          choices  = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
-        ),
-
-        hr(),
-        h5("Methods"),
-
-        checkboxGroupInput(
-          ns("methods"),
-          label    = NULL,
-          choices  = c(
-            "A — Champion multiple"       = "A",
-            "B — Attendance-based"         = "B",
-            "C1 — Linear imputation"       = "C1",
-            "C2 — ARIMA imputation"        = "C2",
-            "E — Adj. Corrected Incidence" = "E"
-          ),
-          selected = "A",
-          width    = "100%"
-        ),
-
-        conditionalPanel(
-          condition = sprintf("input['%s'].indexOf('E') >= 0", ns("methods")),
-          div(
-            style = "padding:6px; background:#e8f4e8; border-radius:4px; margin-bottom:6px; font-size:0.85em;",
-            tags$small(tags$em(
-              "Method E: Thwing, Plucinski, Painter et al. (2020) AJTMH 102:811-820"
-            )),
+          tabPanel(
+            "Data",
             br(),
-            tags$small(tags$strong("β"), " — fever proportion among non-malaria consults:"),
-            fluidRow(
-              column(6,
-                numericInput(ns("beta_young"), "< 5 yrs", value = 0.73,
-                             min = 0.1, max = 0.99, step = 0.01, width = "100%")
+            selectInput(
+              ns("target_elements"),
+              label   = "Target element(s):",
+              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+            ),
+            selectInput(
+              ns("attendance_elements"),
+              label   = "Attendance element(s) — B & E:",
+              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+            ),
+            selectInput(
+              ns("tested_elements"),
+              label   = "Patients tested — E:",
+              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+            ),
+            selectInput(
+              ns("population_element"),
+              label   = "Population (optional, per-100k):",
+              choices = NULL, multiple = FALSE, selectize = TRUE, width = "100%"
+            ),
+            uiOutput(ns("cat_map_ui")),
+            selectInput(
+              ns("years"),
+              label   = "Year(s):",
+              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+            )
+          ),
+
+          tabPanel(
+            "Model",
+            br(),
+            checkboxGroupInput(
+              ns("methods"),
+              label    = NULL,
+              choices  = c(
+                "A — Champion multiple"        = "A",
+                "B — Attendance-based"         = "B",
+                "C1 — Linear imputation"       = "C1",
+                "C2 — ARIMA imputation"        = "C2",
+                "E — Adj. Corrected Incidence" = "E"
               ),
-              column(6,
-                numericInput(ns("beta_old"), "≥ 5 yrs", value = 0.57,
-                             min = 0.1, max = 0.99, step = 0.01, width = "100%")
+              selected = "A",
+              width    = "100%"
+            ),
+            conditionalPanel(
+              condition = sprintf("input['%s'].indexOf('E') >= 0", ns("methods")),
+              div(
+                style = "padding:6px; background:#e8f4e8; border-radius:4px; margin-bottom:6px; font-size:0.85em;",
+                tags$small(tags$em("Method E: Thwing et al. (2020) AJTMH 102:811-820")),
+                br(),
+                tags$small(tags$strong("β"), " fever proportion:"),
+                fluidRow(
+                  column(6, numericInput(ns("beta_young"), "< 5 yrs", value = 0.73,
+                                         min = 0.1, max = 0.99, step = 0.01, width = "100%")),
+                  column(6, numericInput(ns("beta_old"),   "≥ 5 yrs", value = 0.57,
+                                         min = 0.1, max = 0.99, step = 0.01, width = "100%"))
+                ),
+                tags$small(tags$strong("α"), " TPR ratio:"),
+                numericInput(ns("alpha_e"), NULL, value = 0.48,
+                             min = 0.1, max = 1.0, step = 0.01, width = "100%"),
+                tags$small(tags$strong("γ"), " NMF episodes/person/yr:"),
+                fluidRow(
+                  column(6, numericInput(ns("gamma_young"), "< 5 yrs", value = 2.0,
+                                         min = 0.1, max = 10, step = 0.1, width = "100%")),
+                  column(6, numericInput(ns("gamma_old"),   "≥ 5 yrs", value = 1.0,
+                                         min = 0.1, max = 10, step = 0.1, width = "100%"))
+                ),
+                tags$small(tags$strong("λmin"), ":"),
+                numericInput(ns("lambdamin"), NULL, value = 0.75,
+                             min = 0.1, max = 1.0, step = 0.05, width = "100%")
               )
             ),
-            tags$small(tags$strong("α"), " — TPR ratio (untested / tested febrile):"),
-            numericInput(ns("alpha_e"), NULL, value = 0.48,
-                         min = 0.1, max = 1.0, step = 0.01, width = "100%"),
-            tags$small(tags$strong("γ"), " — expected NMF episodes / person / year:"),
-            fluidRow(
-              column(6,
-                numericInput(ns("gamma_young"), "< 5 yrs", value = 2.0,
-                             min = 0.1, max = 10, step = 0.1, width = "100%")
-              ),
-              column(6,
-                numericInput(ns("gamma_old"), "≥ 5 yrs", value = 1.0,
-                             min = 0.1, max = 10, step = 0.1, width = "100%")
-              )
-            ),
-            tags$small(tags$strong("λmin"), " — min. malaria-attributable fraction:"),
-            numericInput(ns("lambdamin"), NULL, value = 0.75,
-                         min = 0.1, max = 1.0, step = 0.05, width = "100%")
-          )
-        ),
-
-        checkboxInput(
-          ns("run_d"),
-          label = "D — Care-seeking adjustment",
-          value = FALSE
-        ),
-
-        conditionalPanel(
-          condition = sprintf("input['%s'] == true", ns("run_d")),
-          div(
-            style = "padding-left:10px; font-size:0.9em;",
-            p(style = "margin-bottom:4px; color:#555;",
-              "Default proportions (editable):"),
-            fluidRow(
-              column(6,
-                numericInput(ns("cs_young"), "Younger (%)", value = 90,
-                             min = 1, max = 100, step = 1, width = "100%")
-              ),
-              column(6,
-                numericInput(ns("cs_old"), "Older (%)", value = 70,
-                             min = 1, max = 100, step = 1, width = "100%")
+            checkboxInput(ns("run_d"), "D — Care-seeking adjustment", value = FALSE),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == true", ns("run_d")),
+              div(
+                style = "padding-left:10px; font-size:0.9em;",
+                p(style = "margin-bottom:4px; color:#555;", "Care-seeking proportions:"),
+                fluidRow(
+                  column(6, numericInput(ns("cs_young"), "Younger (%)", value = 90,
+                                         min = 1, max = 100, step = 1, width = "100%")),
+                  column(6, numericInput(ns("cs_old"),   "Older (%)",   value = 70,
+                                         min = 1, max = 100, step = 1, width = "100%"))
+                )
               )
             )
           )
@@ -150,16 +126,13 @@ burden_widget_ui <- function(id) {
         hr(),
 
         actionButton(ns("run"), "Run Estimates",
-                     class = "btn-primary btn-block",
-                     style = "width:100%;"),
-
+                     class = "btn-primary btn-block", style = "width:100%;"),
         br(),
-
         div(
           style = paste0(
             "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
-            " padding:6px; max-height:200px; overflow-y:auto; font-size:0.78em;",
-            " font-family:monospace;"
+            " padding:6px; max-height:180px; overflow-y:auto;",
+            " font-size:0.78em; font-family:monospace;"
           ),
           verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
         )
@@ -171,62 +144,44 @@ burden_widget_ui <- function(id) {
         bslib::navset_tab(
           id = ns("burden_tab"),
 
+          # ── Results: single combined table ──────────────────────────
           bslib::nav_panel(
             "Results",
-
             br(),
-
             uiOutput(ns("results_hint")),
+            DT::DTOutput(ns("combined_table"))
+          ),
 
-            h5("National totals"),
-            DT::DTOutput(ns("national_table")),
-
-            br(),
-
-            h5("Sub-national totals"),
-            DT::DTOutput(ns("subnational_table")),
-
-            br(),
-
+          # ── Map (own tab) ────────────────────────────────────────────
+          bslib::nav_panel(
+            "Map",
             fluidRow(
-              column(4,
-                selectInput(ns("map_method"), "Color map by method:",
+              column(3,
+                selectInput(ns("map_method"), "Method:",
                             choices = NULL, width = "100%")
               ),
-              column(4,
+              column(3,
                 selectInput(ns("map_year"), "Year:",
                             choices = NULL, width = "100%")
               ),
-              column(4,
+              column(3,
                 selectInput(ns("map_category"), "Category:",
                             choices = NULL, width = "100%")
-              )
-            ),
-
-            fluidRow(
-              column(6,
-                div(
-                  style = "font-size:0.83em; color:#555; padding-top:6px;",
-                  tags$em(
-                    "\U0001F4CC Click a region to compare it with all others. ",
-                    "Click again to reset."
-                  )
-                )
               ),
-              column(6,
+              column(3,
                 sliderInput(
                   ns("sig_threshold"),
-                  label    = "Significance threshold:",
-                  min      = 0.80, max = 0.99,
-                  value    = 0.90, step = 0.01,
-                  width    = "100%",
-                  ticks    = FALSE
+                  label  = "Significance threshold:",
+                  min = 0.80, max = 0.99, value = 0.90, step = 0.01,
+                  width = "100%", ticks = FALSE
                 )
               )
             ),
-
-            leaflet::leafletOutput(ns("burden_map"), height = "55vh"),
-
+            div(
+              style = "font-size:0.82em; color:#666; margin-bottom:4px;",
+              "Click a region to compare against all others (red = higher, green = lower). Click again to reset."
+            ),
+            leaflet::leafletOutput(ns("burden_map"), height = "70vh"),
             uiOutput(ns("idiopleth_label"))
           ),
 
@@ -840,53 +795,38 @@ burden_widget_server <- function(
             "Select elements and years, choose methods, then press Run.")
     })
 
-    # ── national table ────────────────────────────────────────────────────────
+    # ── combined results table (national rows first, then sub-national) ──────
 
-    national_df <- reactive({
+    combined_df <- reactive({
       res_list <- Filter(Negate(is.null),
                          list(A = results$A, B = results$B,
-                              C1 = results$C1, C2 = results$C2))
+                              C1 = results$C1, C2 = results$C2,
+                              E = results$E))
       if (length(res_list) == 0L) return(NULL)
       has_pop <- !is.null(input$population_element) &&
                  nchar(input$population_element) > 0
-      burden_summary_table(res_list, level = "national", show_rate = has_pop)
+
+      nat <- burden_summary_table(res_list, "national",    show_rate = has_pop)
+      sub <- burden_summary_table(res_list, "subnational", show_rate = has_pop)
+      if (is.null(nat) && is.null(sub)) return(NULL)
+
+      if (!is.null(nat)) names(nat)[names(nat) == "region"] <- "Area"
+      if (!is.null(sub)) names(sub)[names(sub) == "region"] <- "Area"
+
+      rbind(nat, sub)
     })
 
-    output$national_table <- DT::renderDT({
-      req(national_df())
+    output$combined_table <- DT::renderDT({
+      req(combined_df())
       DT::datatable(
-        national_df(),
-        rownames = FALSE,
-        options  = list(
-          dom      = "t",
-          paging   = FALSE,
-          scrollX  = TRUE,
-          columnDefs = list(list(className = "dt-left", targets = "_all"))
-        )
-      )
-    })
-
-    # ── subnational table ─────────────────────────────────────────────────────
-
-    subnational_df <- reactive({
-      res_list <- Filter(Negate(is.null),
-                         list(A = results$A, B = results$B,
-                              C1 = results$C1, C2 = results$C2))
-      if (length(res_list) == 0L) return(NULL)
-      burden_summary_table(res_list, level = "subnational")
-    })
-
-    output$subnational_table <- DT::renderDT({
-      req(subnational_df())
-      DT::datatable(
-        subnational_df(),
+        combined_df(),
         rownames = FALSE,
         filter   = "top",
         options  = list(
-          dom     = "ftp",
-          scrollX = TRUE,
-          scrollY = "35vh",
-          paging  = FALSE,
+          dom        = "ftp",
+          scrollX    = TRUE,
+          scrollY    = "70vh",
+          paging     = FALSE,
           columnDefs = list(list(className = "dt-left", targets = "_all"))
         )
       )
@@ -1136,9 +1076,8 @@ burden_widget_server <- function(
       }
     })
 
-    outputOptions(output, "burden_map",        suspendWhenHidden = TRUE)
-    outputOptions(output, "national_table",    suspendWhenHidden = TRUE)
-    outputOptions(output, "subnational_table", suspendWhenHidden = TRUE)
-    outputOptions(output, "idiopleth_label",   suspendWhenHidden = TRUE)
+    outputOptions(output, "burden_map",     suspendWhenHidden = TRUE)
+    outputOptions(output, "combined_table", suspendWhenHidden = TRUE)
+    outputOptions(output, "idiopleth_label", suspendWhenHidden = TRUE)
   })
 }

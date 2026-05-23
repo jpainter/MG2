@@ -52,6 +52,18 @@ chat_widget_ui <- function(id) {
        .shiny-chat-input-container { max-width: 100% !important; }"
     )),
 
+    div(
+      style = paste0(
+        "background:#fff3cd; border:1px solid #ffc107; border-radius:4px;",
+        " padding:7px 14px; margin-bottom:10px;"
+      ),
+      tags$strong("Under Development"),
+      tags$span(
+        style = "font-size:0.88em; color:#555; margin-left:8px;",
+        "AI responses may be inaccurate. Verify outputs before use."
+      )
+    ),
+
     fluidPage(
       sidebarLayout(
         sidebarPanel(
