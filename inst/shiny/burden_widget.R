@@ -534,8 +534,23 @@ burden_widget_server <- function(
       reporting_widget_output$endingMonth()
     })
 
-    # yearmonth → Date: go through "%Y-%m-01" to avoid as.Date.character dispatch issues
-    .ym_date <- function(ym) as.Date(paste0(format(ym, "%Y-%m"), "-01"))
+    # Safely coerce anything (character, yearmonth, Date) to yearmonth.
+    # The reporting widget's startingMonth/endingMonth are character strings
+    # (selectizeInput values); yearmonth objects can't compare with character.
+    .to_ym <- function(x) {
+      if (is.null(x)) return(NULL)
+      if (inherits(x, "yearmonth")) return(x)
+      ym <- tryCatch(tsibble::yearmonth(as.character(x)), error = function(e) NULL)
+      if (is.null(ym) || length(ym) == 0 || is.na(ym)) return(NULL)
+      ym
+    }
+
+    # yearmonth → Date (first day of month)
+    .ym_date <- function(ym) {
+      ym <- .to_ym(ym)
+      if (is.null(ym)) return(NULL)
+      as.Date(paste0(format(ym, "%Y-%m"), "-01"))
+    }
 
     output$date_range_display <- renderUI({
       sm <- start_month()
@@ -648,15 +663,18 @@ burden_widget_server <- function(
       ln         <- level_names()
       region_col <- if (length(ln) >= 2) ln[2] else ln[1]
 
-      # Filter data to the champion-window date range from Reporting widget
-      sm <- start_month()
-      em <- end_month()
+      # Filter data to the champion-window date range from Reporting widget.
+      # Convert to yearmonth so data.table comparisons work correctly.
+      sm_ym <- .to_ym(start_month())
+      em_ym <- .to_ym(end_month())
       d  <- data.table::as.data.table(d_all)
-      if (!is.null(sm)) d <- d[Month >= sm]
-      if (!is.null(em)) d <- d[Month <= em]
+      if (!is.null(sm_ym)) d <- d[Month >= sm_ym]
+      if (!is.null(em_ym)) d <- d[Month <= em_ym]
       if (nrow(d) == 0) { add_log("ERROR: no data in the selected date range."); return() }
-      period_label <- if (!is.null(sm) && !is.null(em))
-        paste0(format(as.Date(sm), "%b %Y"), " – ", format(as.Date(em), "%b %Y"))
+      sm_d <- .ym_date(sm_ym)
+      em_d <- .ym_date(em_ym)
+      period_label <- if (!is.null(sm_d) && !is.null(em_d))
+        paste0(format(sm_d, "%b %Y"), " – ", format(em_d, "%b %Y"))
       else "all available data"
       add_log(paste0("  Period: ", period_label))
 
