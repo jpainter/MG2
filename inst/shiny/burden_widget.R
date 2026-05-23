@@ -55,11 +55,7 @@ burden_widget_ui <- function(id) {
               choices = NULL, multiple = FALSE, selectize = TRUE, width = "100%"
             ),
             uiOutput(ns("cat_map_ui")),
-            selectInput(
-              ns("years"),
-              label   = "Year(s):",
-              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
-            )
+            uiOutput(ns("date_range_display"))
           ),
 
           tabPanel(
@@ -156,19 +152,15 @@ burden_widget_ui <- function(id) {
           bslib::nav_panel(
             "Map",
             fluidRow(
-              column(3,
+              column(4,
                 selectInput(ns("map_method"), "Method:",
                             choices = NULL, width = "100%")
               ),
-              column(3,
-                selectInput(ns("map_year"), "Year:",
-                            choices = NULL, width = "100%")
-              ),
-              column(3,
+              column(4,
                 selectInput(ns("map_category"), "Category:",
                             choices = NULL, width = "100%")
               ),
-              column(3,
+              column(4,
                 sliderInput(
                   ns("sig_threshold"),
                   label  = "Significance threshold:",
@@ -530,10 +522,34 @@ burden_widget_server <- function(
                         choices = c(none_choice, elements), selected = "")
       updateSelectInput(session, "population_element",
                         choices = c(none_choice, elements), selected = "")
+    })
 
-      yrs <- sort(unique(lubridate::year(d$Month)))
-      updateSelectInput(session, "years",
-                        choices = yrs, selected = max(yrs))
+    # Date range from Reporting widget (champion window dates)
+    start_month <- reactive({
+      req(reporting_widget_output)
+      reporting_widget_output$startingMonth()
+    })
+    end_month <- reactive({
+      req(reporting_widget_output)
+      reporting_widget_output$endingMonth()
+    })
+
+    output$date_range_display <- renderUI({
+      sm <- start_month()
+      em <- end_month()
+      if (is.null(sm) || is.null(em)) {
+        div(style = "font-size:0.85em; color:#888;",
+            "Period: set in Reporting tab")
+      } else {
+        n_mo <- as.integer(round(
+          as.numeric(difftime(as.Date(em), as.Date(sm), units = "days")) / 30.4
+        )) + 1L
+        div(style = "font-size:0.85em; color:#444; margin-top:4px;",
+            tags$strong("Period: "),
+            paste0(format(as.Date(sm), "%b %Y"), " – ",
+                   format(as.Date(em), "%b %Y"),
+                   " (", n_mo, " months)"))
+      }
     })
 
     # ── category mapping UI (for Method B) ───────────────────────────────────
@@ -612,17 +628,27 @@ burden_widget_server <- function(
     observeEvent(input$run, {
       req(selected_data())
       req(length(input$target_elements) > 0)
-      req(length(input$years) > 0)
 
       log_lines(character(0))
       add_log("Starting burden estimation...")
 
-      d          <- selected_data()
+      d_all      <- selected_data()
       tgt        <- input$target_elements
-      yrs        <- as.integer(input$years)
       methods    <- input$methods
       ln         <- level_names()
       region_col <- if (length(ln) >= 2) ln[2] else ln[1]
+
+      # Filter data to the champion-window date range from Reporting widget
+      sm <- start_month()
+      em <- end_month()
+      d  <- data.table::as.data.table(d_all)
+      if (!is.null(sm)) d <- d[Month >= sm]
+      if (!is.null(em)) d <- d[Month <= em]
+      if (nrow(d) == 0) { add_log("ERROR: no data in the selected date range."); return() }
+      period_label <- if (!is.null(sm) && !is.null(em))
+        paste0(format(as.Date(sm), "%b %Y"), " – ", format(as.Date(em), "%b %Y"))
+      else "all available data"
+      add_log(paste0("  Period: ", period_label))
 
       # Clear previous results
       results$A  <- NULL; results$B  <- NULL
@@ -634,7 +660,7 @@ burden_widget_server <- function(
       if ("A" %in% methods) {
         add_log("Method A: Champion multiple...")
         res <- tryCatch(
-          burden_a(d, tgt, yrs, region_col, n_bootstrap = n_boot),
+          burden_a(d, tgt, region_col, n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
         results$A <- res
@@ -653,7 +679,7 @@ burden_widget_server <- function(
           add_log("Method B: Attendance-based...")
           cmap <- cat_map_reactive()
           res <- tryCatch(
-            burden_b(d, tgt, att, cat_map = cmap, yrs, region_col,
+            burden_b(d, tgt, att, cat_map = cmap, region_col,
                      n_bootstrap = n_boot),
             error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
           )
@@ -669,7 +695,7 @@ burden_widget_server <- function(
       if ("C1" %in% methods) {
         add_log("Method C1: Linear imputation...")
         res <- tryCatch(
-          burden_c1(d, tgt, yrs, region_col, n_bootstrap = n_boot),
+          burden_c1(d, tgt, region_col, n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
         results$C1 <- res
@@ -684,7 +710,7 @@ burden_widget_server <- function(
       if ("C2" %in% methods) {
         add_log("Method C2: ARIMA imputation (may be slow)...")
         res <- tryCatch(
-          burden_c2(d, tgt, yrs, region_col, n_bootstrap = n_boot),
+          burden_c2(d, tgt, region_col, n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
         results$C2 <- res
@@ -780,8 +806,6 @@ burden_widget_server <- function(
                                      C1 = results$C1, C2 = results$C2,
                                      E = results$E)))
       updateSelectInput(session, "map_method",  choices = available)
-      updateSelectInput(session, "map_year",    choices = as.character(yrs),
-                        selected = as.character(max(yrs)))
       updateSelectInput(session, "map_category", choices = tgt, selected = tgt[1])
     })
 
@@ -838,9 +862,8 @@ burden_widget_server <- function(
     map_gf2 <- reactive({
       req(geo_features())
       method  <- input$map_method
-      yr      <- as.integer(input$map_year)
       cat_sel <- input$map_category
-      req(method, yr, cat_sel)
+      req(method, cat_sel)
 
       res <- switch(method,
         A  = results$A, B = results$B,
@@ -850,8 +873,7 @@ burden_widget_server <- function(
       req(!is.null(res), !is.null(res$subnational))
 
       map_data <- as.data.frame(res$subnational)
-      map_data <- map_data[map_data$year == yr &
-                           map_data$category == cat_sel &
+      map_data <- map_data[map_data$category == cat_sel &
                            map_data$region != "National", ]
       req(nrow(map_data) > 0)
 
@@ -867,7 +889,7 @@ burden_widget_server <- function(
     output$burden_map <- leaflet::renderLeaflet({
       gf2     <- map_gf2()
       method  <- input$map_method
-      yr      <- input$map_year
+      yr      <- NULL
       cat_sel <- input$map_category
 
       selected_region(NULL)  # reset comparison on any map rebuild
@@ -903,7 +925,7 @@ burden_widget_server <- function(
         leaflet::addLegend(
           pal       = pal,
           values    = ~estimate,
-          title     = paste0("Method ", method, "<br>", cat_sel, "<br>", yr),
+          title     = paste0("Method ", method, "<br>", cat_sel),
           layerId   = "legend_standard",
           labFormat = leaflet::labelFormat(
             transform = function(x) formatC(as.integer(x), format = "d", big.mark = ",")
@@ -927,7 +949,7 @@ burden_widget_server <- function(
       req(is.null(selected_region()))
       gf2    <- isolate(map_gf2())
       method <- isolate(input$map_method)
-      yr     <- isolate(input$map_year)
+      yr     <- NULL
       cat_s  <- isolate(input$map_category)
       if (is.null(gf2)) return()
 
@@ -938,7 +960,7 @@ burden_widget_server <- function(
         leaflet::removeControl("legend_comparison") |>
         leaflet::addLegend(
           pal     = pal, values = ~estimate,
-          title   = paste0("Method ", method, "<br>", cat_s, "<br>", yr),
+          title   = paste0("Method ", method, "<br>", cat_s),
           layerId = "legend_standard",
           labFormat = leaflet::labelFormat(
             transform = function(x) formatC(as.integer(x), format = "d", big.mark = ",")
@@ -964,7 +986,7 @@ burden_widget_server <- function(
 
       gf2    <- isolate(map_gf2())
       method <- isolate(input$map_method)
-      yr     <- isolate(input$map_year)
+      yr     <- NULL
       cat_s  <- isolate(input$map_category)
       if (is.null(gf2)) return()
 

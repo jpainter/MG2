@@ -18,12 +18,12 @@
   )
 }
 
-.national_from_regions <- function(region_sample_list, method, yr, cat) {
+.national_from_regions <- function(region_sample_list, method, cat) {
   valid <- Filter(Negate(is.null), region_sample_list)
   if (length(valid) == 0L) return(NULL)
   nat <- Reduce("+", valid)
   ci  <- .burden_ci(nat)
-  data.frame(method = method, year = yr, region = "National", category = cat,
+  data.frame(method = method, region = "National", category = cat,
              estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
              stringsAsFactors = FALSE)
 }
@@ -64,49 +64,47 @@ format_burden_estimate <- function(estimate, lower, upper) {
 #' @param n_bootstrap integer; bootstrap draws (default 1000).
 #' @return list with `$subnational` and `$national` data.tables.
 #' @export
-burden_a <- function(data, target_elements, years, region_col,
+burden_a <- function(data, target_elements, region_col,
                      n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
-  dt[, .year := lubridate::year(Month)]
-  dt <- dt[get("data") %in% target_elements & .year %in% years]
+  dt <- dt[get("data") %in% target_elements]
   if (nrow(dt) == 0L) return(NULL)
 
+  # Total over the full supplied date range per facility
   ann <- dt[!is.na(value),
     .(total = sum(value, na.rm = TRUE)),
-    by = c("orgUnit", "data", ".year", region_col, "Selected")
+    by = c("orgUnit", "data", region_col, "Selected")
   ]
 
   sub_rows <- nat_rows <- list()
 
-  for (yr in years) {
-    for (cat in target_elements) {
-      ann_sub <- ann[.year == yr & get("data") == cat]
-      if (nrow(ann_sub) == 0L) next
-      regions <- unique(ann_sub[[region_col]])
-      reg_samps <- vector("list", length(regions))
-      names(reg_samps) <- regions
+  for (cat in target_elements) {
+    ann_sub <- ann[get("data") == cat]
+    if (nrow(ann_sub) == 0L) next
+    regions <- unique(ann_sub[[region_col]])
+    reg_samps <- vector("list", length(regions))
+    names(reg_samps) <- regions
 
-      for (reg in regions) {
-        champ <- .champ_resample_fallback(ann_sub, region_col, reg, n_bootstrap)
-        if (length(champ) == 0L) { reg_samps[[reg]] <- rep(0, n_bootstrap); next }
+    for (reg in regions) {
+      champ <- .champ_resample_fallback(ann_sub, region_col, reg, n_bootstrap)
+      if (length(champ) == 0L) { reg_samps[[reg]] <- rep(0, n_bootstrap); next }
 
-        champ_sum <- sum(ann_sub[get(region_col) == reg & Selected == "Champion", total],
-                         na.rm = TRUE)
-        n_nc      <- nrow(ann_sub[get(region_col) == reg & Selected == "Non-Champion"])
-        samps     <- champ_sum + n_nc * .burden_resample(champ, n_bootstrap)
-        reg_samps[[reg]] <- samps
+      champ_sum <- sum(ann_sub[get(region_col) == reg & Selected == "Champion", total],
+                       na.rm = TRUE)
+      n_nc      <- nrow(ann_sub[get(region_col) == reg & Selected == "Non-Champion"])
+      samps     <- champ_sum + n_nc * .burden_resample(champ, n_bootstrap)
+      reg_samps[[reg]] <- samps
 
-        ci <- .burden_ci(samps)
-        sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-          method = "A", year = yr, region = reg, category = cat,
-          estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
-          stringsAsFactors = FALSE
-        )
-      }
-
-      nr <- .national_from_regions(reg_samps, "A", yr, cat)
-      if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
+      ci <- .burden_ci(samps)
+      sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+        method = "A", region = reg, category = cat,
+        estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        stringsAsFactors = FALSE
+      )
     }
+
+    nr <- .national_from_regions(reg_samps, "A", cat)
+    if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
   }
 
   if (length(sub_rows) == 0L) return(NULL)
@@ -135,10 +133,9 @@ burden_a <- function(data, target_elements, years, region_col,
 #' @return list with `$subnational` and `$national` data.tables.
 #' @export
 burden_b <- function(data, target_elements, attendance_elements,
-                     cat_map = NULL, years, region_col,
+                     cat_map = NULL, region_col,
                      n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
-  dt[, .year := lubridate::year(Month)]
 
   # Default category map
   if (is.null(cat_map)) {
@@ -151,24 +148,23 @@ burden_b <- function(data, target_elements, attendance_elements,
     }
   }
 
-  tgt_ann <- dt[get("data") %in% target_elements & .year %in% years & !is.na(value),
+  tgt_ann <- dt[get("data") %in% target_elements & !is.na(value),
     .(target_total = sum(value, na.rm = TRUE)),
-    by = c("orgUnit", "data", ".year", region_col, "Selected")
+    by = c("orgUnit", "data", region_col, "Selected")
   ]
-  att_ann <- dt[get("data") %in% attendance_elements & .year %in% years & !is.na(value),
+  att_ann <- dt[get("data") %in% attendance_elements & !is.na(value),
     .(attend_total = sum(value, na.rm = TRUE)),
-    by = c("orgUnit", "data", ".year")
+    by = c("orgUnit", "data")
   ]
 
   sub_rows <- nat_rows <- list()
 
-  for (yr in years) {
-    for (cat in target_elements) {
+  for (cat in target_elements) {
       att_cat <- cat_map[[cat]]
       if (is.null(att_cat) || is.na(att_cat)) next
 
-      tgt_sub <- tgt_ann[.year == yr & get("data") == cat]
-      att_sub <- att_ann[.year == yr & get("data") == att_cat]
+      tgt_sub <- tgt_ann[get("data") == cat]
+      att_sub <- att_ann[get("data") == att_cat]
 
       # Champions with both target and attendance
       champ_joined <- merge(
@@ -223,15 +219,14 @@ burden_b <- function(data, target_elements, attendance_elements,
         reg_samps[[reg]] <- samps
         ci <- .burden_ci(samps)
         sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-          method = "B", year = yr, region = reg, category = cat,
+          method = "B", region = reg, category = cat,
           estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
           stringsAsFactors = FALSE
         )
       }
 
-      nr <- .national_from_regions(reg_samps, "B", yr, cat)
+      nr <- .national_from_regions(reg_samps, "B", cat)
       if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
-    }
   }
 
   if (length(sub_rows) == 0L) return(NULL)
@@ -259,120 +254,107 @@ burden_b <- function(data, target_elements, attendance_elements,
 #' @return list with `$subnational`, `$national`, and `$not_modeled` (orgUnit
 #'   × category combinations that fell back — caller can pipe to Method B).
 #' @export
-burden_c1 <- function(data, target_elements, years, region_col,
+burden_c1 <- function(data, target_elements, region_col,
                       min_obs = 3L, n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
-  dt[, .year     := lubridate::year(Month)]
   dt[, .month_int := lubridate::month(Month)]
 
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Monthly champion means by region × category × year × calendar-month
+  # Champion monthly means across the full period — group by calendar month only
+  # so the covariate captures the typical seasonal pattern.
   champ_reg <- dt_tgt[Selected == "Champion" & !is.na(value),
     .(champ_mean = mean(value, na.rm = TRUE)),
-    by = c(region_col, "data", ".year", ".month_int")
+    by = c(region_col, "data", ".month_int")
   ]
   champ_nat <- dt_tgt[Selected == "Champion" & !is.na(value),
     .(champ_nat = mean(value, na.rm = TRUE)),
-    by = c("data", ".year", ".month_int")
+    by = c("data", ".month_int")
   ]
 
   sub_rows <- nat_rows <- list()
   not_modeled <- list()
 
-  for (yr in years) {
-    for (cat in target_elements) {
-      dt_sub <- dt_tgt[get("data") == cat]
-      if (nrow(dt_sub) == 0L) next
+  for (cat in target_elements) {
+    dt_sub <- dt_tgt[get("data") == cat]
+    if (nrow(dt_sub) == 0L) next
 
-      regions <- unique(dt_sub[.year == yr][[region_col]])
-      reg_samps <- vector("list", length(regions))
-      names(reg_samps) <- regions
+    regions <- unique(dt_sub[[region_col]])
+    reg_samps <- vector("list", length(regions))
+    names(reg_samps) <- regions
 
-      for (reg in regions) {
-        facilities <- unique(dt_sub[.year == yr & get(region_col) == reg, orgUnit])
-        fac_samps  <- rep(0, n_bootstrap)
+    for (reg in regions) {
+      facilities <- unique(dt_sub[get(region_col) == reg, orgUnit])
+      fac_samps  <- rep(0, n_bootstrap)
 
-        for (fac in facilities) {
-          fac_hist <- dt_sub[orgUnit == fac]
+      for (fac in facilities) {
+        fac_data <- dt_sub[orgUnit == fac]
 
-          # Attach regional champion mean; fill missing with national fallback
-          fac_hist <- merge(fac_hist,
-            champ_reg[get(region_col) == reg & get("data") == cat,
-                      .(.year, .month_int, champ_mean)],
-            by = c(".year", ".month_int"), all.x = TRUE)
-          fac_hist <- merge(fac_hist,
-            champ_nat[get("data") == cat, .(.year, .month_int, champ_nat)],
-            by = c(".year", ".month_int"), all.x = TRUE)
-          fac_hist[is.na(champ_mean), champ_mean := champ_nat]
+        # Attach champion monthly means; fill with national fallback
+        fac_data <- merge(fac_data,
+          champ_reg[get(region_col) == reg & get("data") == cat,
+                    .(.month_int, champ_mean)],
+          by = ".month_int", all.x = TRUE)
+        fac_data <- merge(fac_data,
+          champ_nat[get("data") == cat, .(.month_int, champ_nat)],
+          by = ".month_int", all.x = TRUE)
+        fac_data[is.na(champ_mean), champ_mean := champ_nat]
 
-          obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
+        obs <- fac_data[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
 
-          if (nrow(obs) < min_obs) {
-            not_modeled[[length(not_modeled) + 1L]] <-
-              data.frame(orgUnit = fac, category = cat, year = yr,
-                         stringsAsFactors = FALSE)
-            next
-          }
-
-          fit <- tryCatch(
-            stats::lm(value ~ champ_mean, data = obs),
-            error = function(e) NULL
-          )
-          if (is.null(fit)) {
-            not_modeled[[length(not_modeled) + 1L]] <-
-              data.frame(orgUnit = fac, category = cat, year = yr,
-                         stringsAsFactors = FALSE)
-            next
-          }
-          alpha <- stats::coef(fit)[[1L]]
-          beta  <- stats::coef(fit)[[2L]]
-          sigma <- stats::sigma(fit)
-
-          # Target-year monthly data for this facility
-          fac_yr <- fac_hist[.year == yr]
-
-          ann_samps <- rep(0, n_bootstrap)
-          for (m in seq_len(12L)) {
-            row_m <- fac_yr[.month_int == m]
-            if (nrow(row_m) == 1L && !is.na(row_m$value)) {
-              # Observed month: constant across all samples
-              ann_samps <- ann_samps + row_m$value
-            } else {
-              # Missing month: draw from prediction distribution
-              cm <- if (nrow(row_m) == 1L && !is.na(row_m$champ_mean))
-                      row_m$champ_mean else NA_real_
-              if (!is.na(cm) && is.finite(cm)) {
-                pred  <- alpha + beta * cm
-                drawn <- pmax(0, stats::rnorm(n_bootstrap, pred, sigma))
-                ann_samps <- ann_samps + drawn
-              }
-            }
-          }
-
-          fac_samps <- fac_samps + ann_samps
+        if (nrow(obs) < min_obs) {
+          not_modeled[[length(not_modeled) + 1L]] <-
+            data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          next
         }
 
-        reg_samps[[reg]] <- fac_samps
-        ci <- .burden_ci(fac_samps)
-        sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-          method = "C1", year = yr, region = reg, category = cat,
-          estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
-          stringsAsFactors = FALSE
+        fit <- tryCatch(
+          stats::lm(value ~ champ_mean, data = obs), error = function(e) NULL
         )
+        if (is.null(fit)) {
+          not_modeled[[length(not_modeled) + 1L]] <-
+            data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          next
+        }
+        a_coef <- stats::coef(fit)[[1L]]
+        b_coef <- stats::coef(fit)[[2L]]
+        sigma  <- stats::sigma(fit)
+
+        # Sum over ALL rows in the filtered period: actual + imputed for missing
+        ann_samps <- rep(0, n_bootstrap)
+        for (i in seq_len(nrow(fac_data))) {
+          if (!is.na(fac_data$value[i])) {
+            ann_samps <- ann_samps + fac_data$value[i]
+          } else {
+            cm <- fac_data$champ_mean[i]
+            if (!is.na(cm) && is.finite(cm)) {
+              drawn <- pmax(0, stats::rnorm(n_bootstrap, a_coef + b_coef * cm, sigma))
+              ann_samps <- ann_samps + drawn
+            }
+          }
+        }
+        fac_samps <- fac_samps + ann_samps
       }
 
-      nr <- .national_from_regions(reg_samps, "C1", yr, cat)
-      if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
+      reg_samps[[reg]] <- fac_samps
+      ci <- .burden_ci(fac_samps)
+      sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+        method = "C1", region = reg, category = cat,
+        estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        stringsAsFactors = FALSE
+      )
     }
+
+    nr <- .national_from_regions(reg_samps, "C1", cat)
+    if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
   }
 
   if (length(sub_rows) == 0L) return(NULL)
   list(
-    subnational  = data.table::rbindlist(sub_rows, fill = TRUE),
-    national     = data.table::rbindlist(nat_rows, fill = TRUE),
-    not_modeled  = if (length(not_modeled)) data.table::rbindlist(not_modeled) else NULL
+    subnational = data.table::rbindlist(sub_rows, fill = TRUE),
+    national    = data.table::rbindlist(nat_rows, fill = TRUE),
+    not_modeled = if (length(not_modeled)) data.table::rbindlist(not_modeled) else NULL
   )
 }
 
@@ -393,12 +375,11 @@ burden_c1 <- function(data, target_elements, years, region_col,
 #' @param n_bootstrap integer; simulation draws.
 #' @return list with `$subnational`, `$national`, and `$not_modeled`.
 #' @export
-burden_c2 <- function(data, target_elements, years, region_col,
+burden_c2 <- function(data, target_elements, region_col,
                       min_months = 24L, n_bootstrap = 1000L) {
   if (!requireNamespace("forecast", quietly = TRUE)) {
     message("Package 'forecast' required for C2; falling back to C1.")
-    res <- burden_c1(data, target_elements, years, region_col,
-                     n_bootstrap = n_bootstrap)
+    res <- burden_c1(data, target_elements, region_col, n_bootstrap = n_bootstrap)
     if (!is.null(res)) {
       res$subnational[, method := "C2"]
       res$national[,    method := "C2"]
@@ -407,163 +388,129 @@ burden_c2 <- function(data, target_elements, years, region_col,
   }
 
   dt <- data.table::as.data.table(data)
-  dt[, .year     := lubridate::year(Month)]
   dt[, .month_int := lubridate::month(Month)]
 
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Monthly champion means (regional + national fallback)
+  # Champion monthly means across the full period (by calendar month)
   champ_reg <- dt_tgt[Selected == "Champion" & !is.na(value),
     .(champ_mean = mean(value, na.rm = TRUE)),
-    by = c(region_col, "data", ".year", ".month_int")
+    by = c(region_col, "data", ".month_int")
   ]
   champ_nat <- dt_tgt[Selected == "Champion" & !is.na(value),
     .(champ_nat = mean(value, na.rm = TRUE)),
-    by = c("data", ".year", ".month_int")
+    by = c("data", ".month_int")
   ]
 
   sub_rows <- nat_rows <- list()
   not_modeled <- list()
 
-  for (yr in years) {
-    for (cat in target_elements) {
-      dt_sub <- dt_tgt[get("data") == cat]
-      if (nrow(dt_sub) == 0L) next
+  for (cat in target_elements) {
+    dt_sub <- dt_tgt[get("data") == cat]
+    if (nrow(dt_sub) == 0L) next
 
-      regions <- unique(dt_sub[.year == yr][[region_col]])
-      reg_samps <- vector("list", length(regions))
-      names(reg_samps) <- regions
+    regions <- unique(dt_sub[[region_col]])
+    reg_samps <- vector("list", length(regions))
+    names(reg_samps) <- regions
 
-      for (reg in regions) {
-        facilities <- unique(dt_sub[.year == yr & get(region_col) == reg, orgUnit])
-        fac_samps  <- rep(0, n_bootstrap)
+    for (reg in regions) {
+      facilities <- unique(dt_sub[get(region_col) == reg, orgUnit])
+      fac_samps  <- rep(0, n_bootstrap)
 
-        for (fac in facilities) {
-          fac_hist <- dt_sub[orgUnit == fac]
+      for (fac in facilities) {
+        fac_hist <- dt_sub[orgUnit == fac]
 
-          # Build ordered monthly frame (all observed months)
-          fac_hist <- merge(fac_hist,
-            champ_reg[get(region_col) == reg & get("data") == cat,
-                      .(.year, .month_int, champ_mean)],
-            by = c(".year", ".month_int"), all.x = TRUE)
-          fac_hist <- merge(fac_hist,
-            champ_nat[get("data") == cat, .(.year, .month_int, champ_nat)],
-            by = c(".year", ".month_int"), all.x = TRUE)
-          fac_hist[is.na(champ_mean), champ_mean := champ_nat]
-          data.table::setorder(fac_hist, Month)
+        fac_hist <- merge(fac_hist,
+          champ_reg[get(region_col) == reg & get("data") == cat,
+                    .(.month_int, champ_mean)],
+          by = ".month_int", all.x = TRUE)
+        fac_hist <- merge(fac_hist,
+          champ_nat[get("data") == cat, .(.month_int, champ_nat)],
+          by = ".month_int", all.x = TRUE)
+        fac_hist[is.na(champ_mean), champ_mean := champ_nat]
+        data.table::setorder(fac_hist, Month)
 
-          # Need target-year rows (including NAs for missing months)
-          fac_yr <- fac_hist[.year == yr]
+        n_obs_hist <- sum(!is.na(fac_hist$value))
+        use_arima  <- n_obs_hist >= min_months
 
-          # Decide whether to use ARIMA or fall back
-          n_obs_hist <- sum(!is.na(fac_hist$value))
-          use_arima  <- n_obs_hist >= min_months &&
-                        requireNamespace("forecast", quietly = TRUE)
+        if (use_arima) {
+          ts_vals  <- stats::ts(fac_hist$value, frequency = 12)
+          xreg_all <- matrix(fac_hist$champ_mean, ncol = 1)
+          xreg_all[is.na(xreg_all)] <- 0
 
-          if (use_arima) {
-            ts_vals <- stats::ts(fac_hist$value, frequency = 12)
-            xreg_all <- matrix(fac_hist$champ_mean, ncol = 1)
-            xreg_all[is.na(xreg_all)] <- 0
+          fit_arima <- tryCatch(
+            forecast::auto.arima(ts_vals, xreg = xreg_all,
+                                 seasonal = TRUE, stepwise = TRUE,
+                                 approximation = TRUE, lambda = "auto",
+                                 allowdrift = FALSE),
+            error = function(e) NULL
+          )
 
-            fit_arima <- tryCatch({
-              forecast::auto.arima(ts_vals, xreg = xreg_all,
-                                   seasonal = TRUE, stepwise = TRUE,
-                                   approximation = TRUE, lambda = "auto",
-                                   allowdrift = FALSE)
+          if (!is.null(fit_arima)) {
+            ann_samps <- tryCatch({
+              sims <- forecast::simulate(fit_arima, nsim = n_bootstrap,
+                                         future = FALSE, xreg = xreg_all)
+              if (is.matrix(sims)) {
+                for (i in seq_len(nrow(fac_hist))) {
+                  if (!is.na(fac_hist$value[i])) sims[, i] <- fac_hist$value[i]
+                }
+                pmax(0, colSums(sims))
+              } else NULL
             }, error = function(e) NULL)
 
-            if (!is.null(fit_arima)) {
-              # Identify missing months in target year within ts index
-              n_hist  <- nrow(fac_hist)
-              tgt_idx <- which(fac_hist$.year == yr)
-
-              # Build xreg for target year positions
-              xreg_tgt <- matrix(
-                fac_hist$champ_mean[tgt_idx],
-                ncol = 1
-              )
-              xreg_tgt[is.na(xreg_tgt)] <- 0
-
-              # Simulate n_bootstrap paths and sum the 12 target-year positions
-              ann_samps <- tryCatch({
-                sims <- forecast::simulate(
-                  fit_arima,
-                  nsim    = n_bootstrap,
-                  future  = FALSE,
-                  xreg    = xreg_tgt
-                )
-                # sims: matrix n_bootstrap × length(tgt_idx) (or ts length)
-                # Use target-year positions
-                if (is.matrix(sims)) {
-                  # Use actual values for observed months
-                  for (m in seq_along(tgt_idx)) {
-                    actual <- fac_hist$value[tgt_idx[m]]
-                    if (!is.na(actual)) sims[, m] <- actual
-                  }
-                  pmax(0, colSums(sims))
-                } else {
-                  NULL
-                }
-              }, error = function(e) NULL)
-
-              if (!is.null(ann_samps) && length(ann_samps) == n_bootstrap) {
-                fac_samps <- fac_samps + ann_samps
-                next  # skip fallback
-              }
+            if (!is.null(ann_samps) && length(ann_samps) == n_bootstrap) {
+              fac_samps <- fac_samps + ann_samps
+              next
             }
           }
-
-          # Fallback: C1 linear model for this facility
-          obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
-          if (nrow(obs) < 3L) {
-            not_modeled[[length(not_modeled) + 1L]] <-
-              data.frame(orgUnit = fac, category = cat, year = yr,
-                         stringsAsFactors = FALSE)
-            next
-          }
-          fit_lm <- tryCatch(
-            stats::lm(value ~ champ_mean, data = obs), error = function(e) NULL
-          )
-          if (is.null(fit_lm)) {
-            not_modeled[[length(not_modeled) + 1L]] <-
-              data.frame(orgUnit = fac, category = cat, year = yr,
-                         stringsAsFactors = FALSE)
-            next
-          }
-          alpha <- stats::coef(fit_lm)[[1L]]
-          beta  <- stats::coef(fit_lm)[[2L]]
-          sigma <- stats::sigma(fit_lm)
-
-          ann_samps <- rep(0, n_bootstrap)
-          for (m in seq_len(12L)) {
-            row_m <- fac_yr[.month_int == m]
-            if (nrow(row_m) == 1L && !is.na(row_m$value)) {
-              ann_samps <- ann_samps + row_m$value
-            } else {
-              cm <- if (nrow(row_m) == 1L && !is.na(row_m$champ_mean))
-                      row_m$champ_mean else NA_real_
-              if (!is.na(cm) && is.finite(cm)) {
-                drawn <- pmax(0, stats::rnorm(n_bootstrap, alpha + beta * cm, sigma))
-                ann_samps <- ann_samps + drawn
-              }
-            }
-          }
-          fac_samps <- fac_samps + ann_samps
         }
 
-        reg_samps[[reg]] <- fac_samps
-        ci <- .burden_ci(fac_samps)
-        sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-          method = "C2", year = yr, region = reg, category = cat,
-          estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
-          stringsAsFactors = FALSE
+        # Fallback: C1 linear model for this facility
+        obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
+        if (nrow(obs) < 3L) {
+          not_modeled[[length(not_modeled) + 1L]] <-
+            data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          next
+        }
+        fit_lm <- tryCatch(
+          stats::lm(value ~ champ_mean, data = obs), error = function(e) NULL
         )
+        if (is.null(fit_lm)) {
+          not_modeled[[length(not_modeled) + 1L]] <-
+            data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          next
+        }
+        a_coef <- stats::coef(fit_lm)[[1L]]
+        b_coef <- stats::coef(fit_lm)[[2L]]
+        sigma  <- stats::sigma(fit_lm)
+
+        ann_samps <- rep(0, n_bootstrap)
+        for (i in seq_len(nrow(fac_hist))) {
+          if (!is.na(fac_hist$value[i])) {
+            ann_samps <- ann_samps + fac_hist$value[i]
+          } else {
+            cm <- fac_hist$champ_mean[i]
+            if (!is.na(cm) && is.finite(cm)) {
+              drawn <- pmax(0, stats::rnorm(n_bootstrap, a_coef + b_coef * cm, sigma))
+              ann_samps <- ann_samps + drawn
+            }
+          }
+        }
+        fac_samps <- fac_samps + ann_samps
       }
 
-      nr <- .national_from_regions(reg_samps, "C2", yr, cat)
-      if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
+      reg_samps[[reg]] <- fac_samps
+      ci <- .burden_ci(fac_samps)
+      sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+        method = "C2", region = reg, category = cat,
+        estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        stringsAsFactors = FALSE
+      )
     }
+
+    nr <- .national_from_regions(reg_samps, "C2", cat)
+    if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
   }
 
   if (length(sub_rows) == 0L) return(NULL)
@@ -755,149 +702,107 @@ burden_aci <- function(data,
                        lambdamin       = 0.75,
                        young_pattern   = "<5|under.5|under 5|younger|<five",
                        min_months      = 10L,
-                       years,
                        region_col,
                        n_bootstrap     = 1000L) {
   dt <- data.table::as.data.table(data)
-  dt[, .year      := lubridate::year(Month)]
   dt[, .month_int := lubridate::month(Month)]
 
-  # Default category maps
-  if (is.null(cat_map_attend)) {
-    cat_map_attend <- stats::setNames(
-      rep(attendance_elements[1L], length(confirmed_elements)),
-      confirmed_elements
-    )
-  }
-  if (is.null(cat_map_tested)) {
-    cat_map_tested <- stats::setNames(
-      rep(tested_elements[1L], length(confirmed_elements)),
-      confirmed_elements
-    )
-  }
+  if (is.null(cat_map_attend))
+    cat_map_attend <- stats::setNames(rep(attendance_elements[1L], length(confirmed_elements)),
+                                      confirmed_elements)
+  if (is.null(cat_map_tested))
+    cat_map_tested <- stats::setNames(rep(tested_elements[1L], length(confirmed_elements)),
+                                      confirmed_elements)
 
   all_elems <- c(confirmed_elements, attendance_elements, tested_elements,
                  if (!is.null(population_element)) population_element)
 
-  # Annual totals and month counts — champions only
+  # Totals over the full filtered period — champions only
   ann <- dt[
-    get("data") %in% all_elems & .year %in% years &
-      !is.na(value) & Selected == "Champion",
+    get("data") %in% all_elems & !is.na(value) & Selected == "Champion",
     .(annual   = sum(value, na.rm = TRUE),
       n_months = data.table::uniqueN(.month_int)),
-    by = c("orgUnit", "data", ".year", region_col)
+    by = c("orgUnit", "data", region_col)
   ]
 
-  has_pop <- !is.null(population_element) && nchar(population_element) > 0L
+  has_pop   <- !is.null(population_element) && nchar(population_element) > 0L
+  sub_rows  <- nat_rows <- list()
 
-  sub_rows <- nat_rows <- list()
+  for (cat in confirmed_elements) {
+    att_cat  <- cat_map_attend[[cat]]
+    test_cat <- cat_map_tested[[cat]]
+    if (is.null(att_cat) || is.null(test_cat)) next
 
-  for (yr in years) {
-    for (cat in confirmed_elements) {
-      att_cat  <- cat_map_attend[[cat]]
-      test_cat <- cat_map_tested[[cat]]
-      if (is.null(att_cat) || is.null(test_cat)) next
+    is_young <- grepl(young_pattern, cat, ignore.case = TRUE)
+    b_lo <- if (is_young) 0.65 else 0.49
+    b_hi <- if (is_young) 0.84 else 0.61
+    si   <- if (is_young) gamma_young * 1000 else gamma_old * 1000
 
-      is_young <- grepl(young_pattern, cat, ignore.case = TRUE)
-      # Beta uncertainty range from Thwing 2020 Table 1 (IQR used as range)
-      b_lo <- if (is_young) 0.65 else 0.49
-      b_hi <- if (is_young) 0.84 else 0.61
-      si   <- if (is_young) gamma_young * 1000 else gamma_old * 1000
+    has_conf  <- ann[get("data") == cat      & n_months >= min_months, orgUnit]
+    has_att   <- ann[get("data") == att_cat  & n_months >= min_months, orgUnit]
+    has_test  <- ann[get("data") == test_cat & n_months >= min_months, orgUnit]
+    qualified <- Reduce(intersect, list(has_conf, has_att, has_test))
 
-      ann_yr <- ann[.year == yr]
+    regions   <- unique(ann[get("data") == cat][[region_col]])
+    reg_samps <- vector("list", length(regions))
+    names(reg_samps) <- regions
 
-      has_conf <- ann_yr[get("data") == cat      & n_months >= min_months, orgUnit]
-      has_att  <- ann_yr[get("data") == att_cat  & n_months >= min_months, orgUnit]
-      has_test <- ann_yr[get("data") == test_cat & n_months >= min_months, orgUnit]
-      qualified <- Reduce(intersect, list(has_conf, has_att, has_test))
+    for (reg in regions) {
+      qual_reg <- intersect(qualified,
+                            ann[get(region_col) == reg & get("data") == cat, orgUnit])
 
-      regions   <- unique(ann_yr[get("data") == cat][[region_col]])
-      reg_samps <- vector("list", length(regions))
-      names(reg_samps) <- regions
-
-      for (reg in regions) {
-        qual_reg <- intersect(
-          qualified,
-          ann_yr[get(region_col) == reg & get("data") == cat, orgUnit]
-        )
-
-        if (length(qual_reg) == 0L) {
-          reg_samps[[reg]] <- rep(0, n_bootstrap)
-          sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-            method = "E", year = yr, region = reg, category = cat,
-            n_champions = 0L,
-            estimate = NA_integer_, lower = NA_integer_, upper = NA_integer_,
-            incidence_per_1k = NA_real_, incidence_lower = NA_real_,
-            incidence_upper  = NA_real_,
-            stringsAsFactors = FALSE
-          )
-          next
-        }
-
-        # Sum the three elements (and population if available) across qualified champions
-        D_reg  <- sum(ann_yr[orgUnit %in% qual_reg & get("data") == att_cat,  annual],
-                      na.rm = TRUE) -
-                  sum(ann_yr[orgUnit %in% qual_reg & get("data") == cat,      annual],
-                      na.rm = TRUE) -
-                  sum(ann_yr[orgUnit %in% qual_reg & get("data") == test_cat, annual],
-                      na.rm = TRUE) +
-                  sum(ann_yr[orgUnit %in% qual_reg & get("data") == cat,      annual],
-                      na.rm = TRUE)
-        # Cleaner: compute directly
-        A_reg  <- sum(ann_yr[orgUnit %in% qual_reg & get("data") == att_cat,  annual], na.rm=TRUE)
-        T_reg  <- sum(ann_yr[orgUnit %in% qual_reg & get("data") == test_cat, annual], na.rm=TRUE)
-        E_reg  <- sum(ann_yr[orgUnit %in% qual_reg & get("data") == cat,      annual], na.rm=TRUE)
-        D_reg  <- max(0, T_reg - E_reg)    # test negatives
-        Fn_reg <- max(0, A_reg - T_reg)    # non-tested
-
-        pop_reg <- if (has_pop)
-          sum(ann_yr[orgUnit %in% qual_reg & get("data") == population_element, annual],
-              na.rm = TRUE)
-        else NA_real_
-        if (!is.na(pop_reg) && pop_reg == 0) pop_reg <- NA_real_
-
-        # Draw bootstrap parameter sets
-        beta_b    <- stats::runif(n_bootstrap, b_lo, b_hi)
-        alpha_b   <- stats::runif(n_bootstrap, 0.42, 0.55)
-        lambda_b  <- stats::runif(n_bootstrap, 0.50, 0.95)
-
-        res <- .robust_estimator(D_reg, E_reg, Fn_reg, pop_reg,
-                                  beta_b, alpha_b, si, lambda_b)
-
-        samps <- pmax(0, res$cases)
-        reg_samps[[reg]] <- samps
-        ci <- .burden_ci(samps)
-
-        inc_ci <- if (has_pop && any(!is.na(res$incidence))) {
-          inc_samps <- res$incidence[!is.na(res$incidence)]
-          list(
-            estimate = round(mean(inc_samps), 1),
-            lower    = round(stats::quantile(inc_samps, 0.025, names=FALSE), 1),
-            upper    = round(stats::quantile(inc_samps, 0.975, names=FALSE), 1)
-          )
-        } else list(estimate=NA_real_, lower=NA_real_, upper=NA_real_)
-
+      if (length(qual_reg) == 0L) {
+        reg_samps[[reg]] <- rep(0, n_bootstrap)
         sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-          method           = "E",
-          year             = yr,
-          region           = reg,
-          category         = cat,
-          n_champions      = length(qual_reg),
-          estimate         = ci$estimate,
-          lower            = ci$lower,
-          upper            = ci$upper,
-          incidence_per_1k = inc_ci$estimate,
-          incidence_lower  = inc_ci$lower,
-          incidence_upper  = inc_ci$upper,
-          stringsAsFactors = FALSE
+          method = "E", region = reg, category = cat, n_champions = 0L,
+          estimate = NA_integer_, lower = NA_integer_, upper = NA_integer_,
+          incidence_per_1k = NA_real_, incidence_lower = NA_real_,
+          incidence_upper  = NA_real_, stringsAsFactors = FALSE
         )
+        next
       }
 
-      nr <- .national_from_regions(
-        Filter(function(s) any(s > 0), reg_samps), "E", yr, cat
+      A_reg  <- sum(ann[orgUnit %in% qual_reg & get("data") == att_cat,  annual], na.rm=TRUE)
+      T_reg  <- sum(ann[orgUnit %in% qual_reg & get("data") == test_cat, annual], na.rm=TRUE)
+      E_reg  <- sum(ann[orgUnit %in% qual_reg & get("data") == cat,      annual], na.rm=TRUE)
+      D_reg  <- max(0, T_reg - E_reg)
+      Fn_reg <- max(0, A_reg - T_reg)
+
+      pop_reg <- if (has_pop)
+        sum(ann[orgUnit %in% qual_reg & get("data") == population_element, annual], na.rm=TRUE)
+      else NA_real_
+      if (!is.na(pop_reg) && pop_reg == 0) pop_reg <- NA_real_
+
+      beta_b   <- stats::runif(n_bootstrap, b_lo, b_hi)
+      alpha_b  <- stats::runif(n_bootstrap, 0.42, 0.55)
+      lambda_b <- stats::runif(n_bootstrap, 0.50, 0.95)
+
+      res   <- .robust_estimator(D_reg, E_reg, Fn_reg, pop_reg,
+                                  beta_b, alpha_b, si, lambda_b)
+      samps <- pmax(0, res$cases)
+      reg_samps[[reg]] <- samps
+      ci <- .burden_ci(samps)
+
+      inc_ci <- if (has_pop && any(!is.na(res$incidence))) {
+        s <- res$incidence[!is.na(res$incidence)]
+        list(estimate = round(mean(s), 1),
+             lower    = round(stats::quantile(s, 0.025, names=FALSE), 1),
+             upper    = round(stats::quantile(s, 0.975, names=FALSE), 1))
+      } else list(estimate=NA_real_, lower=NA_real_, upper=NA_real_)
+
+      sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+        method = "E", region = reg, category = cat,
+        n_champions = length(qual_reg),
+        estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        incidence_per_1k = inc_ci$estimate,
+        incidence_lower  = inc_ci$lower,
+        incidence_upper  = inc_ci$upper,
+        stringsAsFactors = FALSE
       )
-      if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
     }
+
+    nr <- .national_from_regions(Filter(function(s) any(s > 0), reg_samps), "E", cat)
+    if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
   }
 
   if (length(sub_rows) == 0L) return(NULL)
@@ -998,7 +903,7 @@ burden_summary_table <- function(results_list, level = "national",
   # Pivot count estimates: rows = region × year × category, cols = method
   wide <- data.table::dcast(
     long,
-    region + year + category ~ method,
+    region + category ~ method,
     value.var = "ci_fmt"
   )
 
@@ -1006,13 +911,13 @@ burden_summary_table <- function(results_list, level = "national",
   if (has_rate && "rate_fmt" %in% names(long)) {
     rate_wide <- data.table::dcast(
       long,
-      region + year + category ~ method,
+      region + category ~ method,
       value.var = "rate_fmt"
     )
     method_cols <- setdiff(names(rate_wide), c("region", "year", "category"))
     data.table::setnames(rate_wide, method_cols,
                          paste0(method_cols, "/100k"))
-    wide <- merge(wide, rate_wide, by = c("region", "year", "category"),
+    wide <- merge(wide, rate_wide, by = c("region", "category"),
                   all.x = TRUE)
   }
 
@@ -1030,7 +935,6 @@ burden_summary_table <- function(results_list, level = "national",
 #'   `Month`, `data`, `value`, `Selected`, and a region column.
 #' @param target_elements character; `data` values for the outcome (e.g.
 #'   confirmed malaria cases).
-#' @param years integer; calendar years to estimate.
 #' @param region_col character; name of the region column (typically
 #'   `levelNames[2]`).
 #' @param methods character vector of methods to run.  Any subset of
@@ -1065,7 +969,6 @@ burden_summary_table <- function(results_list, level = "national",
 run_burden_estimates <- function(
     data,
     target_elements,
-    years,
     region_col,
     methods           = c("A", "B", "C1", "C2", "E"),
     attendance_elements = NULL,
@@ -1094,18 +997,16 @@ run_burden_estimates <- function(
 
   results <- list(A = NULL, B = NULL, C1 = NULL, C2 = NULL, E = NULL, D = NULL)
 
-  .log(sprintf("Starting burden estimation: methods = %s, years = %s",
-               paste(methods, collapse = ", "),
-               paste(years,   collapse = ", ")))
+  .log(sprintf("Starting burden estimation: methods = %s", paste(methods, collapse = ", ")))
 
   if ("A" %in% methods) {
     .log("Method A: Champion Multiple...")
     results$A <- tryCatch(
-      burden_a(data, target_elements, years, region_col, n_bootstrap),
+      burden_a(data, target_elements, region_col, n_bootstrap),
       error = function(e) { .log(paste("  ERROR:", e$message)); NULL }
     )
     if (!is.null(results$A))
-      .log(sprintf("  Done. %d region-year-category rows.", nrow(results$A$subnational)))
+      .log(sprintf("  Done. %d region-category rows.", nrow(results$A$subnational)))
     else
       .log("  No results — check champion facilities are defined.")
   }
@@ -1117,7 +1018,7 @@ run_burden_estimates <- function(
       .log("Method B: Attendance-Based Champion Multiple...")
       results$B <- tryCatch(
         burden_b(data, target_elements, attendance_elements,
-                 cat_map = cat_map_attend, years, region_col, n_bootstrap),
+                 cat_map = cat_map_attend, region_col, n_bootstrap),
         error = function(e) { .log(paste("  ERROR:", e$message)); NULL }
       )
       if (!is.null(results$B))
@@ -1130,7 +1031,7 @@ run_burden_estimates <- function(
   if ("C1" %in% methods) {
     .log("Method C1: Linear Imputation...")
     results$C1 <- tryCatch(
-      burden_c1(data, target_elements, years, region_col, n_bootstrap = n_bootstrap),
+      burden_c1(data, target_elements, region_col, n_bootstrap = n_bootstrap),
       error = function(e) { .log(paste("  ERROR:", e$message)); NULL }
     )
     if (!is.null(results$C1)) {
@@ -1144,7 +1045,7 @@ run_burden_estimates <- function(
   if ("C2" %in% methods) {
     .log("Method C2: ARIMA Imputation (may be slow)...")
     results$C2 <- tryCatch(
-      burden_c2(data, target_elements, years, region_col, n_bootstrap = n_bootstrap),
+      burden_c2(data, target_elements, region_col, n_bootstrap = n_bootstrap),
       error = function(e) { .log(paste("  ERROR:", e$message)); NULL }
     )
     if (!is.null(results$C2)) {
@@ -1174,7 +1075,6 @@ run_burden_estimates <- function(
                    gamma_young         = gamma_young,
                    gamma_old           = gamma_old,
                    lambdamin           = lambdamin,
-                   years               = years,
                    region_col          = region_col,
                    n_bootstrap         = n_bootstrap),
         error = function(e) { .log(paste("  ERROR:", e$message)); NULL }
