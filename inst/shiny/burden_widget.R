@@ -534,6 +534,9 @@ burden_widget_server <- function(
       reporting_widget_output$endingMonth()
     })
 
+    # yearmonth → Date: go through "%Y-%m-01" to avoid as.Date.character dispatch issues
+    .ym_date <- function(ym) as.Date(paste0(format(ym, "%Y-%m"), "-01"))
+
     output$date_range_display <- renderUI({
       sm <- start_month()
       em <- end_month()
@@ -541,14 +544,21 @@ burden_widget_server <- function(
         div(style = "font-size:0.85em; color:#888;",
             "Period: set in Reporting tab")
       } else {
-        n_mo <- as.integer(round(
-          as.numeric(difftime(as.Date(em), as.Date(sm), units = "days")) / 30.4
-        )) + 1L
-        div(style = "font-size:0.85em; color:#444; margin-top:4px;",
-            tags$strong("Period: "),
-            paste0(format(as.Date(sm), "%b %Y"), " – ",
-                   format(as.Date(em), "%b %Y"),
-                   " (", n_mo, " months)"))
+        sm_d <- tryCatch(.ym_date(sm), error = function(e) NULL)
+        em_d <- tryCatch(.ym_date(em), error = function(e) NULL)
+        if (is.null(sm_d) || is.null(em_d)) {
+          div(style = "font-size:0.85em; color:#888;",
+              paste0("Period: ", as.character(sm), " – ", as.character(em)))
+        } else {
+          n_mo <- as.integer(round(
+            as.numeric(difftime(em_d, sm_d, units = "days")) / 30.4
+          )) + 1L
+          div(style = "font-size:0.85em; color:#444; margin-top:4px;",
+              tags$strong("Period: "),
+              paste0(format(sm_d, "%b %Y"), " – ",
+                     format(em_d, "%b %Y"),
+                     " (", n_mo, " months)"))
+        }
       }
     })
 
