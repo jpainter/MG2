@@ -7,7 +7,6 @@
 burden_c2(
   data,
   target_elements,
-  years,
   region_col,
   min_months = 24L,
   n_bootstrap = 1000L
@@ -18,13 +17,13 @@ burden_c2(
 
 \item{target_elements}{character; target \code{data} values.}
 
-\item{years}{integer; calendar years.}
-
 \item{region_col}{character; region column name.}
 
 \item{min_months}{integer; minimum months of history for ARIMA (default 24).}
 
 \item{n_bootstrap}{integer; simulation draws.}
+
+\item{years}{integer; calendar years.}
 }
 \value{
 list with \verb{$subnational}, \verb{$national}, and \verb{$not_modeled}.

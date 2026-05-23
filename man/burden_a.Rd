@@ -4,7 +4,7 @@
 \alias{burden_a}
 \title{Burden Method A: Champion Multiple}
 \usage{
-burden_a(data, target_elements, years, region_col, n_bootstrap = 1000L)
+burden_a(data, target_elements, region_col, n_bootstrap = 1000L)
 }
 \arguments{
 \item{data}{data.table from \code{selectedData()} (columns: orgUnit, Month,
@@ -12,12 +12,12 @@ data, value, Selected, and a region column).}
 
 \item{target_elements}{character; which values of the \code{data} column to use.}
 
-\item{years}{integer; which calendar years to estimate.}
-
 \item{region_col}{character; name of the region column (typically
 \code{levelNames[2]}).}
 
 \item{n_bootstrap}{integer; bootstrap draws (default 1000).}
+
+\item{years}{integer; which calendar years to estimate.}
 }
 \value{
 list with \verb{$subnational} and \verb{$national} data.tables.

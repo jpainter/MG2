@@ -4,27 +4,20 @@
 \alias{burden_c1}
 \title{Burden Method C1: Facility-Level Imputation (Linear Regression)}
 \usage{
-burden_c1(
-  data,
-  target_elements,
-  years,
-  region_col,
-  min_obs = 3L,
-  n_bootstrap = 1000L
-)
+burden_c1(data, target_elements, region_col, min_obs = 3L, n_bootstrap = 1000L)
 }
 \arguments{
 \item{data}{data.table from \code{selectedData()}.}
 
 \item{target_elements}{character; target \code{data} values.}
 
-\item{years}{integer; calendar years.}
-
 \item{region_col}{character; region column name.}
 
 \item{min_obs}{integer; minimum observed months to attempt fitting (default 3).}
 
 \item{n_bootstrap}{integer; bootstrap draws.}
+
+\item{years}{integer; calendar years.}
 }
 \value{
 list with \verb{$subnational}, \verb{$national}, and \verb{$not_modeled} (orgUnit

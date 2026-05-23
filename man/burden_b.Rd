@@ -9,7 +9,6 @@ burden_b(
   target_elements,
   attendance_elements,
   cat_map = NULL,
-  years,
   region_col,
   n_bootstrap = 1000L
 )
@@ -25,11 +24,11 @@ burden_b(
 corresponding attendance categories. \code{NULL} → single attendance element
 used for all target categories (or 1:1 by position).}
 
-\item{years}{integer; calendar years.}
-
 \item{region_col}{character; region column name.}
 
 \item{n_bootstrap}{integer; bootstrap draws.}
+
+\item{years}{integer; calendar years.}
 }
 \value{
 list with \verb{$subnational} and \verb{$national} data.tables.

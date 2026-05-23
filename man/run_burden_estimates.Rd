@@ -7,7 +7,6 @@
 run_burden_estimates(
   data,
   target_elements,
-  years,
   region_col,
   methods = c("A", "B", "C1", "C2", "E"),
   attendance_elements = NULL,
@@ -34,8 +33,6 @@ run_burden_estimates(
 
 \item{target_elements}{character; \code{data} values for the outcome (e.g.
 confirmed malaria cases).}
-
-\item{years}{integer; calendar years to estimate.}
 
 \item{region_col}{character; name of the region column (typically
 \code{levelNames[2]}).}
