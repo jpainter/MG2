@@ -877,8 +877,24 @@ burden_widget_server <- function(
                            map_data$region != "National", ]
       req(nrow(map_data) > 0)
 
-      geo_features() |>
-        dplyr::filter(level == 2L) |>
+      gf_all <- geo_features()
+
+      # Identify which level in geoFeatures best matches the region names
+      # from the burden results (avoids hardcoding level == 2).
+      region_names <- unique(map_data$region)
+      poly_levels  <- sort(unique(gf_all$level[!sf::st_is_empty(gf_all)]))
+      poly_levels  <- poly_levels[poly_levels > 1L]   # exclude national (level 1)
+      best_level   <- if (length(poly_levels) > 0L) poly_levels[1L] else 2L
+      for (lev in poly_levels) {
+        names_at <- gf_all$name[gf_all$level == lev]
+        if (mean(region_names %in% names_at, na.rm = TRUE) > 0.3) {
+          best_level <- lev
+          break
+        }
+      }
+
+      gf_all |>
+        dplyr::filter(level == best_level) |>
         dplyr::left_join(map_data, by = c("name" = "region"))
     })
 
@@ -894,8 +910,21 @@ burden_widget_server <- function(
 
       selected_region(NULL)  # reset comparison on any map rebuild
 
+      est_vals <- gf2$estimate[is.finite(gf2$estimate)]
+      if (length(est_vals) == 0L) {
+        return(
+          leaflet::leaflet(gf2) |>
+            leaflet::addTiles() |>
+            leaflet::fitBounds(
+              lng1 = unname(sf::st_bbox(gf2)["xmin"]),
+              lat1 = unname(sf::st_bbox(gf2)["ymin"]),
+              lng2 = unname(sf::st_bbox(gf2)["xmax"]),
+              lat2 = unname(sf::st_bbox(gf2)["ymax"])
+            )
+        )
+      }
       pal  <- leaflet::colorNumeric("YlOrRd",
-                                    domain = range(gf2$estimate, na.rm = TRUE),
+                                    domain = range(est_vals),
                                     na.color = "#cccccc")
       bbox <- sf::st_bbox(gf2)
 
@@ -927,9 +956,7 @@ burden_widget_server <- function(
           values    = ~estimate,
           title     = paste0("Method ", method, "<br>", cat_sel),
           layerId   = "legend_standard",
-          labFormat = leaflet::labelFormat(
-            transform = function(x) formatC(as.integer(x), format = "d", big.mark = ",")
-          )
+          labFormat = leaflet::labelFormat(big.mark = ",", digits = 0)
         )
     })
 
@@ -962,9 +989,7 @@ burden_widget_server <- function(
           pal     = pal, values = ~estimate,
           title   = paste0("Method ", method, "<br>", cat_s),
           layerId = "legend_standard",
-          labFormat = leaflet::labelFormat(
-            transform = function(x) formatC(as.integer(x), format = "d", big.mark = ",")
-          )
+          labFormat = leaflet::labelFormat(big.mark = ",", digits = 0)
         ) |>
         leaflet::addPolygons(
           fillColor   = ~pal(estimate), fillOpacity = 0.75,
