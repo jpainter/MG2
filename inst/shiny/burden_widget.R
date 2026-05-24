@@ -185,29 +185,38 @@ burden_widget_ui <- function(id) {
                   width = "100%", ticks = FALSE
                 )
               ),
-              column(3,
-                checkboxInput(ns("show_groups"), "Color by group", value = FALSE),
-                conditionalPanel(
-                  condition = sprintf("input['%s'] == true", ns("show_groups")),
-                  sliderInput(
-                    ns("n_groups"), label = NULL,
-                    min = 2, max = 5, value = 3, step = 1,
-                    width = "100%", ticks = FALSE,
-                    post = " groups"
+            ),
+            fluidRow(
+              column(6,
+                div(
+                  style = "display:flex; align-items:center; gap:12px;",
+                  checkboxInput(ns("show_groups"), "Color by significance group",
+                                value = FALSE),
+                  conditionalPanel(
+                    condition = sprintf("input['%s'] == true", ns("show_groups")),
+                    div(style = "margin-top:-4px;",
+                      sliderInput(
+                        ns("n_groups"), label = NULL,
+                        min = 2, max = 5, value = 3, step = 1,
+                        width = "180px", ticks = FALSE, post = " groups"
+                      )
+                    )
                   )
                 )
-              )
-            ),
-            div(
-              style = "display:flex; align-items:center; gap:10px; margin-bottom:4px;",
-              div(
-                style = "font-size:0.82em; color:#666; flex:1;",
-                "Click a region to compare against all others (red = higher, green = lower)."
               ),
-              actionButton(
-                ns("reset_map"), "Reset map",
-                class = "btn-sm btn-default",
-                icon  = shiny::icon("rotate-left")
+              column(6,
+                div(
+                  style = "display:flex; align-items:center; gap:10px; justify-content:flex-end;",
+                  div(
+                    style = "font-size:0.82em; color:#666;",
+                    "Click region to compare. "
+                  ),
+                  actionButton(
+                    ns("reset_map"), "Reset map",
+                    class = "btn-sm btn-default",
+                    icon  = shiny::icon("rotate-left")
+                  )
+                )
               )
             ),
             leaflet::leafletOutput(ns("burden_map"), height = "70vh"),
@@ -896,18 +905,17 @@ burden_widget_server <- function(
           add_log("Method D: no base estimates available, skipping.")
         } else {
           add_log("Method D: Care-seeking adjustment...")
-          # Build per-category care-seeking from user inputs
-          cs <- c(
-            stats::setNames(
-              rep(input$cs_young / 100, sum(grepl("<|young|under|inf", tgt, ignore.case = TRUE))),
-              tgt[grepl("<|young|under|inf", tgt, ignore.case = TRUE)]
-            ),
-            stats::setNames(
-              rep(input$cs_old / 100, sum(!grepl("<|young|under|inf", tgt, ignore.case = TRUE))),
-              tgt[!grepl("<|young|under|inf", tgt, ignore.case = TRUE)]
-            )
+          # Build per-category care-seeking.
+          # "younger" pattern covers common age-group notations: 0-4, <5, under, infant.
+          # "Total" and unmatched categories use the older (more conservative) proportion.
+          young_pat <- "0-4|<5|<4|under|young|infant|<five"
+          is_young  <- grepl(young_pat, c(tgt, "Total"), ignore.case = TRUE)
+          p_young   <- input$cs_young / 100
+          p_old     <- input$cs_old   / 100
+          cs <- stats::setNames(
+            ifelse(is_young, p_young, p_old),
+            c(tgt, "Total")
           )
-          if (length(cs) == 0) cs <- c("default" = input$cs_young / 100)
           res_d <- tryCatch(
             burden_d_adjust(res_list, care_seeking = cs, n_bootstrap = n_boot),
             error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
@@ -949,6 +957,26 @@ burden_widget_server <- function(
                          list(A = results$A, B = results$B,
                               C1 = results$C1, C2 = results$C2,
                               E = results$E))
+
+      # Method D: burden_d_adjust() returns a flat table with a `level` column.
+      # Reshape into the list($subnational, $national) format so
+      # burden_summary_table() can handle it alongside A/B/C1/C2/E.
+      d_flat <- results$D
+      if (!is.null(d_flat) && nrow(d_flat) > 0) {
+        d_flat <- as.data.frame(d_flat)
+        for (bm in unique(d_flat$base_method)) {
+          key <- paste0(bm, "+D")
+          sub_d <- d_flat[d_flat$base_method == bm & d_flat$level == "subnational",
+                          c("region", "category", "estimate", "lower", "upper"),
+                          drop = FALSE]
+          nat_d <- d_flat[d_flat$base_method == bm & d_flat$level == "national",
+                          c("region", "category", "estimate", "lower", "upper"),
+                          drop = FALSE]
+          sub_d$method <- key;  nat_d$method <- key
+          res_list[[key]] <- list(subnational = sub_d, national = nat_d)
+        }
+      }
+
       if (length(res_list) == 0L) return(NULL)
       has_pop <- !is.null(input$population_element) &&
                  nchar(input$population_element) > 0
@@ -998,9 +1026,11 @@ burden_widget_server <- function(
     })
 
     output$combined_table <- DT::renderDT({
-      req(combined_df())
-      DT::datatable(
-        combined_df(),
+      df <- combined_df()
+      req(df)
+
+      dt <- DT::datatable(
+        df,
         rownames = FALSE,
         filter   = "top",
         options  = list(
@@ -1011,6 +1041,26 @@ burden_widget_server <- function(
           columnDefs = list(list(className = "dt-left", targets = "_all"))
         )
       )
+
+      # Color rows by group when groups are active
+      grps <- region_groups()
+      if (!is.null(grps) && "Group" %in% names(df)) {
+        n_grps   <- if (is.null(isolate(input$n_groups))) 3L else isolate(input$n_groups)
+        all_cols <- RColorBrewer::brewer.pal(max(3L, n_grps), "YlOrRd")
+        idx      <- round(seq(1, max(3L, n_grps), length.out = n_grps))
+        colors   <- all_cols[idx]
+        grp_labels <- paste0("G", seq_len(n_grps))
+        dt <- DT::formatStyle(
+          dt, "Group",
+          target          = "row",
+          backgroundColor = DT::styleEqual(
+            c(grp_labels, "—"),
+            c(colors,     "white")
+          )
+        )
+      }
+
+      dt
     })
 
     # ── map ───────────────────────────────────────────────────────────────────
@@ -1180,8 +1230,12 @@ burden_widget_server <- function(
       gf2$grp <- as.character(grps[gf2$name])
       gf2$grp[is.na(gf2$grp)] <- "?"
 
-      n_pal  <- max(3L, n_grps)
-      colors <- RColorBrewer::brewer.pal(n_pal, "RdYlGn")[seq_len(n_grps)]
+      # YlOrRd: light yellow (low burden) → dark red (high burden),
+      # matching the standard choropleth direction.
+      n_pal     <- max(3L, n_grps)
+      all_cols  <- RColorBrewer::brewer.pal(n_pal, "YlOrRd")
+      idx       <- round(seq(1, n_pal, length.out = n_grps))
+      colors    <- all_cols[idx]
       grp_pal <- leaflet::colorFactor(
         palette = colors,
         levels  = as.character(seq_len(n_grps)),
@@ -1198,7 +1252,7 @@ burden_widget_server <- function(
           colors  = colors,
           labels  = paste0("Group ", seq_len(n_grps)),
           title   = paste0(n_grps, " groups — ", cat_sel,
-                           "<br><small>1 = lowest burden</small>"),
+                           "<br><small>light = lowest, dark = highest</small>"),
           layerId = "legend_groups",
           opacity = 0.85
         ) |>
