@@ -923,6 +923,67 @@ burden_summary_table <- function(results_list, level = "national",
   as.data.frame(wide)
 }
 
+# ── Significance grouping ─────────────────────────────────────────────────────
+
+#' Group regions by statistical significance
+#'
+#' Clusters sub-national regions into K groups such that regions within a group
+#' are not significantly different from each other and regions across groups
+#' are.  Uses hierarchical clustering on a pairwise Z-score distance matrix
+#' (distance = |est_i − est_j| / √(SE_i² + SE_j²)).
+#'
+#' @param subnational data.frame or data.table from a burden result
+#'   `$subnational` — must contain columns `region`, `category`, `estimate`,
+#'   `lower`, `upper`.
+#' @param n_groups integer; number of groups (2–5).
+#' @param category character; which category to group on.  If NULL, estimates
+#'   are summed across categories before clustering.
+#' @return Named integer vector: names = region, values = group number
+#'   (1 = lowest burden, K = highest burden).  Returns NULL if there are
+#'   fewer regions than requested groups.
+#' @export
+compute_burden_groups <- function(subnational, n_groups, category = NULL) {
+  df <- as.data.frame(subnational)
+  df <- df[df$region != "National" & !is.na(df$estimate), ]
+
+  if (!is.null(category) && "category" %in% names(df))
+    df <- df[df$category == category, ]
+
+  # Sum across categories if multiple remain
+  if ("category" %in% names(df) && length(unique(df$category)) > 1L) {
+    df <- stats::aggregate(
+      cbind(estimate, lower, upper) ~ region,
+      data = df, FUN = sum
+    )
+  }
+
+  df <- df[!is.na(df$estimate), ]
+  if (nrow(df) < n_groups) return(NULL)
+
+  # Pairwise Z-score distance: how many SEs apart are two regions?
+  z975 <- stats::qnorm(0.975)
+  se   <- pmax(1, (df$upper - df$lower) / (2 * z975))
+  n    <- nrow(df)
+  dmat <- matrix(0, n, n, dimnames = list(df$region, df$region))
+
+  for (i in seq_len(n)) {
+    for (j in seq_len(n)) {
+      dmat[i, j] <- abs(df$estimate[i] - df$estimate[j]) /
+                    sqrt(se[i]^2 + se[j]^2)
+    }
+  }
+
+  hc     <- stats::hclust(stats::as.dist(dmat), method = "ward.D2")
+  groups <- stats::cutree(hc, k = n_groups)
+
+  # Reorder labels: group 1 = lowest mean estimate
+  grp_means <- tapply(df$estimate, groups, mean)
+  rank_map  <- rank(grp_means, ties.method = "first")
+  groups    <- rank_map[groups]
+
+  groups   # named integer vector: names = region
+}
+
 # ── Wrapper ───────────────────────────────────────────────────────────────────
 
 #' Run all requested burden estimation methods

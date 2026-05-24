@@ -152,20 +152,32 @@ burden_widget_ui <- function(id) {
           bslib::nav_panel(
             "Map",
             fluidRow(
-              column(4,
+              column(3,
                 selectInput(ns("map_method"), "Method:",
                             choices = NULL, width = "100%")
               ),
-              column(4,
+              column(3,
                 selectInput(ns("map_category"), "Category:",
                             choices = NULL, width = "100%")
               ),
-              column(4,
+              column(3,
                 sliderInput(
                   ns("sig_threshold"),
                   label  = "Significance threshold:",
                   min = 0.80, max = 0.99, value = 0.90, step = 0.01,
                   width = "100%", ticks = FALSE
+                )
+              ),
+              column(3,
+                checkboxInput(ns("show_groups"), "Color by group", value = FALSE),
+                conditionalPanel(
+                  condition = sprintf("input['%s'] == true", ns("show_groups")),
+                  sliderInput(
+                    ns("n_groups"), label = NULL,
+                    min = 2, max = 5, value = 3, step = 1,
+                    width = "100%", ticks = FALSE,
+                    post = " groups"
+                  )
                 )
               )
             ),
@@ -873,7 +885,21 @@ burden_widget_server <- function(
       if (!is.null(nat)) names(nat)[names(nat) == "region"] <- "Area"
       if (!is.null(sub)) names(sub)[names(sub) == "region"] <- "Area"
 
-      rbind(nat, sub)
+      df <- rbind(nat, sub)
+
+      # Add Group column when groups have been computed
+      grps <- region_groups()
+      if (!is.null(grps) && nrow(df) > 0) {
+        df$Group <- grps[df$Area]
+        df$Group <- ifelse(is.na(df$Group), "—",
+                           paste0("G", df$Group))
+        # Move Group column to position 2 (after Area)
+        df <- df[, c("Area", "Group",
+                     setdiff(names(df), c("Area", "Group"))),
+                 drop = FALSE]
+      }
+
+      df
     })
 
     output$combined_table <- DT::renderDT({
@@ -936,6 +962,7 @@ burden_widget_server <- function(
 
     # Track which region is selected for idiopleth comparison
     selected_region <- reactiveVal(NULL)
+    region_groups   <- reactiveVal(NULL)
 
     # Build base map (standard choropleth)
     output$burden_map <- leaflet::renderLeaflet({
@@ -944,7 +971,8 @@ burden_widget_server <- function(
       yr      <- NULL
       cat_sel <- input$map_category
 
-      selected_region(NULL)  # reset comparison on any map rebuild
+      selected_region(NULL)   # reset comparison on any map rebuild
+      region_groups(NULL)     # reset grouping on any map rebuild
 
       est_vals <- gf2$estimate[is.finite(gf2$estimate)]
       if (length(est_vals) == 0L) {
@@ -1007,9 +1035,92 @@ burden_widget_server <- function(
       }
     })
 
-    # Reset button: return to standard choropleth
+    # Reset button: return to standard choropleth, clear groups
     observeEvent(input$reset_map, {
       selected_region(NULL)
+      region_groups(NULL)
+      updateCheckboxInput(session, "show_groups", value = FALSE)
+    })
+
+    # ── Group coloring ────────────────────────────────────────────────────────
+    # Reacts to checkbox + slider; computes groups and redraws map.
+    observe({
+      req(isTRUE(input$show_groups))
+      gf2     <- map_gf2()
+      n_grps  <- input$n_groups
+      cat_sel <- input$map_category
+      req(gf2, n_grps, cat_sel)
+
+      sub_df <- as.data.frame(gf2)[, intersect(
+        names(as.data.frame(gf2)),
+        c("name", "estimate", "lower", "upper", "category")
+      )]
+      names(sub_df)[names(sub_df) == "name"] <- "region"
+      if (!"category" %in% names(sub_df)) sub_df$category <- cat_sel
+
+      grps <- tryCatch(
+        compute_burden_groups(sub_df, n_grps, category = cat_sel),
+        error = function(e) NULL
+      )
+      region_groups(grps)
+    })
+
+    # When groups are set, redraw with categorical group palette
+    observe({
+      grps    <- region_groups()
+      gf2     <- isolate(map_gf2())
+      method  <- isolate(input$map_method)
+      cat_sel <- isolate(input$map_category)
+      n_grps  <- isolate(input$n_groups)
+      if (is.null(grps) || is.null(gf2)) return()
+
+      gf2$grp <- as.character(grps[gf2$name])
+      gf2$grp[is.na(gf2$grp)] <- "?"
+
+      n_pal  <- max(3L, n_grps)
+      colors <- RColorBrewer::brewer.pal(n_pal, "RdYlGn")[seq_len(n_grps)]
+      grp_pal <- leaflet::colorFactor(
+        palette = colors,
+        levels  = as.character(seq_len(n_grps)),
+        na.color = "#cccccc"
+      )
+
+      grp_labels <- paste0("Group ", seq_len(n_grps),
+                           " (low → high)")
+
+      leaflet::leafletProxy(ns("burden_map"), data = gf2) |>
+        leaflet::removeControl("legend_standard") |>
+        leaflet::removeControl("legend_comparison") |>
+        leaflet::addLegend(
+          colors  = colors,
+          labels  = paste0("Group ", seq_len(n_grps)),
+          title   = paste0(n_grps, " groups — ", cat_sel,
+                           "<br><small>1 = lowest burden</small>"),
+          layerId = "legend_groups",
+          opacity = 0.85
+        ) |>
+        leaflet::addPolygons(
+          fillColor   = ~grp_pal(grp),
+          fillOpacity = 0.80,
+          color       = "white",
+          weight      = 1,
+          layerId     = ~name,
+          label       = ~paste0(
+            name, ": Group ", grp, " — ",
+            dplyr::if_else(is.na(estimate), "no data",
+                           format_burden_estimate(estimate, lower, upper))
+          ),
+          highlightOptions = leaflet::highlightOptions(
+            weight = 2, color = "#333", bringToFront = TRUE
+          )
+        )
+    })
+
+    # When groups are cleared, remove group legend
+    observeEvent(region_groups(), {
+      req(is.null(region_groups()))
+      leaflet::leafletProxy(ns("burden_map")) |>
+        leaflet::removeControl("legend_groups")
     })
 
     # Reset to standard choropleth when region is deselected
