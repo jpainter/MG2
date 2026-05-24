@@ -435,6 +435,10 @@ burden_c2 <- function(data, target_elements, region_col,
         use_arima  <- n_obs_hist >= min_months
 
         if (use_arima) {
+          # forecast::Arima() handles NAs in the series via the Kalman filter.
+          # fitted() on the result returns Kalman-smoothed values for ALL
+          # time points, including missing ones — giving ARIMA-based predictions
+          # rather than the cross-sectional linear predictions used by C1.
           ts_vals  <- stats::ts(fac_hist$value, frequency = 12)
           xreg_all <- matrix(fac_hist$champ_mean, ncol = 1)
           xreg_all[is.na(xreg_all)] <- 0
@@ -442,26 +446,31 @@ burden_c2 <- function(data, target_elements, region_col,
           fit_arima <- tryCatch(
             forecast::auto.arima(ts_vals, xreg = xreg_all,
                                  seasonal = TRUE, stepwise = TRUE,
-                                 approximation = TRUE, lambda = "auto",
-                                 allowdrift = FALSE),
+                                 approximation = TRUE, allowdrift = FALSE),
             error = function(e) NULL
           )
 
           if (!is.null(fit_arima)) {
-            ann_samps <- tryCatch({
-              sims <- forecast::simulate(fit_arima, nsim = n_bootstrap,
-                                         future = FALSE, xreg = xreg_all)
-              if (is.matrix(sims)) {
-                for (i in seq_len(nrow(fac_hist))) {
-                  if (!is.na(fac_hist$value[i])) sims[, i] <- fac_hist$value[i]
-                }
-                pmax(0, colSums(sims))
-              } else NULL
-            }, error = function(e) NULL)
+            fitted_vals <- tryCatch(as.numeric(fitted(fit_arima)),
+                                    error = function(e) NULL)
+            sigma_arima <- sqrt(fit_arima$sigma2)
 
-            if (!is.null(ann_samps) && length(ann_samps) == n_bootstrap) {
+            if (!is.null(fitted_vals) &&
+                length(fitted_vals) == nrow(fac_hist) &&
+                sigma_arima > 0) {
+
+              ann_samps <- rep(0, n_bootstrap)
+              for (i in seq_len(nrow(fac_hist))) {
+                if (!is.na(fac_hist$value[i])) {
+                  ann_samps <- ann_samps + fac_hist$value[i]
+                } else if (is.finite(fitted_vals[i])) {
+                  drawn <- pmax(0, stats::rnorm(n_bootstrap,
+                                                fitted_vals[i], sigma_arima))
+                  ann_samps <- ann_samps + drawn
+                }
+              }
               fac_samps <- fac_samps + ann_samps
-              next
+              next   # skip C1 fallback
             }
           }
         }
