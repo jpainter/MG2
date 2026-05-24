@@ -34,11 +34,24 @@ burden_widget_ui <- function(id) {
           tabPanel(
             "Data",
             br(),
+
+            # Target element — element-level by default
             selectInput(
-              ns("target_elements"),
-              label   = "Target element(s):",
+              ns("target_base"),
+              label   = "Target data element(s):",
               choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
             ),
+            checkboxInput(ns("by_category"), "Select by category", value = FALSE),
+            conditionalPanel(
+              condition = sprintf("input['%s'] == true", ns("by_category")),
+              selectInput(
+                ns("target_elements"),
+                label   = "Categories:",
+                choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+              )
+            ),
+            uiOutput(ns("category_conflict_msg")),
+
             selectInput(
               ns("attendance_elements"),
               label   = "Attendance element(s) — B & E:",
@@ -143,8 +156,12 @@ burden_widget_ui <- function(id) {
           # ── Results: single combined table ──────────────────────────
           bslib::nav_panel(
             "Results",
-            br(),
-            uiOutput(ns("results_hint")),
+            div(
+              style = "display:flex; align-items:center; gap:16px; padding:8px 0 4px 0;",
+              uiOutput(ns("results_hint")),
+              checkboxInput(ns("show_by_category"),
+                            "Show by category", value = FALSE)
+            ),
             DT::DTOutput(ns("combined_table"))
           ),
 
@@ -526,22 +543,108 @@ burden_widget_server <- function(
       metadata_widget_output$geoFeatures()
     })
 
-    # ── populate input choices ────────────────────────────────────────────────
+    # ── element parsing helpers ───────────────────────────────────────────────
 
-    observeEvent(selected_data(), {
+    # Extract base element name (text before last underscore)
+    .base_elem <- function(x) sub("_[^_]*$", "", x)
+    # Extract category  (text after last underscore)
+    .cat_elem  <- function(x) sub("^.*_([^_]*)$", "\\1", x)
+
+    # Mapping: base element name → vector of full data values (all categories)
+    element_map <- reactive({
       d <- selected_data()
       req(!is.null(d) && nrow(d) > 0)
+      data_vals <- sort(unique(d$data))
+      split(data_vals, .base_elem(data_vals))
+    })
 
-      elements <- sort(unique(d$data))
+    # ── populate input choices ────────────────────────────────────────────────
+
+    observeEvent(element_map(), {
+      em <- element_map()
       none_choice <- c("(none)" = "")
-      updateSelectInput(session, "target_elements",
-                        choices = elements, selected = elements[1])
+      base_names  <- sort(names(em))
+      all_vals    <- sort(unlist(em, use.names = FALSE))
+
+      # Base-element selector (deduplicated)
+      updateSelectInput(session, "target_base",
+                        choices = base_names, selected = base_names[1])
+      # Category-level selector — populated by observeEvent below
       updateSelectInput(session, "attendance_elements",
-                        choices = c(none_choice, elements), selected = "")
+                        choices = c(none_choice, all_vals), selected = "")
       updateSelectInput(session, "tested_elements",
-                        choices = c(none_choice, elements), selected = "")
+                        choices = c(none_choice, all_vals), selected = "")
       updateSelectInput(session, "population_element",
-                        choices = c(none_choice, elements), selected = "")
+                        choices = c(none_choice, all_vals), selected = "")
+    })
+
+    # When base element(s) selected, populate the by-category selector
+    observeEvent(input$target_base, {
+      em   <- element_map()
+      tgt  <- input$target_base
+      req(length(tgt) > 0)
+      cats <- sort(unique(unlist(em[tgt], use.names = FALSE)))
+      updateSelectInput(session, "target_elements",
+                        choices = cats, selected = cats)
+    }, ignoreNULL = TRUE)
+
+    # Effective target elements used by all burden functions
+    eff_target <- reactive({
+      em  <- element_map()
+      tgt <- input$target_base
+      req(length(tgt) > 0)
+      if (isTRUE(input$by_category) && length(input$target_elements) > 0) {
+        input$target_elements          # user-selected categories
+      } else {
+        sort(unique(unlist(em[tgt], use.names = FALSE)))  # all categories for selected elements
+      }
+    })
+
+    # ── category conflict detection ───────────────────────────────────────────
+
+    output$category_conflict_msg <- renderUI({
+      tgt <- input$target_base
+      req(length(tgt) > 1)
+      em <- element_map()
+
+      # Get category sets per selected element
+      cats_per <- lapply(tgt, function(e) {
+        vals <- em[[e]]
+        if (is.null(vals)) return(character(0))
+        sort(.cat_elem(vals))
+      })
+      names(cats_per) <- tgt
+
+      # Check if all elements have identical categories
+      ref <- cats_per[[1]]
+      all_same <- all(vapply(cats_per[-1],
+                             function(c) identical(c, ref), logical(1)))
+      if (all_same) return(NULL)
+
+      # Try auto-mapping: strip sex suffix and compare age groups
+      strip_sex <- function(x) trimws(gsub(",\\s*(Male|Female)$", "", x,
+                                           ignore.case = TRUE, perl = TRUE))
+      stripped_per <- lapply(cats_per, function(c) sort(unique(strip_sex(c))))
+      auto_ok <- all(vapply(stripped_per[-1],
+                            function(c) identical(c, stripped_per[[1]]),
+                            logical(1)))
+
+      if (auto_ok) {
+        div(
+          style = "background:#fff3cd; border-left:3px solid #ffc107; padding:6px 10px; font-size:0.85em; margin-bottom:6px;",
+          tags$strong("Category mapping applied: "),
+          "Selected elements have sex-split categories that will be ",
+          "aggregated to age groups automatically before estimation."
+        )
+      } else {
+        div(
+          style = "background:#f8d7da; border-left:3px solid #dc3545; padding:6px 10px; font-size:0.85em; margin-bottom:6px;",
+          tags$strong("Category mismatch: "),
+          "The selected elements have incompatible categories. ",
+          "Use ", tags$strong("Data → Combine"), " to create a merged ",
+          "dataset with aligned categories before running burden estimates."
+        )
+      }
     })
 
     # Date range from Reporting widget (champion window dates)
@@ -672,13 +775,13 @@ burden_widget_server <- function(
 
     observeEvent(input$run, {
       req(selected_data())
-      req(length(input$target_elements) > 0)
+      req(length(input$target_base) > 0)
 
       log_lines(character(0))
       add_log("Starting burden estimation...")
 
       d_all      <- selected_data()
-      tgt        <- input$target_elements
+      tgt        <- eff_target()   # all categories for selected base element(s)
       methods    <- input$methods
       ln         <- level_names()
       region_col <- if (length(ln) >= 2) ln[2] else ln[1]
@@ -711,7 +814,7 @@ burden_widget_server <- function(
           burden_a(d, tgt, region_col, n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
-        results$A <- res
+        results$A <- add_category_totals(res)
         if (!is.null(res))
           add_log(sprintf("  Done. %d region-year-category combinations.",
                           nrow(res$subnational)))
@@ -731,7 +834,7 @@ burden_widget_server <- function(
                      n_bootstrap = n_boot),
             error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
           )
-          results$B <- res
+          results$B <- add_category_totals(res)
           if (!is.null(res))
             add_log(sprintf("  Done. %d region-year-category combinations.",
                             nrow(res$subnational)))
@@ -746,7 +849,7 @@ burden_widget_server <- function(
           burden_c1(d, tgt, region_col, n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
-        results$C1 <- res
+        results$C1 <- add_category_totals(res)
         if (!is.null(res)) {
           nm <- if (!is.null(res$not_modeled)) nrow(res$not_modeled) else 0L
           add_log(sprintf("  Done. %d not modeled (flagged for fallback).", nm))
@@ -761,7 +864,7 @@ burden_widget_server <- function(
           burden_c2(d, tgt, region_col, n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
-        results$C2 <- res
+        results$C2 <- add_category_totals(res)
         if (!is.null(res)) {
           nm <- if (!is.null(res$not_modeled)) nrow(res$not_modeled) else 0L
           add_log(sprintf("  Done. %d facilities fell back to linear.", nm))
@@ -792,7 +895,7 @@ burden_widget_server <- function(
                        n_bootstrap   = n_boot),
             error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
           )
-          results$E <- res
+          results$E <- add_category_totals(res)
           if (!is.null(res))
             add_log(sprintf("  Done. %d region-year-category combinations.",
                             nrow(res$subnational)))
@@ -854,7 +957,10 @@ burden_widget_server <- function(
                                      C1 = results$C1, C2 = results$C2,
                                      E = results$E)))
       updateSelectInput(session, "map_method",  choices = available)
-      updateSelectInput(session, "map_category", choices = tgt, selected = tgt[1])
+      # Map category: always include "Total" first, then individual categories
+      map_cats <- c("Total", tgt)
+      updateSelectInput(session, "map_category",
+                        choices = map_cats, selected = "Total")
     })
 
     # ── results hint ──────────────────────────────────────────────────────────
@@ -878,12 +984,32 @@ burden_widget_server <- function(
       has_pop <- !is.null(input$population_element) &&
                  nchar(input$population_element) > 0
 
-      nat <- burden_summary_table(res_list, "national",    show_rate = has_pop)
-      sub <- burden_summary_table(res_list, "subnational", show_rate = has_pop)
+      # Filter to Total-only or all categories based on toggle
+      show_cats <- isTRUE(input$show_by_category)
+      res_filtered <- lapply(res_list, function(res) {
+        lapply(res[c("subnational", "national")], function(df) {
+          if (is.null(df)) return(NULL)
+          df <- as.data.frame(df)
+          if ("category" %in% names(df)) {
+            if (!show_cats) {
+              df <- df[df$category == "Total", , drop = FALSE]
+            }
+          }
+          df
+        })
+      })
+      names(res_filtered) <- names(res_list)
+
+      nat <- burden_summary_table(res_filtered, "national",    show_rate = has_pop)
+      sub <- burden_summary_table(res_filtered, "subnational", show_rate = has_pop)
       if (is.null(nat) && is.null(sub)) return(NULL)
 
       if (!is.null(nat)) names(nat)[names(nat) == "region"] <- "Area"
       if (!is.null(sub)) names(sub)[names(sub) == "region"] <- "Area"
+
+      # Drop "category" column when showing totals only (it just says "Total")
+      if (!show_cats && "category" %in% names(nat)) nat$category <- NULL
+      if (!show_cats && "category" %in% names(sub)) sub$category <- NULL
 
       df <- rbind(nat, sub)
 
@@ -935,6 +1061,10 @@ burden_widget_server <- function(
       req(!is.null(res), !is.null(res$subnational))
 
       map_data <- as.data.frame(res$subnational)
+      # "Total" is always available; individual categories only when shown by cat
+      if (!"category" %in% names(map_data)) {
+        map_data$category <- "Total"
+      }
       map_data <- map_data[map_data$category == cat_sel &
                            map_data$region != "National", ]
       req(nrow(map_data) > 0)

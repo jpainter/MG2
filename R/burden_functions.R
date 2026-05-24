@@ -923,6 +923,65 @@ burden_summary_table <- function(results_list, level = "national",
   as.data.frame(wide)
 }
 
+# ── Category totals ──────────────────────────────────────────────────────────
+
+#' Add "Total" rows that sum across all categories
+#'
+#' For each region, sums estimates across categories and combines uncertainty
+#' via SE_total = √ΣSE_i² (assumes independence across categories).  A "Total"
+#' row is appended to both `$subnational` and `$national` when more than one
+#' category is present.
+#'
+#' @param result list with `$subnational` and `$national` data.tables.
+#' @return Modified result with Total rows appended.
+#' @export
+add_category_totals <- function(result) {
+  if (is.null(result)) return(NULL)
+
+  z975 <- stats::qnorm(0.975)
+
+  .add_total <- function(df) {
+    if (is.null(df) || nrow(df) == 0L) return(df)
+    df <- as.data.frame(df)
+    if (!"category" %in% names(df)) return(df)
+    if (length(unique(df$category)) <= 1L) return(df)   # already one category
+
+    # Identify non-estimate columns to carry through
+    group_cols <- intersect(c("method", "region"), names(df))
+
+    totals <- do.call(rbind, lapply(
+      split(df, df[, group_cols, drop = FALSE]),
+      function(g) {
+        est   <- sum(g$estimate, na.rm = TRUE)
+        se_i  <- (g$upper - g$lower) / (2 * z975)
+        se_t  <- sqrt(sum(se_i^2, na.rm = TRUE))
+        row   <- g[1L, , drop = FALSE]
+        row$category <- "Total"
+        row$estimate <- as.integer(round(est))
+        row$lower    <- as.integer(round(est - z975 * se_t))
+        row$upper    <- as.integer(round(est + z975 * se_t))
+        # Zero out any extra columns we don't know how to aggregate
+        for (col in setdiff(names(row), c(group_cols, "category",
+                                           "estimate", "lower", "upper"))) {
+          if (is.numeric(row[[col]])) row[[col]] <- NA_real_
+          else if (is.integer(row[[col]])) row[[col]] <- NA_integer_
+        }
+        row
+      }
+    ))
+
+    data.table::rbindlist(list(
+      data.table::as.data.table(df),
+      data.table::as.data.table(totals)
+    ), fill = TRUE)
+  }
+
+  list(
+    subnational = .add_total(result$subnational),
+    national    = .add_total(result$national)
+  )
+}
+
 # ── Significance grouping ─────────────────────────────────────────────────────
 
 #' Group regions by statistical significance
