@@ -566,16 +566,15 @@ burden_widget_server <- function(
       base_names  <- sort(names(em))
       all_vals    <- sort(unlist(em, use.names = FALSE))
 
-      # Base-element selector (deduplicated)
+      # Base-element selector (deduplicated) for all inputs
       updateSelectInput(session, "target_base",
                         choices = base_names, selected = base_names[1])
-      # Category-level selector — populated by observeEvent below
       updateSelectInput(session, "attendance_elements",
-                        choices = c(none_choice, all_vals), selected = "")
+                        choices = c(none_choice, base_names), selected = "")
       updateSelectInput(session, "tested_elements",
-                        choices = c(none_choice, all_vals), selected = "")
+                        choices = c(none_choice, base_names), selected = "")
       updateSelectInput(session, "population_element",
-                        choices = c(none_choice, all_vals), selected = "")
+                        choices = c(none_choice, base_names), selected = "")
     })
 
     # When base element(s) selected, populate the by-category selector
@@ -702,48 +701,11 @@ burden_widget_server <- function(
 
     # ── category mapping UI (for Method B) ───────────────────────────────────
 
-    output$cat_map_ui <- renderUI({
-      att <- input$attendance_elements
-      tgt <- input$target_elements
-      req(length(att) > 0, att[1] != "", length(tgt) > 0)
-
-      # Show mapping only when attendance categories differ from target
-      if (length(att) == length(tgt) &&
-          all(sort(att) == sort(tgt))) return(NULL)
-
-      d <- selected_data()
-      req(!is.null(d))
-      att_cats <- sort(unique(d[d$data %in% att, ]$data))
-
-      div(
-        style = "padding:6px; background:#f0f4ff; border-radius:4px; margin-bottom:8px;",
-        tags$small(tags$em("Attendance → target category mapping:")),
-        lapply(tgt, function(tc) {
-          selectInput(
-            ns(paste0("map_cat_", make.names(tc))),
-            label   = tc,
-            choices = att_cats,
-            width   = "100%"
-          )
-        })
-      )
-    })
-
-    cat_map_reactive <- reactive({
-      tgt <- input$target_elements
-      att <- input$attendance_elements
-      req(length(tgt) > 0)
-      if (length(att) == 0 || att[1] == "") return(NULL)
-
-      map <- stats::setNames(
-        vapply(tgt, function(tc) {
-          id <- paste0("map_cat_", make.names(tc))
-          if (!is.null(input[[id]])) input[[id]] else att[1]
-        }, character(1)),
-        tgt
-      )
-      map
-    })
+    # Category mapping UI — not needed when elements are selected at base level;
+    # burden_b / burden_aci receive all categories and use default 1:1 or
+    # single-element mapping automatically.
+    output$cat_map_ui <- renderUI(NULL)
+    cat_map_reactive  <- reactive(NULL)
 
     # ── progress log ─────────────────────────────────────────────────────────
 
@@ -806,6 +768,16 @@ burden_widget_server <- function(
       results$C1 <- NULL; results$C2 <- NULL
       results$E  <- NULL; results$D  <- NULL
 
+      # Expand base element names to full element+category strings
+      em <- element_map()
+      .expand <- function(base_names) {
+        if (length(base_names) == 0 || base_names[1] == "") return(NULL)
+        sort(unique(unlist(em[base_names[base_names != ""]], use.names = FALSE)))
+      }
+      att_full  <- .expand(input$attendance_elements)
+      test_full <- .expand(input$tested_elements)
+      pop_full  <- .expand(input$population_element)
+
       n_boot <- 1000L
 
       if ("A" %in% methods) {
@@ -823,8 +795,8 @@ burden_widget_server <- function(
       }
 
       if ("B" %in% methods) {
-        att <- input$attendance_elements
-        if (length(att) == 0 || att[1] == "") {
+        att <- att_full
+        if (is.null(att) || length(att) == 0) {
           add_log("Method B skipped: no attendance element selected.")
         } else {
           add_log("Method B: Attendance-based...")
@@ -874,23 +846,21 @@ burden_widget_server <- function(
       }
 
       if ("E" %in% methods) {
-        att  <- input$attendance_elements
-        test <- input$tested_elements
-        if (length(att) == 0 || att[1] == "" || length(test) == 0 || test[1] == "") {
+        att  <- att_full
+        test <- test_full
+        if (is.null(att) || is.null(test) || length(att) == 0 || length(test) == 0) {
           add_log("Method E skipped: attendance and/or tested elements not selected.")
         } else {
           add_log("Method E: Robust Estimator (Thwing/Plucinski/Painter 2020)...")
-          pop_elem <- input$population_element
           res <- tryCatch(
             burden_aci(d, tgt, att, test,
-                       population_element = if (nchar(pop_elem) > 0) pop_elem else NULL,
+                       population_element = if (length(pop_full) > 0) pop_full[1] else NULL,
                        beta_young    = input$beta_young,
                        beta_old      = input$beta_old,
                        alpha         = input$alpha_e,
                        gamma_young   = input$gamma_young,
                        gamma_old     = input$gamma_old,
                        lambdamin     = input$lambdamin,
-                       years         = yrs,
                        region_col    = region_col,
                        n_bootstrap   = n_boot),
             error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
@@ -905,13 +875,12 @@ burden_widget_server <- function(
       }
 
       # Population rate (applies to all completed methods)
-      pop_elem <- input$population_element
-      if (!is.null(pop_elem) && nchar(pop_elem) > 0) {
+      if (length(pop_full) > 0) {
         add_log("Adding population rates (per 100,000)...")
         for (nm in c("A", "B", "C1", "C2", "E")) {
           if (!is.null(results[[nm]])) {
             results[[nm]] <- tryCatch(
-              add_population_rate(results[[nm]], d, pop_elem, region_col),
+              add_population_rate(results[[nm]], d, pop_full[1], region_col),
               error = function(e) results[[nm]]
             )
           }
@@ -1091,8 +1060,9 @@ burden_widget_server <- function(
     })
 
     # Track which region is selected for idiopleth comparison
-    selected_region <- reactiveVal(NULL)
-    region_groups   <- reactiveVal(NULL)
+    selected_region  <- reactiveVal(NULL)
+    region_groups    <- reactiveVal(NULL)
+    choropleth_reset <- reactiveVal(0L)   # incremented to force choropleth redraw
 
     # Build base map (standard choropleth)
     output$burden_map <- leaflet::renderLeaflet({
@@ -1165,11 +1135,14 @@ burden_widget_server <- function(
       }
     })
 
-    # Reset button: return to standard choropleth, clear groups
+    # Reset button: clear idiopleth + groups, force choropleth redraw.
+    # selected_region may already be NULL (groups shown without idiopleth),
+    # so we can't rely on it changing — use a separate counter to force redraw.
     observeEvent(input$reset_map, {
       selected_region(NULL)
       region_groups(NULL)
       updateCheckboxInput(session, "show_groups", value = FALSE)
+      choropleth_reset(choropleth_reset() + 1L)
     })
 
     # ── Group coloring ────────────────────────────────────────────────────────
@@ -1253,28 +1226,27 @@ burden_widget_server <- function(
         leaflet::removeControl("legend_groups")
     })
 
-    # Reset to standard choropleth when region is deselected
-    observeEvent(selected_region(), {
-      req(is.null(selected_region()))
+    # Reset to standard choropleth: triggered by deselecting a region OR by
+    # the reset button (via choropleth_reset counter).
+    .redraw_choropleth <- function() {
       gf2    <- isolate(map_gf2())
       method <- isolate(input$map_method)
-      yr     <- NULL
       cat_s  <- isolate(input$map_category)
-      if (is.null(gf2)) return()
+      if (is.null(gf2) || is.null(method)) return()
 
-      pal <- leaflet::colorNumeric("YlOrRd",
-                                   domain = range(gf2$estimate, na.rm = TRUE),
+      est_vals <- gf2$estimate[is.finite(gf2$estimate)]
+      if (length(est_vals) == 0L) return()
+      pal <- leaflet::colorNumeric("YlOrRd", domain = range(est_vals),
                                    na.color = "#cccccc")
       leaflet::leafletProxy(ns("burden_map"), data = gf2) |>
         leaflet::removeControl("legend_comparison") |>
-        leaflet::addLegend(
-          pal     = pal, values = ~estimate,
-          title   = paste0("Method ", method, "<br>", cat_s),
-          layerId = "legend_standard",
-          labFormat = leaflet::labelFormat(big.mark = ",", digits = 0)
-        ) |>
+        leaflet::removeControl("legend_groups") |>
+        leaflet::addLegend(pal = pal, values = ~estimate,
+                           title = paste0("Method ", method, "<br>", cat_s),
+                           layerId = "legend_standard",
+                           labFormat = leaflet::labelFormat(big.mark = ",", digits = 0)) |>
         leaflet::addPolygons(
-          fillColor   = ~pal(estimate), fillOpacity = 0.75,
+          fillColor = ~pal(estimate), fillOpacity = 0.75,
           color = "white", weight = 1, layerId = ~name,
           label = ~paste0(name, ": ",
             dplyr::if_else(is.na(estimate), "no data",
@@ -1282,6 +1254,16 @@ burden_widget_server <- function(
           highlightOptions = leaflet::highlightOptions(
             weight = 2, color = "#666", bringToFront = TRUE)
         )
+    }
+
+    observeEvent(choropleth_reset(), {
+      req(choropleth_reset() > 0L)
+      .redraw_choropleth()
+    })
+
+    observeEvent(selected_region(), {
+      req(is.null(selected_region()))
+      .redraw_choropleth()
     })
 
     # Idiopleth: significance-based comparison coloring.

@@ -1037,8 +1037,9 @@ compute_burden_groups <- function(subnational, n_groups, category = NULL) {
 
   # Reorder labels: group 1 = lowest mean estimate
   grp_means <- tapply(df$estimate, groups, mean)
-  rank_map  <- rank(grp_means, ties.method = "first")
-  groups    <- rank_map[groups]
+  rank_map <- rank(grp_means, ties.method = "first")
+  # Index rank_map by group label (character), preserve region names
+  groups   <- stats::setNames(rank_map[as.character(groups)], names(groups))
 
   groups   # named integer vector: names = region
 }
