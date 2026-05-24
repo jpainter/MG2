@@ -170,8 +170,16 @@ burden_widget_ui <- function(id) {
               )
             ),
             div(
-              style = "font-size:0.82em; color:#666; margin-bottom:4px;",
-              "Click a region to compare against all others (red = higher, green = lower). Click again to reset."
+              style = "display:flex; align-items:center; gap:10px; margin-bottom:4px;",
+              div(
+                style = "font-size:0.82em; color:#666; flex:1;",
+                "Click a region to compare against all others (red = higher, green = lower)."
+              ),
+              actionButton(
+                ns("reset_map"), "Reset map",
+                class = "btn-sm btn-default",
+                icon  = shiny::icon("rotate-left")
+              )
             ),
             leaflet::leafletOutput(ns("burden_map"), height = "70vh"),
             uiOutput(ns("idiopleth_label"))
@@ -997,6 +1005,11 @@ burden_widget_server <- function(
       } else {
         selected_region(clicked)
       }
+    })
+
+    # Reset button: return to standard choropleth
+    observeEvent(input$reset_map, {
+      selected_region(NULL)
     })
 
     # Reset to standard choropleth when region is deselected
