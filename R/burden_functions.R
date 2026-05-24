@@ -536,8 +536,8 @@ burden_c2 <- function(data, target_elements, region_col,
 #' @param default_p default care-seeking proportion (applied when category not
 #'   in `care_seeking`).
 #' @param n_bootstrap integer; samples for propagating care-seeking uncertainty.
-#' @return data.table with columns: base_method, year, region, category,
-#'   estimate, lower, upper (care-seeking-adjusted).
+#' @return data.table with columns: base_method, region, category,
+#'   estimate, lower, upper, care_p (care-seeking-adjusted).
 #' @export
 burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
                              default_p = 0.80, n_bootstrap = 1000L) {
@@ -564,7 +564,6 @@ burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
         ci <- .burden_ci(adj_samps)
         rows[[length(rows) + 1L]] <- data.frame(
           base_method = method_name,
-          year        = df$year[i],
           region      = df$region[i],
           category    = cat_i,
           level       = level,

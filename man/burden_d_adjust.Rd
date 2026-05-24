@@ -24,8 +24,8 @@ in \code{care_seeking}).}
 \item{n_bootstrap}{integer; samples for propagating care-seeking uncertainty.}
 }
 \value{
-data.table with columns: base_method, year, region, category,
-estimate, lower, upper (care-seeking-adjusted).
+data.table with columns: base_method, region, category,
+estimate, lower, upper, care_p (care-seeking-adjusted).
 }
 \description{
 Divides each existing estimate by an assumed care-seeking proportion to
