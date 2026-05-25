@@ -4,24 +4,34 @@
 \alias{burden_c1}
 \title{Burden Method C1: Facility-Level Imputation (Linear Regression)}
 \usage{
-burden_c1(data, target_elements, region_col, min_obs = 3L, n_bootstrap = 1000L)
+burden_c1(
+  data,
+  target_elements,
+  region_col,
+  period_start = NULL,
+  period_end = NULL,
+  min_obs = 3L,
+  n_bootstrap = 1000L
+)
 }
 \arguments{
-\item{data}{data.table from \code{selectedData()}.}
+\item{data}{data.table from \code{selectedData()} — the \strong{full available history},
+not pre-filtered to the estimate period.  The full history improves model
+fitting; summation is restricted to [period_start, period_end].}
 
 \item{target_elements}{character; target \code{data} values.}
 
 \item{region_col}{character; region column name.}
 
+\item{period_start, period_end}{yearmonth; start/end of the estimate period.
+When NULL the entire supplied dataset is both fitted and summed.}
+
 \item{min_obs}{integer; minimum observed months to attempt fitting (default 3).}
 
 \item{n_bootstrap}{integer; bootstrap draws.}
-
-\item{years}{integer; calendar years.}
 }
 \value{
-list with \verb{$subnational}, \verb{$national}, and \verb{$not_modeled} (orgUnit
-× category combinations that fell back — caller can pipe to Method B).
+list with \verb{$subnational}, \verb{$national}, and \verb{$not_modeled}.
 }
 \description{
 For each facility, fits a linear model \code{value ~ champion_mean} on observed

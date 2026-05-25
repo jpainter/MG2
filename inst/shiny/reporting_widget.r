@@ -2258,12 +2258,27 @@ reporting_widget_server <- function(
         req(selected_data())
         cat("\n * avgValues:")
 
-        avgValues =
-          selected_data() %>%
-          group_by(orgUnit, Month) %>%
-          summarise(dataCol = sum(dataCol, na.rm = TRUE)) %>%
-          group_by(orgUnit) %>%
-          summarise(medianValue = median(dataCol, na.rm = TRUE))
+        # Include the level-2 (province/region) column so the Facilities table
+        # can be filtered by province, allowing the user to see which facilities
+        # belong to a specific region.
+        ln <- levelNames()
+        lvl2_col <- if (length(ln) >= 2L) ln[2L] else NULL
+
+        if (!is.null(lvl2_col) && lvl2_col %in% names(selected_data())) {
+          avgValues <-
+            selected_data() %>%
+            group_by(orgUnit, !! rlang::sym(lvl2_col), Month) %>%
+            summarise(dataCol = sum(dataCol, na.rm = TRUE), .groups = "drop") %>%
+            group_by(orgUnit, !! rlang::sym(lvl2_col)) %>%
+            summarise(medianValue = median(dataCol, na.rm = TRUE), .groups = "drop")
+        } else {
+          avgValues <-
+            selected_data() %>%
+            group_by(orgUnit, Month) %>%
+            summarise(dataCol = sum(dataCol, na.rm = TRUE), .groups = "drop") %>%
+            group_by(orgUnit) %>%
+            summarise(medianValue = median(dataCol, na.rm = TRUE), .groups = "drop")
+        }
 
         cat("\n - done avgValues:")
         return(avgValues)
@@ -2614,9 +2629,31 @@ reporting_widget_server <- function(
       })
 
       output$facility_table <- DT::renderDT({
+        ln      <- levelNames()
+        prov_col <- if (length(ln) >= 2L) ln[2L] else NULL
+
+        drop_cols <- c("parentGraph", "groups", "medianValueRange",
+                       "medianValueRangeSize", "level")
+
         df <- champion_facilities() %>%
           st_drop_geometry() %>%
-          select(-parentGraph, -groups)
+          select(-any_of(drop_cols))
+
+        # Put province column first so table is easy to sort/filter by region
+        lead_cols <- c(prov_col, "name", "champion", "medianValue")
+        lead_cols <- lead_cols[lead_cols %in% names(df)]
+        rest_cols <- setdiff(names(df), lead_cols)
+        df <- df[, c(lead_cols, rest_cols), drop = FALSE]
+
+        # Rename for display
+        rename_map <- c(
+          name         = "Facility",
+          champion     = "Reporting",
+          medianValue  = "Median Value"
+        )
+        if (!is.null(prov_col)) rename_map[[prov_col]] <- "Province"
+        names(df)[names(df) %in% names(rename_map)] <-
+          rename_map[names(df)[names(df) %in% names(rename_map)]]
 
         num_cols <- names(df)[sapply(df, is.numeric)]
 

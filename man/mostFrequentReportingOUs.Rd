@@ -10,7 +10,8 @@ mostFrequentReportingOUs(
   startingMonth = NULL,
   period = NULL,
   missing_reports = 0,
-  count.any = TRUE,
+  count.any = NULL,
+  reporting_rule = NULL,
   data_categories = NULL,
   testing = FALSE,
   .cat = FALSE

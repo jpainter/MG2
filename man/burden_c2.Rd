@@ -8,22 +8,24 @@ burden_c2(
   data,
   target_elements,
   region_col,
-  min_months = 24L,
+  period_start = NULL,
+  period_end = NULL,
+  min_months = 12L,
   n_bootstrap = 1000L
 )
 }
 \arguments{
-\item{data}{data.table from \code{selectedData()}.}
+\item{data}{data.table from \code{selectedData()} — the \strong{full available history}.}
 
 \item{target_elements}{character; target \code{data} values.}
 
 \item{region_col}{character; region column name.}
 
-\item{min_months}{integer; minimum months of history for ARIMA (default 24).}
+\item{period_start, period_end}{yearmonth; estimate period window (NULL = all data).}
+
+\item{min_months}{integer; minimum months of history for ARIMA (default 12).}
 
 \item{n_bootstrap}{integer; simulation draws.}
-
-\item{years}{integer; calendar years.}
 }
 \value{
 list with \verb{$subnational}, \verb{$national}, and \verb{$not_modeled}.
