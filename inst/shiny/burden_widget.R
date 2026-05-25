@@ -827,9 +827,17 @@ burden_widget_server <- function(
       # Store period label for display on Results tab
       results$period_label <- period_label
 
+      # Period-filtered data kept for the "Reported" map layer
+      d_period <- data.table::copy(d)
+      if (!is.null(sm_ym)) d_period <- d_period[Month >= sm_ym]
+      if (!is.null(em_ym)) d_period <- d_period[Month <= em_ym]
+      results$d_period        <- d_period
+      results$tgt_used        <- tgt
+      results$region_col_used <- region_col
+
       # Reported actuals — sum of actual submitted values for champion facilities
       # (within the estimate period)
-      d_champ <- d[Selected == "Champion" & get("data") %in% tgt & !is.na(value)]
+      d_champ <- d_period[Selected == "Champion" & get("data") %in% tgt & !is.na(value)]
       rep_sub <- d_champ[, .(Reported = as.integer(sum(value, na.rm = TRUE))),
                           by = region_col]
       data.table::setnames(rep_sub, region_col, "region")
@@ -1008,6 +1016,8 @@ burden_widget_server <- function(
                                 list(A = results$A, B = results$B,
                                      C1 = results$C1, C2 = results$C2,
                                      E = results$E)))
+      # "Reported" is always available after a run — prepend it
+      available <- c("Reported", available)
       updateSelectInput(session, "map_method",  choices = available)
       # Map category: always include "Total" first, then individual categories
       map_cats <- c("Total", tgt)
@@ -1174,21 +1184,41 @@ burden_widget_server <- function(
       cat_sel <- input$map_category
       req(method, cat_sel)
 
-      res <- switch(method,
-        A  = results$A, B = results$B,
-        C1 = results$C1, C2 = results$C2,
-        E  = results$E
-      )
-      req(!is.null(res), !is.null(res$subnational))
+      if (method == "Reported") {
+        d_p  <- results$d_period
+        tgt_u <- results$tgt_used
+        rc    <- results$region_col_used
+        req(!is.null(d_p), !is.null(tgt_u), !is.null(rc))
 
-      map_data <- as.data.frame(res$subnational)
-      # "Total" is always available; individual categories only when shown by cat
-      if (!"category" %in% names(map_data)) {
-        map_data$category <- "Total"
+        d_champ <- d_p[Selected == "Champion" & get("data") %in% tgt_u &
+                       !is.na(value)]
+        if (cat_sel == "Total") {
+          map_data <- d_champ[, .(estimate = as.integer(sum(value, na.rm = TRUE))),
+                               by = rc]
+        } else {
+          map_data <- d_champ[get("data") == cat_sel,
+                               .(estimate = as.integer(sum(value, na.rm = TRUE))),
+                               by = rc]
+        }
+        req(nrow(map_data) > 0)
+        data.table::setnames(map_data, rc, "region")
+        map_data[, lower := NA_integer_]
+        map_data[, upper := NA_integer_]
+        map_data <- as.data.frame(map_data)
+      } else {
+        res <- switch(method,
+          A  = results$A, B = results$B,
+          C1 = results$C1, C2 = results$C2,
+          E  = results$E
+        )
+        req(!is.null(res), !is.null(res$subnational))
+
+        map_data <- as.data.frame(res$subnational)
+        if (!"category" %in% names(map_data)) map_data$category <- "Total"
+        map_data <- map_data[map_data$category == cat_sel &
+                             map_data$region != "National", ]
+        req(nrow(map_data) > 0)
       }
-      map_data <- map_data[map_data$category == cat_sel &
-                           map_data$region != "National", ]
-      req(nrow(map_data) > 0)
 
       gf_all <- geo_features()
 
@@ -1256,13 +1286,15 @@ burden_widget_server <- function(
           color            = "white",
           weight           = 1,
           layerId          = ~name,
-          label            = ~paste0(
-            name, ": ",
-            dplyr::if_else(
-              is.na(estimate), "no data",
-              format_burden_estimate(estimate, lower, upper)
-            )
-          ),
+          label            = if (method == "Reported") {
+            ~paste0(name, ": ",
+                    dplyr::if_else(is.na(estimate), "no data",
+                                   formatC(estimate, format = "d", big.mark = ",")))
+          } else {
+            ~paste0(name, ": ",
+                    dplyr::if_else(is.na(estimate), "no data",
+                                   format_burden_estimate(estimate, lower, upper)))
+          },
           highlightOptions = leaflet::highlightOptions(
             weight = 2, color = "#666", bringToFront = TRUE
           )
@@ -1270,7 +1302,10 @@ burden_widget_server <- function(
         leaflet::addLegend(
           pal       = pal,
           values    = ~estimate,
-          title     = paste0("Method ", method, "<br>", cat_sel),
+          title     = if (method == "Reported")
+                        paste0("Reported<br>(champions)<br>", cat_sel)
+                      else
+                        paste0("Method ", method, "<br>", cat_sel),
           layerId   = "legend_standard",
           labFormat = leaflet::labelFormat(big.mark = ",", digits = 0)
         )
