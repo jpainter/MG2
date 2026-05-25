@@ -133,10 +133,16 @@ reporting_widget_ui = function(id) {
               tags$em("See About for details.")
             ),
 
-            checkboxInput(
-              ns("count.any"),
-              label = 'Count reporting if any data submitted (including unchecked)',
-              value = TRUE
+            radioButtons(
+              ns("reporting_rule"),
+              label = "Count a facility as reporting when:",
+              choices = c(
+                "All selected elements — every category present"   = "all_categories",
+                "All selected elements — at least one category"    = "all_elements",
+                "Any selected element present"                     = "any_selected",
+                "Any data element present (including unchecked)"   = "any_data"
+              ),
+              selected = "any_selected"
             ),
 
             div(
@@ -657,7 +663,7 @@ reporting_widget_server <- function(
         }
 
         if (has_secondary) {
-          updateCheckboxInput(session, 'count.any', value = TRUE)
+          updateRadioButtons(session, 'reporting_rule', selected = 'any_data')
           showNotification(
             "Secondary element(s) detected — 'Count any report' enabled automatically.",
             type = "message", duration = 5
@@ -1023,7 +1029,7 @@ reporting_widget_server <- function(
 
         data = d()
 
-        if (!input$count.any) {
+        if (input$reporting_rule != "any_data") {
           data = setDT(data)[data %chin% selected_data_categories$elements, , ]
         }
 
@@ -1369,10 +1375,8 @@ reporting_widget_server <- function(
             d = d(),
             endingMonth = endingMonth_debounced(),
             startingMonth = startingMonth_debounced(),
-            # period = period() ,
             missing_reports = as.integer(input$missing_reports),
-            count.any = input$count.any,
-            # all_categories = input$all_categories ,
+            reporting_rule  = input$reporting_rule,
             data_categories = selected_data_categories$elements,
             .cat = TRUE
           )

@@ -186,12 +186,18 @@ mostFrequentReportingOUs <- function(
   startingMonth = NULL,
   period = NULL,
   missing_reports = 0,
-  count.any = TRUE,
-  # all_categories = TRUE ,
+  count.any = NULL,          # deprecated — use reporting_rule
+  reporting_rule = NULL,     # "all_categories" | "all_elements" | "any_selected" | "any_data"
   data_categories = NULL,
   testing = FALSE,
   .cat = FALSE
 ) {
+  # Resolve reporting_rule from legacy count.any if not supplied explicitly.
+  # Old count.any = TRUE  → "any_data"    (any non-NA value counts)
+  # Old count.any = FALSE → "any_selected" (any selected element counts)
+  if (is.null(reporting_rule)) {
+    reporting_rule <- if (isTRUE(count.any) || is.null(count.any)) "any_data" else "any_selected"
+  }
   if (.cat) {
     cat('\n* data Functions.R mostFrequentReportingOUs')
   }
@@ -238,57 +244,81 @@ mostFrequentReportingOUs <- function(
     )
   }
 
-  # Combine category, date-window, and NA filters into ONE pass — avoids making
-  # separate full copies of the 5M+ row dataset for each condition.
-  # Integer comparison bypasses vctrs dispatch on yearmonth/yearweek columns.
+  # ── Date-window filter (applies to all rules) ──────────────────────────────
   if (period %in% 'Month') {
     .sm_int = unclass(startingMonth)
     .em_int = unclass(endingMonth)
-    if (!count.any) {
-      if (.cat) cat('\n - not count.any')
-      dt = dt[get("data") %chin% data_categories &
-              unclass(Month) >= .sm_int & unclass(Month) <= .em_int &
-              !is.na(original)]
-    } else {
-      dt = dt[unclass(Month) >= .sm_int & unclass(Month) <= .em_int & !is.na(original)]
-    }
+    dt = dt[unclass(Month) >= .sm_int & unclass(Month) <= .em_int]
   } else if (period %in% 'Week') {
     .sm_int = unclass(yearweek(startingMonth))
     .em_int = unclass(yearweek(endingMonth))
-    if (!count.any) {
-      if (.cat) cat('\n - not count.any')
-      dt = dt[get("data") %chin% data_categories &
-              unclass(Week) >= .sm_int & unclass(Week) <= .em_int &
-              !is.na(original)]
-    } else {
-      dt = dt[unclass(Week) >= .sm_int & unclass(Week) <= .em_int & !is.na(original)]
-    }
+    dt = dt[unclass(Week) >= .sm_int & unclass(Week) <= .em_int]
+  }
+  dt = dt[!is.na(original)]
+
+  if (.cat) cat('\n - reporting_rule:', reporting_rule)
+
+  # ── Determine "complete" (orgUnit, period) tuples per reporting rule ────────
+  #
+  # Rule 1 — "all_categories":
+  #   Every selected data value (element + category) must be non-NA in the period.
+  #
+  # Rule 2 — "all_elements":
+  #   Every selected base data element must have at least one non-NA category.
+  #
+  # Rule 3 — "any_selected":
+  #   At least one selected data value is non-NA in the period.
+  #
+  # Rule 4 — "any_data":
+  #   Any non-NA value in the period (ignores selection; legacy default).
+
+  has_cats <- !is.null(data_categories) && length(data_categories) > 0
+
+  if (reporting_rule == "any_data" || !has_cats) {
+    # All (orgUnit, period) tuples with any non-NA data
+    dt_rep <- unique(dt[, c('orgUnit', period), with = FALSE])
+
+  } else if (reporting_rule == "any_selected") {
+    dt_rep <- unique(
+      dt[get("data") %chin% data_categories, c('orgUnit', period), with = FALSE]
+    )
+
+  } else if (reporting_rule == "all_elements") {
+    # Base element = text before last underscore (strips category suffix)
+    dt_sel <- dt[get("data") %chin% data_categories]
+    dt_sel[, .base_elem := sub("_[^_]*$", "", get("data"))]
+    n_elems <- uniqueN(dt_sel$.base_elem)
+    presence <- dt_sel[, .(n_elems_present = uniqueN(.base_elem)),
+                       by = c('orgUnit', period)]
+    dt_rep <- presence[n_elems_present >= n_elems, c('orgUnit', period), with = FALSE]
+
+  } else {
+    # "all_categories": ALL selected data values must be present
+    n_cats <- length(unique(data_categories))
+    dt_sel <- dt[get("data") %chin% data_categories]
+    presence <- dt_sel[, .(n_cats_present = uniqueN(get("data"))),
+                       by = c('orgUnit', period)]
+    dt_rep <- presence[n_cats_present >= n_cats, c('orgUnit', period), with = FALSE]
   }
 
-  # Testing
-  if (testing) {
-    saveRDS(dt, "mostFrequentReportingOUs.data.rds")
-  }
+  if (testing) saveRDS(dt_rep, "mostFrequentReportingOUs.data.rds")
 
   if (.cat) {
     cat('\n - mr (data.table)')
-    cat('\n - nrow(data) entering mr step:', nrow(dt))
+    cat('\n - nrow(dt_rep):', nrow(dt_rep), '| unique orgUnits:', uniqueN(dt_rep$orgUnit))
   }
   .t0_mr <- proc.time()["elapsed"]
 
-  dt[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = period]
-  if (.cat) cat('\n - nrow(dt) after !is.na(original):', nrow(dt), '| unique orgUnits:', uniqueN(dt$orgUnit))
+  dt_rep[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = period]
 
   # distinct (year, orgUnit, period) tuples → count reported periods per org/year
-  mr = unique(dt[, c('year', 'orgUnit', period), with = FALSE])[
-    , .(report_periods = .N), by = .(year, orgUnit)
-  ]
+  mr = dt_rep[, .(report_periods = .N), by = .(year, orgUnit)]
   if (.cat) cat('\n - mr rows:', nrow(mr), '| unique orgUnits:', uniqueN(mr$orgUnit), '| unique years:', uniqueN(mr$year))
 
-  # Denominator: count distinct periods per year using SELECTED elements only,
-  # regardless of count.any. This ensures the time window is defined by when the
+  # Denominator: count distinct periods per year using SELECTED elements only
+  # (when available). This ensures the time window is defined by when the
   # selected data was being collected — not by all elements in the dataset.
-  dt_periods <- if (count.any && !is.null(data_categories) && length(data_categories) > 0)
+  dt_periods <- if (has_cats && reporting_rule != "any_data")
     dt[get("data") %chin% data_categories]
   else
     dt
