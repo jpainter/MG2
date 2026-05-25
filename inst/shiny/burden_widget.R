@@ -837,7 +837,7 @@ burden_widget_server <- function(
 
       # Reported actuals — sum of actual submitted values for champion facilities
       # (within the estimate period)
-      d_champ <- d_period[Selected == "Champion" & get("data") %in% tgt & !is.na(value)]
+      d_champ <- d_period[get("data") %in% tgt & !is.na(value)]
       rep_sub <- d_champ[, .(Reported = as.integer(sum(value, na.rm = TRUE))),
                           by = region_col]
       data.table::setnames(rep_sub, region_col, "region")
@@ -1190,8 +1190,7 @@ burden_widget_server <- function(
         rc    <- results$region_col_used
         req(!is.null(d_p), !is.null(tgt_u), !is.null(rc))
 
-        d_champ <- d_p[Selected == "Champion" & get("data") %in% tgt_u &
-                       !is.na(value)]
+        d_champ <- d_p[get("data") %in% tgt_u & !is.na(value)]
         if (cat_sel == "Total") {
           map_data <- d_champ[, .(estimate = as.integer(sum(value, na.rm = TRUE))),
                                by = rc]
@@ -1303,7 +1302,7 @@ burden_widget_server <- function(
           pal       = pal,
           values    = ~estimate,
           title     = if (method == "Reported")
-                        paste0("Reported<br>(champions)<br>", cat_sel)
+                        paste0("Reported<br>(all facilities)<br>", cat_sel)
                       else
                         paste0("Method ", method, "<br>", cat_sel),
           layerId   = "legend_standard",
