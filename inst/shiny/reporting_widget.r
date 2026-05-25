@@ -13,6 +13,7 @@ reporting_widget_ui = function(id) {
         width = 3,
         tabsetPanel(
           type = "tabs",
+          selected = "Data Elements",
           tabPanel(
             "Display",
 

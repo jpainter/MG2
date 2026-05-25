@@ -371,12 +371,12 @@ burden_c1 <- function(data, target_elements, region_col,
 #' @param target_elements character; target `data` values.
 #' @param years integer; calendar years.
 #' @param region_col character; region column name.
-#' @param min_months integer; minimum months of history for ARIMA (default 24).
+#' @param min_months integer; minimum months of history for ARIMA (default 12).
 #' @param n_bootstrap integer; simulation draws.
 #' @return list with `$subnational`, `$national`, and `$not_modeled`.
 #' @export
 burden_c2 <- function(data, target_elements, region_col,
-                      min_months = 24L, n_bootstrap = 1000L) {
+                      min_months = 12L, n_bootstrap = 1000L) {
   if (!requireNamespace("forecast", quietly = TRUE)) {
     message("Package 'forecast' required for C2; falling back to C1.")
     res <- burden_c1(data, target_elements, region_col, n_bootstrap = n_bootstrap)

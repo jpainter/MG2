@@ -68,7 +68,15 @@ burden_widget_ui <- function(id) {
               choices = NULL, multiple = FALSE, selectize = TRUE, width = "100%"
             ),
             uiOutput(ns("cat_map_ui")),
-            uiOutput(ns("date_range_display"))
+            uiOutput(ns("date_range_display")),
+            selectInput(
+              ns("value_source"),
+              label = "Values:",
+              choices = c("Original (as reported)" = "original",
+                          "Cleaned (outliers censored)" = "value"),
+              selected = "original",
+              width = "100%"
+            )
           ),
 
           tabPanel(
@@ -734,12 +742,13 @@ burden_widget_server <- function(
     # ── results store ─────────────────────────────────────────────────────────
 
     results <- reactiveValues(
-      A  = NULL,
-      B  = NULL,
-      C1 = NULL,
-      C2 = NULL,
-      E  = NULL,
-      D  = NULL
+      A        = NULL,
+      B        = NULL,
+      C1       = NULL,
+      C2       = NULL,
+      E        = NULL,
+      D        = NULL,
+      reported = NULL   # actual submitted values for champion facilities
     )
 
     # ── run button ────────────────────────────────────────────────────────────
@@ -776,6 +785,14 @@ burden_widget_server <- function(
       results$A  <- NULL; results$B  <- NULL
       results$C1 <- NULL; results$C2 <- NULL
       results$E  <- NULL; results$D  <- NULL
+      results$reported <- NULL
+
+      # Switch to original or cleaned values per user selection
+      val_col <- if (is.null(input$value_source)) "original" else input$value_source
+      if (val_col == "original" && "original" %in% names(d)) {
+        d <- data.table::copy(d)
+        d[, value := original]
+      }
 
       # Expand base element names to full element+category strings
       em <- element_map()
@@ -786,6 +803,15 @@ burden_widget_server <- function(
       att_full  <- .expand(input$attendance_elements)
       test_full <- .expand(input$tested_elements)
       pop_full  <- .expand(input$population_element)
+
+      # Reported actuals — sum of actual submitted values for champion facilities
+      d_champ <- d[Selected == "Champion" & get("data") %in% tgt & !is.na(value)]
+      rep_sub <- d_champ[, .(Reported = as.integer(sum(value, na.rm = TRUE))),
+                          by = region_col]
+      data.table::setnames(rep_sub, region_col, "region")
+      rep_nat <- data.frame(region = "National",
+                            Reported = as.integer(sum(rep_sub$Reported)))
+      results$reported <- rbind(rep_nat, as.data.frame(rep_sub))
 
       n_boot <- 1000L
 
@@ -1009,6 +1035,19 @@ burden_widget_server <- function(
       if (!show_cats && "category" %in% names(sub)) sub$category <- NULL
 
       df <- rbind(nat, sub)
+
+      # Add Reported column (actual champion totals, no estimation)
+      rep_df <- results$reported
+      if (!is.null(rep_df) && nrow(df) > 0) {
+        df <- merge(df, rep_df, by.x = "Area", by.y = "region", all.x = TRUE)
+        df$Reported <- formatC(df$Reported, format = "d", big.mark = ",")
+        df$Reported[is.na(df$Reported)] <- "—"
+        # Position Reported after Area (and Group if present)
+        first_cols <- intersect(c("Area", "Group"), names(df))
+        df <- df[, c(first_cols, "Reported",
+                     setdiff(names(df), c(first_cols, "Reported"))),
+                 drop = FALSE]
+      }
 
       # Add Group column when groups have been computed
       grps <- region_groups()
