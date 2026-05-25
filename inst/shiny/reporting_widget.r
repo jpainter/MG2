@@ -145,6 +145,8 @@ reporting_widget_ui = function(id) {
               selected = "any_selected"
             ),
 
+            uiOutput(ns("reporting_rule_hint")),
+
             div(
               style = "display:flex; align-items:center; gap:6px; margin-bottom:2px;",
               actionButton(ns('update_data_categories'), label = "Update",
@@ -342,6 +344,52 @@ reporting_widget_server <- function(
       options(shiny.trace = FALSE)
       options(shiny.reactlog = FALSE)
       options(dplyr.summarise.inform = FALSE)
+
+      # ── Reporting-rule contextual hint ──────────────────────────────────────
+      output$reporting_rule_hint <- renderUI({
+        rule <- input$reporting_rule
+        if (is.null(rule)) return(NULL)
+
+        txt <- switch(rule,
+          all_categories = tagList(
+            tags$strong("Use for ratios"), " (e.g. test positivity rate). ",
+            "Both numerator and denominator must be present; a facility missing ",
+            "either component produces an undefined ratio and should not ",
+            "anchor the champion distribution."
+          ),
+          all_elements = tagList(
+            tags$strong("Use with disaggregated elements"), " where partial ",
+            "category reporting is acceptable — e.g. age/sex sub-totals may not ",
+            "always be complete but the element-level total is present."
+          ),
+          any_selected = tagList(
+            tags$strong("General-purpose default."),
+            " A facility that submitted any one of the checked elements is ",
+            "credited as reporting. Suitable when all checked elements are ",
+            "meaningful indicators of facility activity."
+          ),
+          any_data = tagList(
+            tags$strong("Use when zero cases may be stored as missing."),
+            " A facility submitting no case entries but reporting attendance or ",
+            "fever counts is still active. Including a surrogate element ",
+            "(e.g. outpatient attendance) ensures these facilities are ",
+            "classified as champions."
+          )
+        )
+
+        div(
+          style = paste0(
+            "background:#f0f4ff; border-left:3px solid #6c8ebf;",
+            " padding:5px 8px; margin:2px 0 8px 0;",
+            " font-size:0.82em; color:#333; border-radius:0 3px 3px 0;"
+          ),
+          txt,
+          tags$small(
+            style = "display:block; margin-top:3px; color:#666;",
+            tags$em("See About tab for full explanation and examples.")
+          )
+        )
+      })
 
       # cat('\n**Starting Reporting Widget\n')
 

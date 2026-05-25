@@ -122,12 +122,25 @@ Identify facilities that report consistently and adjust analyses for reporting b
 
 #### What counts as "reported"?
 
-A facility-month is counted as *reported* when it meets the selected criterion:
+A facility-period is counted as *reported* when it satisfies the selected criterion.
+The criterion is set in the **Reporting Consistency** sidebar under *"Count a facility as reporting when:"*.
+Choosing the right rule matters because it determines which facilities become **champion facilities**
+— the consistently-reporting subset used to adjust for reporting bias throughout the pipeline.
 
-| Criterion | When to use |
-|---|---|
-| **Any checked element submitted** (default) | Use when your selected data elements are the ones that define whether a facility reported — a month with at least one checked value counts. |
-| **Any data submitted** (enable "Count facility as reporting if any data submitted") | Use when your formula contains **secondary** elements that are present in the data but not the primary focus of the analysis. A facility-month is counted as reported if *any* data element was submitted, even one that is unchecked. |
+| Rule | Description | When to use |
+|---|---|---|
+| **All selected elements — every category present** | Every selected data element *and* every one of its category-option combinations must have a non-missing value in the period. | Use for indicators analysed as **ratios**, such as test positivity rate (confirmed cases ÷ persons tested). If either component is missing, the ratio is undefined, so only facilities that reported every required piece of data should be considered "reporting." |
+| **All selected elements — at least one category** | Every selected data element must have at least one non-missing value, but not all category-option combinations are required. | Use when your data element has sex- or age-disaggregated categories and partial disaggregation is acceptable — e.g. total malaria cases where male + female sub-totals may not always sum to the reported total. |
+| **Any selected element present** *(default)* | A facility-period counts as reported if *any* of the checked data elements has a non-missing value. | The general-purpose default. Suitable when all checked elements are meaningful indicators and a facility that submitted any one of them should be credited with reporting. |
+| **Any data element present (including unchecked)** | A facility-period counts as reported if *any* data element in the dataset — including those that are unchecked in the element selector — has a non-missing value. | Use when the primary data element of interest may legitimately be zero and zeros are stored as missing rather than as `0`. For example, in a low-transmission setting, districts with no confirmed malaria cases may submit nothing for the cases element but still submit outpatient attendance or fever counts. Using attendance as the reporting surrogate ensures that low-burden but active facilities are classified as champions. Also appropriate when your formula includes **secondary** elements (see below) that reliably indicate facility activity even when the primary element is absent. |
+
+**Practical examples:**
+
+- *Test positivity rate (confirmed cases ÷ persons tested)*: choose **All selected elements — every category present** so that only facilities with both numerator and denominator are classified as consistently reporting. A facility that submitted case counts but not testing numbers produces an undefined ratio and should not anchor the champion distribution.
+
+- *Confirmed malaria cases in a setting where "zero cases" is reported as missing*: choose **Any data element present** and include outpatient attendance as a secondary element in your formula. A facility submitting attendance but no case entry is still an active reporter; excluding it would under-count champions and inflate the reporting-bias adjustment.
+
+- *A single case-count element without disaggregation*: the default **Any selected element** is appropriate.
 
 #### Primary and secondary elements
 
