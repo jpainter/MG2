@@ -927,7 +927,12 @@ selectedData = function(
     #          file = "selectedData.rda" )
 
     # reportingSelectedOUs = NULL
-    if (is_empty(reportingSelectedOUs) & nrow(data) > 0) {
+    # Only recompute champions when none were supplied at all (standalone R usage).
+    # When the caller passes an empty vector — e.g. because the strict Shiny
+    # reporting rule returned zero qualifying facilities — honour that result
+    # rather than silently falling back to a different rule (which produced
+    # inconsistent champion sets and chart spikes).
+    if (is.null(reportingSelectedOUs) & nrow(data) > 0) {
       if (.cat) {
         cat("\n - finding most frequently reporting OUs")
       }

@@ -1430,6 +1430,18 @@ reporting_widget_server <- function(
           )
 
           cat(sprintf("\n - mostFrequentReportingOUs: %d orgUnits  %.1f sec", length(sf), proc.time()["elapsed"] - .t0_rous))
+
+          if (length(sf) == 0L) {
+            showNotification(
+              paste0(
+                "No champion facilities found with the current reporting rule ",
+                "(\"", input$reporting_rule, "\"). ",
+                "All facilities will be classified as Non-Champion. ",
+                "Try a less strict rule or reduce the number of selected elements."
+              ),
+              type = "warning", duration = 10
+            )
+          }
         } else {
           sf = NULL
         }
