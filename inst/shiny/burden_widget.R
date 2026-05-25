@@ -71,9 +71,16 @@ burden_widget_ui <- function(id) {
             uiOutput(ns("date_range_display")),
             selectInput(
               ns("value_source"),
-              label = "Values:",
-              choices = c("Original (as reported)" = "original",
-                          "Cleaned (outliers censored)" = "value"),
+              label = "Values to use:",
+              choices = c(
+                "Original (no censoring)"               = "original",
+                "Censor: key entry errors"              = "key_entry_error",
+                "Censor: + over-max values"             = "over_max",
+                "Censor: + MAD 15x outliers"            = "mad15",
+                "Censor: + MAD 10x outliers"            = "mad10",
+                "Censor: + seasonal 5x outliers"        = "seasonal5",
+                "Censor all (through seasonal 3x)"      = "value"
+              ),
               selected = "original",
               width = "100%"
             )
@@ -166,6 +173,7 @@ burden_widget_ui <- function(id) {
             "Results",
             div(
               style = "display:flex; align-items:center; gap:16px; padding:8px 0 4px 0;",
+              uiOutput(ns("period_display")),
               uiOutput(ns("results_hint")),
               checkboxInput(ns("show_by_category"),
                             "Show by category", value = FALSE)
@@ -742,13 +750,15 @@ burden_widget_server <- function(
     # ── results store ─────────────────────────────────────────────────────────
 
     results <- reactiveValues(
-      A        = NULL,
-      B        = NULL,
-      C1       = NULL,
-      C2       = NULL,
-      E        = NULL,
-      D        = NULL,
-      reported = NULL   # actual submitted values for champion facilities
+      A            = NULL,
+      B            = NULL,
+      C1           = NULL,
+      C2           = NULL,
+      E            = NULL,
+      D            = NULL,
+      reported     = NULL,
+      fac_counts   = NULL,
+      period_label = NULL
     )
 
     # ── run button ────────────────────────────────────────────────────────────
@@ -787,12 +797,22 @@ burden_widget_server <- function(
       results$E  <- NULL; results$D  <- NULL
       results$reported <- NULL
 
-      # Switch to original or cleaned values per user selection
-      val_col <- if (is.null(input$value_source)) "original" else input$value_source
-      if (val_col == "original" && "original" %in% names(d)) {
-        d <- data.table::copy(d)
-        d[, value := original]
+      # Apply value-source censoring based on cumulative outlier algorithm selection
+      val_choice <- if (is.null(input$value_source)) "original" else input$value_source
+      algo_order <- c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3")
+      d <- data.table::copy(data.table::as.data.table(d_all))
+      if (val_choice == "original") {
+        if ("original" %in% names(d)) d[, value := original]
+      } else if (val_choice %in% algo_order) {
+        # Censor through the selected algorithm (and all more severe ones)
+        censor_idx <- which(algo_order == val_choice)
+        apply_algs <- algo_order[seq_len(censor_idx)]
+        if ("original" %in% names(d)) d[, value := original]
+        for (alg in apply_algs) {
+          if (alg %in% names(d)) d[get(alg) == TRUE, value := NA_real_]
+        }
       }
+      # val_choice == "value" → keep d as-is (fully cleaned from selected_data)
 
       # Expand base element names to full element+category strings
       em <- element_map()
@@ -804,7 +824,11 @@ burden_widget_server <- function(
       test_full <- .expand(input$tested_elements)
       pop_full  <- .expand(input$population_element)
 
+      # Store period label for display on Results tab
+      results$period_label <- period_label
+
       # Reported actuals — sum of actual submitted values for champion facilities
+      # (within the estimate period)
       d_champ <- d[Selected == "Champion" & get("data") %in% tgt & !is.na(value)]
       rep_sub <- d_champ[, .(Reported = as.integer(sum(value, na.rm = TRUE))),
                           by = region_col]
@@ -812,6 +836,22 @@ burden_widget_server <- function(
       rep_nat <- data.frame(region = "National",
                             Reported = as.integer(sum(rep_sub$Reported)))
       results$reported <- rbind(rep_nat, as.data.frame(rep_sub))
+
+      # Facility counts: champions / total ever reporting in each region
+      champ_n <- d[Selected == "Champion" & get("data") %in% tgt,
+                   .(n_champ = data.table::uniqueN(orgUnit)), by = region_col]
+      total_n <- d[get("data") %in% tgt & !is.na(value),
+                   .(n_total = data.table::uniqueN(orgUnit)), by = region_col]
+      fac_counts <- merge(champ_n, total_n, by = region_col, all = TRUE)
+      fac_counts[is.na(n_champ), n_champ := 0L]
+      fac_counts[, Facilities := paste0(n_champ, " / ", n_total)]
+      data.table::setnames(fac_counts, region_col, "region")
+      nat_fac <- data.frame(
+        region     = "National",
+        Facilities = paste0(sum(fac_counts$n_champ), " / ", sum(fac_counts$n_total, na.rm=TRUE))
+      )
+      results$fac_counts <- rbind(nat_fac,
+                                   as.data.frame(fac_counts[, .(region, Facilities)]))
 
       n_boot <- 1000L
 
@@ -853,7 +893,9 @@ burden_widget_server <- function(
       if ("C1" %in% methods) {
         add_log("Method C1: Linear imputation...")
         res <- tryCatch(
-          burden_c1(d, tgt, region_col, n_bootstrap = n_boot),
+          burden_c1(d, tgt, region_col,
+                    period_start = sm_ym, period_end = em_ym,
+                    n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
         results$C1 <- add_category_totals(res)
@@ -868,7 +910,9 @@ burden_widget_server <- function(
       if ("C2" %in% methods) {
         add_log("Method C2: ARIMA imputation (may be slow)...")
         res <- tryCatch(
-          burden_c2(d, tgt, region_col, n_bootstrap = n_boot),
+          burden_c2(d, tgt, region_col,
+                    period_start = sm_ym, period_end = em_ym,
+                    n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
         results$C2 <- add_category_totals(res)
@@ -968,6 +1012,16 @@ burden_widget_server <- function(
 
     # ── results hint ──────────────────────────────────────────────────────────
 
+    output$period_display <- renderUI({
+      lbl <- results$period_label
+      if (!is.null(lbl) && nchar(lbl) > 0) {
+        div(
+          style = "font-size:0.85em; color:#555; padding-top:6px;",
+          tags$strong("Period: "), lbl
+        )
+      }
+    })
+
     output$results_hint <- renderUI({
       all_null <- is.null(results$A) && is.null(results$B) &&
                   is.null(results$C1) && is.null(results$C2)
@@ -1036,18 +1090,22 @@ burden_widget_server <- function(
 
       df <- rbind(nat, sub)
 
-      # Add Reported column (actual champion totals, no estimation)
-      rep_df <- results$reported
-      if (!is.null(rep_df) && nrow(df) > 0) {
-        df <- merge(df, rep_df, by.x = "Area", by.y = "region", all.x = TRUE)
+      # Add Reported + Facilities columns (actual totals, no estimation)
+      if (!is.null(results$reported) && nrow(df) > 0) {
+        df <- merge(df, results$reported, by.x = "Area", by.y = "region", all.x = TRUE)
         df$Reported <- formatC(df$Reported, format = "d", big.mark = ",")
         df$Reported[is.na(df$Reported)] <- "—"
-        # Position Reported after Area (and Group if present)
-        first_cols <- intersect(c("Area", "Group"), names(df))
-        df <- df[, c(first_cols, "Reported",
-                     setdiff(names(df), c(first_cols, "Reported"))),
-                 drop = FALSE]
       }
+      if (!is.null(results$fac_counts) && nrow(df) > 0) {
+        df <- merge(df, results$fac_counts, by.x = "Area", by.y = "region", all.x = TRUE)
+        df$Facilities[is.na(df$Facilities)] <- "—"
+      }
+      # Reorder: Area, [Group], Reported, Facilities, then method columns
+      first_cols  <- intersect(c("Area", "Group"), names(df))
+      anchor_cols <- intersect(c("Reported", "Facilities"), names(df))
+      df <- df[, c(first_cols, anchor_cols,
+                   setdiff(names(df), c(first_cols, anchor_cols))),
+               drop = FALSE]
 
       # Add Group column when groups have been computed
       grps <- region_groups()

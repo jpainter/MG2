@@ -245,16 +245,19 @@ burden_b <- function(data, target_elements, attendance_elements,
 #' year using the model's prediction distribution.  Facilities with too few
 #' observations are flagged as not modeled.
 #'
-#' @param data data.table from `selectedData()`.
+#' @param data data.table from `selectedData()` — the **full available history**,
+#'   not pre-filtered to the estimate period.  The full history improves model
+#'   fitting; summation is restricted to \[period_start, period_end\].
 #' @param target_elements character; target `data` values.
-#' @param years integer; calendar years.
 #' @param region_col character; region column name.
+#' @param period_start,period_end yearmonth; start/end of the estimate period.
+#'   When NULL the entire supplied dataset is both fitted and summed.
 #' @param min_obs integer; minimum observed months to attempt fitting (default 3).
 #' @param n_bootstrap integer; bootstrap draws.
-#' @return list with `$subnational`, `$national`, and `$not_modeled` (orgUnit
-#'   × category combinations that fell back — caller can pipe to Method B).
+#' @return list with `$subnational`, `$national`, and `$not_modeled`.
 #' @export
 burden_c1 <- function(data, target_elements, region_col,
+                      period_start = NULL, period_end = NULL,
                       min_obs = 3L, n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
   dt[, .month_int := lubridate::month(Month)]
@@ -262,8 +265,7 @@ burden_c1 <- function(data, target_elements, region_col,
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Champion monthly means across the full period — group by calendar month only
-  # so the covariate captures the typical seasonal pattern.
+  # Champion monthly means use the FULL history for stable seasonal estimates.
   champ_reg <- dt_tgt[Selected == "Champion" & !is.na(value),
     .(champ_mean = mean(value, na.rm = TRUE)),
     by = c(region_col, "data", ".month_int")
@@ -273,35 +275,46 @@ burden_c1 <- function(data, target_elements, region_col,
     by = c("data", ".month_int")
   ]
 
+  # Facilities and regions come from the PERIOD data so estimates are scoped
+  # to the requested window even though model fitting uses full history.
+  dt_period <- if (!is.null(period_start) || !is.null(period_end)) {
+    tmp <- dt_tgt
+    if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+    if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+    tmp
+  } else dt_tgt
+
   sub_rows <- nat_rows <- list()
   not_modeled <- list()
 
   for (cat in target_elements) {
-    dt_sub <- dt_tgt[get("data") == cat]
-    if (nrow(dt_sub) == 0L) next
+    dt_sub    <- dt_tgt[get("data") == cat]          # full history for fitting
+    dt_sub_p  <- dt_period[get("data") == cat]       # period for regions/facilities/sum
+    if (nrow(dt_sub_p) == 0L) next
 
-    regions <- unique(dt_sub[[region_col]])
+    regions <- unique(dt_sub_p[[region_col]])
     reg_samps <- vector("list", length(regions))
     names(reg_samps) <- regions
 
     for (reg in regions) {
-      facilities <- unique(dt_sub[get(region_col) == reg, orgUnit])
+      facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
       fac_samps  <- rep(0, n_bootstrap)
 
       for (fac in facilities) {
-        fac_data <- dt_sub[orgUnit == fac]
+        fac_hist <- dt_sub[orgUnit == fac]           # full history
 
         # Attach champion monthly means; fill with national fallback
-        fac_data <- merge(fac_data,
+        fac_hist <- merge(fac_hist,
           champ_reg[get(region_col) == reg & get("data") == cat,
                     .(.month_int, champ_mean)],
           by = ".month_int", all.x = TRUE)
-        fac_data <- merge(fac_data,
+        fac_hist <- merge(fac_hist,
           champ_nat[get("data") == cat, .(.month_int, champ_nat)],
           by = ".month_int", all.x = TRUE)
-        fac_data[is.na(champ_mean), champ_mean := champ_nat]
+        fac_hist[is.na(champ_mean), champ_mean := champ_nat]
 
-        obs <- fac_data[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
+        # Fit model on ALL observed history
+        obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
 
         if (nrow(obs) < min_obs) {
           not_modeled[[length(not_modeled) + 1L]] <-
@@ -321,7 +334,13 @@ burden_c1 <- function(data, target_elements, region_col,
         b_coef <- stats::coef(fit)[[2L]]
         sigma  <- stats::sigma(fit)
 
-        # Sum over ALL rows in the filtered period: actual + imputed for missing
+        # Sum over PERIOD rows only: actual + imputed for missing
+        fac_data <- dt_sub_p[orgUnit == fac & get("data") == cat]
+        fac_data <- merge(fac_data,
+          fac_hist[, .(Month, .month_int, champ_mean, champ_nat)],
+          by = c("Month", ".month_int"), all.x = TRUE)
+        fac_data[is.na(champ_mean), champ_mean := champ_nat]
+
         ann_samps <- rep(0, n_bootstrap)
         for (i in seq_len(nrow(fac_data))) {
           if (!is.na(fac_data$value[i])) {
@@ -367,19 +386,22 @@ burden_c1 <- function(data, target_elements, region_col,
 #' Falls back to C1 (linear) when the series is too short (< `min_months`)
 #' or fitting fails.
 #'
-#' @param data data.table from `selectedData()`.
+#' @param data data.table from `selectedData()` — the **full available history**.
 #' @param target_elements character; target `data` values.
-#' @param years integer; calendar years.
 #' @param region_col character; region column name.
+#' @param period_start,period_end yearmonth; estimate period window (NULL = all data).
 #' @param min_months integer; minimum months of history for ARIMA (default 12).
 #' @param n_bootstrap integer; simulation draws.
 #' @return list with `$subnational`, `$national`, and `$not_modeled`.
 #' @export
 burden_c2 <- function(data, target_elements, region_col,
+                      period_start = NULL, period_end = NULL,
                       min_months = 12L, n_bootstrap = 1000L) {
   if (!requireNamespace("forecast", quietly = TRUE)) {
     message("Package 'forecast' required for C2; falling back to C1.")
-    res <- burden_c1(data, target_elements, region_col, n_bootstrap = n_bootstrap)
+    res <- burden_c1(data, target_elements, region_col,
+                     period_start = period_start, period_end = period_end,
+                     n_bootstrap = n_bootstrap)
     if (!is.null(res)) {
       res$subnational[, method := "C2"]
       res$national[,    method := "C2"]
@@ -393,7 +415,15 @@ burden_c2 <- function(data, target_elements, region_col,
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Champion monthly means across the full period (by calendar month)
+  # Scope facilities/regions to the estimate period
+  dt_period <- if (!is.null(period_start) || !is.null(period_end)) {
+    tmp <- dt_tgt
+    if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+    if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+    tmp
+  } else dt_tgt
+
+  # Champion monthly means use FULL history
   champ_reg <- dt_tgt[Selected == "Champion" & !is.na(value),
     .(champ_mean = mean(value, na.rm = TRUE)),
     by = c(region_col, "data", ".month_int")
@@ -407,18 +437,20 @@ burden_c2 <- function(data, target_elements, region_col,
   not_modeled <- list()
 
   for (cat in target_elements) {
-    dt_sub <- dt_tgt[get("data") == cat]
-    if (nrow(dt_sub) == 0L) next
+    dt_sub   <- dt_tgt[get("data") == cat]          # full history for fitting
+    dt_sub_p <- dt_period[get("data") == cat]       # period for regions/sum
+    if (nrow(dt_sub_p) == 0L) next
 
-    regions <- unique(dt_sub[[region_col]])
+    regions <- unique(dt_sub_p[[region_col]])
     reg_samps <- vector("list", length(regions))
     names(reg_samps) <- regions
 
     for (reg in regions) {
-      facilities <- unique(dt_sub[get(region_col) == reg, orgUnit])
+      facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
       fac_samps  <- rep(0, n_bootstrap)
 
       for (fac in facilities) {
+        # Full history: used for champion means and ARIMA/linear model fitting
         fac_hist <- dt_sub[orgUnit == fac]
 
         fac_hist <- merge(fac_hist,
@@ -435,10 +467,6 @@ burden_c2 <- function(data, target_elements, region_col,
         use_arima  <- n_obs_hist >= min_months
 
         if (use_arima) {
-          # forecast::Arima() handles NAs in the series via the Kalman filter.
-          # fitted() on the result returns Kalman-smoothed values for ALL
-          # time points, including missing ones — giving ARIMA-based predictions
-          # rather than the cross-sectional linear predictions used by C1.
           ts_vals  <- stats::ts(fac_hist$value, frequency = 12)
           xreg_all <- matrix(fac_hist$champ_mean, ncol = 1)
           xreg_all[is.na(xreg_all)] <- 0
@@ -451,24 +479,40 @@ burden_c2 <- function(data, target_elements, region_col,
           )
 
           if (!is.null(fit_arima)) {
-            fitted_vals <- tryCatch(as.numeric(fitted(fit_arima)),
-                                    error = function(e) NULL)
+            fitted_all  <- tryCatch(as.numeric(fitted(fit_arima)), error = function(e) NULL)
             sigma_arima <- sqrt(fit_arima$sigma2)
 
-            if (!is.null(fitted_vals) &&
-                length(fitted_vals) == nrow(fac_hist) &&
-                sigma_arima > 0) {
+            if (!is.null(fitted_all) && sigma_arima > 0) {
+              # Pad/trim fitted values to match fac_hist length
+              if (length(fitted_all) < nrow(fac_hist)) {
+                fitted_all <- c(rep(NA_real_, nrow(fac_hist) - length(fitted_all)),
+                                fitted_all)
+              }
+
+              # Build lookup: Month → (actual value, fitted value)
+              fac_hist[, .fitted := fitted_all[seq_len(.N)]]
+
+              # Restrict summation to the estimate period
+              fac_period_rows <- if (!is.null(period_start) || !is.null(period_end)) {
+                tmp <- fac_hist
+                if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+                if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+                tmp
+              } else fac_hist
 
               ann_samps <- rep(0, n_bootstrap)
-              for (i in seq_len(nrow(fac_hist))) {
-                if (!is.na(fac_hist$value[i])) {
-                  ann_samps <- ann_samps + fac_hist$value[i]
-                } else if (is.finite(fitted_vals[i])) {
-                  drawn <- pmax(0, stats::rnorm(n_bootstrap,
-                                                fitted_vals[i], sigma_arima))
-                  ann_samps <- ann_samps + drawn
+              for (i in seq_len(nrow(fac_period_rows))) {
+                if (!is.na(fac_period_rows$value[i])) {
+                  ann_samps <- ann_samps + fac_period_rows$value[i]
+                } else {
+                  fv <- fac_period_rows$.fitted[i]
+                  if (!is.na(fv) && is.finite(fv)) {
+                    drawn <- pmax(0, stats::rnorm(n_bootstrap, fv, sigma_arima))
+                    ann_samps <- ann_samps + drawn
+                  }
                 }
               }
+              fac_hist[, .fitted := NULL]   # clean up temp column
               fac_samps <- fac_samps + ann_samps
               next   # skip C1 fallback
             }
@@ -494,12 +538,20 @@ burden_c2 <- function(data, target_elements, region_col,
         b_coef <- stats::coef(fit_lm)[[2L]]
         sigma  <- stats::sigma(fit_lm)
 
+        # C1 fallback: fit on full history, sum only the estimate period
+        fac_period_rows <- if (!is.null(period_start) || !is.null(period_end)) {
+          tmp <- fac_hist
+          if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+          if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+          tmp
+        } else fac_hist
+
         ann_samps <- rep(0, n_bootstrap)
-        for (i in seq_len(nrow(fac_hist))) {
-          if (!is.na(fac_hist$value[i])) {
-            ann_samps <- ann_samps + fac_hist$value[i]
+        for (i in seq_len(nrow(fac_period_rows))) {
+          if (!is.na(fac_period_rows$value[i])) {
+            ann_samps <- ann_samps + fac_period_rows$value[i]
           } else {
-            cm <- fac_hist$champ_mean[i]
+            cm <- fac_period_rows$champ_mean[i]
             if (!is.na(cm) && is.finite(cm)) {
               drawn <- pmax(0, stats::rnorm(n_bootstrap, a_coef + b_coef * cm, sigma))
               ann_samps <- ann_samps + drawn
