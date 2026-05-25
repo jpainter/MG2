@@ -5,9 +5,18 @@
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 .burden_resample <- function(x, n) {
-  x <- x[is.finite(x) & x > 0]
+  x <- x[is.finite(x) & !is.na(x)]
   if (length(x) == 0L) return(rep(0, n))
   sample(x, n, replace = TRUE)
+}
+
+# Build facility universe from the FULL data (all elements), not just the
+# target element. Gives the complete orgUnit → region → Selected mapping.
+.fac_universe <- function(data, region_col) {
+  dt <- data.table::as.data.table(data)
+  univ <- unique(dt[!is.na(get(region_col)),
+                    c("orgUnit", region_col, "Selected"), with = FALSE])
+  univ
 }
 
 .burden_ci <- function(samples) {
@@ -67,32 +76,53 @@ format_burden_estimate <- function(estimate, lower, upper) {
 burden_a <- function(data, target_elements, region_col,
                      n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
-  dt <- dt[get("data") %in% target_elements]
-  if (nrow(dt) == 0L) return(NULL)
 
-  # Total over the full supplied date range per facility
-  ann <- dt[!is.na(value),
+  # Facility universe from ALL elements — includes facilities that reported
+  # other elements (e.g. attendance, suspects) but not the target element.
+  # These are real facilities that may have had zero target cases.
+  fac_univ <- .fac_universe(dt, region_col)
+  regions  <- sort(unique(fac_univ[[region_col]]))
+
+  dt_tgt <- dt[get("data") %in% target_elements]
+  if (nrow(dt_tgt) == 0L) return(NULL)
+
+  # Per-facility total over the full supplied history
+  fac_totals <- dt_tgt[!is.na(value),
     .(total = sum(value, na.rm = TRUE)),
-    by = c("orgUnit", "data", region_col, "Selected")
+    by = c("orgUnit", "data")
   ]
 
   sub_rows <- nat_rows <- list()
 
   for (cat in target_elements) {
-    ann_sub <- ann[get("data") == cat]
-    if (nrow(ann_sub) == 0L) next
-    regions <- unique(ann_sub[[region_col]])
-    reg_samps <- vector("list", length(regions))
+    cat_totals <- fac_totals[get("data") == cat]
+    reg_samps  <- vector("list", length(regions))
     names(reg_samps) <- regions
 
     for (reg in regions) {
-      champ <- .champ_resample_fallback(ann_sub, region_col, reg, n_bootstrap)
-      if (length(champ) == 0L) { reg_samps[[reg]] <- rep(0, n_bootstrap); next }
+      reg_facs  <- fac_univ[get(region_col) == reg]
+      champ_ous <- reg_facs[Selected == "Champion", orgUnit]
+      nc_n      <- nrow(reg_facs[Selected != "Champion"])
 
-      champ_sum <- sum(ann_sub[get(region_col) == reg & Selected == "Champion", total],
-                       na.rm = TRUE)
-      n_nc      <- nrow(ann_sub[get(region_col) == reg & Selected == "Non-Champion"])
-      samps     <- champ_sum + n_nc * .burden_resample(champ, n_bootstrap)
+      if (length(champ_ous) == 0L) {
+        reg_samps[[reg]] <- rep(0, n_bootstrap)
+        next
+      }
+
+      # Champion totals: 0 for champions who had no target-element records
+      # (they reported consistently for other elements, so 0 is the true value)
+      champ_tbl <- merge(
+        data.table::data.table(orgUnit = champ_ous),
+        cat_totals[, .(orgUnit, total)],
+        by = "orgUnit", all.x = TRUE
+      )
+      champ_tbl[is.na(total), total := 0L]
+
+      champ_vec <- champ_tbl$total
+      champ_sum <- sum(champ_vec)
+
+      # Bootstrap from the champion per-facility distribution (includes 0s)
+      samps            <- champ_sum + nc_n * sample(champ_vec, n_bootstrap, replace = TRUE)
       reg_samps[[reg]] <- samps
 
       ci <- .burden_ci(samps)
@@ -262,6 +292,10 @@ burden_c1 <- function(data, target_elements, region_col,
   dt <- data.table::as.data.table(data)
   dt[, .month_int := lubridate::month(Month)]
 
+  # Facility universe from ALL elements — ground truth for who exists
+  fac_univ <- .fac_universe(dt, region_col)
+  regions  <- sort(unique(fac_univ[[region_col]]))
+
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
@@ -275,8 +309,6 @@ burden_c1 <- function(data, target_elements, region_col,
     by = c("data", ".month_int")
   ]
 
-  # Facilities and regions come from the PERIOD data so estimates are scoped
-  # to the requested window even though model fitting uses full history.
   dt_period <- if (!is.null(period_start) || !is.null(period_end)) {
     tmp <- dt_tgt
     if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
@@ -288,17 +320,19 @@ burden_c1 <- function(data, target_elements, region_col,
   not_modeled <- list()
 
   for (cat in target_elements) {
-    dt_sub    <- dt_tgt[get("data") == cat]          # full history for fitting
-    dt_sub_p  <- dt_period[get("data") == cat]       # period for regions/facilities/sum
+    dt_sub    <- dt_tgt[get("data") == cat]
+    dt_sub_p  <- dt_period[get("data") == cat]
     if (nrow(dt_sub_p) == 0L) next
 
-    regions <- unique(dt_sub_p[[region_col]])
     reg_samps <- vector("list", length(regions))
     names(reg_samps) <- regions
 
     for (reg in regions) {
+      reg_facs  <- fac_univ[get(region_col) == reg]
+      fac_samps <- rep(0, n_bootstrap)
+
+      # Facilities with any target data in the period — impute missing months
       facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
-      fac_samps  <- rep(0, n_bootstrap)
 
       for (fac in facilities) {
         fac_hist <- dt_sub[orgUnit == fac]           # full history
@@ -313,7 +347,6 @@ burden_c1 <- function(data, target_elements, region_col,
           by = ".month_int", all.x = TRUE)
         fac_hist[is.na(champ_mean), champ_mean := champ_nat]
 
-        # Fit model on ALL observed history
         obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
 
         if (nrow(obs) < min_obs) {
@@ -334,7 +367,6 @@ burden_c1 <- function(data, target_elements, region_col,
         b_coef <- stats::coef(fit)[[2L]]
         sigma  <- stats::sigma(fit)
 
-        # Sum over PERIOD rows only: actual + imputed for missing
         fac_data <- dt_sub_p[orgUnit == fac & get("data") == cat]
         fac_data <- merge(fac_data,
           fac_hist[, .(Month, .month_int, champ_mean, champ_nat)],
@@ -354,6 +386,35 @@ burden_c1 <- function(data, target_elements, region_col,
           }
         }
         fac_samps <- fac_samps + ann_samps
+      }
+
+      # Facilities in the region with NO target data at all:
+      #   Champions → assumed true zero (add nothing)
+      #   Non-champions → extrapolate using the champion per-facility distribution
+      no_data_facs <- reg_facs[!orgUnit %in% facilities]
+      nc_no_data   <- nrow(no_data_facs[Selected != "Champion"])
+
+      if (nc_no_data > 0L) {
+        # Champion per-facility totals over the period (0 for champions with no data)
+        champ_ous_reg <- reg_facs[Selected == "Champion", orgUnit]
+        if (length(champ_ous_reg) > 0L) {
+          champ_period_totals <- dt_sub_p[orgUnit %in% champ_ous_reg & !is.na(value),
+            .(total = sum(value, na.rm = TRUE)), by = "orgUnit"
+          ]
+          champ_tbl <- merge(
+            data.table::data.table(orgUnit = champ_ous_reg),
+            champ_period_totals, by = "orgUnit", all.x = TRUE
+          )
+          champ_tbl[is.na(total), total := 0L]
+          champ_dist <- champ_tbl$total
+        } else {
+          # No regional champions → use national
+          champ_dist_nat <- dt_sub_p[Selected == "Champion" & !is.na(value),
+            .(total = sum(value, na.rm = TRUE)), by = "orgUnit"
+          ]$total
+          champ_dist <- if (length(champ_dist_nat) > 0L) champ_dist_nat else 0L
+        }
+        fac_samps <- fac_samps + nc_no_data * .burden_resample(champ_dist, n_bootstrap)
       }
 
       reg_samps[[reg]] <- fac_samps
@@ -412,10 +473,13 @@ burden_c2 <- function(data, target_elements, region_col,
   dt <- data.table::as.data.table(data)
   dt[, .month_int := lubridate::month(Month)]
 
+  # Facility universe from ALL elements
+  fac_univ <- .fac_universe(dt, region_col)
+  regions  <- sort(unique(fac_univ[[region_col]]))
+
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Scope facilities/regions to the estimate period
   dt_period <- if (!is.null(period_start) || !is.null(period_end)) {
     tmp <- dt_tgt
     if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
@@ -437,15 +501,15 @@ burden_c2 <- function(data, target_elements, region_col,
   not_modeled <- list()
 
   for (cat in target_elements) {
-    dt_sub   <- dt_tgt[get("data") == cat]          # full history for fitting
-    dt_sub_p <- dt_period[get("data") == cat]       # period for regions/sum
+    dt_sub   <- dt_tgt[get("data") == cat]
+    dt_sub_p <- dt_period[get("data") == cat]
     if (nrow(dt_sub_p) == 0L) next
 
-    regions <- unique(dt_sub_p[[region_col]])
     reg_samps <- vector("list", length(regions))
     names(reg_samps) <- regions
 
     for (reg in regions) {
+      reg_facs   <- fac_univ[get(region_col) == reg]
       facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
       fac_samps  <- rep(0, n_bootstrap)
 
@@ -559,6 +623,31 @@ burden_c2 <- function(data, target_elements, region_col,
           }
         }
         fac_samps <- fac_samps + ann_samps
+      }
+
+      # Non-champions with NO target data in the period → champion-distribution fallback
+      no_data_facs <- reg_facs[!orgUnit %in% facilities]
+      nc_no_data   <- nrow(no_data_facs[Selected != "Champion"])
+
+      if (nc_no_data > 0L) {
+        champ_ous_reg <- reg_facs[Selected == "Champion", orgUnit]
+        if (length(champ_ous_reg) > 0L) {
+          champ_period_totals <- dt_sub_p[orgUnit %in% champ_ous_reg & !is.na(value),
+            .(total = sum(value, na.rm = TRUE)), by = "orgUnit"
+          ]
+          champ_tbl <- merge(
+            data.table::data.table(orgUnit = champ_ous_reg),
+            champ_period_totals, by = "orgUnit", all.x = TRUE
+          )
+          champ_tbl[is.na(total), total := 0L]
+          champ_dist <- champ_tbl$total
+        } else {
+          champ_dist_nat <- dt_sub_p[Selected == "Champion" & !is.na(value),
+            .(total = sum(value, na.rm = TRUE)), by = "orgUnit"
+          ]$total
+          champ_dist <- if (length(champ_dist_nat) > 0L) champ_dist_nat else 0L
+        }
+        fac_samps <- fac_samps + nc_no_data * .burden_resample(champ_dist, n_bootstrap)
       }
 
       reg_samps[[reg]] <- fac_samps

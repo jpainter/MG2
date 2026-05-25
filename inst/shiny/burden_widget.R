@@ -837,11 +837,16 @@ burden_widget_server <- function(
                             Reported = as.integer(sum(rep_sub$Reported)))
       results$reported <- rbind(rep_nat, as.data.frame(rep_sub))
 
-      # Facility counts: champions / total ever reporting in each region
-      champ_n <- d[Selected == "Champion" & get("data") %in% tgt,
-                   .(n_champ = data.table::uniqueN(orgUnit)), by = region_col]
-      total_n <- d[get("data") %in% tgt & !is.na(value),
-                   .(n_total = data.table::uniqueN(orgUnit)), by = region_col]
+      # Facility universe: all elements (not filtered to target).
+      # A champion identified via suspects-tested is still a champion even if
+      # they never submitted a value for the target element — 0 is the true count.
+      # The total denominator is every facility in the region, not just those
+      # that appear in target-element data.
+      fac_univ <- unique(d[!is.na(get(region_col)),
+                           c("orgUnit", region_col, "Selected"), with = FALSE])
+      champ_n <- fac_univ[Selected == "Champion",
+                          .(n_champ = data.table::uniqueN(orgUnit)), by = region_col]
+      total_n <- fac_univ[, .(n_total = data.table::uniqueN(orgUnit)), by = region_col]
       fac_counts <- merge(champ_n, total_n, by = region_col, all = TRUE)
       fac_counts[is.na(n_champ), n_champ := 0L]
       fac_counts[, Facilities := paste0(n_champ, " / ", n_total)]
