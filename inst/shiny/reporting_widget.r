@@ -156,7 +156,7 @@ reporting_widget_ui = function(id) {
             ),
 
             div(
-              style = "max-height: calc(100vh - 380px); overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              style = "max-height: calc(100vh - 580px); min-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
               checkboxGroupInput(
                 ns("data_categories"),
                 label = NULL,
@@ -380,8 +380,9 @@ reporting_widget_server <- function(
         div(
           style = paste0(
             "background:#f0f4ff; border-left:3px solid #6c8ebf;",
-            " padding:5px 8px; margin:2px 0 8px 0;",
-            " font-size:0.82em; color:#333; border-radius:0 3px 3px 0;"
+            " padding:4px 7px; margin:2px 0 6px 0;",
+            " font-size:0.80em; color:#333; border-radius:0 3px 3px 0;",
+            " max-height:90px; overflow-y:auto;"
           ),
           txt,
           tags$small(
