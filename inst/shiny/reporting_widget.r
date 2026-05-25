@@ -1138,7 +1138,7 @@ reporting_widget_server <- function(
         data = d()
         cat('\n - o.m.r data has', nrow(data), 'rows')
 
-        if (!input$count.any) {
+        if (input$reporting_rule != "any_data") {
           data = data[data %chin% selected_data_categories$elements]
         }
 
