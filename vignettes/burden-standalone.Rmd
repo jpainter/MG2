@@ -192,25 +192,54 @@ res_c2 <- burden_c2(
 ### National summary
 
 ```{r summary-national}
+# Champion summary
+fac_univ_nat <- unique(as.data.frame(d)[, c("orgUnit", "Selected")])
+n_champ_nat  <- sum(fac_univ_nat$Selected == "Champion")
+n_total_nat  <- nrow(fac_univ_nat)
+cat(sprintf("Champion facilities: %d of %d (%.0f%%)\n",
+            n_champ_nat, n_total_nat, 100 * n_champ_nat / n_total_nat))
+
 burden_kable(
   lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
   level   = "national",
-  caption = "National burden estimates — Jan 2024 to Dec 2025"
+  caption = sprintf("National burden estimates — Jan 2024 to Dec 2025 (%d/%d champion facilities)",
+                    n_champ_nat, n_total_nat)
 )
 ```
 
 ### Province-level table
 
 ```{r summary-subnational}
-# Build the subnational table with totals added, then keep only the
-# "Total" row per province (sum across all age groups).
+# Champion and total facility counts per province
+fac_univ <- unique(as.data.frame(d)[, c("orgUnit", "Province", "Selected")])
+champ_tbl <- do.call(rbind, lapply(split(fac_univ, fac_univ$Province), function(x) {
+  data.frame(
+    region       = x$Province[1],
+    `Champ/Total` = paste0(sum(x$Selected == "Champion"), "/", nrow(x)),
+    check.names = FALSE
+  )
+}))
+
+# National champion count
+n_champ <- sum(fac_univ$Selected == "Champion")
+n_total <- nrow(fac_univ)
+nat_champ <- data.frame(region = "National",
+                        `Champ/Total` = paste0(n_champ, "/", n_total),
+                        check.names = FALSE)
+
+# Build subnational table — keep only Total row per province
 tbl_sub <- burden_summary_table(
   lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
   level = "subnational"
 )
 tbl_sub <- tbl_sub[tbl_sub$category == "Total", ]
-tbl_sub$category <- NULL   # redundant column now that every row is "Total"
-knitr::kable(tbl_sub, caption = "Province-level totals — all ages combined")
+tbl_sub$category <- NULL
+
+# Merge in champion counts
+tbl_sub <- merge(champ_tbl, tbl_sub, by = "region", all.y = TRUE)
+knitr::kable(tbl_sub,
+             caption = "Province-level totals — all ages combined",
+             col.names = c("Province", "Champ/Total", "A", "C1", "C2"))
 ```
 
 ---

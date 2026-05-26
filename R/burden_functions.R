@@ -409,6 +409,10 @@ burden_c1 <- function(data, target_elements, region_col,
         if (nrow(obs) < min_obs) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          # Still credit actual reported values so that C1 >= reported.
+          # Missing months are not imputed (treated as 0 = conservative).
+          actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
+          fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
         }
 
@@ -422,6 +426,8 @@ burden_c1 <- function(data, target_elements, region_col,
         if (is.null(fit)) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
+          fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
         }
         a_coef <- stats::coef(fit)[[1L]]
@@ -648,6 +654,8 @@ burden_c2 <- function(data, target_elements, region_col,
         if (nrow(obs) < 3L) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
+          fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
         }
         fit_lm <- tryCatch(
@@ -656,6 +664,8 @@ burden_c2 <- function(data, target_elements, region_col,
         if (is.null(fit_lm)) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
+          fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
         }
         a_coef <- stats::coef(fit_lm)[[1L]]
