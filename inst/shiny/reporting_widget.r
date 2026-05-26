@@ -143,7 +143,7 @@ reporting_widget_ui = function(id) {
                 "Any selected element present"                     = "any_selected",
                 "Any data element present (including unchecked)"   = "any_data"
               ),
-              selected = "all_categories"
+              selected = "any_selected"
             ),
 
             uiOutput(ns("reporting_rule_hint")),
