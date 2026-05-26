@@ -254,31 +254,62 @@ burden_widget_ui <- function(id) {
                 — with an optional care-seeking adjustment (D)."),
 
               p(tags$strong("Champion facilities"), " are high-quality reporters
-                designated in the Reporting module and serve as the reference
-                standard throughout. All estimates target annual totals stratified
-                by category (e.g. age group).  Each method generates B = 1,000
-                bootstrap samples; the mean and 2.5th / 97.5th percentiles
+                designated in the Reporting module. They serve as the reference
+                standard for all methods. Champions are identified from consistently
+                reporting ", tags$em("any"), " selected element — a facility that
+                reliably reports attendance or suspects-tested counts as a champion
+                even if it never recorded a positive case. An absence of positives
+                in a consistently-reporting facility is treated as a true zero, not
+                a reporting gap."),
+
+              p("All estimates cover the period selected in the Reporting module
+                and are stratified by category (e.g. age group). Each method draws
+                B = 1,000 bootstrap samples; the mean and 2.5th / 97.5th percentiles
                 are reported as the point estimate and 95% uncertainty interval.
-                Final values are integers."),
+                Final values are rounded to integers."),
 
               hr(),
 
               h5("Method A — Champion Multiple"),
 
-              p("Assume every non-champion facility has the same annual total as
-                a typical champion facility in the same region."),
+              p("Assume non-champion facilities have the same per-facility
+                case total as a typical champion in the same region, scaled up
+                to the full count of facilities."),
 
               tags$ul(
-                tags$li("Let C = champion facilities in region r, T", tags$sub("c"),
-                  " = annual total at champion c, N", tags$sub("nc"),
-                  " = number of non-champion facilities."),
-                tags$li("Draw B = 1,000 samples {s₁, …, s₂} from
-                  the empirical distribution of {T", tags$sub("c"), "}."),
-                tags$li("For each sample b:  ",
-                  tags$strong("Êₛ = Σ Tᶜ + N₏ᶜ × sₛ")),
-                tags$li("Report mean(Ê), 2.5th and 97.5th percentiles."),
-                tags$li("If no champions in region r, champion distribution is drawn
-                  from all national champions.")
+                tags$li(
+                  "Let C = champion facilities in region r, T", tags$sub("c"),
+                  " = period total at champion c, N", tags$sub("nc"),
+                  " = number of non-champion facilities."
+                ),
+                tags$li(
+                  tags$strong("Estimate: Ê = Σ Tᶜ + Σᵢ₌₁ᴺⁿᶜ sᵢ"),
+                  ", where each sᵢ is drawn independently from {T",
+                  tags$sub("c"), "}.  Summing N", tags$sub("nc"),
+                  " independent draws gives variance proportional to N",
+                  tags$sub("nc"),
+                  " (correct); drawing one value and multiplying would give
+                  variance proportional to N²", tags$sub("nc"), " (far too wide)."
+                ),
+                tags$li(
+                  "Champions with zero confirmed cases for the target element —
+                  typically those identified via attendance or suspects-tested —
+                  contribute a period total of zero to the champion distribution.
+                  If every champion in a region has zero for the target element
+                  the regional distribution provides no signal and the fallback
+                  hierarchy is applied."
+                ),
+                tags$li(
+                  tags$strong("Fallback when regional signal is unavailable:"),
+                  tags$ol(
+                    tags$li("Champions from geographically neighbouring provinces
+                      (shared border, computed from the province polygon layer
+                      using spatial adjacency)."),
+                    tags$li("Champions from all other provinces (national distribution)."),
+                    tags$li("Estimate of zero if no champions anywhere reported
+                      the target element.")
+                  )
+                )
               ),
 
               hr(),
@@ -291,13 +322,13 @@ burden_widget_ui <- function(id) {
               tags$ul(
                 tags$li("Fit a log–log regression on champion facilities: ",
                   tags$strong("log(Yᶜ) = α + β·log(Aᶜ) + ε"),
-                  ", ε ~ N(0, σ²)."),
+                  ", ε ~ N(0, σ²)."),
                 tags$li("For each non-champion facility, draw B predicted values: ",
-                  tags$strong("ŷ₏ᶜ,ₛ = exp(α̂ + β̂·log(A₏ᶜ) + εₛ)")),
+                  tags$strong("ŷₛ = exp(α̂ + β̂·log(A) + εₛ)")),
                 tags$li("Region total: ",
-                  tags$strong("Êₛ = Σ Yᶜ + Σ ŷ₏ᶜ,ₛ")),
-                tags$li("The log–log model ensures all predictions are positive.
-                  The regression residual SD σ̂ propagates into every sample."),
+                  tags$strong("Êₛ = Σ Yᶜ + Σ ŷₛ")),
+                tags$li("The log–log model ensures all predictions are positive
+                  and propagates the regression residual SD into each sample."),
                 tags$li("If attendance categories differ from target categories,
                   specify the mapping using the controls in the sidebar."),
                 tags$li("Facilities without attendance data fall back to Method A
@@ -306,46 +337,71 @@ burden_widget_ui <- function(id) {
 
               hr(),
 
-              h5("Method C1 — Facility Imputation (Linear)"),
+              h5("Method C1 — Facility Imputation (Linear, Log Scale)"),
 
-              p("Impute missing months within each facility’s own time
-                series using linear regression, then sum to annual totals."),
+              p("Impute missing months within each facility’s own time series
+                using linear regression on the log scale, then sum over the
+                estimate period."),
 
               tags$ul(
-                tags$li("For each non-champion facility, fit: ",
-                  tags$strong("yₘ = α + β·ḿₘ + ε"),
-                  ", where ḿₘ is the monthly mean across champion
-                  facilities in the same region.  The model is fit on all
-                  observed months across the full history of the facility."),
-                tags$li("Missing months in the target year are replaced by
-                  B draws from N(ŷₘ, σ̂²), truncated at zero."),
-                tags$li("Annual total per sample: ",
+                tags$li(
+                  "For each facility, fit: ",
+                  tags$strong("log(1 + yₘ) = α + β·m̄ₘ + ε"),
+                  ", where m̄ₘ is the monthly mean of champion facilities in
+                  the same region.  The model is fit on the facility’s full
+                  available history (all months, not just the estimate period)
+                  to maximise data for fitting."
+                ),
+                tags$li(
+                  "Missing months in the estimate period are replaced by B draws: ",
+                  tags$strong("ŷₘ,ₛ = max(0, exp(α̂ + β̂·m̄ₘ + εₛ) − 1)"),
+                  ", where εₛ ~ N(0, σ̂²).  Fitting on the log(1 + x) scale",
+                  " (", tags$em("log1p / expm1"), ") ensures all imputed values
+                  are non-negative, preventing the negative confidence interval
+                  bounds that arise from normal-distribution errors on the raw scale."
+                ),
+                tags$li("Period total per sample: ",
                   tags$strong("Tₛ = Σₘ yₘ,ₛ"),
-                  " (observed months use actual values)."),
-                tags$li("Facilities with fewer than 3 observed months cannot be
-                  modeled and are flagged for fallback to Method B.")
+                  " (observed months use actual values, not model predictions)."),
+                tags$li(
+                  "Facilities with fewer than 3 observed months cannot be
+                  modeled and fall back to the champion-distribution resampling
+                  (same mechanism as Method A)."
+                ),
+                tags$li(
+                  "Champion facilities with zero records for the target element
+                  contribute zero to the estimate. Non-champion facilities with
+                  no target records are predicted from the champion distribution
+                  (Method A fallback)."
+                )
               ),
 
               hr(),
 
-              h5("Method C2 — Facility Imputation (ARIMA)"),
+              h5("Method C2 — Facility Imputation (ARIMA, Log Scale)"),
 
               p("Same as C1 but replaces the linear model with a seasonal ARIMA
-                to capture monthly patterns."),
+                to capture monthly patterns and autocorrelation."),
 
               tags$ul(
-                tags$li("Fits ", tags$strong("auto.arima"),
-                  " on the facility’s full monthly history
-                  (requires ≥ 24 months) with the regional champion mean
-                  as an external regressor."),
-                tags$li("Missing months are imputed by simulation from the model’s
-                  forecast distribution (truncated at zero)."),
+                tags$li(
+                  "Fits ", tags$strong("auto.arima"),
+                  " on ", tags$strong("log(1 + value)"),
+                  " for the facility’s full monthly history
+                  (requires ≥ 12 observed months) with the regional champion
+                  mean as an external regressor."
+                ),
+                tags$li(
+                  "Missing months are imputed as ",
+                  tags$strong("max(0, exp(fitted + εₛ) − 1)"),
+                  ", where εₛ ~ N(0, σ²ₚ).  Log-scale fitting
+                  ensures all predictions are non-negative."
+                ),
                 tags$li("Fallback to C1 (linear) when the series is too short or
                   the ARIMA fit fails."),
-                tags$li("C2 is preferred when a facility has a clear seasonal
-                  pattern; C1 is the recommended fallback.")
+                tags$li("C2 is preferred when a facility has a strong seasonal
+                  pattern; C1 is an appropriate fallback for shorter series.")
               ),
-
               hr(),
 
               h5("Method E — Adjusted Corrected Incidence"),
