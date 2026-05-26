@@ -225,7 +225,92 @@ burden_kable(results_with_totals, level = "national",
 
 ---
 
-## 6  Using the metadata
+## 6  Choropleth maps
+
+Three side-by-side province maps compare what was actually reported against
+what Method A estimates, and then split provinces into two significantly
+different burden groups.
+
+```{r choropleths, fig.width = 9, fig.height = 3.5, out.width = "100%"}
+library(ggplot2)
+library(sf)
+library(patchwork)
+
+# Province polygons from metadata
+provinces <- meta$geoFeatures[
+  meta$geoFeatures$level == 2 & !sf::st_is_empty(meta$geoFeatures), ]
+
+# Reported: sum of all submitted values in the period
+rep_by_prov <- d[!is.na(original),
+                 .(reported = sum(original, na.rm = TRUE)), by = Province]
+
+# Method A totals: sum across age groups
+a_total <- as.data.frame(res_a$subnational)
+a_total <- a_total[a_total$region != "National", ]
+a_total <- aggregate(estimate ~ region, data = a_total, sum)
+names(a_total) <- c("name", "estimate_a")
+
+# Significance groups (2 groups via hierarchical clustering on Z-score distance)
+grps    <- compute_burden_groups(res_a$subnational, n_groups = 2)
+grp_df  <- data.frame(name  = names(grps),
+                      group = factor(grps, labels = c("Lower", "Higher")))
+
+# Join to sf
+map_sf <- merge(provinces, rep_by_prov,
+                by.x = "name", by.y = "Province", all.x = TRUE)
+map_sf <- merge(map_sf, a_total,  by = "name", all.x = TRUE)
+map_sf <- merge(map_sf, grp_df,   by = "name", all.x = TRUE)
+
+# Shared helpers
+theme_map <- theme_void(base_size = 9) +
+  theme(plot.title    = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom",
+        legend.key.width = unit(1.2, "cm"))
+
+fill_yor <- function(col, lab) {
+  scale_fill_gradientn(
+    aesthetics = "fill",
+    colours    = c("#fff5eb", "#fd8d3c", "#8c2d04"),
+    na.value   = "#dddddd",
+    name       = lab,
+    labels     = scales::label_comma(),
+    guide      = guide_colorbar(title.position = "top")
+  )
+}
+
+# Map 1: Reported cases
+p1 <- ggplot(map_sf) +
+  geom_sf(aes(fill = reported), colour = "white", linewidth = 0.25) +
+  fill_yor("reported", "Cases") +
+  labs(title = "Reported") + theme_map
+
+# Map 2: Method A estimate
+p2 <- ggplot(map_sf) +
+  geom_sf(aes(fill = estimate_a), colour = "white", linewidth = 0.25) +
+  fill_yor("estimate_a", "Cases") +
+  labs(title = "Method A estimate") + theme_map
+
+# Map 3: Two significance groups (ward.D2 on pairwise Z-score distance)
+p3 <- ggplot(map_sf) +
+  geom_sf(aes(fill = group), colour = "white", linewidth = 0.25) +
+  scale_fill_manual(
+    values   = c("Lower" = "#fdd0a2", "Higher" = "#d94801"),
+    na.value = "#dddddd",
+    name     = "Burden group",
+    guide    = guide_legend(title.position = "top")
+  ) +
+  labs(title = "Groups (k = 2)") + theme_map
+
+p1 + p2 + p3 + plot_annotation(
+  caption = paste("Province-level estimates, Jan 2024–Dec 2025.",
+                  "Groups derived from hierarchical clustering on pairwise",
+                  "Z-score distance between Method A bootstrap distributions.")
+)
+```
+
+---
+
+## 7  Using the metadata
 
 The metadata object provides geographic features for mapping and the org unit
 hierarchy for filtering.
@@ -235,10 +320,7 @@ hierarchy for filtering.
 gf <- meta$geoFeatures
 cat("Geometry types:", paste(unique(sf::st_geometry_type(gf)), collapse = ", "), "\n")
 cat("Levels:", paste(sort(unique(gf$level)), collapse = ", "), "\n")
-
-# Province polygons for mapping
-provinces <- gf[gf$level == 2 & !sf::st_is_empty(gf), ]
-cat(nrow(provinces), "province polygons\n")
+cat(nrow(provinces), "province polygons (level 2)\n")
 
 # Org unit tree: parent-child relationships
 cat("\nOrg unit levels:\n")

@@ -69,6 +69,7 @@ Suggests:
     sf,
     slider,
     knitr,
+    patchwork,
     readxl,
     rmarkdown,
     testthat (>= 3.0.0),
