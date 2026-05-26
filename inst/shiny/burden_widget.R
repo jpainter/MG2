@@ -300,7 +300,7 @@ burden_widget_ui <- function(id) {
                   The regression residual SD σ̂ propagates into every sample."),
                 tags$li("If attendance categories differ from target categories,
                   specify the mapping using the controls in the sidebar."),
-                tags$li("Champ/Total without attendance data fall back to Method A
+                tags$li("Facilities without attendance data fall back to Method A
                   resampling.")
               ),
 
@@ -322,7 +322,7 @@ burden_widget_ui <- function(id) {
                 tags$li("Annual total per sample: ",
                   tags$strong("Tₛ = Σₘ yₘ,ₛ"),
                   " (observed months use actual values)."),
-                tags$li("Champ/Total with fewer than 3 observed months cannot be
+                tags$li("Facilities with fewer than 3 observed months cannot be
                   modeled and are flagged for fallback to Method B.")
               ),
 
@@ -857,14 +857,15 @@ burden_widget_server <- function(
       total_n <- fac_univ[, .(n_total = data.table::uniqueN(orgUnit)), by = region_col]
       fac_counts <- merge(champ_n, total_n, by = region_col, all = TRUE)
       fac_counts[is.na(n_champ), n_champ := 0L]
-      fac_counts[, Champ/Total := paste0(n_champ, " / ", n_total)]
+      fac_counts[, champ_total := paste0(n_champ, " / ", n_total)]
       data.table::setnames(fac_counts, region_col, "region")
       nat_fac <- data.frame(
         region     = "National",
-        Champ/Total = paste0(sum(fac_counts$n_champ), " / ", sum(fac_counts$n_total, na.rm=TRUE))
+        champ_total = paste0(sum(fac_counts$n_champ), " / ", sum(fac_counts$n_total, na.rm=TRUE))
       )
-      results$fac_counts <- rbind(nat_fac,
-                                   as.data.frame(fac_counts[, .(region, Champ/Total)]))
+      fac_df <- rbind(nat_fac, as.data.frame(fac_counts[, .(region, champ_total)]))
+      names(fac_df)[names(fac_df) == "champ_total"] <- "Champ/Total"
+      results$fac_counts <- fac_df
 
       n_boot <- 1000L
 
@@ -1113,7 +1114,7 @@ burden_widget_server <- function(
       }
       if (!is.null(results$fac_counts) && nrow(df) > 0) {
         df <- merge(df, results$fac_counts, by.x = "Area", by.y = "region", all.x = TRUE)
-        df$Champ/Total[is.na(df$Champ/Total)] <- "—"
+        df[["Champ/Total"]][is.na(df[["Champ/Total"]])] <- "—"
       }
       # Reorder: Area, [Group], Reported, Champ/Total, then method columns
       first_cols  <- intersect(c("Area", "Group"), names(df))
