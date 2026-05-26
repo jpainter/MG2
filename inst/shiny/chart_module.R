@@ -37,8 +37,8 @@ chartModuleUI <- function(id, label = "Chart", height = "400px",
       tags$style(HTML(btn_css)),
       div(
         class = "chart-overlay-wrapper",
-        style = "position: relative;",
-        plotOutput(ns("plot"), height = height, ...),
+        style = paste0("position: relative; height: ", height, ";"),
+        plotOutput(ns("plot"), height = "100%", ...),
         div(
           class = "chart-overlay-controls",
           actionButton(
