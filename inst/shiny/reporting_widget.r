@@ -190,13 +190,11 @@ reporting_widget_ui = function(id) {
                   # h5( 'Number of Facilties Reporting Each Period') ,
 
                   ### Number of Facilties Reporting each Period (plot_reporting_by_month)
-                  plotOutput(
+                  chartModuleUI(
                     ns('plot_reporting_by_month'),
-                    click = "plot2_click",
-                    dblclick = "plot2_dblclick",
-                    hover = "plot2_hover",
-                    brush = "plot2_brush",
-                    height = "80%"
+                    height  = "80%", overlay = TRUE,
+                    click = "plot_click", dblclick = "plot_dblclick",
+                    hover = "plot_hover", brush = "plot_brush"
                   )
                 ),
 
@@ -209,13 +207,11 @@ reporting_widget_ui = function(id) {
                   ### Histogram of Annual Number of Months Reported (plot_reports_in_a_year)
                   # miniContentPanel(
 
-                  plotOutput(
+                  chartModuleUI(
                     ns('plot_reports_in_a_year'),
-                    click = "plot1_click",
-                    dblclick = "plot1_dblclick",
-                    hover = "plot1_hover",
-                    brush = "plot1_brush",
-                    height = "80%"
+                    height  = "80%", overlay = TRUE,
+                    click = "plot_click", dblclick = "plot_dblclick",
+                    hover = "plot_hover", brush = "plot_brush"
                   )
 
                   # , scrollable = TRUE
@@ -261,11 +257,10 @@ reporting_widget_ui = function(id) {
 
                 column(
                   12,
-                  plotOutput(
+                  chartModuleUI(
                     ns('plot_values'),
-                    hover = "plotreportingSelectedOUsValues_hover",
-                    brush = "plotreportingSelectedOUsValues_brush",
-                    height = "80%"
+                    height  = "80%", overlay = TRUE,
+                    hover = "plot_hover", brush = "plot_brush"
                   )
                 )
               )
@@ -289,7 +284,7 @@ reporting_widget_ui = function(id) {
                 style = "height:80vh;",
                 # miniTabPanel( "Visualize" , icon = icon("area-chart"),
                 # miniContentPanel(
-                plotOutput(ns("facility_chart"), height = "100%")
+                chartModuleUI(ns("facility_chart"), height = "100%", overlay = TRUE)
                 # )
               ),
               tabPanel(
@@ -1349,34 +1344,20 @@ reporting_widget_server <- function(
 
       selected <- reactiveValues(x = NULL, panel = NULL, chart = NULL)
 
-      observeEvent(input$plot1_brush, {
-        # glimpse( input$plot1_brush )
+      observeEvent(r_year$brush(), {
         selected$chart = 1
-
-        selected$x = round(
-          seq(input$plot1_brush$xmin, input$plot1_brush$xmax, by = .5)
-        ) %>%
-          unique
-
-        selected$panel = input$plot1_brush$panelvar1
-
-        #print( "plot1 selected$x:" ) ;  #print( paste( selected$x , selected$panel ) )
+        b <- r_year$brush()
+        selected$x = round(seq(b$xmin, b$xmax, by = .5)) %>% unique
+        selected$panel = b$panelvar1
         return(selected)
       })
 
-      observeEvent(input$plot2_brush, {
-        # glimpse( input$plot1_brush )
+      observeEvent(r_month$brush(), {
         selected$chart = 2
-
-        selected$x = round(
-          seq(input$plot2_brush$xmin, input$plot2_brush$xmax, by = .5)
-        ) %>%
-          unique %>%
-          as.integer()
-
-        selected$panel = input$plot2_brush$panelvar1
-
-        cat("plot_2_selected$x:", selected$x) #print( selected$panel )
+        b <- r_month$brush()
+        selected$x = round(seq(b$xmin, b$xmax, by = .5)) %>% unique %>% as.integer()
+        selected$panel = b$panelvar1
+        cat("plot_2_selected$x:", selected$x)
         return(selected)
       })
 
@@ -1567,11 +1548,9 @@ reporting_widget_server <- function(
         return(g)
       })
 
-      output$plot_reporting_by_month <- renderPlot(
-        {
-          plot2() + theme_bw(base_size = 16)
-        },
-        res = 96, height = "auto"
+      r_month <- chartModuleServer(
+        "plot_reporting_by_month",
+        reactive({ plot2() + theme_bw(base_size = 16) })
       )
 
       verbatimTextOutput("info")
@@ -1601,14 +1580,10 @@ reporting_widget_server <- function(
         }
 
         paste0(
-          "click: ",
-          xy_str(input$plot1_click),
-          "dblclick: ",
-          xy_str(input$plot1_dblclick),
-          "hover: ",
-          xy_str(input$plot1_hover),
-          "brush: ",
-          xy_range_str(input$plot1_brush)
+          "click: ",    xy_str(r_year$click()),
+          "dblclick: ", xy_str(r_year$dblclick()),
+          "hover: ",    xy_str(r_year$hover()),
+          "brush: ",    xy_range_str(r_year$brush())
         )
       })
 
@@ -1688,11 +1663,9 @@ reporting_widget_server <- function(
         }
       })
 
-      output$plot_reports_in_a_year <- renderPlot(
-        {
-          plot1() + theme_bw(base_size = 16)
-        },
-        res = 96, height = "auto"
+      r_year <- chartModuleServer(
+        "plot_reports_in_a_year",
+        reactive({ plot1() + theme_bw(base_size = 16) })
       )
 
       # Cache the last successfully-computed selected_data so that downstream
@@ -2244,12 +2217,7 @@ reporting_widget_server <- function(
         return(g)
       })
 
-      output$plot_values <- renderPlot(res = 96, {
-        plotAgregateValue()
-      })
-      outputOptions(output, "plot_values",               suspendWhenHidden = TRUE)
-      outputOptions(output, "plot_reporting_by_month",  suspendWhenHidden = TRUE)
-      outputOptions(output, "plot_reports_in_a_year",   suspendWhenHidden = TRUE)
+      chartModuleServer("plot_values", reactive({ plotAgregateValue() }))
 
       # Champions Map and Table####
 
@@ -2620,9 +2588,7 @@ reporting_widget_server <- function(
         return(gf.map)
       })
 
-      output$facility_chart <- renderPlot(res = 96, {
-        facility_chart()
-      })
+      chartModuleServer("facility_chart", reactive({ facility_chart() }))
 
       output$facility_map <- renderLeaflet({
         facility_map()

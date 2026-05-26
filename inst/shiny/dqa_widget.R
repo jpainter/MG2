@@ -52,7 +52,7 @@ dqa_widget_ui = function(id) {
                 id = ns("dqa_reporting_subtab"),
                 bslib::nav_panel(
                   "Chart",
-                  plotOutput(ns("dqaReportingOutput"), height = "75vh")
+                  chartModuleUI(ns("dqaReportingOutput"), height = "75vh", overlay = TRUE)
                 ),
                 bslib::nav_panel(
                   "Map",
@@ -67,7 +67,7 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "Outliers",
-              plotOutput(ns("dqaNoErrorsOutput"), height = "75vh")
+              chartModuleUI(ns("dqaNoErrorsOutput"), height = "75vh", overlay = TRUE)
             ),
 
             bslib::nav_panel(
@@ -77,7 +77,7 @@ dqa_widget_ui = function(id) {
                   "Chart",
                   br(),
                   uiOutput(ns("consistency_status")),
-                  plotOutput(ns("dqaConsistencyChart"), height = "70vh")
+                  chartModuleUI(ns("dqaConsistencyChart"), height = "70vh", overlay = TRUE)
                 ),
                 bslib::nav_panel(
                   "Summary Table",
@@ -101,7 +101,7 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "MASE",
-              plotOutput(ns("dqaMaseOutput"), height = "75vh")
+              chartModuleUI(ns("dqaMaseOutput"), height = "75vh", overlay = TRUE)
             )
           )
         )
@@ -427,10 +427,10 @@ dqa_widget_server <- function(
         )
       })
 
-      output$dqaReportingOutput <- renderPlot(res = 96, {
+      chartModuleServer("dqaReportingOutput", reactive({
         on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
         plotDqaReporting() + labs(caption = region_caption_text())
-      })
+      }))
 
       plotDqaNoError = reactive({
         cat('\n*  dqa_widget plotDqaNoError')
@@ -443,9 +443,9 @@ dqa_widget_server <- function(
         })
       })
 
-      output$dqaNoErrorsOutput <- renderPlot(res = 96, {
+      chartModuleServer("dqaNoErrorsOutput", reactive({
         plotDqaNoError() + labs(caption = region_caption_text())
-      })
+      }))
 
       plotDqaMASE = reactive({
         cat('\n*  dqa_widget plotDqaMASE')
@@ -454,9 +454,9 @@ dqa_widget_server <- function(
         })
       })
 
-      output$dqaMaseOutput <- renderPlot(res = 96, {
+      chartModuleServer("dqaMaseOutput", reactive({
         plotDqaMASE() + labs(caption = region_caption_text())
-      })
+      }))
 
       # Reporting Map ####
 
@@ -584,21 +584,19 @@ dqa_widget_server <- function(
         )
       })
 
-      output$dqaConsistencyChart <- renderPlot(res = 96, {
+      chartModuleServer("dqaConsistencyChart", reactive({
         withProgress(message = "DQA: evaluating validation rules...", value = NULL, {
           res <- consistency_results()
-          # Update rule selector here (lazy — only fires when Chart tab is visible)
           rule_choices <- if (!is.null(res) && nrow(res) > 0)
             res |> dplyr::filter(!incomplete) |> dplyr::distinct(rule_id, rule_name)
-          else
-            NULL
+          else NULL
           if (!is.null(rule_choices) && nrow(rule_choices) > 0)
             updateSelectInput(session, "consistency_rule_select",
               choices  = setNames(rule_choices$rule_id, rule_choices$rule_name),
               selected = rule_choices$rule_id[1])
           dqa_consistency_plot(res) + labs(caption = region_caption_text())
         })
-      })
+      }))
 
       output$consistency_summary_note <- renderUI({
         res <- consistency_results()
