@@ -5,6 +5,8 @@
 #' @param .cat logical; if TRUE print progress messages
 #' @return character vector of level names in ascending order
 #' @export
+# Local shim for purrr::is_empty — avoids a hard purrr Imports dependency
+.is_empty <- function(x) length(x) == 0L
 getLevelNames = function(orgUnits, .cat = FALSE) {
   if ('sf' %in% class(orgUnits)) {
     orgUnits = orgUnits %>% st_drop_geometry()
@@ -129,14 +131,14 @@ cleanedData = function(
     return(d)
   }
 
-  if (is_null(error) || error == "Original") {
+  if (is.null(error) || error == "Original") {
     if (.cat) {
       cat('\n- source is original')
     }
     d[, dataCol := original]
   }
 
-  if (!is_null(error) & 'error' %in% names(d)) {
+  if (!is.null(error) & 'error' %in% names(d)) {
     if (.cat) {
       cat("\n - error level:", error)
     }
@@ -526,7 +528,7 @@ dataPeriod = function(data1, .cat = FALSE) {
     cat('\n* reporting_widget period():')
   }
 
-  search_for_weekly = any(map_lgl(data1, ~ any(class(.x) %in% 'yearweek')))
+  search_for_weekly = any(vapply(data1, function(.x) any(class(.x) %in% "yearweek"), logical(1L)))
 
   period = ifelse(search_for_weekly, "Week", "Month")
 
@@ -588,7 +590,7 @@ groupByCols = function(
     cat("\n - agg_level", agg_level)
   }
 
-  if (!is_empty(agg_level)) {
+  if (!.is_empty(agg_level)) {
     group_by_cols = base::union(group_by_cols, agg_level)
   }
 
@@ -640,12 +642,12 @@ groupByCols = function(
 #   if ( is.null( period ) ) period = dataPeriod( data1 )
 #   if ( .cat ) cat( '\n - period is:', period )
 #
-#    # if ( is_null( startingMonth )) startingMonth = yearmonth( min( data1$period   , na.rm = T ) , format = "%B%Y" )
+#    # if ( is.null( startingMonth )) startingMonth = yearmonth( min( data1$period   , na.rm = T ) , format = "%B%Y" )
 #    if ( is.null( startingMonth ) ) startingMonth = min( data1$period , na.rm = TRUE )
-#    # if ( is_null( endingMonth )) endingMonth = yearmonth( max( data1$period   , na.rm = T ) , format = "%B%Y" )
+#    # if ( is.null( endingMonth )) endingMonth = yearmonth( max( data1$period   , na.rm = T ) , format = "%B%Y" )
 #    if ( is.null( endingMonth ) ) endingMonth = max( data1$period , na.rm = TRUE )
-#    if ( is_null( data_categories ) ) data_categories = unique( data1$data )
-#    if ( is_null( levelNames ) ) levelNames = unique( data1$data )
+#    if ( is.null( data_categories ) ) data_categories = unique( data1$data )
+#    if ( is.null( levelNames ) ) levelNames = unique( data1$data )
 #
 #       # NB: setting data = setDT( data1()) has side effect of changing data1() to data.table.
 #       data = as.data.table( data1  )
@@ -657,13 +659,13 @@ groupByCols = function(
 #       #
 #       # data = data[ , period := base::get( period )  , ]
 #
-#       if ( !is_empty( level2 ) & !is_empty( levelNames ) ){ data = data[ base::get( levelNames[2] )  %in%  level2 ,, ] }
+#       if ( !.is_empty( level2 ) & !.is_empty( levelNames ) ){ data = data[ base::get( levelNames[2] )  %in%  level2 ,, ] }
 #
-#       if ( !is_empty( level3 ) & !is_empty( levelNames ) ){ data = data[ base::get( levelNames[3] )  %in%   level3 ,, ] }
+#       if ( !.is_empty( level3 ) & !.is_empty( levelNames ) ){ data = data[ base::get( levelNames[3] )  %in%   level3 ,, ] }
 #
-#       if ( !is_empty( level4 ) & !is_empty( levelNames ) ){ data = data[ base::get( levelNames[4] )  %in%   level4 ,, ] }
+#       if ( !.is_empty( level4 ) & !.is_empty( levelNames ) ){ data = data[ base::get( levelNames[4] )  %in%   level4 ,, ] }
 #
-#       if ( !is_empty( level5 ) & !is_empty( levelNames ) ){ data = data[ base::get( levelNames[5] )  %in%   level5  ,, ]  }
+#       if ( !.is_empty( level5 ) & !.is_empty( levelNames ) ){ data = data[ base::get( levelNames[5] )  %in%   level5  ,, ]  }
 #
 #       if ( level %in% 'leaf' ){
 #
@@ -744,7 +746,7 @@ groupByCols = function(
 #      if ( .cat ) cat( '\n - alwaysReporting' )
 #
 #      # reportingSelectedOUs = NULL
-#      if ( is_empty( reportingSelectedOUs ) & nrow( data ) > 0 ){
+#      if ( .is_empty( reportingSelectedOUs ) & nrow( data ) > 0 ){
 #
 #         if ( .cat ) cat( "\n - finding most frequently reporting OUs")
 #
@@ -843,10 +845,10 @@ selectedData = function(
   # mostFrequentReportingOUs() must be computed internally (rare path).
   .startingMonth_explicit = !is.null(startingMonth)
   .endingMonth_explicit   = !is.null(endingMonth)
-  if (is_null(data_categories)) {
+  if (is.null(data_categories)) {
     data_categories = unique(data1$data)
   }
-  if (is_null(levelNames)) {
+  if (is.null(levelNames)) {
     levelNames = unique(data1$data)
   }
 
@@ -863,19 +865,19 @@ selectedData = function(
   #
   # data = data[ , period := base::get( period )  , ]
 
-  if (!is_empty(level2) & !is_empty(levelNames)) {
+  if (!.is_empty(level2) & !.is_empty(levelNames)) {
     data = data[base::get(levelNames[2]) %in% level2, , ]
   }
 
-  if (!is_empty(level3) & !is_empty(levelNames)) {
+  if (!.is_empty(level3) & !.is_empty(levelNames)) {
     data = data[base::get(levelNames[3]) %in% level3, , ]
   }
 
-  if (!is_empty(level4) & !is_empty(levelNames)) {
+  if (!.is_empty(level4) & !.is_empty(levelNames)) {
     data = data[base::get(levelNames[4]) %in% level4, , ]
   }
 
-  if (!is_empty(level5) & !is_empty(levelNames)) {
+  if (!.is_empty(level5) & !.is_empty(levelNames)) {
     data = data[base::get(levelNames[5]) %in% level5, , ]
   }
 
@@ -1735,14 +1737,14 @@ trendData = function(
 
     .d. = .d. %>%
       filter(
-        !is_empty(!!rlang::sym(agg_level)),
+        !.is_empty(!!rlang::sym(agg_level)),
         !is.na(!!rlang::sym(agg_level))
         # next line is good for level 0
         # ,  ! is_aggregated(  !! rlang::sym( agg_level   ) )
       )
   }
 
-  # if ( !is_empty( sub_agg ) ){
+  # if ( !.is_empty( sub_agg ) ){
   #   if ( .cat) cat( '\n - filtering by sub_agg' )
   #   .d = .d %>% filter(
   #         is_aggregated( !! rlang::sym( sub_agg  ) )
@@ -1940,7 +1942,7 @@ model_formula = function(
       formula.string = paste0(formula.string, '+ PDQ( period = 52 )')
     }
 
-    if (!is_empty(covariates) && any(nchar(covariates) > 0)) {
+    if (!.is_empty(covariates) && any(nchar(covariates) > 0)) {
       formula.string =
         paste(
           formula.string,
@@ -2525,12 +2527,12 @@ mable_data = function(
 
   d = tibble.data %>% error_factor
 
-  if (is_null(.error) || .error == "Original") {
+  if (is.null(.error) || .error == "Original") {
     if (.cat) cat("\n - source is original")
     d = d %>% mutate(dataCol = original)
   }
 
-  if (!is_null(.error) & "error" %in% names(d)) {
+  if (!is.null(.error) & "error" %in% names(d)) {
     if (.cat) cat("\n - error level:", .error)
     error.levels = levels(d$error)
     error.factor.value = which(.error == error.levels)

@@ -1332,7 +1332,7 @@ run_burden_estimates <- function(
   if ("A" %in% methods) {
     .log("Method A: Champion Multiple...")
     results$A <- tryCatch(
-      burden_a(data, target_elements, region_col, n_bootstrap),
+      burden_a(data, target_elements, region_col, n_bootstrap = n_bootstrap),
       error = function(e) { .log(paste("  ERROR:", e$message)); NULL }
     )
     if (!is.null(results$A))

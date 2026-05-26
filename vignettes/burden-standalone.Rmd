@@ -233,17 +233,21 @@ print(meta$orgUnitLevels[, c("level", "displayName")])
 returns a named list ready for `burden_summary_table()`.
 
 ```{r wrapper}
+# run_burden_estimates() uses the full d; period filtering happens inside
+# each method.  Pass the same d used above (already filtered to the period
+# by selectedData()).
 results <- run_burden_estimates(
   data            = d,
   target_elements = target_elements,
   region_col      = "Province",
   methods         = c("A", "C1"),
-  period_start    = period_start,
-  period_end      = period_end,
-  n_bootstrap     = 500L   # reduce for speed
+  n_bootstrap     = 500L   # reduce for speed in this example
 )
 
-burden_summary_table(results, level = "national")
+# run_burden_estimates() returns method results plus pre-built summary tables
+# and a log vector.  Pass only the method entries to burden_summary_table().
+method_results <- results[intersect(c("A", "B", "C1", "C2", "E"), names(results))]
+burden_summary_table(method_results, level = "national")
 ```
 
 ---
