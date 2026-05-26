@@ -213,20 +213,6 @@ tbl_sub$category <- NULL   # redundant column now that every row is "Total"
 knitr::kable(tbl_sub, caption = "Province-level totals — all ages combined")
 ```
 
-### Age-group totals
-
-`add_category_totals()` sums across categories, propagating uncertainty
-as √ΣSE²:
-
-```{r totals}
-results_with_totals <- lapply(
-  list(A = res_a, C1 = res_c1, C2 = res_c2),
-  add_category_totals
-)
-burden_kable(results_with_totals, level = "national",
-             caption = "National totals including all-age combined row")
-```
-
 ---
 
 ## 6  Choropleth maps
@@ -310,25 +296,6 @@ p1 + p2 + p3 + plot_annotation(
                   "Groups derived from hierarchical clustering on pairwise",
                   "Z-score distance between Method A bootstrap distributions.")
 )
-```
-
----
-
-## 7  Using the metadata
-
-The metadata object provides geographic features for mapping and the org unit
-hierarchy for filtering.
-
-```{r metadata-use}
-# Geographic features (sf): provinces, districts, facilities
-gf <- meta$geoFeatures
-cat("Geometry types:", paste(unique(sf::st_geometry_type(gf)), collapse = ", "), "\n")
-cat("Levels:", paste(sort(unique(gf$level)), collapse = ", "), "\n")
-cat(nrow(provinces), "province polygons (level 2)\n")
-
-# Org unit tree: parent-child relationships
-cat("\nOrg unit levels:\n")
-knitr::kable(meta$orgUnitLevels[, c("level", "displayName")])
 ```
 
 ---
