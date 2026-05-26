@@ -4,7 +4,15 @@
 \alias{burden_a}
 \title{Burden Method A: Champion Multiple}
 \usage{
-burden_a(data, target_elements, region_col, n_bootstrap = 1000L)
+burden_a(
+  data,
+  target_elements,
+  region_col,
+  period_start = NULL,
+  period_end = NULL,
+  neighbor_list = NULL,
+  n_bootstrap = 1000L
+)
 }
 \arguments{
 \item{data}{data.table from \code{selectedData()} (columns: orgUnit, Month,
