@@ -713,9 +713,9 @@ reporting_widget_server <- function(
         }
 
         if (has_secondary) {
-          updateRadioButtons(session, 'reporting_rule', selected = 'any_data')
+          updateRadioButtons(session, 'reporting_rule', selected = 'any_selected')
           showNotification(
-            "Secondary element(s) detected — 'Count any report' enabled automatically.",
+            "Secondary element(s) detected — reporting rule set to 'Any selected element present'.",
             type = "message", duration = 5
           )
         }
