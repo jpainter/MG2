@@ -87,24 +87,20 @@ format_burden_estimate <- function(estimate, lower, upper) {
 #' @export
 burden_a <- function(data, target_elements, region_col,
                      period_start = NULL, period_end = NULL,
+                     neighbor_list = NULL,
                      n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
 
-  # Facility universe from ALL elements — includes facilities that reported
-  # other elements (e.g. attendance, suspects) but not the target element.
-  # These are real facilities that may have had zero target cases.
   fac_univ <- .fac_universe(dt, region_col)
   regions  <- sort(unique(fac_univ[[region_col]]))
 
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Period-filter so Method A is consistent with C1/C2
   if (!is.null(period_start)) dt_tgt <- dt_tgt[Month >= period_start]
   if (!is.null(period_end))   dt_tgt <- dt_tgt[Month <= period_end]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Per-facility total over the estimate period
   fac_totals <- dt_tgt[!is.na(value),
     .(total = sum(value, na.rm = TRUE)),
     by = c("orgUnit", "data")
@@ -117,60 +113,61 @@ burden_a <- function(data, target_elements, region_col,
     reg_samps  <- vector("list", length(regions))
     names(reg_samps) <- regions
 
+    # Pre-build national champion vector once per category
+    nat_champ_ous <- fac_univ[Selected == "Champion", orgUnit]
+
+    build_champ_vec <- function(ous) {
+      tbl <- merge(data.table::data.table(orgUnit = ous),
+                   cat_totals[, .(orgUnit, total)],
+                   by = "orgUnit", all.x = TRUE)
+      tbl[is.na(total), total := 0L]
+      tbl$total
+    }
+
+    # Fallback hierarchy: neighbors → national → zero.
+    # Returns a numeric vector (champion per-facility totals) from the best
+    # available reference population, or NULL if nothing is available.
+    get_fallback_vec <- function(reg) {
+      # 1. Neighboring provinces
+      if (!is.null(neighbor_list) && reg %in% names(neighbor_list)) {
+        nbr_regs <- neighbor_list[[reg]]
+        nbr_ous  <- fac_univ[get(region_col) %in% nbr_regs &
+                              Selected == "Champion", orgUnit]
+        if (length(nbr_ous) > 0L) {
+          v <- build_champ_vec(nbr_ous)
+          if (sum(v) > 0L) return(v)
+        }
+      }
+      # 2. National
+      if (length(nat_champ_ous) > 0L) {
+        v <- build_champ_vec(nat_champ_ous)
+        if (sum(v) > 0L) return(v)
+      }
+      NULL
+    }
+
     for (reg in regions) {
       reg_facs  <- fac_univ[get(region_col) == reg]
       champ_ous <- reg_facs[Selected == "Champion", orgUnit]
       nc_n      <- nrow(reg_facs[Selected != "Champion"])
 
-      # Champion per-facility totals (0 for champions with no target records)
-      build_champ_vec <- function(ous) {
-        tbl <- merge(data.table::data.table(orgUnit = ous),
-                     cat_totals[, .(orgUnit, total)],
-                     by = "orgUnit", all.x = TRUE)
-        tbl[is.na(total), total := 0L]
-        tbl$total
+      needs_fallback <- length(champ_ous) == 0L
+
+      if (!needs_fallback) {
+        champ_vec <- build_champ_vec(champ_ous)
+        champ_sum <- sum(champ_vec)
+        # All regional champions had 0 for this element — no signal locally
+        if (champ_sum == 0L) needs_fallback <- TRUE
       }
 
-      if (length(champ_ous) == 0L) {
-        # No regional champions: fall back to national champion distribution.
-        # All facilities in the region are treated as non-champions and predicted
-        # from the national per-facility rate.
-        nat_champ_ous <- fac_univ[Selected == "Champion", orgUnit]
-        if (length(nat_champ_ous) == 0L) {
-          reg_samps[[reg]] <- rep(0, n_bootstrap)
-          next
-        }
-        nat_champ_vec <- build_champ_vec(nat_champ_ous)
-        n_all <- nrow(reg_facs)
-        samps <- .burden_resample_sum(nat_champ_vec, n_all, n_bootstrap)
-        reg_samps[[reg]] <- samps
-        ci <- .burden_ci(samps)
-        sub_rows[[length(sub_rows) + 1L]] <- data.frame(
-          method = "A", region = reg, category = cat,
-          estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
-          stringsAsFactors = FALSE
-        )
-        next
-      }
-
-      champ_vec <- build_champ_vec(champ_ous)
-      champ_sum <- sum(champ_vec)
-
-      # If every regional champion had 0 for this element, the regional
-      # distribution gives no useful signal — fall back to the national
-      # champion distribution, same as when there are no local champions.
-      # (Champions are identified via consistently-reporting elements that
-      # may differ from the target; a 0-total champion should not force a
-      # 0 estimate when the national rate is non-zero.)
-      if (champ_sum == 0L) {
-        nat_champ_ous <- fac_univ[Selected == "Champion", orgUnit]
-        nat_champ_vec <- build_champ_vec(nat_champ_ous)
-        if (length(nat_champ_vec) == 0L || all(nat_champ_vec == 0L)) {
+      if (needs_fallback) {
+        fb <- get_fallback_vec(reg)
+        if (is.null(fb)) {
           reg_samps[[reg]] <- rep(0, n_bootstrap)
           next
         }
         n_all <- nrow(reg_facs)
-        samps <- .burden_resample_sum(nat_champ_vec, n_all, n_bootstrap)
+        samps <- .burden_resample_sum(fb, n_all, n_bootstrap)
         reg_samps[[reg]] <- samps
         ci <- .burden_ci(samps)
         sub_rows[[length(sub_rows) + 1L]] <- data.frame(

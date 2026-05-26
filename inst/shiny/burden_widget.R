@@ -877,11 +877,34 @@ burden_widget_server <- function(
 
       n_boot <- 1000L
 
+      # Build province adjacency for Method A neighbour fallback.
+      # Uses sf::st_touches() on the region-level polygons so that when a
+      # province has no usable local champions, the closest geographic peers
+      # are tried before falling back to the national distribution.
+      neighbor_list <- tryCatch({
+        gf <- geo_features()
+        if (!inherits(gf, "sf")) stop("no sf")
+        region_names <- unique(d[[region_col]])
+        poly_levels  <- sort(unique(gf$level[!sf::st_is_empty(gf) & gf$level > 1L]))
+        best_lev     <- poly_levels[1L]
+        for (lev in poly_levels) {
+          if (mean(region_names %in% gf$name[gf$level == lev], na.rm = TRUE) > 0.3) {
+            best_lev <- lev; break
+          }
+        }
+        prov_sf <- gf[gf$level == best_lev & !sf::st_is_empty(gf), ]
+        adj <- sf::st_touches(prov_sf, sparse = FALSE)
+        nms <- prov_sf$name
+        stats::setNames(lapply(seq_len(nrow(prov_sf)),
+                               function(i) nms[adj[i, ]]), nms)
+      }, error = function(e) NULL)
+
       if ("A" %in% methods) {
         add_log("Method A: Champion multiple...")
         res <- tryCatch(
           burden_a(d, tgt, region_col,
                    period_start = sm_ym, period_end = em_ym,
+                   neighbor_list = neighbor_list,
                    n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )

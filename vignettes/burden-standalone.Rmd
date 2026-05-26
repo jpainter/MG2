@@ -146,6 +146,10 @@ res_a <- burden_a(
   period_start    = period_start,
   period_end      = period_end,
   n_bootstrap     = 1000L
+  # neighbor_list: optional named list of province → c(neighbor provinces)
+  # computed from sf::st_touches() on the province polygon layer.
+  # When supplied, regions with no usable local champions try neighbors
+  # before falling back to the national distribution.
 )
 ```
 
