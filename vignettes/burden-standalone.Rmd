@@ -106,24 +106,42 @@ target_elements <- c(
 period_start <- yearmonth("2024 Jan")
 period_end   <- yearmonth("2025 Dec")
 
+# Keep only facility-level rows (level 4).
+# cleanedData() retains all effectiveLeaf == TRUE rows — the correct set of
+# data entry points regardless of administrative level.  District hospitals
+# (level 3) that enter data directly are legitimate reporting units and must
+# not be excluded by a level-4 filter.
 d_clean <- cleanedData(d_raw, source = "Original")
+
+# Champion identification uses malaria-specific elements (confirmed cases +
+# diagnostic elements) so champion status reflects malaria-programme
+# engagement.  Using all 67 elements would make nearly every facility a
+# champion via outpatient attendance, collapsing the non-champion
+# extrapolation and deflating estimates.
+champ_elements <- grep(
+  "Confirmed malaria|suspects tested|Suspected malaria",
+  unique(d_clean$data), ignore.case = TRUE, value = TRUE
+)
+cat("Champion identification elements:", length(champ_elements), "\n")
 
 d <- selectedData(
   d_clean,
   levelNames      = c("Country", "Province", "District", "Facility"),
-  data_categories = target_elements,
+  data_categories = champ_elements,
   startingMonth   = period_start,
   endingMonth     = period_end,
-  missing_reports = 2L   # allow up to 2 missed months in a 24-month window
+  missing_reports = 2L
 )
 
-# Rename dataCol → value for the burden functions
 setDT(d)
 d[, value := dataCol]
 
+cat("Rows in d:", nrow(d), "\n")
+cat("Unique facilities:", uniqueN(d$orgUnit), "\n")
+
 # Champion summary
 champ <- unique(d[Selected == "Champion", .(orgUnit, Province)])
-cat("Champions by province:\n")
+cat("\nChampions by province:\n")
 print(sort(table(champ$Province)))
 ```
 
@@ -199,18 +217,45 @@ n_total_nat  <- nrow(fac_univ_nat)
 cat(sprintf("Champion facilities: %d of %d (%.0f%%)\n",
             n_champ_nat, n_total_nat, 100 * n_champ_nat / n_total_nat))
 
-burden_kable(
+# Reported totals by category (actual submitted values, period only)
+rep_nat <- d[d$data %in% target_elements &
+             d$Month >= period_start & d$Month <= period_end &
+             !is.na(d$original), ]
+rep_by_cat <- tapply(rep_nat$original, rep_nat$data, sum)
+rep_total  <- sum(rep_by_cat)
+cat(sprintf("Reported (all facilities, target elements): %s cases\n",
+            formatC(rep_total, format = "d", big.mark = ",")))
+
+# Build national table with Reported column prepended
+nat_tbl <- burden_summary_table(
   lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
-  level   = "national",
-  caption = sprintf("National burden estimates — Jan 2024 to Dec 2025 (%d/%d champion facilities)",
-                    n_champ_nat, n_total_nat)
+  level = "national"
 )
+nat_tbl$category <- fmt_cat(nat_tbl$category)
+
+# Add Reported column
+rep_df <- data.frame(
+  category = fmt_cat(names(rep_by_cat)),
+  Reported = formatC(as.integer(rep_by_cat), format = "d", big.mark = ","),
+  stringsAsFactors = FALSE
+)
+rep_total_row <- data.frame(category = "Total",
+                             Reported = formatC(rep_total, format="d", big.mark=","),
+                             stringsAsFactors = FALSE)
+rep_df <- rbind(rep_df, rep_total_row)
+nat_tbl <- merge(rep_df, nat_tbl[, setdiff(names(nat_tbl), "region")],
+                 by = "category", all.y = TRUE)
+
+knitr::kable(nat_tbl,
+  caption = sprintf(
+    "National burden estimates — Jan 2024 to Dec 2025 (%d/%d champion facilities)",
+    n_champ_nat, n_total_nat))
 ```
 
 ### Province-level table
 
 ```{r summary-subnational}
-# Champion and total facility counts per province
+# Champion / total facility counts — one row per unique facility
 fac_univ <- unique(as.data.frame(d)[, c("orgUnit", "Province", "Selected")])
 champ_tbl <- do.call(rbind, lapply(split(fac_univ, fac_univ$Province), function(x) {
   data.frame(
@@ -259,8 +304,9 @@ library(patchwork)
 provinces <- meta$geoFeatures[
   meta$geoFeatures$level == 2 & !sf::st_is_empty(meta$geoFeatures), ]
 
-# Reported: sum of all submitted values in the period
-rep_by_prov <- d[!is.na(original),
+# Reported: sum of target-element values only (Jan 2024–Dec 2025)
+rep_by_prov <- d[data %in% target_elements &
+                 Month >= period_start & Month <= period_end & !is.na(original),
                  .(reported = sum(original, na.rm = TRUE)), by = Province]
 
 # Method A and C2 totals: sum across age groups per province
