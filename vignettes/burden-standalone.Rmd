@@ -193,7 +193,7 @@ res_c2 <- burden_c2(
 
 ```{r summary-national}
 burden_kable(
-  list(A = res_a, C1 = res_c1, C2 = res_c2),
+  lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
   level   = "national",
   caption = "National burden estimates — Jan 2024 to Dec 2025"
 )
@@ -202,11 +202,15 @@ burden_kable(
 ### Province-level table
 
 ```{r summary-subnational}
-burden_kable(
-  list(A = res_a, C1 = res_c1, C2 = res_c2),
-  level   = "subnational",
-  caption = "Province-level burden estimates (first 6 provinces shown)"
+# Build the subnational table with totals added, then keep only the
+# "Total" row per province (sum across all age groups).
+tbl_sub <- burden_summary_table(
+  lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
+  level = "subnational"
 )
+tbl_sub <- tbl_sub[tbl_sub$category == "Total", ]
+tbl_sub$category <- NULL   # redundant column now that every row is "Total"
+knitr::kable(tbl_sub, caption = "Province-level totals — all ages combined")
 ```
 
 ### Age-group totals
