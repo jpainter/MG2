@@ -143,6 +143,8 @@ res_a <- burden_a(
   data            = d,
   target_elements = target_elements,
   region_col      = "Province",
+  period_start    = period_start,
+  period_end      = period_end,
   n_bootstrap     = 1000L
 )
 ```

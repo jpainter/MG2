@@ -4,6 +4,18 @@
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
+# Draw `n_fac` independent samples from `x` and sum them, repeated `n_boot`
+# times.  Summing independent draws gives variance proportional to n_fac
+# (correct), not n_fac² (the bug that results from multiplying a single draw).
+.burden_resample_sum <- function(x, n_fac, n_boot) {
+  x <- x[is.finite(x) & !is.na(x)]
+  if (length(x) == 0L || n_fac == 0L) return(rep(0, n_boot))
+  if (n_fac == 1L) return(sample(x, n_boot, replace = TRUE))
+  # Efficient: draw an n_fac × n_boot matrix and colSums
+  colSums(matrix(sample(x, n_fac * n_boot, replace = TRUE), nrow = n_fac))
+}
+
+# Legacy scalar sampler kept for places that don't need the sum-of-n form.
 .burden_resample <- function(x, n) {
   x <- x[is.finite(x) & !is.na(x)]
   if (length(x) == 0L) return(rep(0, n))
@@ -74,6 +86,7 @@ format_burden_estimate <- function(estimate, lower, upper) {
 #' @return list with `$subnational` and `$national` data.tables.
 #' @export
 burden_a <- function(data, target_elements, region_col,
+                     period_start = NULL, period_end = NULL,
                      n_bootstrap = 1000L) {
   dt <- data.table::as.data.table(data)
 
@@ -86,7 +99,12 @@ burden_a <- function(data, target_elements, region_col,
   dt_tgt <- dt[get("data") %in% target_elements]
   if (nrow(dt_tgt) == 0L) return(NULL)
 
-  # Per-facility total over the full supplied history
+  # Period-filter so Method A is consistent with C1/C2
+  if (!is.null(period_start)) dt_tgt <- dt_tgt[Month >= period_start]
+  if (!is.null(period_end))   dt_tgt <- dt_tgt[Month <= period_end]
+  if (nrow(dt_tgt) == 0L) return(NULL)
+
+  # Per-facility total over the estimate period
   fac_totals <- dt_tgt[!is.na(value),
     .(total = sum(value, na.rm = TRUE)),
     by = c("orgUnit", "data")
@@ -124,7 +142,7 @@ burden_a <- function(data, target_elements, region_col,
         }
         nat_champ_vec <- build_champ_vec(nat_champ_ous)
         n_all <- nrow(reg_facs)
-        samps <- n_all * sample(nat_champ_vec, n_bootstrap, replace = TRUE)
+        samps <- .burden_resample_sum(nat_champ_vec, n_all, n_bootstrap)
         reg_samps[[reg]] <- samps
         ci <- .burden_ci(samps)
         sub_rows[[length(sub_rows) + 1L]] <- data.frame(
@@ -138,8 +156,8 @@ burden_a <- function(data, target_elements, region_col,
       champ_vec <- build_champ_vec(champ_ous)
       champ_sum <- sum(champ_vec)
 
-      # Bootstrap from the champion per-facility distribution (includes 0s)
-      samps            <- champ_sum + nc_n * sample(champ_vec, n_bootstrap, replace = TRUE)
+      # Sum nc_n independent draws from champion distribution (includes 0s)
+      samps            <- champ_sum + .burden_resample_sum(champ_vec, nc_n, n_bootstrap)
       reg_samps[[reg]] <- samps
 
       ci <- .burden_ci(samps)
@@ -436,7 +454,7 @@ burden_c1 <- function(data, target_elements, region_col,
           ]$total
           champ_dist <- if (length(champ_dist_nat) > 0L) champ_dist_nat else 0L
         }
-        fac_samps <- fac_samps + nc_no_data * .burden_resample(champ_dist, n_bootstrap)
+        fac_samps <- fac_samps + .burden_resample_sum(champ_dist, nc_no_data, n_bootstrap)
       }
 
       reg_samps[[reg]] <- fac_samps
@@ -667,7 +685,7 @@ burden_c2 <- function(data, target_elements, region_col,
           ]$total
           champ_dist <- if (length(champ_dist_nat) > 0L) champ_dist_nat else 0L
         }
-        fac_samps <- fac_samps + nc_no_data * .burden_resample(champ_dist, n_bootstrap)
+        fac_samps <- fac_samps + .burden_resample_sum(champ_dist, nc_no_data, n_bootstrap)
       }
 
       reg_samps[[reg]] <- fac_samps

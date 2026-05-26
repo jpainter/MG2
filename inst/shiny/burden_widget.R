@@ -880,7 +880,9 @@ burden_widget_server <- function(
       if ("A" %in% methods) {
         add_log("Method A: Champion multiple...")
         res <- tryCatch(
-          burden_a(d, tgt, region_col, n_bootstrap = n_boot),
+          burden_a(d, tgt, region_col,
+                   period_start = sm_ym, period_end = em_ym,
+                   n_bootstrap = n_boot),
           error = function(e) { add_log(paste("  ERROR:", e$message)); NULL }
         )
         results$A <- add_category_totals(res)
