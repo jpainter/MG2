@@ -835,14 +835,22 @@ burden_widget_server <- function(
       results$tgt_used        <- tgt
       results$region_col_used <- region_col
 
-      # Reported actuals — sum of actual submitted values for champion facilities
-      # (within the estimate period)
+      # Reported actuals and per-facility average (within the estimate period)
       d_champ <- d_period[get("data") %in% tgt & !is.na(value)]
       rep_sub <- d_champ[, .(Reported = as.integer(sum(value, na.rm = TRUE))),
                           by = region_col]
+      # Average = Reported / number of unique facilities that submitted any value
+      n_rep_sub <- d_champ[, .(n_rep = data.table::uniqueN(orgUnit)), by = region_col]
+      rep_sub <- merge(rep_sub, n_rep_sub, by = region_col, all.x = TRUE)
+      rep_sub[, Avg := round(Reported / n_rep)]
+      rep_sub[, n_rep := NULL]
       data.table::setnames(rep_sub, region_col, "region")
-      rep_nat <- data.frame(region = "National",
-                            Reported = as.integer(sum(rep_sub$Reported)))
+      rep_nat <- data.frame(
+        region   = "National",
+        Reported = as.integer(sum(rep_sub$Reported)),
+        Avg      = round(sum(rep_sub$Reported) /
+                         data.table::uniqueN(d_champ$orgUnit))
+      )
       results$reported <- rbind(rep_nat, as.data.frame(rep_sub))
 
       # Facility universe: all elements (not filtered to target).
@@ -1106,19 +1114,21 @@ burden_widget_server <- function(
 
       df <- rbind(nat, sub)
 
-      # Add Reported + Champ/Total columns (actual totals, no estimation)
+      # Add Reported, Avg, Champ/Total columns (actual totals, no estimation)
       if (!is.null(results$reported) && nrow(df) > 0) {
         df <- merge(df, results$reported, by.x = "Area", by.y = "region", all.x = TRUE)
         df$Reported <- formatC(df$Reported, format = "d", big.mark = ",")
         df$Reported[is.na(df$Reported)] <- "—"
+        df$Avg <- formatC(df$Avg, format = "d", big.mark = ",")
+        df$Avg[is.na(df$Avg)] <- "—"
       }
       if (!is.null(results$fac_counts) && nrow(df) > 0) {
         df <- merge(df, results$fac_counts, by.x = "Area", by.y = "region", all.x = TRUE)
         df[["Champ/Total"]][is.na(df[["Champ/Total"]])] <- "—"
       }
-      # Reorder: Area, [Group], Reported, Champ/Total, then method columns
+      # Reorder: Area, [Group], Reported, Avg, Champ/Total, then method columns
       first_cols  <- intersect(c("Area", "Group"), names(df))
-      anchor_cols <- intersect(c("Reported", "Champ/Total"), names(df))
+      anchor_cols <- intersect(c("Reported", "Avg", "Champ/Total"), names(df))
       df <- df[, c(first_cols, anchor_cols,
                    setdiff(names(df), c(first_cols, anchor_cols))),
                drop = FALSE]

@@ -104,21 +104,38 @@ burden_a <- function(data, target_elements, region_col,
       champ_ous <- reg_facs[Selected == "Champion", orgUnit]
       nc_n      <- nrow(reg_facs[Selected != "Champion"])
 
+      # Champion per-facility totals (0 for champions with no target records)
+      build_champ_vec <- function(ous) {
+        tbl <- merge(data.table::data.table(orgUnit = ous),
+                     cat_totals[, .(orgUnit, total)],
+                     by = "orgUnit", all.x = TRUE)
+        tbl[is.na(total), total := 0L]
+        tbl$total
+      }
+
       if (length(champ_ous) == 0L) {
-        reg_samps[[reg]] <- rep(0, n_bootstrap)
+        # No regional champions: fall back to national champion distribution.
+        # All facilities in the region are treated as non-champions and predicted
+        # from the national per-facility rate.
+        nat_champ_ous <- fac_univ[Selected == "Champion", orgUnit]
+        if (length(nat_champ_ous) == 0L) {
+          reg_samps[[reg]] <- rep(0, n_bootstrap)
+          next
+        }
+        nat_champ_vec <- build_champ_vec(nat_champ_ous)
+        n_all <- nrow(reg_facs)
+        samps <- n_all * sample(nat_champ_vec, n_bootstrap, replace = TRUE)
+        reg_samps[[reg]] <- samps
+        ci <- .burden_ci(samps)
+        sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+          method = "A", region = reg, category = cat,
+          estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+          stringsAsFactors = FALSE
+        )
         next
       }
 
-      # Champion totals: 0 for champions who had no target-element records
-      # (they reported consistently for other elements, so 0 is the true value)
-      champ_tbl <- merge(
-        data.table::data.table(orgUnit = champ_ous),
-        cat_totals[, .(orgUnit, total)],
-        by = "orgUnit", all.x = TRUE
-      )
-      champ_tbl[is.na(total), total := 0L]
-
-      champ_vec <- champ_tbl$total
+      champ_vec <- build_champ_vec(champ_ous)
       champ_sum <- sum(champ_vec)
 
       # Bootstrap from the champion per-facility distribution (includes 0s)
@@ -355,8 +372,12 @@ burden_c1 <- function(data, target_elements, region_col,
           next
         }
 
+        # Fit on log1p scale so predictions are always non-negative after
+        # back-transformation with expm1().  This prevents implausible negative
+        # confidence interval bounds that arise on the raw scale when sigma is
+        # large relative to the mean (common for sparse facility data).
         fit <- tryCatch(
-          stats::lm(value ~ champ_mean, data = obs), error = function(e) NULL
+          stats::lm(log1p(value) ~ champ_mean, data = obs), error = function(e) NULL
         )
         if (is.null(fit)) {
           not_modeled[[length(not_modeled) + 1L]] <-
@@ -380,7 +401,8 @@ burden_c1 <- function(data, target_elements, region_col,
           } else {
             cm <- fac_data$champ_mean[i]
             if (!is.na(cm) && is.finite(cm)) {
-              drawn <- pmax(0, stats::rnorm(n_bootstrap, a_coef + b_coef * cm, sigma))
+              log_pred <- a_coef + b_coef * cm
+              drawn    <- pmax(0, expm1(stats::rnorm(n_bootstrap, log_pred, sigma)))
               ann_samps <- ann_samps + drawn
             }
           }
@@ -531,7 +553,8 @@ burden_c2 <- function(data, target_elements, region_col,
         use_arima  <- n_obs_hist >= min_months
 
         if (use_arima) {
-          ts_vals  <- stats::ts(fac_hist$value, frequency = 12)
+          # Fit on log1p scale to keep predictions non-negative after expm1()
+          ts_vals  <- stats::ts(log1p(fac_hist$value), frequency = 12)
           xreg_all <- matrix(fac_hist$champ_mean, ncol = 1)
           xreg_all[is.na(xreg_all)] <- 0
 
@@ -547,16 +570,13 @@ burden_c2 <- function(data, target_elements, region_col,
             sigma_arima <- sqrt(fit_arima$sigma2)
 
             if (!is.null(fitted_all) && sigma_arima > 0) {
-              # Pad/trim fitted values to match fac_hist length
               if (length(fitted_all) < nrow(fac_hist)) {
                 fitted_all <- c(rep(NA_real_, nrow(fac_hist) - length(fitted_all)),
                                 fitted_all)
               }
 
-              # Build lookup: Month → (actual value, fitted value)
               fac_hist[, .fitted := fitted_all[seq_len(.N)]]
 
-              # Restrict summation to the estimate period
               fac_period_rows <- if (!is.null(period_start) || !is.null(period_end)) {
                 tmp <- fac_hist
                 if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
@@ -569,21 +589,21 @@ burden_c2 <- function(data, target_elements, region_col,
                 if (!is.na(fac_period_rows$value[i])) {
                   ann_samps <- ann_samps + fac_period_rows$value[i]
                 } else {
-                  fv <- fac_period_rows$.fitted[i]
+                  fv <- fac_period_rows$.fitted[i]   # on log1p scale
                   if (!is.na(fv) && is.finite(fv)) {
-                    drawn <- pmax(0, stats::rnorm(n_bootstrap, fv, sigma_arima))
+                    drawn <- pmax(0, expm1(stats::rnorm(n_bootstrap, fv, sigma_arima)))
                     ann_samps <- ann_samps + drawn
                   }
                 }
               }
-              fac_hist[, .fitted := NULL]   # clean up temp column
+              fac_hist[, .fitted := NULL]
               fac_samps <- fac_samps + ann_samps
-              next   # skip C1 fallback
+              next
             }
           }
         }
 
-        # Fallback: C1 linear model for this facility
+        # Fallback: C1 linear model on log1p scale
         obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
         if (nrow(obs) < 3L) {
           not_modeled[[length(not_modeled) + 1L]] <-
@@ -591,7 +611,7 @@ burden_c2 <- function(data, target_elements, region_col,
           next
         }
         fit_lm <- tryCatch(
-          stats::lm(value ~ champ_mean, data = obs), error = function(e) NULL
+          stats::lm(log1p(value) ~ champ_mean, data = obs), error = function(e) NULL
         )
         if (is.null(fit_lm)) {
           not_modeled[[length(not_modeled) + 1L]] <-
@@ -602,7 +622,6 @@ burden_c2 <- function(data, target_elements, region_col,
         b_coef <- stats::coef(fit_lm)[[2L]]
         sigma  <- stats::sigma(fit_lm)
 
-        # C1 fallback: fit on full history, sum only the estimate period
         fac_period_rows <- if (!is.null(period_start) || !is.null(period_end)) {
           tmp <- fac_hist
           if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
@@ -617,7 +636,8 @@ burden_c2 <- function(data, target_elements, region_col,
           } else {
             cm <- fac_period_rows$champ_mean[i]
             if (!is.na(cm) && is.finite(cm)) {
-              drawn <- pmax(0, stats::rnorm(n_bootstrap, a_coef + b_coef * cm, sigma))
+              log_pred <- a_coef + b_coef * cm
+              drawn    <- pmax(0, expm1(stats::rnorm(n_bootstrap, log_pred, sigma)))
               ann_samps <- ann_samps + drawn
             }
           }
