@@ -156,6 +156,31 @@ burden_a <- function(data, target_elements, region_col,
       champ_vec <- build_champ_vec(champ_ous)
       champ_sum <- sum(champ_vec)
 
+      # If every regional champion had 0 for this element, the regional
+      # distribution gives no useful signal — fall back to the national
+      # champion distribution, same as when there are no local champions.
+      # (Champions are identified via consistently-reporting elements that
+      # may differ from the target; a 0-total champion should not force a
+      # 0 estimate when the national rate is non-zero.)
+      if (champ_sum == 0L) {
+        nat_champ_ous <- fac_univ[Selected == "Champion", orgUnit]
+        nat_champ_vec <- build_champ_vec(nat_champ_ous)
+        if (length(nat_champ_vec) == 0L || all(nat_champ_vec == 0L)) {
+          reg_samps[[reg]] <- rep(0, n_bootstrap)
+          next
+        }
+        n_all <- nrow(reg_facs)
+        samps <- .burden_resample_sum(nat_champ_vec, n_all, n_bootstrap)
+        reg_samps[[reg]] <- samps
+        ci <- .burden_ci(samps)
+        sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+          method = "A", region = reg, category = cat,
+          estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+          stringsAsFactors = FALSE
+        )
+        next
+      }
+
       # Sum nc_n independent draws from champion distribution (includes 0s)
       samps            <- champ_sum + .burden_resample_sum(champ_vec, nc_n, n_bootstrap)
       reg_samps[[reg]] <- samps
