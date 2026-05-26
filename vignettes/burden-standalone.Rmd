@@ -221,7 +221,7 @@ Three side-by-side province maps compare what was actually reported against
 what Method A estimates, and then split provinces into two significantly
 different burden groups.
 
-```{r choropleths, fig.width = 9, fig.height = 3.5, out.width = "100%"}
+```{r choropleths, fig.width = 9, fig.height = 6.5, out.width = "100%", fig.align = "center"}
 library(ggplot2)
 library(sf)
 library(patchwork)
@@ -234,54 +234,70 @@ provinces <- meta$geoFeatures[
 rep_by_prov <- d[!is.na(original),
                  .(reported = sum(original, na.rm = TRUE)), by = Province]
 
-# Method A totals: sum across age groups
-a_total <- as.data.frame(res_a$subnational)
-a_total <- a_total[a_total$region != "National", ]
-a_total <- aggregate(estimate ~ region, data = a_total, sum)
-names(a_total) <- c("name", "estimate_a")
+# Method A and C2 totals: sum across age groups per province
+sum_sub <- function(res, col_name) {
+  df <- as.data.frame(res$subnational)
+  df <- df[df$region != "National", ]
+  df <- aggregate(estimate ~ region, data = df, sum)
+  names(df) <- c("name", col_name)
+  df
+}
+a_total  <- sum_sub(res_a,  "estimate_a")
+c2_total <- sum_sub(res_c2, "estimate_c2")
 
-# Significance groups (2 groups via hierarchical clustering on Z-score distance)
-grps    <- compute_burden_groups(res_a$subnational, n_groups = 2)
-grp_df  <- data.frame(name  = names(grps),
-                      group = factor(grps, labels = c("Lower", "Higher")))
+# Significance groups from Method A (2 groups, ward.D2 on Z-score distance)
+grps   <- compute_burden_groups(res_a$subnational, n_groups = 2)
+grp_df <- data.frame(name  = names(grps),
+                     group = factor(grps, labels = c("Lower", "Higher")))
 
-# Join to sf
-map_sf <- merge(provinces, rep_by_prov,
-                by.x = "name", by.y = "Province", all.x = TRUE)
-map_sf <- merge(map_sf, a_total,  by = "name", all.x = TRUE)
-map_sf <- merge(map_sf, grp_df,   by = "name", all.x = TRUE)
+# Join all to sf
+map_sf <- merge(provinces,   rep_by_prov, by.x = "name", by.y = "Province", all.x = TRUE)
+map_sf <- merge(map_sf, a_total,          by = "name", all.x = TRUE)
+map_sf <- merge(map_sf, c2_total,         by = "name", all.x = TRUE)
+map_sf <- merge(map_sf, grp_df,           by = "name", all.x = TRUE)
 
-# Shared helpers
+# Shared upper limit for the three continuous maps — same scale makes the
+# gap between reported and modelled visually obvious.
+shared_max    <- max(c(map_sf$reported, map_sf$estimate_a, map_sf$estimate_c2),
+                     na.rm = TRUE)
+shared_limits <- c(0, shared_max)
+
 theme_map <- theme_void(base_size = 9) +
-  theme(plot.title    = element_text(hjust = 0.5, face = "bold"),
+  theme(plot.title      = element_text(hjust = 0.5, face = "bold", size = 10),
         legend.position = "bottom",
-        legend.key.width = unit(1.2, "cm"))
+        legend.key.width = unit(1.8, "cm"),
+        legend.key.height = unit(0.35, "cm"),
+        legend.title    = element_text(size = 8),
+        legend.text     = element_text(size = 7))
 
-fill_yor <- function(col, lab) {
+# Shared continuous scale — identical across p1/p2/p3 so patchwork
+# merges them into a single legend when guides = "collect"
+fill_shared <- function() {
   scale_fill_gradientn(
-    aesthetics = "fill",
-    colours    = c("#fff5eb", "#fd8d3c", "#8c2d04"),
-    na.value   = "#dddddd",
-    name       = lab,
-    labels     = scales::label_comma(),
-    guide      = guide_colorbar(title.position = "top")
+    colours  = c("#fff5eb", "#fd8d3c", "#8c2d04"),
+    limits   = shared_limits,
+    oob      = scales::squish,
+    na.value = "#dddddd",
+    name     = "Cases (all ages)",
+    labels   = scales::label_comma(),
+    guide    = guide_colorbar(title.position = "top",
+                              barwidth = 10, barheight = 0.5)
   )
 }
 
-# Map 1: Reported cases
 p1 <- ggplot(map_sf) +
-  geom_sf(aes(fill = reported), colour = "white", linewidth = 0.25) +
-  fill_yor("reported", "Cases") +
-  labs(title = "Reported") + theme_map
+  geom_sf(aes(fill = reported),    colour = "white", linewidth = 0.25) +
+  fill_shared() + labs(title = "Reported") + theme_map
 
-# Map 2: Method A estimate
 p2 <- ggplot(map_sf) +
-  geom_sf(aes(fill = estimate_a), colour = "white", linewidth = 0.25) +
-  fill_yor("estimate_a", "Cases") +
-  labs(title = "Method A estimate") + theme_map
+  geom_sf(aes(fill = estimate_a),  colour = "white", linewidth = 0.25) +
+  fill_shared() + labs(title = "Method A estimate") + theme_map
 
-# Map 3: Two significance groups (ward.D2 on pairwise Z-score distance)
 p3 <- ggplot(map_sf) +
+  geom_sf(aes(fill = estimate_c2), colour = "white", linewidth = 0.25) +
+  fill_shared() + labs(title = "Method C2 estimate (ARIMA)") + theme_map
+
+p4 <- ggplot(map_sf) +
   geom_sf(aes(fill = group), colour = "white", linewidth = 0.25) +
   scale_fill_manual(
     values   = c("Lower" = "#fdd0a2", "Higher" = "#d94801"),
@@ -289,13 +305,12 @@ p3 <- ggplot(map_sf) +
     name     = "Burden group",
     guide    = guide_legend(title.position = "top")
   ) +
-  labs(title = "Groups (k = 2)") + theme_map
+  labs(title = "Method A groups (k = 2)") + theme_map
 
-p1 + p2 + p3 + plot_annotation(
-  caption = paste("Province-level estimates, Jan 2024–Dec 2025.",
-                  "Groups derived from hierarchical clustering on pairwise",
-                  "Z-score distance between Method A bootstrap distributions.")
-)
+# 2×2 grid; shared continuous legend appears once at bottom
+(p1 + p2) / (p3 + p4) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
 ```
 
 ---
