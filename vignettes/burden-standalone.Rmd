@@ -205,7 +205,80 @@ res_c2 <- burden_c2(
 
 ---
 
-## 5  View results
+## 5  How C1 and C2 work — and why they differ from A
+
+### C1 step-by-step
+
+For each target element and each region, C1 proceeds as follows.
+
+**Setup**
+
+1. Compute the champion monthly mean: average value for each calendar month
+   (Jan–Dec) across all champion facilities in the region.  The national mean
+   is used as a fallback for months or regions with no local champion data.
+
+**Main facility loop** — all facilities that submitted at least one
+target-element record during the estimate period (Jan 2024–Dec 2025)
+
+2. Retrieve the facility's *full* available history (all months in `d`, not
+   just the period) to maximise model fitting data.
+3. Fit `log(1 + value) ~ champion_monthly_mean` by ordinary least squares on
+   all observed months.  Fitting and predicting on the log(1+x) scale ensures
+   all imputed values are non-negative.
+4. **If fewer than 3 observed months**: regression is skipped; the facility's
+   actual submitted values are credited but missing months are not imputed
+   (conservative — treated as 0).
+5. For each month in the estimate period:
+   - *Value present*: add the actual submitted value.
+   - *Value missing*: draw from
+     `max(0, exp(a + b × champion_mean + ε) − 1)`, where
+     ε ~ Normal(0, σ²) and σ is the regression residual SD.  Repeated
+     1,000 times to build the bootstrap distribution.
+6. Facility contribution = sum across the 24 estimate-period months.
+
+**No-data fallback** — facilities with zero target-element records at all
+
+7. *Champion* facilities contribute **0** (they would have reported positives
+   if any existed — their absence of confirmed cases is a true zero).
+8. *Non-champion* facilities each independently draw one value from the
+   champion per-period distribution (same mechanism as Method A).
+
+**Region total** = sum over all facilities; repeat 1,000× for the CI.
+
+### C2
+
+Identical to C1 except step 3: when ≥ 12 months of history exist,
+`auto.arima` on `log(1 + value)` with the champion mean as an external
+regressor replaces the linear model, capturing autocorrelation and
+seasonality.  Falls back to C1 when the series is too short or the ARIMA
+fit fails.
+
+### Why C1 ≤ A
+
+Method A applies the same rule to every non-champion: predict its period
+total by sampling from the champion per-facility distribution, regardless of
+what the facility itself has historically reported.  Method C1 uses each
+facility's own record as a starting point.  Non-champion facilities —
+by definition less consistent reporters — typically have sparser confirmed-case
+histories.  The linear model fitted on their data yields a lower predicted
+rate than the champion mean, producing a more conservative estimate.
+
+If non-reporters are genuinely lower-burden (e.g. facilities in
+low-transmission catchments that simply miss months occasionally), C1 is
+closer to the truth.  If they have similar burden but poor data systems, A
+is more appropriate.  The two methods bracket the plausible range.
+
+### The sparse-data caveat
+
+Facilities with only 1–2 observed months in the full history cannot be
+modelled (step 4 above).  Their actual values are included but their
+unobserved months contribute 0.  Method A would predict the full champion
+monthly rate for those same months.  This is the main driver of A > C1 when
+many facilities have sparse target-element records.
+
+---
+
+## 6  View results
 
 ### National summary
 
@@ -404,7 +477,7 @@ results <- run_burden_estimates(
   target_elements = target_elements,
   region_col      = "Province",
   methods         = c("A", "C1"),
-  n_bootstrap     = 500L   # reduce for speed in this example
+  n_bootstrap     = 1000L
 )
 
 # run_burden_estimates() returns method results plus pre-built summary tables
