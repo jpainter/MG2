@@ -1,0 +1,313 @@
+---
+title: "Burden Estimation: Standalone Workflow"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Burden Estimation: Standalone Workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  eval      = FALSE   # requires a local data file; set eval = TRUE after loading data
+)
+```
+
+## Overview
+
+Routine health facility reporting rarely captures all cases. Facilities may not report
+every month, and some confirmed cases may be recorded as zero rather than missing.
+The MG2 burden estimation module adjusts for these gaps by:
+
+1. Identifying **champion facilities** — those that report consistently and are
+   used as the reference population.
+2. **Extrapolating** from champion rates to all facilities in each region using
+   one of several statistical methods.
+3. Producing **confidence intervals** via bootstrap resampling (1,000 draws).
+
+This vignette shows how to run the full burden estimation workflow from an `.fst`
+or `.rds` processed dataset, without opening the Shiny application.
+
+---
+
+## 1  Load and prepare data
+
+The starting point is a processed dataset — the output of MG2's Data module,
+stored as `.fst` (or `.rds`). Set the path to your file:
+
+```{r load-data}
+library(MG2)
+library(tsibble)     # yearmonth()
+library(data.table)  # setDT(), :=
+
+data_file <- "/path/to/your/malaria_All-levels_3yrs_2026-05-25.fst"
+
+d_raw <- read_file(data_file)
+```
+
+```{r clean-data}
+# cleanedData() filters to facility-level rows (effectiveLeaf == TRUE) and
+# creates the `dataCol` numeric column from the raw `original` values.
+# Pass source = "Original" to use unmodified values; use the error= argument
+# to apply a specific outlier threshold instead.
+d_clean <- cleanedData(d_raw, source = "Original")
+```
+
+---
+
+## 2  Define target elements and time period
+
+Burden estimates apply to a specific set of data elements and a date window.
+Here we estimate confirmed malaria cases across three age groups for calendar
+year 2024 and 2025:
+
+```{r define-targets}
+target_elements <- c(
+  "MAL - Confirmed malaria cases_0-4 years",
+  "MAL - Confirmed malaria cases_5-14 years",
+  "MAL - Confirmed malaria cases_15+ years"
+)
+
+period_start <- yearmonth("2024 Jan")
+period_end   <- yearmonth("2025 Dec")
+```
+
+---
+
+## 3  Identify champion facilities
+
+`selectedData()` filters the data to the target elements and identifies champion
+facilities — those that reported in at least `n - missing_reports` months during
+the period. It adds a `Selected` column (`"Champion"` / `"Non-Champion"`) to
+every row.
+
+```{r select-data}
+d <- selectedData(
+  d_clean,
+  levelNames      = c("Country", "Province", "District", "Facility"),
+  data_categories = target_elements,
+  startingMonth   = period_start,
+  endingMonth     = period_end,
+  missing_reports = 2L   # allow up to 2 missed months in a 24-month window
+)
+
+# How many champion facilities per province?
+champ_by_province <- unique(d[d$Selected == "Champion", c("orgUnit", "Province")])
+table(champ_by_province$Province)
+```
+
+```
+01 Vientiane Capital          02 Phongsali          03 Louangnamtha
+                   1                     4                        0
+        04 Oudomxai             05 Bokeo       06 Louangphabang
+                   0                     0                        0
+        07 Houaphan         08 Xainyabouli       09 Xiangkhouang
+                   2                     4                        0
+        10 Vientiane       11 Bolikhamxai         12 Khammouan
+                   2                     0                        0
+      13 Savannakhet           14 Salavan             15 Xekong
+                  30                    18                       19
+        16 Champasak           17 Attapu          18 Xaisomboun
+                  22                     7                        5
+```
+
+Provinces with zero champions will receive burden estimates via national-level
+extrapolation in methods A and B, and via the champion-distribution fallback
+in C1 and C2.
+
+```{r prep-value}
+# The burden functions use a `value` column. Create it from `dataCol`
+# (the numeric clean column that selectedData() produces).
+setDT(d)
+d[, value := dataCol]
+```
+
+---
+
+## 4  Run burden estimates
+
+### Method A — Champion multiple
+
+The simplest estimator: take the per-facility total across champion facilities,
+then scale up by the ratio of all facilities to champion facilities in each
+region. Non-champion facility totals are predicted by resampling from the
+champion per-facility distribution (bootstrap).
+
+**Assumption:** champion and non-champion facilities have the same case load
+per facility on average.
+
+```{r method-a}
+res_a <- burden_a(
+  data            = d,
+  target_elements = target_elements,
+  region_col      = "Province",
+  n_bootstrap     = 1000L
+)
+```
+
+### Method C1 — Linear imputation
+
+For each facility, fits a linear regression `value ~ champion_mean` on the
+full available history. Missing months within the target period are imputed
+from the model. Facilities too sparse to fit a model (< 3 observed months)
+are handled via the champion-distribution fallback.
+
+**Advantage over A:** uses facility-specific trends; rewards facilities with
+partial but consistent reporting.
+
+```{r method-c1}
+res_c1 <- burden_c1(
+  data            = d,
+  target_elements = target_elements,
+  region_col      = "Province",
+  period_start    = period_start,
+  period_end      = period_end,
+  min_obs         = 3L,
+  n_bootstrap     = 1000L
+)
+```
+
+### Method C2 — ARIMA imputation
+
+Replaces the linear model with `auto.arima`, using the regional champion mean
+as an external regressor. Requires the `forecast` package. Falls back to C1
+for facilities with fewer than `min_months` of history.
+
+**Advantage over C1:** captures autocorrelation and seasonality; better for
+facilities with long but irregular series.
+
+```{r method-c2}
+res_c2 <- burden_c2(
+  data            = d,
+  target_elements = target_elements,
+  region_col      = "Province",
+  period_start    = period_start,
+  period_end      = period_end,
+  min_months      = 12L,
+  n_bootstrap     = 1000L
+)
+```
+
+---
+
+## 5  View results
+
+### National-level summary table
+
+```{r summary-national}
+burden_summary_table(
+  results_list = list(A = res_a, C1 = res_c1, C2 = res_c2),
+  level        = "national"
+)
+```
+
+```
+    region                                 category                      A                     C1                    C2
+1 National  MAL - Confirmed malaria cases_0-4 years   7,682 [5,405–11,567]   5,639 [4,231–7,525]  5,482 [4,189–7,244]
+2 National  MAL - Confirmed malaria cases_15+ years 18,718 [13,407–29,555]  8,777 [7,844–10,488]  8,622 [7,744–9,812]
+3 National MAL - Confirmed malaria cases_5-14 years   9,388 [7,616–12,493]   5,372 [4,884–6,139]  5,277 [4,812–5,965]
+```
+
+Estimates are shown as `point estimate [95% bootstrap CI]`.
+
+### Province-level (subnational) table
+
+```{r summary-subnational}
+sub <- burden_summary_table(
+  results_list = list(A = res_a, C1 = res_c1),
+  level        = "subnational"
+)
+head(sub, 10)
+```
+
+```
+                region                                 category                A                  C1
+  01 Vientiane Capital  MAL - Confirmed malaria cases_0-4 years      90 [24–150]       102 [91–112]
+  01 Vientiane Capital  MAL - Confirmed malaria cases_15+ years     120 [28–210]      134 [119–149]
+  01 Vientiane Capital MAL - Confirmed malaria cases_5-14 years       56 [20–90]      124 [116–131]
+          02 Phongsali  MAL - Confirmed malaria cases_0-4 years    653 [475–871]      234 [206–276]
+          02 Phongsali  MAL - Confirmed malaria cases_15+ years   932 [497–1,751]     179 [179–179]
+          02 Phongsali MAL - Confirmed malaria cases_5-14 years    565 [329–857]      167 [147–198]
+       03 Louangnamtha  MAL - Confirmed malaria cases_0-4 years            <NA>       155 [15–573]
+       03 Louangnamtha  MAL - Confirmed malaria cases_15+ years            <NA>       317 [102–998]
+       03 Louangnamtha MAL - Confirmed malaria cases_5-14 years            <NA>       224 [31–751]
+```
+
+Provinces with `<NA>` under Method A had no champion facilities — C1 still
+produces an estimate by predicting from the national champion distribution.
+
+### Age-group totals
+
+`add_category_totals()` sums across categories, propagating uncertainty
+correctly (√ΣSE²):
+
+```{r totals}
+res_a_with_totals  <- add_category_totals(res_a)
+res_c1_with_totals <- add_category_totals(res_c1)
+
+burden_summary_table(
+  list(A = res_a_with_totals, C1 = res_c1_with_totals),
+  level = "national"
+)
+```
+
+```
+    region                                 category                      A                    C1
+1 National  MAL - Confirmed malaria cases_0-4 years   7,682 [5,405–11,567]  5,639 [4,231–7,525]
+2 National  MAL - Confirmed malaria cases_15+ years 18,718 [13,407–29,555] 8,777 [7,844–10,488]
+3 National MAL - Confirmed malaria cases_5-14 years   9,388 [7,616–12,493]  5,372 [4,884–6,139]
+4 National                                    Total 35,788 [26,428–53,615] 19,788 [16,959–24,152]
+```
+
+---
+
+## 6  Interpreting the results
+
+**Why do A and C1 differ?**
+Method A assumes non-reporting facilities have the same per-facility rate as
+champions. C1 uses each facility's own reporting history to impute missing months,
+so facilities with genuinely low or zero case counts pull the estimate down.
+In settings where zero is often stored as missing (e.g., a facility that sees no
+malaria but submits data for other elements), C1 is more conservative and likely
+closer to the truth.
+
+**Provinces with no champions (e.g., 03 Louangnamtha)**
+Method A returns `NA` — it cannot extrapolate without a regional reference.
+C1 falls back to the national champion distribution as the prior for non-reporting
+facilities, giving a wide interval that reflects genuine uncertainty.
+
+**Reporting vs. estimated**
+The reported total (sum of all submitted values from any facility) gives the
+lower bound on actual burden. Estimates above this figure represent the
+contribution of non- or inconsistently-reporting facilities.
+
+---
+
+## 7  Running all methods via the wrapper
+
+`run_burden_estimates()` runs whichever subset of methods you specify and
+returns a named list suitable for `burden_summary_table()`:
+
+```{r wrapper}
+results <- run_burden_estimates(
+  data            = d,
+  target_elements = target_elements,
+  region_col      = "Province",
+  methods         = c("A", "C1", "C2"),
+  period_start    = period_start,
+  period_end      = period_end,
+  n_bootstrap     = 1000L
+)
+
+burden_summary_table(results, level = "national")
+```
+
+---
+
+## Session info
+
+```{r session}
+sessionInfo()
+```

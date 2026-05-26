@@ -68,9 +68,12 @@ Suggests:
     scales,
     sf,
     slider,
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0),
     tictoc
 Config/testthat/edition: 3
+VignetteBuilder: knitr
 Depends: 
     R (>= 3.5)
 Config/roxygen2/version: 8.0.0
