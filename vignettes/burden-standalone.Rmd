@@ -92,11 +92,14 @@ cat("Provinces:", paste(sort(unique(d_raw$Province)), collapse = ", "), "\n")
 
 ## 3  Prepare data for analysis
 
-`cleanedData()` filters to facility-level rows and creates the `dataCol`
-numeric column from `original`.  `selectedData()` filters to the chosen
-elements, identifies champion facilities, and adds a `Selected` column.
+The preparation pipeline has four steps: clean, identify champions, merge
+lab-specific and aggregate confirmed counts, and report the final data scope.
 
 ```{r prepare}
+# Target elements — confirmed malaria cases by age group.
+# "MAL - Confirmed malaria cases (pregnant women)" exists as a DHIS2 element
+# in some national systems but is absent from the demo data; include it when
+# running against production data that contains this element.
 target_elements <- c(
   "MAL - Confirmed malaria cases_0-4 years",
   "MAL - Confirmed malaria cases_5-14 years",
@@ -106,25 +109,32 @@ target_elements <- c(
 period_start <- yearmonth("2024 Jan")
 period_end   <- yearmonth("2025 Dec")
 
-# Keep only facility-level rows (level 4).
-# cleanedData() retains all effectiveLeaf == TRUE rows — the correct set of
-# data entry points regardless of administrative level.  District hospitals
-# (level 3) that enter data directly are legitimate reporting units and must
-# not be excluded by a level-4 filter.
+# ── Step 1: Clean ─────────────────────────────────────────────────────────────
+# cleanedData() retains all effectiveLeaf == TRUE rows (every data-entry point
+# regardless of administrative level) and creates the dataCol numeric column.
 d_clean <- cleanedData(d_raw, source = "Original")
+setDT(d_clean)
 
-# Champion identification uses malaria-specific elements (confirmed cases +
-# diagnostic elements) so champion status reflects malaria-programme
-# engagement.  Using all 67 elements would make nearly every facility a
-# champion via outpatient attendance, collapsing the non-champion
-# extrapolation and deflating estimates.
+# Censor extreme outliers before any aggregation.
+# mad15 flags values > 15 × MAD; mad10 flags values > 10 × MAD.
+# These almost certainly represent data-entry errors rather than true case
+# counts and would inflate burden estimates if left in.
+n_cens <- sum((d_clean$mad15 | d_clean$mad10), na.rm = TRUE)
+cat(sprintf("Outlier censoring: %d values (%.2f%%) set to NA\n",
+            n_cens, 100 * n_cens / nrow(d_clean)))
+d_clean[mad15 == TRUE | mad10 == TRUE, c("original", "dataCol") := NA_real_]
+
+# ── Step 2: Champion identification ──────────────────────────────────────────
+# Include confirmed cases, diagnostic (lab) elements, suspected cases, and
+# outpatients.  Lab elements (RDT/microscopy positive) are included here so
+# their values are carried through to the lab-priority merge in Step 3.
+# Outpatients are needed for Method B (attendance-based).
 champ_elements <- grep(
-  "Confirmed malaria|suspects tested|Suspected malaria|All-cause outpatients",
+  paste("Confirmed malaria|suspects tested|Suspected malaria",
+        "All-cause outpatients|RDT positive|Microscopy positive",
+        sep = "|"),
   unique(d_clean$data), ignore.case = TRUE, value = TRUE
 )
-# Outpatients are included so that Method B (attendance-based) has
-# attendance data in d.  They also provide a reasonable basis for
-# identifying active reporting facilities for champion selection.
 cat("Champion identification elements:", length(champ_elements), "\n")
 
 d <- selectedData(
@@ -135,18 +145,70 @@ d <- selectedData(
   endingMonth     = period_end,
   missing_reports = 2L
 )
-
 setDT(d)
 d[, value := dataCol]
 
-cat("Rows in d:", nrow(d), "\n")
-cat("Unique facilities:", uniqueN(d$orgUnit), "\n")
+# ── Step 3: Lab-priority confirmed case series ────────────────────────────────
+# The DHIS2 system records confirmed cases in two ways that may partially
+# overlap:
+#   • "MAL - Confirmed malaria cases"  — aggregate field, entered directly
+#   • "MAL - RDT positive malaria cases" / "MAL - Microscopy positive ..."
+#     — test-specific fields, entered per sex (Female / Male)
+#
+# Priority rule (facility × month × age group):
+#   1. Sum RDT positive + microscopy positive across both sexes  → use if any
+#      non-NA lab value exists for that facility-month (avoids double-counting
+#      between the two sources)
+#   2. Fall back to general "Confirmed malaria cases" when no lab data present
+#
+# Coverage check — uses escaped "[+]" pattern to match "15+ years" literally
+rdt_elems <- grep("RDT positive malaria cases",        unique(d$data), value=TRUE)
+mic_elems <- grep("Microscopy positive malaria cases",  unique(d$data), value=TRUE)
+lab_all   <- c(rdt_elems, mic_elems)
+
+cat("\nLab vs general confirmed coverage (facility-months, estimate period):\n")
+dp <- d[Month >= period_start & Month <= period_end & !is.na(value)]
+for (ag in c("0-4 years", "5-14 years", "15+ years")) {
+  ag_pat <- gsub("+", "[+]", ag, fixed = TRUE)
+  n_lab  <- uniqueN(dp[data %in% lab_all & grepl(ag_pat, data, perl=TRUE),
+                        paste(orgUnit, Month)])
+  n_conf <- uniqueN(dp[data %in% target_elements & grepl(ag_pat, data, perl=TRUE),
+                        paste(orgUnit, Month)])
+  cat(sprintf("  %s: lab = %d | general confirmed = %d\n", ag, n_lab, n_conf))
+}
+
+# Apply lab-priority substitution for each target element
+for (tgt_name in target_elements) {
+  age_str <- sub("^MAL - Confirmed malaria cases_", "", tgt_name)
+  age_pat <- gsub("+", "[+]", age_str, fixed = TRUE)
+
+  lab_for_age <- grep(paste0("(RDT positive|Microscopy positive).*", age_pat),
+                      unique(d$data), perl = TRUE, value = TRUE)
+  if (length(lab_for_age) == 0L) next
+
+  lab_agg <- d[data %in% lab_for_age & !is.na(value),
+               .(lab = sum(value, na.rm = TRUE)), by = .(orgUnit, Month)]
+
+  d <- merge(d, lab_agg, by = c("orgUnit", "Month"), all.x = TRUE)
+  d[data == tgt_name & !is.na(lab), c("value", "original") := .(lab, lab)]
+  d[, lab := NULL]
+}
 
 # Champion summary
+fac_all <- unique(d[, .(orgUnit, Selected)])
+cat(sprintf("\nChampion facilities: %d of %d (%.0f%%)\n",
+            sum(fac_all$Selected == "Champion"),
+            nrow(fac_all),
+            100 * mean(fac_all$Selected == "Champion")))
 champ <- unique(d[Selected == "Champion", .(orgUnit, Province)])
 cat("\nChampions by province:\n")
 print(sort(table(champ$Province)))
 ```
+
+> **Note on the demo data**: these results are from a public DHIS2 training
+> server and do not reflect the actual malaria situation in Lao PDR.
+> Production data will differ in element availability, coverage, and values.
+> Do not draw epidemiological conclusions from this vignette's outputs.
 
 ---
 
