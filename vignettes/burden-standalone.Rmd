@@ -119,9 +119,12 @@ d_clean <- cleanedData(d_raw, source = "Original")
 # champion via outpatient attendance, collapsing the non-champion
 # extrapolation and deflating estimates.
 champ_elements <- grep(
-  "Confirmed malaria|suspects tested|Suspected malaria",
+  "Confirmed malaria|suspects tested|Suspected malaria|All-cause outpatients",
   unique(d_clean$data), ignore.case = TRUE, value = TRUE
 )
+# Outpatients are included so that Method B (attendance-based) has
+# attendance data in d.  They also provide a reasonable basis for
+# identifying active reporting facilities for champion selection.
 cat("Champion identification elements:", length(champ_elements), "\n")
 
 d <- selectedData(
@@ -203,6 +206,77 @@ res_c2 <- burden_c2(
 )
 ```
 
+### Method B — Attendance-based champion multiple
+
+Method B replaces the per-facility resampling of Method A with a log-log
+regression on attendance.  For each champion facility, fit
+`log(cases) ~ log(attendance)`.  Then predict each non-champion facility's
+expected case count from its own attendance data.
+
+The age categories of all-cause outpatients match confirmed malaria cases
+exactly (0–4 y, 5–14 y, 15+ y), so no category aggregation is needed.
+
+```{r method-b}
+attendance_elements <- c(
+  "GEN - All-cause outpatients_0-4 years",
+  "GEN - All-cause outpatients_5-14 years",
+  "GEN - All-cause outpatients_15+ years"
+)
+
+# 1:1 category map: each confirmed-case age group → its attendance counterpart
+cat_map_b <- setNames(attendance_elements, target_elements)
+
+res_b <- burden_b(
+  data                = d,
+  target_elements     = target_elements,
+  attendance_elements = attendance_elements,
+  cat_map             = cat_map_b,
+  region_col          = "Province",
+  n_bootstrap         = 1000L
+)
+```
+
+### Method E — Adjusted Corrected Incidence (Robust Estimator)
+
+Method E (Thwing, Plucinski, Painter et al. 2020, *AJTMH* 102:811–820)
+corrects confirmed case counts for patients who attended but were not tested
+for malaria.  It requires three elements per facility: confirmed cases,
+total attendance, and patients tested.
+
+Applied **only to champion facilities** that consistently reported all three
+elements.  The correction uses five parameters: β (proportion of non-malaria
+fever consulters), α (ratio of TPR in untested vs. tested), γ (background
+fever incidence), λ_min (minimum malaria-attributable fraction), and the
+empirical testing rate T/A.  Default values follow Plucinski et al. 2018.
+
+*Note on the tested element*: the RDT and microscopy suspects-tested elements
+are sex-stratified (six sub-categories).  `MAL - Suspected malaria cases` —
+patients presenting with fever and suspected of malaria — serves as the
+testing denominator here.  In a full analysis you would sum
+`suspects tested (RDT)` + `suspects tested (microscopy)` across sexes.
+
+```{r method-e}
+tested_elements <- c(
+  "MAL - Suspected malaria cases_0-4 years",
+  "MAL - Suspected malaria cases_5-14 years",
+  "MAL - Suspected malaria cases_15+ years"
+)
+
+cat_map_attend <- setNames(attendance_elements, target_elements)
+cat_map_tested <- setNames(tested_elements,    target_elements)
+
+res_e <- burden_aci(
+  data                = d,
+  confirmed_elements  = target_elements,
+  attendance_elements = attendance_elements,
+  tested_elements     = tested_elements,
+  cat_map_attend      = cat_map_attend,
+  cat_map_tested      = cat_map_tested,
+  region_col          = "Province",
+  n_bootstrap         = 1000L
+)
+```
+
 ---
 
 ## 5  How C1 and C2 work — and why they differ from A
@@ -276,6 +350,31 @@ unobserved months contribute 0.  Method A would predict the full champion
 monthly rate for those same months.  This is the main driver of A > C1 when
 many facilities have sparse target-element records.
 
+### Method B — how it differs
+
+Method B replaces the empirical champion-distribution resample with a
+regression covariate: each non-champion facility's own attendance record.
+The log-log regression on champions gives the relationship between attendance
+and cases.  Non-champions with high attendance get higher predicted cases than
+those with low attendance, which is more informative than assuming every
+non-champion behaves like a randomly selected champion.  Non-champions with
+no attendance data fall back to Method A resampling.
+
+B tends to be between A and C1: more targeted than A (uses attendance as a
+signal) but still extrapolates to every non-champion, whereas C1 uses each
+facility's own case history.
+
+### Method E — interpretation
+
+Method E is not directly comparable to A, B, C1, or C2 as a total-burden
+estimate.  It applies only to champion facilities and asks: given what
+champions reported, how many cases were missed because febrile patients
+attended but were not tested?  The result is the champion-sector corrected
+total.  To convert to a full population estimate, multiply Method E by the
+Method A or C1 non-champion scaling factor, or compare it alongside Methods
+A–C to see how much of the gap between reported and estimated is attributable
+to incomplete testing versus non-reporting facilities.
+
 ---
 
 ## 6  View results
@@ -301,7 +400,8 @@ cat(sprintf("Reported (all facilities, target elements): %s cases\n",
 
 # Build national table with Reported column prepended
 nat_tbl <- burden_summary_table(
-  lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
+  lapply(list(A = res_a, B = res_b, C1 = res_c1, C2 = res_c2, E = res_e),
+         add_category_totals),
   level = "national"
 )
 nat_tbl$category <- fmt_cat(nat_tbl$category)
@@ -347,7 +447,8 @@ nat_champ <- data.frame(region = "National",
 
 # Build subnational table — keep only Total row per province
 tbl_sub <- burden_summary_table(
-  lapply(list(A = res_a, C1 = res_c1, C2 = res_c2), add_category_totals),
+  lapply(list(A = res_a, B = res_b, C1 = res_c1, C2 = res_c2, E = res_e),
+         add_category_totals),
   level = "subnational"
 )
 tbl_sub <- tbl_sub[tbl_sub$category == "Total", ]
@@ -357,7 +458,7 @@ tbl_sub$category <- NULL
 tbl_sub <- merge(champ_tbl, tbl_sub, by = "region", all.y = TRUE)
 knitr::kable(tbl_sub,
              caption = "Province-level totals — all ages combined",
-             col.names = c("Province", "Champ/Total", "A", "C1", "C2"))
+             col.names = c("Province", "Champ/Total", "A", "B", "C1", "C2", "E"))
 ```
 
 ---
@@ -473,18 +574,21 @@ returns a named list ready for `burden_summary_table()`.
 # each method.  Pass the same d used above (already filtered to the period
 # by selectedData()).
 results <- run_burden_estimates(
-  data            = d,
-  target_elements = target_elements,
-  region_col      = "Province",
-  methods         = c("A", "C1"),
-  n_bootstrap     = 1000L
+  data                = d,
+  target_elements     = target_elements,
+  attendance_elements = attendance_elements,
+  tested_elements     = tested_elements,
+  cat_map_attend      = cat_map_attend,
+  cat_map_tested      = cat_map_tested,
+  region_col          = "Province",
+  methods             = c("A", "B", "C1", "C2", "E"),
+  n_bootstrap         = 1000L
 )
 
-# run_burden_estimates() returns method results plus pre-built summary tables
-# and a log vector.  Pass only the method entries to burden_summary_table().
 method_results <- results[intersect(c("A", "B", "C1", "C2", "E"), names(results))]
-burden_kable(method_results, level = "national",
-             caption = "Wrapper output — Methods A and C1")
+burden_kable(lapply(method_results, add_category_totals),
+             level = "national",
+             caption = "Wrapper — all five methods")
 ```
 
 ---

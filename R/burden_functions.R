@@ -236,7 +236,7 @@ burden_b <- function(data, target_elements, attendance_elements,
   }
 
   tgt_ann <- dt[get("data") %in% target_elements & !is.na(value),
-    .(target_total = sum(value, na.rm = TRUE)),
+    .(total = sum(value, na.rm = TRUE)),
     by = c("orgUnit", "data", region_col, "Selected")
   ]
   att_ann <- dt[get("data") %in% attendance_elements & !is.na(value),
@@ -259,12 +259,12 @@ burden_b <- function(data, target_elements, attendance_elements,
         att_sub[, .(orgUnit, attend_total)],
         by = "orgUnit"
       )
-      champ_joined <- champ_joined[target_total > 0 & attend_total > 0]
+      champ_joined <- champ_joined[total > 0 & attend_total > 0]
 
       if (nrow(champ_joined) < 3L) next
 
       fit <- tryCatch(
-        stats::lm(log(target_total) ~ log(attend_total), data = champ_joined),
+        stats::lm(log(total) ~ log(attend_total), data = champ_joined),
         error = function(e) NULL
       )
       if (is.null(fit)) next
@@ -278,7 +278,7 @@ burden_b <- function(data, target_elements, attendance_elements,
 
       for (reg in regions) {
         champ_sum <- sum(tgt_sub[get(region_col) == reg & Selected == "Champion",
-                                 target_total], na.rm = TRUE)
+                                 total], na.rm = TRUE)
 
         nc_tgt <- tgt_sub[get(region_col) == reg & Selected == "Non-Champion"]
         nc_att <- att_sub[orgUnit %in% nc_tgt$orgUnit]
