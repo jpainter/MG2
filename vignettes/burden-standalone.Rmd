@@ -217,17 +217,53 @@ The age categories of all-cause outpatients match confirmed malaria cases
 exactly (0–4 y, 5–14 y, 15+ y), so no category aggregation is needed.
 
 ```{r method-b}
-attendance_elements <- c(
-  "GEN - All-cause outpatients_0-4 years",
-  "GEN - All-cause outpatients_5-14 years",
-  "GEN - All-cause outpatients_15+ years"
-)
+# The DHIS2 formula often disaggregates attendance by age × sex, giving
+# six elements (0-4 Female, 0-4 Male, 5-14 Female, …).  The demo data was
+# downloaded with age-only totals already summed across sex, giving three
+# elements.  The code below detects which form is present and pre-aggregates
+# if sex-disaggregated data is found.
+
+att_raw <- grep("All-cause outpatients", unique(d$data), value = TRUE)
+att_has_sex <- any(grepl("Female|Male", att_raw))
+cat("Attendance elements in data:", length(att_raw),
+    if (att_has_sex) "(sex-disaggregated — will aggregate)" else "(age totals — ready to use)", "\n")
+
+if (att_has_sex) {
+  # Sum Male + Female for each age group and month, then bind back as
+  # age-only rows so Method B can use a 1:1 category map.
+  age_groups <- sub(", (Female|Male)$", "", unique(att_raw))
+  age_groups <- unique(age_groups)   # e.g. "GEN - All-cause outpatients_0-4 years"
+
+  # Identify all columns to group by (all except value / original)
+  grp_cols <- setdiff(names(d), c("value", "original", "dataCol",
+                                   "key_entry_error", "over_max",
+                                   "mad15", "mad10", "mad5", "seasonal5", "seasonal3"))
+
+  att_agg <- d[d$data %in% att_raw, ]
+  att_agg$data <- sub(", (Female|Male)$", "", att_agg$data)
+  att_agg <- aggregate(
+    cbind(value = att_agg$value, original = att_agg$original),
+    by  = att_agg[, intersect(grp_cols, names(att_agg)), drop = FALSE],
+    FUN = function(x) sum(x, na.rm = TRUE)
+  )
+  # Add zero-filled outlier flag columns to match d's structure
+  for (col in c("key_entry_error","over_max","mad15","mad10","mad5","seasonal5","seasonal3")) {
+    if (col %in% names(d)) att_agg[[col]] <- FALSE
+  }
+  att_agg$dataCol <- att_agg$value
+  d_b <- rbind(d[!d$data %in% att_raw, ], att_agg)
+  attendance_elements <- age_groups
+} else {
+  d_b <- d
+  attendance_elements <- att_raw
+}
 
 # 1:1 category map: each confirmed-case age group → its attendance counterpart
 cat_map_b <- setNames(attendance_elements, target_elements)
+cat("Category map:\n"); print(cat_map_b)
 
 res_b <- burden_b(
-  data                = d,
+  data                = d_b,
   target_elements     = target_elements,
   attendance_elements = attendance_elements,
   cat_map             = cat_map_b,
@@ -266,7 +302,7 @@ cat_map_attend <- setNames(attendance_elements, target_elements)
 cat_map_tested <- setNames(tested_elements,    target_elements)
 
 res_e <- burden_aci(
-  data                = d,
+  data                = d_b,   # uses same age-aggregated attendance as Method B
   confirmed_elements  = target_elements,
   attendance_elements = attendance_elements,
   tested_elements     = tested_elements,
@@ -574,7 +610,7 @@ returns a named list ready for `burden_summary_table()`.
 # each method.  Pass the same d used above (already filtered to the period
 # by selectedData()).
 results <- run_burden_estimates(
-  data                = d,
+  data                = d_b,
   target_elements     = target_elements,
   attendance_elements = attendance_elements,
   tested_elements     = tested_elements,
