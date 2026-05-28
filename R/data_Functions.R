@@ -1108,6 +1108,24 @@ dataTotal = function(
   .t0_grp <- proc.time()["elapsed"]
   if (.cat) cat('\n - nrow before grouping:', nrow(data))
 
+  # For ratio datasets, enforce validity rules before grouping:
+  #   - Missing numerator + valid denominator → numerator = 0 (zero positives is plausible;
+  #     reporters often leave blank rather than enter 0).
+  #   - Present numerator but missing or zero denominator → exclude both (orphaned numerator:
+  #     cannot have positive tests without a total-tests denominator).
+  #   - numerator > denominator → exclude both (impossible ratio; e.g. more positives than tests).
+  if (has_ratio_cols) {
+    data <- as.data.table(data)
+    # Step 1: invalid denominator (missing or zero) → exclude both
+    data[is.na(denominator) | denominator == 0,
+         `:=`(numerator = NA_real_, denominator = NA_real_)]
+    # Step 2: impossible ratio (numerator > denominator) → exclude both
+    data[!is.na(numerator) & !is.na(denominator) & numerator > denominator,
+         `:=`(numerator = NA_real_, denominator = NA_real_)]
+    # Step 3: missing numerator with valid denominator → impute as 0
+    data[is.na(numerator) & !is.na(denominator), numerator := 0]
+  }
+
   if (!any(is.null(summary_cols)) && any(nchar(summary_cols) > 0)) {
     if (.cat) {
       cat("\n - and all_of : ", summary_cols)

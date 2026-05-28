@@ -1,0 +1,496 @@
+---
+title: "Ratio Datasets and the Paired-Sum Rule: TPR as a Case Study"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Ratio Datasets and the Paired-Sum Rule: TPR as a Case Study}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.width = 7,
+  fig.height = 4,
+  fig.align = "center"
+)
+```
+
+## Overview
+
+MG2 can compute derived ratio datasets — such as test positivity rate (TPR) —
+by combining separate numerator and denominator data elements downloaded from
+DHIS2. This vignette uses bundled Lao PDR malaria surveillance data to:
+
+1. Show how to build a TPR combined dataset from facility-level data using
+   `build_combined_dataset()`.
+2. Explain the validity rules MG2 applies when numerator or denominator values
+   are missing for a given facility-month.
+3. Quantify how many facility-months fall into each category.
+4. Compare the MG2-computed TPR against the official DHIS2 indicator value
+   for the same metric.
+
+A companion section at the end shows how to download DHIS2 indicator values
+directly via the analytics API.
+
+*Data source:* Lao PDR DHIS2 national HMIS (public demo instance,
+<https://demos.dhis2.org/hmis>), malaria programme. All demo data is bundled
+with MG2 and does not require a DHIS2 connection to run this vignette.
+
+---
+
+## 1  Load packages and demo data
+
+```{r load}
+library(MG2)
+library(data.table)
+library(tsibble)
+library(ggplot2)
+
+demo <- mg2_demo_dir()
+list.files(demo)
+```
+
+The demo directory contains three pre-built files for this vignette:
+
+| File | Contents |
+|------|----------|
+| `malaria_demo.rds` | Facility-level malaria data, all data elements, 5 years |
+| `tpr_demo.rds` | MG2 combined TPR dataset built from `malaria_demo.rds` |
+| `dhis2_tpr_national_demo.rds` | National TPR from DHIS2 analytics API (monthly, 2023–2026) |
+
+---
+
+## 2  What is TPR, and why compute it in MG2?
+
+**Test positivity rate** = confirmed positive tests ÷ total tests performed.
+In Lao PDR's DHIS2 instance, the official indicator
+*MAL - Malaria test positivity rate (Micr+RDT)* (ID: `acDxsQjnEof`) computes:
+
+$$
+\text{TPR} = \frac{
+  \text{Microscopy positive} + \text{RDT positive}
+}{
+  \text{Suspects tested (microscopy)} + \text{Suspects tested (RDT)}
+}
+$$
+
+MG2's Combine module reconstructs this ratio from **facility-level
+age/sex-disaggregated data**, which enables:
+
+- Per-facility TPR for outlier detection and champion-facility analysis
+- Transparent documentation of exactly which data elements and cleaning
+  levels were used
+- Age- and sex-stratified positivity rates
+
+The trade-off is that facility-level data is noisier and requires careful
+handling of partial reporting — which is the focus of this vignette.
+
+---
+
+## 3  Building the TPR definition
+
+In the Shiny app, a ratio step is defined in the **Combine** tab by selecting
+the numerator and denominator data elements. Equivalent R code:
+
+```{r build-tpr, eval = FALSE}
+steps <- list(list(
+  operation   = "Ratio",
+  output_name = "TPR",
+  max_value   = 1,          # TPR cannot exceed 100%
+  na_rm       = TRUE,       # include facilities reporting some but not all age/sex categories
+  numerator = list(
+    source_file    = "malaria_demo.rds",
+    cleaning_level = "mad10",
+    data_values    = c(
+      # 6 age/sex categories × 2 data elements = 12 values
+      "MAL - Microscopy positive malaria cases_0-4 years, Female",
+      "MAL - Microscopy positive malaria cases_0-4 years, Male",
+      "MAL - Microscopy positive malaria cases_5-14 years, Female",
+      "MAL - Microscopy positive malaria cases_5-14 years, Male",
+      "MAL - Microscopy positive malaria cases_15+ years, Female",
+      "MAL - Microscopy positive malaria cases_15+ years, Male",
+      "MAL - RDT positive malaria cases_0-4 years, Female",
+      "MAL - RDT positive malaria cases_0-4 years, Male",
+      "MAL - RDT positive malaria cases_5-14 years, Female",
+      "MAL - RDT positive malaria cases_5-14 years, Male",
+      "MAL - RDT positive malaria cases_15+ years, Female",
+      "MAL - RDT positive malaria cases_15+ years, Male"
+    )
+  ),
+  denominator = list(
+    source_file    = "malaria_demo.rds",
+    cleaning_level = "mad10",
+    data_values    = c(
+      "MAL - Malaria suspects tested (RDT)_0-4 years, Female",
+      "MAL - Malaria suspects tested (RDT)_0-4 years, Male",
+      "MAL - Malaria suspects tested (RDT)_5-14 years, Female",
+      "MAL - Malaria suspects tested (RDT)_5-14 years, Male",
+      "MAL - Malaria suspects tested (RDT)_15+ years, Female",
+      "MAL - Malaria suspects tested (RDT)_15+ years, Male",
+      "MAL - Malaria suspects tested with microscopy_0-4 years, Female",
+      "MAL - Malaria suspects tested with microscopy_0-4 years, Male",
+      "MAL - Malaria suspects tested with microscopy_5-14 years, Female",
+      "MAL - Malaria suspects tested with microscopy_5-14 years, Male",
+      "MAL - Malaria suspects tested with microscopy_15+ years, Female",
+      "MAL - Malaria suspects tested with microscopy_15+ years, Male"
+    )
+  )
+))
+
+tpr <- build_combined_dataset(
+  steps        = steps,
+  data_folder  = paste0(demo, "/"),
+  formula_name = "TPR"
+)
+```
+
+The pre-built result is available directly:
+
+```{r load-tpr}
+tpr <- read_file(file.path(demo, "tpr_demo.rds"))
+setDT(tpr)
+cat("Rows:", nrow(tpr), "\n")
+```
+
+Each row is one facility × month. The `numerator` and `denominator` columns
+hold the summed counts across all selected age/sex categories for that
+facility-month. The `value` column holds `numerator / denominator` (or `NA`
+when the denominator is zero or missing).
+
+---
+
+## 4  Handling missing values in ratio datasets
+
+### 4.1  The problem
+
+In routine health facility data, it is common for either the numerator
+(positives) or denominator (total tests) to be absent for a given
+facility-month. How these cases are handled materially changes the aggregated
+ratio.
+
+Consider three facility-months:
+
+| Facility | Microscopy pos. | RDT pos. | Suspects (micro) | Suspects (RDT) | Numerator | Denominator |
+|----------|----------------|----------|-----------------|----------------|-----------|-------------|
+| A | 5 | 7 | 30 | 50 | **12** | **80** |
+| B | `NA` | 3 | `NA` | 40 | **3** | **40** |
+| C | `NA` | `NA` | `NA` | 35 | `NA` | **35** |
+| D | 4 | 2 | `NA` | `NA` | **6** | `NA` |
+
+- **Facility A**: complete data. TPR = 12/80 = 15%.
+- **Facility B**: uses only RDT (no microscopy). With `na.rm = TRUE`, the
+  age/sex sums collapse to RDT only. TPR = 3/40 = 7.5%. This is valid —
+  the facility tested only by RDT.
+- **Facility C**: reports test counts but no positive cases. Leaving the
+  numerator blank to save data-entry time is common practice when zero
+  positives were found. TPR should be treated as **0/35 = 0%**, not excluded.
+- **Facility D**: reports positives but no test-count denominator. This is an
+  **invalid record** — you cannot compute a meaningful TPR without knowing how
+  many tests were performed. Positives without a denominator would artificially
+  inflate the aggregated numerator.
+
+### 4.2  MG2 validity rules
+
+MG2 applies three rules to each facility-month before aggregating:
+
+| Rule | Condition | Action | Rationale |
+|------|-----------|--------|-----------|
+| **1. Missing numerator** | `numerator` is `NA`, `denominator > 0` | Set `numerator = 0` | Zero positives is plausible; blank entry is common practice |
+| **2. Orphaned numerator** | `numerator` is present, `denominator` is `NA` or `0` | Exclude both | Cannot compute TPR without total tests |
+| **3. Impossible ratio** | `numerator > denominator` | Exclude both | More positives than tests is not possible |
+
+Rule 1 is the key asymmetry: **a missing denominator is an error, but a
+missing numerator is not** — it most likely means zero.
+
+### 4.3  How many facility-months fall into each category?
+
+```{r breakdown}
+fac <- tpr[effectiveLeaf == TRUE]
+
+fac[, .(
+  total_rows             = .N,
+  # Rule 1: missing numerator → will be imputed to 0
+  missing_num_valid_den  = sum(is.na(numerator) & !is.na(denominator) & denominator > 0),
+  # Both present and valid
+  both_valid             = sum(!is.na(numerator) & !is.na(denominator) &
+                               denominator > 0   & numerator <= denominator),
+  # Rule 2: orphaned numerator → excluded
+  orphaned_numerator     = sum(!is.na(numerator) & (is.na(denominator) | denominator == 0)),
+  # Rule 3: impossible ratio → excluded
+  impossible_ratio       = sum(!is.na(numerator) & !is.na(denominator) &
+                               numerator > denominator),
+  # Both missing
+  both_missing           = sum(is.na(numerator) & is.na(denominator))
+)]
+```
+
+The large `missing_num_valid_den` count — facilities that submitted test-count
+data but no positivity results — is treated as zero positives under Rule 1.
+This is by far the most common pattern, and the right call: a blank numerator
+in a country reporting low-transmission malaria is almost certainly zero, not
+unknown.
+
+The `orphaned_numerator` count (facilities that reported positives without a
+denominator) is small but consequential: including these without a denominator
+would add positives to the national numerator sum with nothing in the
+denominator, inflating national TPR. MG2 excludes them.
+
+The `impossible_ratio` cases (numerator > denominator) were flagged by the
+`over_max = 1` setting during the combine step and excluded.
+
+### 4.4  Effect on national TPR
+
+To see the impact, compare national TPR computed three ways:
+
+```{r tpr-comparison-methods}
+fac_2023 <- fac[as.Date(yearmonth(as.character(Month))) >= as.Date("2023-01-01")]
+
+national <- fac_2023[, .(
+  # MG2 rule: impute missing numerator = 0, exclude orphaned/impossible
+  tpr_mg2      = sum(fifelse(is.na(numerator) & !is.na(denominator) & denominator > 0, 0, numerator),
+                     na.rm = TRUE) /
+                 sum(denominator[!is.na(denominator) & denominator > 0 &
+                                 (is.na(numerator) | numerator <= denominator)],
+                     na.rm = TRUE),
+  # Old rule: require both non-NA (excludes the zero-positive facilities)
+  tpr_paired   = sum(numerator[!is.na(numerator) & !is.na(denominator) &
+                               denominator > 0 & numerator <= denominator],
+                     na.rm = TRUE) /
+                 sum(denominator[!is.na(numerator) & !is.na(denominator) &
+                                 denominator > 0 & numerator <= denominator],
+                     na.rm = TRUE),
+  # Naive: na.rm on both independently (includes orphaned denominators)
+  tpr_naive    = sum(numerator, na.rm = TRUE) / sum(denominator, na.rm = TRUE),
+  n_mg2        = sum(!is.na(denominator) & denominator > 0 &
+                     (is.na(numerator) | numerator <= denominator))
+), by = Month]
+
+national[, date := as.Date(yearmonth(as.character(Month)))]
+setorder(national, date)
+
+national[, .(
+  date,
+  tpr_mg2    = round(tpr_mg2    * 100, 1),
+  tpr_paired = round(tpr_paired * 100, 1),
+  tpr_naive  = round(tpr_naive  * 100, 1),
+  n_mg2
+)]
+```
+
+```{r plot-methods}
+plot_data <- melt(
+  national,
+  id.vars      = "date",
+  measure.vars = c("tpr_mg2", "tpr_paired", "tpr_naive"),
+  variable.name = "method",
+  value.name    = "tpr"
+)
+plot_data[, method := fcase(
+  method == "tpr_mg2",    "MG2 (zero-impute missing numerator)",
+  method == "tpr_paired", "Old rule: require both non-NA",
+  method == "tpr_naive",  "Naive: na.rm on both"
+)]
+
+ggplot(plot_data, aes(x = date, y = tpr * 100, colour = method)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.5) +
+  scale_colour_manual(values = c(
+    "MG2 (zero-impute missing numerator)" = "#1f78b4",
+    "Old rule: require both non-NA"       = "#ff7f00",
+    "Naive: na.rm on both"                = "#e31a1c"
+  )) +
+  labs(
+    title    = "National malaria TPR — three aggregation approaches",
+    subtitle = "Lao PDR demo data, 2023–2026",
+    x = NULL, y = "TPR (%)", colour = NULL
+  ) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = 8))
+```
+
+The **MG2 rule** gives the most interpretable result:
+
+- It is *lower* than the old paired rule because it now includes the large
+  denominator mass from zero-positive facilities, correctly pushing TPR down
+  when testing is high and positives are low.
+- It is *higher* than the naive rule in periods where orphaned denominators
+  (denominator with no corresponding numerator) were common — because MG2
+  excludes those orphaned denominators from the sum.
+
+---
+
+## 5  Comparing MG2 TPR to the DHIS2 indicator
+
+The bundled `dhis2_tpr_national_demo.rds` contains the national-level values
+of the DHIS2 indicator *MAL - Malaria test positivity rate (Micr+RDT)*
+(`acDxsQjnEof`), downloaded directly from the analytics API with numerator
+and denominator included (`includeNumDen = TRUE`). Section 6 shows how this
+was fetched.
+
+```{r load-dhis2}
+dhis2 <- readRDS(file.path(demo, "dhis2_tpr_national_demo.rds"))
+cat("DHIS2 rows:", nrow(dhis2), "\n")
+head(dhis2)
+```
+
+```{r merge-compare}
+mg2_series <- national[, .(date, tpr_mg2 = round(tpr_mg2 * 100, 1))]
+dhis2_dt   <- as.data.table(dhis2)[, .(date, tpr_dhis2 = tpr_pct_dhis2)]
+
+compare <- merge(mg2_series, dhis2_dt, by = "date", all = TRUE)
+compare
+```
+
+```{r plot-compare}
+compare_long <- melt(compare, id.vars = "date",
+                     variable.name = "source", value.name = "tpr")
+compare_long[, source := fifelse(
+  source == "tpr_mg2",
+  "MG2 (zero-impute, mad10 cleaning)",
+  "DHIS2 indicator (acDxsQjnEof)"
+)]
+
+ggplot(compare_long, aes(x = date, y = tpr, colour = source)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.5) +
+  scale_colour_manual(values = c(
+    "MG2 (zero-impute, mad10 cleaning)"  = "#1f78b4",
+    "DHIS2 indicator (acDxsQjnEof)"      = "#33a02c"
+  )) +
+  labs(
+    title    = "MG2-computed TPR vs. DHIS2 indicator",
+    subtitle = "Lao PDR national, 2023–2026",
+    x = NULL, y = "TPR (%)", colour = NULL
+  ) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+### 5.1  Why do the series differ?
+
+Compare numerators and denominators directly:
+
+```{r num-den-compare}
+mg2_numden <- fac_2023[
+  !is.na(denominator) & denominator > 0 & (is.na(numerator) | numerator <= denominator),
+  .(mg2_num = sum(fifelse(is.na(numerator), 0, numerator)),
+    mg2_den = sum(denominator)),
+  by = Month
+]
+mg2_numden[, date := as.Date(yearmonth(as.character(Month)))]
+
+numden <- merge(
+  mg2_numden[, .(date, mg2_num, mg2_den)],
+  as.data.table(dhis2)[, .(date, dhis2_num = numerator, dhis2_den = denominator)],
+  by = "date"
+)
+numden[, .(date, mg2_num, dhis2_num, mg2_den, dhis2_den,
+           num_ratio = round(mg2_num / dhis2_num, 2),
+           den_ratio = round(mg2_den / dhis2_den, 2))]
+```
+
+The differences trace to several sources:
+
+| Source | Effect | Explanation |
+|--------|--------|-------------|
+| **Facility coverage** | MG2 lower counts | MG2 uses only facilities in the downloaded dataset; DHIS2 includes all reporting facilities |
+| **Zero-imputation** | MG2 lower TPR when zero-positive facilities common | MG2 imputes missing numerator = 0; DHIS2 may not, depending on how data are stored |
+| **Outlier cleaning** | MG2 may exclude extreme values | `mad10` removes extreme numerator/denominator values before computing the ratio |
+| **Category scope** | Depends on DHIS2 configuration | DHIS2 indicator sums all category option combos; MG2 sums only the selected age/sex categories. If separate "total" rows exist alongside disaggregated rows in DHIS2, the indicator double-counts them; MG2 does not |
+
+---
+
+## 6  Downloading DHIS2 indicator values directly
+
+The `dhis2_tpr_national_demo.rds` file was downloaded with the following code.
+This requires a live DHIS2 connection.
+
+```{r download-dhis2-indicator, eval = FALSE}
+library(httr)
+
+base_url  <- "https://demos.dhis2.org/hmis/"
+username  <- "demo_en"
+password  <- "District1#"   # public demo credentials
+
+# National org unit ID for Lao PDR
+nat_ou <- "IWp9dQGM0bS"
+
+# analytics.json with includeNumDen = TRUE returns value, numerator, and denominator
+url <- paste0(
+  base_url, "api/analytics.json",
+  "?dimension=dx:acDxsQjnEof",          # indicator UID
+  "&dimension=pe:202301;202302;202303;",
+    "202304;202305;202306;202307;202308;202309;202310;202311;202312;",
+    "202401;202402;202403;202404;202405;202406;202407;202408;202409;202410;202411;202412;",
+    "202501;202502;202503;202504;202505;202506;202507;202508;202509;202510;202511;202512;",
+    "202601;202602;202603;202604",
+  "&dimension=ou:", nat_ou,
+  "&includeNumDen=true",
+  "&skipRounding=false",
+  "&displayProperty=NAME"
+)
+
+resp <- GET(url, authenticate(username, password), timeout(30))
+stop_for_status(resp)
+
+d <- content(resp)
+# Response columns: indicator UID, period, org unit, value, numerator, denominator, ...
+rows <- lapply(d$rows, function(r) data.frame(
+  period      = r[[2]],
+  value       = as.numeric(r[[4]]),
+  numerator   = as.numeric(r[[5]]),
+  denominator = as.numeric(r[[6]]),
+  stringsAsFactors = FALSE
+))
+dhis2_tpr <- do.call(rbind, rows)
+dhis2_tpr$date <- as.Date(paste0(dhis2_tpr$period, "01"), format = "%Y%m%d")
+
+head(dhis2_tpr)
+```
+
+You can also download the underlying raw data elements (what MG2's `api_data()`
+uses internally) to inspect DHIS2's own aggregated counts before the indicator
+formula is applied:
+
+```{r download-raw-elements, eval = FALSE}
+library(MG2)
+
+elements_df <- data.frame(
+  id   = c("enVf9I39FRZ", "vTRrNdOOT9g", "DPNsg3wjxGm", "pmRn0GsUfr6"),
+  name = c("MAL - Microscopy positive malaria cases",
+           "MAL - RDT positive malaria cases",
+           "MAL - Malaria suspects tested with microscopy",
+           "MAL - Malaria suspects tested (RDT)"),
+  stringsAsFactors = FALSE
+)
+
+raw_data <- api_data(
+  YrsPrevious = 3,
+  orgUnits    = "LEVEL-4",    # district level
+  elements    = elements_df,
+  baseurl     = base_url,
+  username    = username,
+  password    = password,
+  parallel    = FALSE,
+  shinyApp    = FALSE
+)
+# raw_data has columns: dataElement, period, orgUnit, COUNT, SUM
+# COUNT = number of facilities reporting; SUM = aggregate value
+head(raw_data)
+```
+
+---
+
+## Summary
+
+| Step | What MG2 does | Why it matters |
+|------|---------------|----------------|
+| Combine step | Sums age/sex categories per facility-month | Collapses disaggregation to one row per facility × month |
+| Missing numerator | Imputed to 0 when denominator is valid | Zero positives is plausible; blank entry is common practice |
+| Orphaned numerator | Excluded (numerator present, denominator missing/zero) | Cannot compute meaningful TPR; would inflate national numerator |
+| Impossible ratio | Excluded (numerator > denominator) | Not biologically possible |
+| Reporting tab | Computes weighted average = Σnum / Σden | Correct for ratio data; do not average facility-level TPR values |
+| Champion analysis | Based on denominator reporting presence | A facility "shows up" for TPR if it reports total tests, even with zero positives |

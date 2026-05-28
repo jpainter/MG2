@@ -1944,6 +1944,25 @@ reporting_widget_server <- function(
         has_ratio_cols <- all(c("numerator", "denominator") %in% names(.d))
 
         if (has_ratio_cols) {
+          # Enforce ratio validity rules before aggregating:
+          #   - Missing numerator + valid denominator → numerator = 0 (zero positives
+          #     is plausible; reporters often leave blank rather than enter 0).
+          #   - Present numerator but missing/zero denominator → exclude both
+          #     (orphaned numerator: cannot have positive tests without total tests).
+          #   - numerator > denominator → exclude both (impossible ratio).
+          .d <- .d %>%
+            mutate(
+              .valid_den  = !is.na(denominator) & denominator > 0,
+              .impossible = .valid_den & !is.na(numerator) & numerator > denominator,
+              numerator = dplyr::case_when(
+                !.valid_den | .impossible ~ NA_real_,
+                is.na(numerator)          ~ 0,
+                TRUE                      ~ numerator
+              ),
+              denominator = dplyr::if_else(.valid_den & !.impossible, denominator, NA_real_)
+            ) %>%
+            select(-.valid_den, -.impossible)
+
           .d = .d %>%
             aggregate_key(
               .spec       = !!rlang::parse_expr(aggregateDataKey()),
@@ -2051,9 +2070,15 @@ reporting_widget_server <- function(
           if (!is.null(date_range)) paste0(", ", date_range) else ""
         )
 
-        facility_text <- if (length(rous) > 0)
-          paste0(comma(length(rous)), " consistently reporting facilities (", criteria, ")")
-        else ""
+        facility_text <- if (isTRUE(input$facet_by == "Champion/Non-Champion")) {
+          if (length(rous) > 0)
+            paste0(comma(length(rous)), " consistently reporting facilities (", criteria, ")")
+          else ""
+        } else {
+          # All Facilities: show total facility count, no champion criteria
+          n_tot <- tryCatch(sum(n_selected()$n, na.rm = TRUE), error = function(e) 0L)
+          if (n_tot > 0) paste0(comma(n_tot), " facilities") else ""
+        }
 
         paste(c(region_label, facility_text), collapse = " \u2014 ")
       })

@@ -9,3 +9,5 @@
 ^\.claude$
 ^inst/shiny/forecasting schemas\.txt$
 ^data-raw$
+^doc$
+^Meta$
