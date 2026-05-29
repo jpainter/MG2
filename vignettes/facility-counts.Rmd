@@ -1,0 +1,272 @@
+---
+title: "Facility Counts and Data Element Reporting in DHIS2"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Facility Counts and Data Element Reporting in DHIS2}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>"
+)
+```
+
+## The question no one asks
+
+When a DHIS2 report shows 500 confirmed malaria cases in a district last month,
+an analyst naturally asks: *Is that more or fewer than last month?* But there is
+a prior question that is almost never asked: *How many facilities contributed to
+that 500?*
+
+If 40 facilities reported in January and 25 reported in February, a drop in total
+cases may reflect improved malaria control — or it may simply reflect 15 facilities
+that did not submit data. Without knowing the number of contributing facilities,
+the two explanations are indistinguishable.
+
+This vignette explains why facility counts are harder to obtain than they appear
+in DHIS2, what the MG2 API download actually returns, and how MG2 resolves the
+counting ambiguity. The companion vignette *Champion Facilities and Reporting Bias*
+uses these counts to identify consistently reporting facilities and correct for
+reporting bias.
+
+---
+
+## 1  Two types of reporting completeness
+
+DHIS2 tracks completeness at two levels, and they measure very different things.
+
+**Dataset completeness** (form-level) counts whether the data entry form was
+submitted. A facility is recorded as "complete" when the data entry clerk presses
+the *Complete* button in DHIS2, regardless of whether any fields were filled in.
+Submitting a blank form produces 100% dataset completeness and zero data.
+
+**Data element completeness** (field-level) counts whether a specific field
+was actually filled in. This is what matters for analysis — a facility that
+submitted an empty form contributes nothing to the numerator or denominator of
+any indicator.
+
+DHIS2 reports dataset completeness by default, and obtaining data element
+completeness requires extra steps that are not obvious in the interface.
+
+### The WHO guidance gap
+
+The WHO Data Quality Tool manual conflates the two levels when it states:
+
+> *"If DHIS2 shows reliable Reporting rates for the respective data set, you can
+> also use the Data Visualizer to review the trend in completeness. Such a chart
+> will also tell you for which years there are data for the data element."*
+
+This is only true if submitted forms are never blank — an assumption that fails
+routinely in practice. Dataset reporting rates should not be accepted as a proxy
+for data element availability.
+
+---
+
+## 2  Obtaining facility counts from the DHIS2 interface
+
+The DHIS2 Data Visualizer app can display the *count* of facilities that reported
+a given data element, but the path to that view is unintuitive:
+
+1. In the Data Visualizer, build a pivot table with the data element of interest.
+2. Open **Options → Data** and change *Aggregation type* from "By data element"
+   to **Count**.
+3. Click **Update**.
+
+The resulting table looks identical to a value table — there is no visual
+indicator that you are now seeing counts rather than sums. Furthermore, counts and
+values cannot be shown side by side in the same table; each requires a separate
+download. The two files must then be merged manually on org unit and period.
+
+Because this workflow is non-obvious and inconvenient, many analysts never see
+the facility counts alongside their data. The gap between expected and actual
+reporting facilities goes unnoticed.
+
+A step-by-step walkthrough of this process in the DHIS2 Sierra Leone demo
+instance, with screenshots, is available in:
+*Facility Counts in DHIS2*
+(`../DHIS2 Best Practices/ms_body/Facility_Counts_in_DHIS2.html`).
+
+---
+
+## 3  What the MG2 API download returns
+
+MG2 queries the DHIS2 analytics API at the **leaf-facility level** — the
+organisational unit where data was originally entered. Because each row represents
+one facility's report for one period, the COUNT returned by the API for each row
+is always **1**: either the facility reported that value (COUNT = 1, SUM = the
+value entered) or the row is absent.
+
+This is a deliberate design choice. Fetching at the leaf level avoids the
+ambiguity of aggregate rows, where COUNT can exceed 1 because it sums counts
+across all subordinate facilities.
+
+### The disaggregation counting problem
+
+A data element is rarely a single field. In the Lao PDR malaria system, for
+example, "MAL - RDT positive malaria cases" is collected for six age-by-sex
+combinations (0–4 years, 5–14 years, 15+ years × Female, Male). Each combination
+is a separate row in the API response. The demo file below shows this structure
+for five Savannakhet facilities in Q1 2024.
+
+```{r raw-structure}
+library(MG2)
+library(dplyr)
+
+demo  <- mg2_demo_dir()
+raw   <- readRDS(file.path(demo, "reporting_raw_demo.rds"))
+
+# Show the first facility, one month, one element
+raw |>
+  filter(
+    orgUnitName == "HC Asing",
+    format(Month) == "2024 Jan",
+    dataElement  == "MAL - RDT positive malaria cases"
+  ) |>
+  select(orgUnitName, dataElement, Category, Month, COUNT, SUM) |>
+  knitr::kable(caption = "Six rows returned for one facility, one element, one month")
+```
+
+Every COUNT is 1. SUM holds the reported value. The facility clearly reported
+this element in January 2024 — but how should we count it?
+
+If we sum the COUNT column across all six categories we get 6, not 1. This
+inflated count is exactly what the DHIS2 Data Visualizer returns when you select
+"Totals" rather than individual disaggregations — it adds up the counts from all
+category rows for that element.
+
+---
+
+## 4  Two rules for resolving the disaggregation ambiguity
+
+MG2 offers two rules for deciding whether a facility "reported" an element in a
+given month, controlled by the `reporting_rule` argument to
+`mostFrequentReportingOUs()` (and the corresponding UI option in the Reporting
+tab):
+
+| Rule | Behaviour | When to use |
+|---|---|---|
+| `all_elements` — *at least one category* | A facility counts as reporting if **any** disaggregation (age/sex group) has a non-missing value | When the aggregate total is what you care about; partial age-group reporting is acceptable |
+| `all_categories` — *every category present* | A facility counts as reporting only if **all** disaggregations have non-missing values | When you need a complete breakdown for age- or sex-specific rates |
+
+The stricter rule (`all_categories`) always produces fewer or equal champion
+facilities than `all_elements`.
+
+### Demonstration
+
+```{r count-by-rule}
+library(tsibble)
+
+# Facilities that reported RDT positive in Jan 2024, by rule
+rdt_jan <- raw |>
+  filter(
+    dataElement  == "MAL - RDT positive malaria cases",
+    format(Month) == "2024 Jan"
+  )
+
+# all_elements: any category present
+any_cat <- rdt_jan |>
+  filter(!is.na(SUM)) |>
+  distinct(orgUnitName) |>
+  nrow()
+
+# all_categories: all 6 sex×age categories present
+all_cat <- rdt_jan |>
+  filter(!is.na(SUM)) |>
+  group_by(orgUnitName) |>
+  summarise(n_cats = n(), .groups = "drop") |>
+  filter(n_cats == 6) |>
+  nrow()
+
+cat(sprintf(
+  "Jan 2024, RDT positive (5 facilities shown):\n  Any category present : %d\n  All categories present: %d\n",
+  any_cat, all_cat
+))
+```
+
+```{r count-table, echo=FALSE}
+# Summary table across all three months and both elements
+summary_tbl <- raw |>
+  filter(dataElement == "MAL - RDT positive malaria cases") |>
+  filter(!is.na(SUM)) |>
+  group_by(orgUnitName, Month) |>
+  summarise(
+    n_cats_reported = n(),
+    total_cats      = 6L,   # 3 age × 2 sex
+    any_rule        = n_cats_reported >= 1L,
+    all_rule        = n_cats_reported == total_cats,
+    .groups = "drop"
+  )
+
+result <- summary_tbl |>
+  group_by(Month) |>
+  summarise(
+    `Any category` = sum(any_rule),
+    `All categories` = sum(all_rule),
+    .groups = "drop"
+  ) |>
+  mutate(Month = format(Month))
+
+knitr::kable(
+  result,
+  caption = paste0(
+    "Facilities reporting MAL - RDT positive malaria cases under each rule,",
+    " 5 Savannakhet facilities (HC Asing, HC Densavan, HC Denvilai, ",
+    "HC Dongnasan, 1305 DH Xepon)"
+  )
+)
+```
+
+In this small sample every facility reported all six categories, so both rules
+produce the same count. In a full national dataset, some facilities omit one or
+two age groups — the two rules then diverge, and the choice meaningfully affects
+how many facilities qualify as consistently reporting.
+
+---
+
+## 5  Suspected ≠ Tested
+
+One important consequence of disaggregation structure is that related elements
+can look superficially similar but measure different things. In the Lao PDR
+system:
+
+- **MAL - Suspected malaria cases** counts patients presenting with fever who
+  *may* have received a diagnostic test — a clinical tally.
+- **MAL - Malaria suspects tested (RDT)** counts patients who *actually received*
+  an RDT — a laboratory tally.
+
+These are entered in different fields, from different datasets, and the number of
+facilities that report each element differs substantially.
+
+```{r suspected-vs-tested}
+# Categories present in the raw demo
+raw |>
+  distinct(dataElement, Category) |>
+  arrange(dataElement, Category) |>
+  knitr::kable(caption = "Data elements and categories in the demo raw file")
+```
+
+The suspected cases element uses age-only categories (no sex split), while RDT
+positive uses age × sex. This structural difference means that even the
+`all_categories` rule is comparing apples to oranges if you mix these elements in
+a champion criterion.
+
+---
+
+## 6  Summary
+
+| Concept | Key point |
+|---|---|
+| Dataset completeness | Measures form submission, not field completion |
+| Data element completeness | Measures whether the field of interest was filled in |
+| DHIS2 interface | Counts are obtainable but hidden behind non-obvious options; cannot be shown alongside values |
+| MG2 API | Leaf-level download; COUNT = 1 per row; SUM = reported value |
+| Disaggregation ambiguity | Multiple rows per element per facility per month; "any category" vs "all categories" rule |
+| Suspected vs. tested | Different elements, different datasets, different facility sets |
+
+These mechanics underpin the champion-facility approach described in the companion
+vignette, *Champion Facilities and Reporting Bias*, which uses MG2's Reporting
+tab to identify consistently reporting facilities and adjust burden estimates for
+reporting bias.

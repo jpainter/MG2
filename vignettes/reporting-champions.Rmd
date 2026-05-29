@@ -1,0 +1,802 @@
+---
+title: "Champion Facilities and Reporting Bias"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Champion Facilities and Reporting Bias}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.width = 7,
+  fig.height = 4.5,
+  fig.align = "center"
+)
+```
+
+## Overview
+
+Aggregated DHIS2 totals are a joint function of two things: the number of cases
+that occurred, and the number of facilities that reported. When reporting
+participation changes over time — and it always does — the aggregate total changes
+even if the underlying incidence is stable. This is **reporting bias**.
+
+This vignette:
+
+1. Demonstrates reporting bias in Lao PDR malaria surveillance data.
+2. Reproduces the two diagnostic charts at the top of MG2's Reporting tab to
+   show how champions are identified and why the date range of analysis matters.
+3. Compares the champion-facility trend against the raw trend to show how bias
+   is removed.
+4. Shows how element selection and the strictness of the reporting criterion
+   affect the champion set.
+
+*Prerequisite:* The mechanics of COUNT vs. SUM in the MG2 API download, and why
+COUNT = 1 at the leaf-facility level, are covered in the companion vignette
+*Facility Counts and Data Element Reporting in DHIS2*. Read that first for the
+counting concepts that underpin champion identification.
+
+---
+
+## 1  Background: reporting bias in DHIS2
+
+### 1.1  Why the facility count is not constant
+
+In a national HMIS, the number of facilities reporting a given data element
+changes over time: new facilities open, others close, reporting guidelines change,
+and individual facilities may periodically lack staff or connectivity. The
+problem arises when analysts treat aggregate totals as if the denominator were
+constant.
+
+A submitted form that is partially blank still counts as "complete" in DHIS2 —
+100% dataset reporting coexists with 0% data element reporting. This distinction
+is explained in detail in the companion vignette.
+
+### 1.2  The WHO guidance gap
+
+Even the WHO Data Quality Tool, which internally uses field-level completeness,
+conflates the two levels in its documentation, stating that dataset reporting
+rates "will also tell you for which years there are data for the data element."
+This is only true if submitted forms are never blank — an assumption that fails
+routinely in practice.
+
+---
+
+## 2  Data and preparation
+
+The examples use the MG2 bundled demo dataset: Lao PDR malaria surveillance data
+from the public DHIS2 demo server.
+
+```{r load}
+library(MG2)
+library(tsibble)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(scales)
+
+demo  <- mg2_demo_dir()
+d     <- read_file(file.path(demo, "malaria_demo.rds"))
+d_c   <- cleanedData(d, source = "Original")
+setDT(d_c)
+
+cat("Rows:", format(nrow(d_c), big.mark = ","),
+    "| Facilities:", uniqueN(d_c$orgUnit),
+    "| Period:", format(min(d_c$Month)), "–", format(max(d_c$Month)), "\n")
+```
+
+```{r element-ranges}
+# Date range per data element — essential context for choosing analysis periods
+base_ranges <- d_c[!is.na(original),
+  .(from  = format(min(Month)),
+    to    = format(max(Month)),
+    n_fac = uniqueN(orgUnit)),
+  by = .(element = sub("_.*", "", data))
+][order(from)]
+
+knitr::kable(base_ranges,
+  caption = paste0("Table 1. Date range and facility count for each data element",
+                   " in the bundled demo dataset."),
+  col.names = c("Data element", "First month", "Last month", "Facilities"))
+```
+
+Two observations from Table 1 are critical for all subsequent analyses:
+
+- **MAL - RDT positive malaria cases** is available from January 2022, with a
+  dramatic increase in reporting facilities in 2024 (see Section 3.2). This
+  element is used for the main trend analyses.
+- **MAL - Confirmed malaria cases** is available only from **November 2024**. It
+  represents an aggregate field for confirmed cases that was either introduced or
+  began being widely used in late 2024. This affects element selection (Section 5)
+  and means it cannot anchor a long-term champion analysis.
+
+```{r element-setup}
+# Named element groups used throughout
+rdt_pos_cats  <- grep("MAL - RDT positive malaria cases",
+                      unique(d_c$data), value = TRUE)
+tested_cats   <- grep("MAL - Malaria suspects tested \\(RDT\\)",
+                      unique(d_c$data), value = TRUE)
+conf_cats     <- grep("MAL - Confirmed malaria cases",
+                      unique(d_c$data), value = TRUE)
+micro_cats    <- grep("MAL - Microscopy positive malaria cases",
+                      unique(d_c$data), value = TRUE)
+
+# Facility lookup
+fac_meta <- unique(d_c[, .(orgUnit, Province)])
+n_total  <- uniqueN(d_c$orgUnit)
+```
+
+---
+
+## 3  Reporting completeness over time
+
+### 3.1  Monthly facility counts, 2022–2026
+
+The analysis period is restricted to **January 2022 – May 2026**, the period
+for which RDT positive data are available. Analyses restricted to later windows
+are noted explicitly.
+
+```{r fig-monthly-counts, fig.cap="**Figure 1.** Number of facilities reporting MAL - RDT positive malaria cases per month, January 2022 – May 2026. Dashed line = total facilities ever reporting this element. The sharp increase in mid-2024 reflects a real expansion of the reporting system (see Section 3.2), not a change in disease burden."}
+# Restrict to RDT positive, 2022 onwards
+monthly_n <- d_c[
+  data %in% rdt_pos_cats &
+    !is.na(original) &
+    Month >= yearmonth("2022 Jan"),
+  .(n_reporting = uniqueN(orgUnit)),
+  by = Month
+][order(Month)]
+
+n_ever_rdt <- uniqueN(
+  d_c[data %in% rdt_pos_cats & !is.na(original)]$orgUnit
+)
+
+ggplot(monthly_n, aes(x = as.Date(Month), y = n_reporting)) +
+  geom_line(colour = "#2166ac", linewidth = 0.8) +
+  geom_hline(yintercept = n_ever_rdt, linetype = "dashed", colour = "grey50") +
+  annotate("text",
+           x = as.Date(yearmonth("2022 Jan")),
+           y = n_ever_rdt + 15,
+           label = paste0("Ever reported: ", n_ever_rdt),
+           hjust = 0, size = 3.2, colour = "grey40") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year",
+               date_minor_breaks = "3 months") +
+  scale_y_continuous(labels = comma, limits = c(0, NA)) +
+  labs(x = NULL, y = "Facilities reporting",
+       title = "Monthly facility count: MAL - RDT positive malaria cases",
+       subtitle = "Lao PDR, January 2022 – May 2026") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor.x = element_line(colour = "grey90"))
+```
+
+### 3.2  How variable reporting creates spurious trends
+
+The 2024 reporting expansion is striking in Figure 1 — but without the facility
+count panel, an analyst looking only at total RDT positive cases would interpret
+the jump as a malaria resurgence. Figure 2 shows the two series together.
+
+```{r fig-spurious-trend, fig.height = 5.5, fig.cap="**Figure 2.** Total RDT positive cases (upper panel) and number of reporting facilities (lower panel), 2022–2025. The two series co-move strongly: the apparent case surge from 2023 to 2024 is largely explained by a three-fold increase in reporting facilities (133 in 2023 vs. ~280 in 2024), not by a true epidemic wave."}
+monthly_both <- d_c[
+  data %in% rdt_pos_cats & !is.na(original) &
+    Month >= yearmonth("2022 Jan") & Month <= yearmonth("2025 Dec"),
+  .(total_cases = sum(original, na.rm = TRUE),
+    n_fac       = uniqueN(orgUnit)),
+  by = Month
+][order(Month)]
+
+p_cases <- ggplot(monthly_both, aes(x = as.Date(Month), y = total_cases)) +
+  geom_line(colour = "#d6604d", linewidth = 0.8) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year",
+               date_minor_breaks = "3 months") +
+  scale_y_continuous(labels = comma) +
+  labs(x = NULL, y = "RDT positive cases",
+       title = "A  Total RDT positive cases") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor.x = element_line(colour = "grey90"))
+
+p_facs <- ggplot(monthly_both, aes(x = as.Date(Month), y = n_fac)) +
+  geom_line(colour = "#4393c3", linewidth = 0.8) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year",
+               date_minor_breaks = "3 months") +
+  scale_y_continuous(labels = comma, limits = c(0, NA)) +
+  labs(x = NULL, y = "Facilities reporting",
+       title = "B  Facilities reporting RDT positive") +
+  theme_minimal(base_size = 11) +
+  theme(panel.grid.minor.x = element_line(colour = "grey90"))
+
+p_cases / p_facs
+```
+
+### 3.3  Indicator distortion from mismatched denominators
+
+The problem is most acute when an indicator combines two elements — because the
+numerator and denominator may come from *different* sets of facilities. Test
+positivity (RDT positive ÷ suspects tested by RDT) is a standard malaria metric.
+If some facilities report tests but not positive results, or vice versa, the ratio
+is arithmetically meaningless.
+
+```{r fig-tpr-distortion, fig.cap="**Figure 3.** Monthly test positivity (RDT positive ÷ RDT suspects tested), Lao PDR 2022–2025. Point size shows the absolute difference between the number of facilities contributing the numerator versus the denominator. Large points (large facility mismatch) tend to coincide with unusual positivity values, confirming that indicator instability is driven by incomplete facility overlap, not by epidemiology."}
+monthly_pos  <- d_c[data %in% rdt_pos_cats & !is.na(original) &
+                      Month >= yearmonth("2022 Jan") & Month <= yearmonth("2025 Dec"),
+                    .(rdt_pos = sum(original, na.rm = TRUE),
+                      n_pos   = uniqueN(orgUnit)), by = Month]
+monthly_test <- d_c[data %in% tested_cats & !is.na(original) &
+                      Month >= yearmonth("2022 Jan") & Month <= yearmonth("2025 Dec"),
+                    .(rdt_test = sum(original, na.rm = TRUE),
+                      n_test   = uniqueN(orgUnit)), by = Month]
+
+monthly_tpr <- merge(monthly_pos, monthly_test, by = "Month")[
+  , `:=`(tpr          = rdt_pos / rdt_test,
+         fac_mismatch = abs(n_pos - n_test))
+]
+
+ggplot(monthly_tpr, aes(x = as.Date(Month))) +
+  geom_line(aes(y = tpr), colour = "#1b7837", linewidth = 0.8) +
+  geom_point(aes(y = tpr, size = fac_mismatch),
+             colour = "#1b7837", alpha = 0.5) +
+  scale_size_continuous(name = "Facility\nmismatch", range = c(1, 5)) +
+  scale_y_continuous(labels = percent, limits = c(0, NA)) +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year",
+               date_minor_breaks = "3 months") +
+  labs(x = NULL, y = "Test positivity",
+       title = "Monthly test positivity: RDT positive ÷ RDT suspects tested",
+       subtitle = "Point size = |facilities in numerator − facilities in denominator|") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor.x = element_line(colour = "grey90"))
+```
+
+---
+
+## 4  Champion facilities: identification and diagnostics
+
+### 4.1  Definition
+
+A **champion facility** is one that reports a specified set of data elements in
+every month (or nearly every month) of a given calendar year. A time series built
+from the same set of consistently reporting facilities has no reporting bias —
+any change reflects a true change in caseload, not a change in who submitted data.
+
+Champions are identified per year by `mostFrequentReportingOUs()`. For the main
+analyses below we use:
+
+- **Element:** MAL - RDT positive malaria cases (any age/sex category present,
+  `any_selected` rule)
+- **Date range:** January 2024 – December 2025 (two complete years where reporting
+  is stable; see Section 4.3 for why earlier years are excluded)
+- **Threshold:** 12/12 months required per year
+
+```{r identify-champions}
+# --- Identify champions: RDT positive, 2024–2025, 12/12, any_selected ---
+champ_ids <- mostFrequentReportingOUs(
+  d_c,
+  data_categories = rdt_pos_cats,
+  startingMonth   = yearmonth("2024 Jan"),
+  endingMonth     = yearmonth("2025 Dec"),
+  missing_reports = 0L,
+  reporting_rule  = "any_selected"
+)
+
+cat(sprintf("Champions (RDT positive, 12/12, 2024–2025): %d of %d facilities (%.0f%%)\n",
+            length(champ_ids), n_total,
+            100 * length(champ_ids) / n_total))
+```
+
+### 4.2  Diagnostic charts: how the app shows champion identification
+
+MG2's Reporting tab shows two charts at the top of the page. Reproduced here,
+they reveal how many facilities report consistently versus intermittently.
+
+**Chart A** shows, for each year, the distribution of how many months each
+facility reported — essentially a census of reporting frequency. Black bars are
+all reporters; brown bars highlight the champion facilities (those at 12 months).
+The horizontal dashed line is the total number of facilities ever reporting.
+The gap between the top of the champion bar and the dashed line is the fraction
+of facilities that are *not* champions.
+
+```{r fig-hist-months, fig.height = 4, fig.cap="**Figure 4.** Distribution of months reported per year per facility, RDT positive malaria cases, 2024–2025 (Chart A from the Reporting tab). Black bars = all facilities; brown bars = champion facilities (12 months). The gap between the brown bar and the dashed line shows the proportion of facilities that are not champions in a given year."}
+# Months reported per facility per year (2024–2025)
+orep <- d_c[
+  data %in% rdt_pos_cats & !is.na(original) &
+    Month >= yearmonth("2024 Jan") & Month <= yearmonth("2025 Dec"),
+  .(n_months = uniqueN(Month)),
+  by = .(orgUnit, year = as.integer(format(Month, "%Y")))
+]
+orep[, n_months_f := factor(n_months, levels = 1:12)]
+
+# Aggregate: all facilities
+annual_all <- orep[, .(n = .N), by = .(year, n_months_f)]
+
+# Aggregate: champions only
+annual_champ <- orep[orgUnit %in% champ_ids,
+                      .(n = .N), by = .(year, n_months_f)]
+
+n_ever_win <- uniqueN(orep$orgUnit)  # facilities ever reporting in window
+
+ggplot(annual_all, aes(x = n_months_f, y = n)) +
+  geom_col(fill = "grey40") +
+  geom_col(data = annual_champ, fill = "#8B2500", width = 0.9) +
+  geom_hline(yintercept = n_ever_win, linetype = "dashed", colour = "navy",
+             linewidth = 0.6) +
+  annotate("text", x = 0.7, y = n_ever_win + 8,
+           label = paste0("Ever reported: ", n_ever_win),
+           hjust = 0, size = 3, colour = "navy") +
+  facet_wrap(~year) +
+  scale_x_discrete("Months reported in year", drop = FALSE) +
+  scale_y_continuous("Number of facilities", labels = comma) +
+  labs(title = "Chart A — Distribution of annual reporting frequency",
+       subtitle = "Brown = champion (12/12) | Grey = all reporters | Dashed = ever-reported total") +
+  theme_bw(base_size = 11) +
+  theme(axis.text.x = element_text(size = 8))
+```
+
+**Chart B** shows the same data from a different angle: the number of facilities
+reporting in each calendar month, faceted by year. Black shows all reporters
+each month; brown shows only the champion subset. The gap between the brown and
+black lines is the non-champion reporters each month — facilities whose data
+that month contributes to reporting bias.
+
+```{r fig-monthly-by-year, fig.cap="**Figure 5.** Number of facilities reporting RDT positive per calendar month, 2024–2025 (Chart B from the Reporting tab). Black = all facilities; brown/red = champion facilities. The dashed line is the ever-reported total. Champion facilities (brown) are a stable subset of the monthly reporters (black) — the black line's variation from month to month is driven by non-champions entering and leaving."}
+# Monthly reporters per month-of-year per year
+omrep <- d_c[
+  data %in% rdt_pos_cats & !is.na(original) &
+    Month >= yearmonth("2024 Jan") & Month <= yearmonth("2025 Dec"),
+  .(year     = as.integer(format(Month, "%Y")),
+    month_n  = as.integer(format(Month, "%m"))),
+  by = .(orgUnit, Month)
+] |> unique()
+
+monthly_all_yr <- omrep[,
+  .(n_all = uniqueN(orgUnit)), by = .(year, month_n)
+]
+monthly_champ_yr <- omrep[orgUnit %in% champ_ids,
+  .(n_champ = uniqueN(orgUnit)), by = .(year, month_n)
+]
+monthly_yr <- merge(monthly_all_yr, monthly_champ_yr,
+                    by = c("year", "month_n"), all.x = TRUE)
+monthly_yr[is.na(n_champ), n_champ := 0L]
+
+ggplot(monthly_yr, aes(x = month_n)) +
+  geom_line(aes(y = n_all),   colour = "black",   linewidth = 0.8) +
+  geom_point(aes(y = n_all),  colour = "black",   size = 1.5) +
+  geom_line(aes(y = n_champ), colour = "#8B2500", linewidth = 0.8) +
+  geom_point(aes(y = n_champ), colour = "#8B2500", size = 2) +
+  geom_hline(yintercept = n_ever_win, linetype = "dashed", colour = "navy",
+             linewidth = 0.5) +
+  facet_wrap(~year) +
+  scale_x_continuous("Month", breaks = 1:12, labels = month.abb) +
+  scale_y_continuous("Facilities reporting", labels = comma, limits = c(0, NA)) +
+  labs(title = "Chart B — Monthly reporters vs champion reporters",
+       subtitle = "Black = all reporters | Brown = champions | Dashed = ever-reported total") +
+  theme_bw(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
+```
+
+### 4.3  Why the date range of analysis matters
+
+The date range used to define champions is one of the most consequential analytic
+choices, yet it is easy to overlook.
+
+`mostFrequentReportingOUs()` requires a facility to report consistently in
+**every year** of the analysis window. A facility that began reporting in 2024
+will not qualify for a 2022–2025 window even if it reports perfectly in 2024 and
+2025 — because it has no data in 2022 or 2023.
+
+The Lao PDR data illustrates this dramatically. RDT positive reporting expanded
+about three-fold in 2024 (Figure 1). Many facilities in the 2024–2025 reporting
+system simply did not exist in the 2022–2023 system. Extending the window back
+to 2022 eliminates nearly all champions.
+
+```{r champion-date-range-table}
+# Champion counts under different start years (RDT positive, 12/12, any_selected)
+date_windows <- list(
+  "2022–2025 (4 years)" = c("2022 Jan", "2025 Dec"),
+  "2023–2025 (3 years)" = c("2023 Jan", "2025 Dec"),
+  "2024–2025 (2 years)" = c("2024 Jan", "2025 Dec"),
+  "2024 only (1 year)"  = c("2024 Jan", "2024 Dec"),
+  "2025 only (1 year)"  = c("2025 Jan", "2025 Dec")
+)
+
+range_results <- lapply(names(date_windows), function(nm) {
+  w   <- date_windows[[nm]]
+  ids <- mostFrequentReportingOUs(
+    d_c,
+    data_categories = rdt_pos_cats,
+    startingMonth   = yearmonth(w[1]),
+    endingMonth     = yearmonth(w[2]),
+    missing_reports = 0L,
+    reporting_rule  = "any_selected"
+  )
+  data.frame(
+    `Analysis window` = nm,
+    `Champion facilities` = length(ids),
+    `% of all facilities`  = scales::percent(length(ids) / n_total, 0.1),
+    check.names = FALSE
+  )
+})
+
+knitr::kable(
+  do.call(rbind, range_results),
+  caption = paste0(
+    "Table 2. Champion facility counts (MAL - RDT positive, 12/12 threshold,",
+    " any_selected rule) under different analysis windows.",
+    " Total facilities ever reporting: ", comma(n_total), "."
+  )
+)
+```
+
+**Key message from Table 2:** The 2022–2025 window yields zero champions because
+the 2024–2025 reporting system and the 2022–2023 reporting system represent
+largely different facilities. Starting the window in 2024 — when the current
+reporting system became established — yields a meaningful champion set (37
+facilities that reported every month in both 2024 and 2025).
+
+For a two-year window, analysts should verify that the facilities that are active
+in year 2 are also active in year 1. A sharp year-over-year increase in reporting
+facilities, as seen here, is a signal that the two years are not comparable and
+the window should be shortened.
+
+### 4.4  Champion trend vs. raw trend
+
+The point of champions is to produce an unbiased time series. Figure 6 directly
+compares the monthly RDT positive total for all facilities vs. champion facilities
+only, over the 2024–2025 period. The champion series (brown) is smoother and
+reflects changes in incidence; the all-facility series (black) additionally
+absorbs fluctuations driven by which facilities happened to submit that month.
+
+```{r fig-champion-vs-raw, fig.cap="**Figure 6.** Monthly RDT positive malaria cases, 2024–2025: all reporting facilities (black) vs champion facilities only (brown, 12/12 threshold, any_selected rule). The champion series is smoother because it is not affected by month-to-month variation in which facilities happened to report. Differences between the two lines reflect the contribution of non-champion reporters."}
+monthly_raw_champ <- d_c[
+  data %in% rdt_pos_cats & !is.na(original) &
+    Month >= yearmonth("2024 Jan") & Month <= yearmonth("2025 Dec"),
+  .(total_all   = sum(original, na.rm = TRUE),
+    total_champ = sum(original[orgUnit %in% champ_ids], na.rm = TRUE)),
+  by = Month
+][order(Month)]
+
+ggplot(monthly_raw_champ, aes(x = as.Date(Month))) +
+  geom_line(aes(y = total_all),   colour = "black",   linewidth = 0.8,
+            linetype = "solid") +
+  geom_line(aes(y = total_champ), colour = "#8B2500", linewidth = 0.9,
+            linetype = "solid") +
+  geom_point(aes(y = total_champ), colour = "#8B2500", size = 2) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "3 months") +
+  scale_y_continuous(labels = comma, limits = c(0, NA)) +
+  annotate("text", x = as.Date(yearmonth("2024 Feb")),
+           y = max(monthly_raw_champ$total_all) * 0.95,
+           label = "All facilities", hjust = 0, colour = "black", size = 3.5) +
+  annotate("text", x = as.Date(yearmonth("2024 Feb")),
+           y = max(monthly_raw_champ$total_all) * 0.85,
+           label = "Champions only", hjust = 0, colour = "#8B2500", size = 3.5) +
+  labs(x = NULL, y = "RDT positive cases",
+       title = "Figure 6 — Champion trend vs. raw trend",
+       subtitle = "RDT positive, 2024–2025 | Champions: 12/12, any_selected rule") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### 4.5  Effect of the reporting rule on champion count
+
+The four reporting rules available in MG2's Reporting tab change which facility-
+months count as "reporting." Table 3 shows the impact on champion count for the
+same element set (RDT positive) and the same 2024–2025 window.
+
+```{r table-rules}
+rules <- c(
+  "all_categories" = "All selected elements — every category present",
+  "all_elements"   = "All selected elements — at least one category",
+  "any_selected"   = "Any selected element present  ← default",
+  "any_data"       = "Any data element present (incl. unchecked)"
+)
+
+rule_results <- lapply(names(rules), function(r) {
+  ids <- mostFrequentReportingOUs(
+    d_c,
+    data_categories = rdt_pos_cats,
+    startingMonth   = yearmonth("2024 Jan"),
+    endingMonth     = yearmonth("2025 Dec"),
+    missing_reports = 0L,
+    reporting_rule  = r
+  )
+  data.frame(
+    Rule        = rules[[r]],
+    Champions   = length(ids),
+    `% of all`  = scales::percent(length(ids) / n_total, 0.1),
+    check.names = FALSE
+  )
+})
+
+knitr::kable(
+  do.call(rbind, rule_results),
+  caption = paste0(
+    "Table 3. Champion count by reporting rule, MAL - RDT positive malaria cases,",
+    " 12/12 threshold, 2024–2025."
+  )
+)
+```
+
+For RDT positive (which has 6 age × sex categories per facility), `all_categories`
+requires all six to be present every month — the strictest test. `any_selected`
+(the default) only requires that at least one category has a non-missing value.
+The `any_data` rule counts any non-missing data in the entire dataset regardless
+of element, making it the most inclusive.
+
+Use `all_categories` when computing age- or sex-specific rates where an
+incomplete breakdown produces an undefined result. Use `any_selected` for burden
+estimation where the element total is what matters.
+
+---
+
+## 5  Element selection and the double-counting risk
+
+### 5.1  A structural ambiguity in the Lao PDR data
+
+The Lao PDR DHIS2 system records confirmed malaria cases in overlapping fields:
+
+- **MAL - Confirmed malaria cases** — an aggregate field (by age group), available
+  from November 2024 only
+- **MAL - RDT positive malaria cases** — RDT-specific (by age × sex), available
+  from January 2022
+- **MAL - Microscopy positive malaria cases** — microscopy-specific (by age × sex),
+  available from January 2022
+
+In this DHIS2 configuration the confirmed-cases field is meant to capture all
+confirmed cases (RDT positive + microscopy positive combined). If that is how
+facilities fill in the form, requiring all three as champion criteria asks for the
+same case to be recorded three times — and penalises facilities that correctly
+use only the aggregate field.
+
+### 5.2  Empirical check: are the fields redundant?
+
+The overlap period where all three elements coexist is November 2024 – May 2026
+(19 months). The scatter plot below tests whether Confirmed ≈ RDT positive +
+Microscopy positive at the facility-month level.
+
+```{r fig-double-count, fig.height = 4, fig.cap="**Figure 7.** Relationship between the aggregate confirmed-cases field and the sum of RDT positive + microscopy positive, by facility-month (November 2024 – May 2026). Points on the red 45° line indicate the fields are recording identical cases. Log scale; facility-months where either source = 0 excluded."}
+# Overlap period: Nov 2024 – May 2026
+dc_start <- yearmonth("2024 Nov")
+dc_end   <- yearmonth("2026 May")
+
+dc_long <- rbind(
+  d_c[data %in% conf_cats    & !is.na(original) & Month >= dc_start & Month <= dc_end,
+      .(val = sum(original, na.rm = TRUE), type = "confirmed"), by = .(orgUnit, Month)],
+  d_c[data %in% rdt_pos_cats & !is.na(original) & Month >= dc_start & Month <= dc_end,
+      .(val = sum(original, na.rm = TRUE), type = "rdt_pos"),  by = .(orgUnit, Month)],
+  d_c[data %in% micro_cats   & !is.na(original) & Month >= dc_start & Month <= dc_end,
+      .(val = sum(original, na.rm = TRUE), type = "micro_pos"), by = .(orgUnit, Month)]
+)
+dc_wide <- dcast(dc_long, orgUnit + Month ~ type,
+                 value.var = "val", fun.aggregate = sum, fill = NA_real_)
+dc_wide[, lab_sum := rdt_pos + micro_pos]
+
+ggplot(dc_wide[!is.na(confirmed) & !is.na(lab_sum) &
+                 confirmed > 0 & lab_sum > 0],
+       aes(x = lab_sum, y = confirmed)) +
+  geom_point(alpha = 0.2, size = 0.8, colour = "#762a83") +
+  geom_abline(slope = 1, intercept = 0, colour = "red", linewidth = 0.7) +
+  scale_x_log10(labels = comma) +
+  scale_y_log10(labels = comma) +
+  labs(x = "RDT positive + Microscopy positive (sum)",
+       y = "Confirmed malaria cases",
+       title = "Double-counting check: confirmed vs. lab-type components",
+       subtitle = "Red line = perfect agreement. Nov 2024 – May 2026. Log scale.") +
+  theme_minimal(base_size = 12)
+```
+
+```{r double-count-stats}
+dc_check <- dc_wide[!is.na(confirmed) & !is.na(lab_sum)]
+cor_sp    <- cor(dc_check$confirmed, dc_check$lab_sum,
+                 use = "complete.obs", method = "spearman")
+agree_pct <- mean(abs(dc_check$confirmed - dc_check$lab_sum) <= 1,
+                  na.rm = TRUE)
+
+cat(sprintf("Spearman correlation (confirmed vs lab sum):             %.3f\n", cor_sp))
+cat(sprintf("Facility-months within ±1 case of agreement:            %.1f%%\n",
+            100 * agree_pct))
+```
+
+### 5.3  Suspected ≠ Tested
+
+- **MAL - Suspected malaria cases** counts patients presenting with fever
+  (clinical tally, before testing)
+- **MAL - Malaria suspects tested (RDT)** counts patients who actually received
+  an RDT (laboratory tally)
+
+These answer different questions. A champion criterion that requires *both*
+conflates the care-seeking and diagnostic pathways, and many high-performing
+facilities consistently report only one.
+
+### 5.4  Recommended element set for Lao PDR
+
+For estimating confirmed malaria burden:
+
+| Analysis period | Recommended element(s) | Rationale |
+|---|---|---|
+| Jan 2022 – present | RDT positive malaria cases | Longest consistently available series |
+| Nov 2024 – present | Confirmed malaria cases | Aggregate field; check for redundancy with lab types first |
+| For test positivity | RDT positive + Suspects tested (RDT) | Matched numerator / denominator |
+
+For all analyses, use `any_selected` unless every age/sex breakdown is required.
+
+---
+
+## 6  Comparing champion sets across element sets and thresholds
+
+```{r champion-comparison-table}
+# Element sets
+narrow_elems <- rdt_pos_cats
+medium_elems <- c(rdt_pos_cats, tested_cats)
+broad_elems  <- c(rdt_pos_cats, micro_cats, tested_cats)
+
+# Labels for display
+set_labels <- c(
+  "Narrow (RDT positive only)",
+  "Medium — recommended (RDT positive + suspects tested)",
+  "Broad (RDT positive + microscopy positive + suspects tested)"
+)
+
+# Compute per year, then average
+get_avg_champs <- function(elems, missing_allowed, rule, years = 2024:2025) {
+  ns <- vapply(years, function(yr) {
+    length(mostFrequentReportingOUs(
+      d_c,
+      data_categories = elems,
+      startingMonth   = yearmonth(paste0(yr, " Jan")),
+      endingMonth     = yearmonth(paste0(yr, " Dec")),
+      missing_reports = missing_allowed,
+      reporting_rule  = rule
+    ))
+  }, integer(1L))
+  round(mean(ns))
+}
+
+grid <- expand.grid(
+  set_idx   = 1:3,
+  threshold = c(0L, 1L, 2L),
+  stringsAsFactors = FALSE
+)
+elem_list <- list(narrow_elems, medium_elems, broad_elems)
+
+grid$n_champ <- mapply(
+  function(si, th) get_avg_champs(elem_list[[si]], th, "any_selected"),
+  si = grid$set_idx, th = grid$threshold
+)
+grid$pct     <- scales::percent(grid$n_champ / n_total, 0.1)
+grid$label   <- set_labels[grid$set_idx]
+grid$thresh  <- paste0(12L - grid$threshold, "/12")
+
+tbl6 <- grid[, c("label", "thresh", "n_champ", "pct")] |>
+  setNames(c("Element set", "Months required",
+             "Champions (avg 2024–2025)", "% of all facilities"))
+
+knitr::kable(
+  tbl6,
+  caption = paste0(
+    "Table 4. Champion facility counts by element set and monthly threshold,",
+    " any_selected rule, average of 2024 and 2025.",
+    " Total facilities ever reporting: ", comma(n_total), "."
+  )
+)
+```
+
+Key observations from Table 4:
+
+- **Narrow (RDT positive only, 12/12):** sets the ceiling — the most champions
+  achievable with a single diagnostic element.
+- **Broad (all three elements, 12/12):** requiring RDT positive *and* microscopy
+  positive *and* suspects tested simultaneously is highly restrictive even though
+  the first two may be redundant.
+- **Relaxing to 11/12:** recovers a meaningful fraction of facilities; each missed
+  month introduces only a small downward bias in the affected year's total.
+- **For this dataset:** the recommended medium set at 11/12 is a practical starting
+  point.
+
+---
+
+## 7  Representativeness of the champion set
+
+A champion set is useful for extrapolation only when its facilities resemble the
+full set in terms of caseload and geography. MG2's Reporting tab provides two
+diagnostics.
+
+```{r champ-repres-prep}
+# Champions for representativeness: medium set (RDT positive + suspects tested)
+# 11/12 threshold, 2024–2025
+champ_med_ids <- mostFrequentReportingOUs(
+  d_c,
+  data_categories = medium_elems,
+  startingMonth   = yearmonth("2024 Jan"),
+  endingMonth     = yearmonth("2025 Dec"),
+  missing_reports = 1L,
+  reporting_rule  = "any_selected"
+)
+
+cat(sprintf("Medium element set, 11/12, 2024–2025: %d champions (%.0f%%)\n",
+            length(champ_med_ids),
+            100 * length(champ_med_ids) / n_total))
+
+# Median monthly RDT positive per facility, 2024–2025
+med_vals <- d_c[
+  data %in% rdt_pos_cats & !is.na(original) &
+    Month >= yearmonth("2024 Jan") & Month <= yearmonth("2025 Dec"),
+  .(median_cases = median(original, na.rm = TRUE)),
+  by = orgUnit
+]
+med_vals[, Champion := fifelse(orgUnit %in% champ_med_ids,
+                               "Champion", "Non-Champion")]
+med_vals <- merge(med_vals, fac_meta, by = "orgUnit", all.x = TRUE)
+```
+
+**Box plot (Figure 8):** If champion and non-champion distributions overlap
+substantially, the champion set is reasonably representative by volume.
+
+```{r fig-repres-boxplot, fig.height = 3.5, fig.cap="**Figure 8.** Distribution of median monthly RDT positive cases per facility (2024–2025): champion vs non-champion (medium element set, 11/12 threshold). Log scale; facilities with median = 0 excluded. Substantial overlap indicates that champion facilities are not systematically higher- or lower-volume than non-champions."}
+ggplot(med_vals[median_cases > 0],
+       aes(x = Champion, y = median_cases, fill = Champion)) +
+  geom_boxplot(outlier.size = 0.7, alpha = 0.8) +
+  scale_y_log10(labels = comma) +
+  scale_fill_manual(values = c("Champion" = "#4393c3",
+                               "Non-Champion" = "#d6604d")) +
+  labs(x = NULL, y = "Median monthly cases (log scale)",
+       title = "Representativeness: champion vs non-champion caseload",
+       subtitle = "RDT positive + suspects tested, 11/12 threshold, 2024–2025") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+**Province chart (Figure 9):** Shows whether champions are geographically
+representative. Systematic gaps in specific provinces signal that the champion-
+based extrapolation may not transfer to those areas without adjustment.
+
+```{r fig-repres-province, fig.height = 5.5, fig.cap="**Figure 9.** Champion share by province (medium element set, 11/12 threshold, 2024–2025). Sorted from lowest to highest champion share. The facility count (n champions / n total) is shown at the end of each bar. Provinces with very low champion shares may require special attention in the extrapolation step."}
+prov_sum <- med_vals[
+  , .(total = .N,
+      n_champ = sum(Champion == "Champion", na.rm = TRUE)),
+  by = Province
+][, pct_champ := n_champ / total
+][order(pct_champ)]
+prov_sum[, Province := factor(Province, levels = Province)]
+
+ggplot(prov_sum, aes(x = pct_champ, y = Province)) +
+  geom_col(fill = "#4393c3", alpha = 0.8) +
+  geom_text(aes(label = paste0(n_champ, "/", total)),
+            hjust = -0.1, size = 2.8) +
+  scale_x_continuous(labels = percent,
+                     expand = expansion(mult = c(0, 0.14))) +
+  labs(x = "% Champion", y = NULL,
+       title = "Champion share by province",
+       subtitle = "RDT positive + suspects tested, 11/12 threshold, 2024–2025") +
+  theme_minimal(base_size = 11)
+```
+
+---
+
+## 8  Summary and reporting standards
+
+### What to include in a methods section
+
+1. **Which elements defined the champion criterion** — e.g., "RDT positive
+   malaria cases (any age/sex category present) or suspects tested by RDT."
+2. **The reporting rule** — e.g., "`any_selected`: a facility was credited as
+   reporting in a given month if at least one selected element had a non-missing
+   value."
+3. **The analysis window and rationale** — e.g., "January 2024 – December 2025,
+   corresponding to the period of stable reporting system participation. An
+   earlier start date (2022 or 2023) was explored but yielded zero champions due
+   to the 2024 expansion of the reporting system."
+4. **The monthly threshold** — e.g., "12 of 12 months per year required
+   (zero missing months allowed)."
+5. **Champion counts and share** — e.g., "Of N facilities ever reporting, M were
+   champions in 2024 and M' in 2025 (X% and X'% of all facilities)."
+6. **A representativeness statement** — noting whether champion and non-champion
+   caseloads are similar (Figure 8) and whether champions are geographically
+   distributed across provinces (Figure 9).
+
+### Forward note: imputation
+
+The champion-facility approach produces an unbiased total *for the champion set*.
+To estimate totals for *all* facilities, MG2 extrapolates by scaling champion-
+facility rates to the full expected-facility denominator within each geographic
+unit. A complementary approach — imputing missing months for non-champion
+facilities using time-series models — is covered in the evaluation vignette.
