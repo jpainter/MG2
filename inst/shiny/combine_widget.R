@@ -4,7 +4,7 @@
 # file.  Users add sources one at a time; each appears in the sources list and
 # its data values become available for step definitions.
 #
-# Companion definition files are named Combinations_[name]_[date].rds and
+# Companion definition files are named Definition_[name]_[date].rds and
 # stored in the data directory alongside the source datasets.
 
 # Cleaning level choices (displayed label = value passed to apply_combine_cleaning)
@@ -79,15 +79,15 @@ combine_widget_ui <- function(id) {
         hr(),
 
         h5("Load saved definition"),
+        p("Select a file to load it automatically.",
+          style = "font-size:82%; color:#666; margin-bottom:4px;"),
         selectInput(
           ns("combo_def_file"),
           label     = NULL,
           choices   = NULL,
           selectize = FALSE,
           size      = 3
-        ),
-        actionButton(ns("load_combo_def"), "Load",
-                     class = "btn-sm btn-default")
+        )
       ),
 
       # ── Main panel: Define / Preview / Build tabs ─────────────────────────
@@ -224,11 +224,11 @@ combine_widget_server <- function(id,
 
       dir.files <- list.files(data.folder())
 
-      # Filter to .rds files, excluding Update_ and Combinations_ files
+      # Filter to .rds/.fst files, excluding Update_ and Combinations_ files
       data.files <- dir.files[
-        grepl("rds", dir.files, ignore.case = TRUE) &
+        grepl("\\.(rds|fst)$", dir.files, ignore.case = TRUE) &
         !grepl("Update_",       dir.files, ignore.case = TRUE) &
-        !grepl("^Combinations_",dir.files)
+        !grepl("^(Definition_|Combinations_)", dir.files, perl = TRUE)
       ]
 
       matches <- data.files[grepl(input$src_formula_name, data.files, fixed = TRUE)]
@@ -318,14 +318,16 @@ combine_widget_server <- function(id,
     # ── Available Combinations_*.rds definition files ────────────────────────
     observe({
       req(data.folder())
-      defs <- list_dir_files(search = "Combinations_", type = "rds",
-                             dir = data.folder())
+      defs <- c(
+        list_dir_files(search = "Definition_",   type = "rds", dir = data.folder()),
+        list_dir_files(search = "Combinations_", type = "rds", dir = data.folder())
+      )
       updateSelectInput(session, "combo_def_file",
                         choices = if (length(defs)) defs else character(0))
     })
 
     # ── Load definition file ────────────────────────────────────────────────
-    observeEvent(input$load_combo_def, {
+    observeEvent(input$combo_def_file, {
       req(input$combo_def_file, data.folder())
       fp <- paste0(data.folder(), input$combo_def_file)
       if (!file.exists(fp)) {
@@ -374,7 +376,7 @@ combine_widget_server <- function(id,
       if (!is.null(def$combo_name))
         updateTextInput(session, "combo_name", value = def$combo_name)
       showNotification(paste("Loaded:", input$combo_def_file), type = "message")
-    })
+    }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
     # ── Helpers used in step modal ──────────────────────────────────────────
 
@@ -421,7 +423,8 @@ combine_widget_server <- function(id,
         }
         clean <- if (s$operation == "Ratio") {
           paste0("Num:", s$numerator$cleaning_level,
-                 " / Den:", s$denominator$cleaning_level)
+                 " / Den:", s$denominator$cleaning_level,
+                 " | na.rm=", isTRUE(s$na_rm))
         } else { s$cleaning_level }
         mv <- if (!is.null(s$max_value) && !is.na(s$max_value))
           as.character(s$max_value) else "—"
@@ -473,6 +476,7 @@ combine_widget_server <- function(id,
       r_dsrc   <- if (is_ratio) prefill$denominator$source_file  else srcs[1]
       r_dvals  <- if (is_ratio) prefill$denominator$data_values  else character(0)
       r_dclean <- if (is_ratio) prefill$denominator$cleaning_level else "seasonal3"
+      r_na_rm  <- if (is_ratio && !is.null(prefill$na_rm)) prefill$na_rm else TRUE
 
       showModal(modalDialog(
         title     = if (is.null(prefill)) "Add step" else "Edit step",
@@ -554,6 +558,14 @@ combine_widget_server <- function(id,
               selectInput(ns("ratio_den_cleaning"), "Cleaning:",
                           choices = cleaning_for_file(r_dsrc),
                           selected = r_dclean)
+            )
+          ),
+          fluidRow(
+            column(12,
+              checkboxInput(ns("ratio_na_rm"),
+                "Sum partial categories (na.rm = TRUE): include facilities that report some but not all selected values. Uncheck to require all selected values to be present.",
+                value = r_na_rm),
+              style = "margin-top:6px;"
             )
           ),
           p("Multiple values on either side are summed before dividing.",
@@ -670,6 +682,7 @@ combine_widget_server <- function(id,
           operation   = "Ratio",
           output_name = name,
           max_value   = mv,
+          na_rm       = isTRUE(input$ratio_na_rm),
           numerator   = list(source_file    = input$ratio_num_source,
                              data_values    = input$ratio_num_values,
                              cleaning_level = input$ratio_num_cleaning),
@@ -803,7 +816,7 @@ combine_widget_server <- function(id,
 
       saveRDS(result, out_path)
 
-      def_fn   <- paste0("Combinations_", gsub("[^A-Za-z0-9_-]", "_", name),
+      def_fn   <- paste0("Definition_", gsub("[^A-Za-z0-9_-]", "_", name),
                          "_", format(Sys.Date(), "%Y-%m-%d"), ".rds")
       def_path <- paste0(data.folder(), def_fn)
       save_combine_definition(

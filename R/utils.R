@@ -118,10 +118,21 @@ read_file <- function(filename) {
     # so downstream tsibble operations work correctly.
     # Must include "vctrs_vctr" in the class vector; without it as.Date()
     # falls through to as.Date.default and throws "do not know how to convert".
-    if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth"))
-      df[["Month"]] <- structure(as.numeric(df[["Month"]]), class = c("yearmonth", "vctrs_vctr"))
-    if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek"))
-      df[["Week"]] <- structure(as.numeric(df[["Week"]]), class = c("yearweek", "vctrs_vctr"))
+    #
+    # Guard: tsibble yearmonth integers for 2000-2040 are ~360-840.
+    # Days-since-1970-01-01 for the same range are ~10,000-25,000.
+    # If the median value exceeds 5000 the column is a Date integer, not a
+    # yearmonth integer — leave it alone to avoid corrupting the values.
+    if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth")) {
+      m_vals <- as.numeric(df[["Month"]])
+      if (median(m_vals, na.rm = TRUE) <= 5000)
+        df[["Month"]] <- structure(m_vals, class = c("yearmonth", "vctrs_vctr"))
+    }
+    if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek")) {
+      w_vals <- as.numeric(df[["Week"]])
+      if (median(w_vals, na.rm = TRUE) <= 5000)
+        df[["Week"]] <- structure(w_vals, class = c("yearweek", "vctrs_vctr"))
+    }
 
     # If this looks like a processed MG2 dataset (has orgUnit + data.id + index),
     # rebuild the tsibble so it behaves identically to one loaded from .rds.

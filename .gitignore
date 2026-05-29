@@ -7,3 +7,12 @@
 # Session-cache .rds files written by the Shiny app during a live session.
 # These are regenerated at runtime and should not be tracked.
 inst/shiny/*.rds
+/doc/
+/Meta/
+
+# Internal analysis scripts — not part of the package, may contain
+# sensitive data paths and intermediate cached files.
+/analysis/
+
+# Large facility-level data cache — regenerated from Nigeria FST download.
+reports/Nigeria/kebbi_cache.rds

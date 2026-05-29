@@ -168,3 +168,34 @@ AI Assistant
 `yearmonth`/`yearweek` class and rebuilds tsibble on load. Metadata files stay `.rds`
 (mixed object types: sf, nested lists — FST cannot handle them; also LZ4 compresses
 string-heavy DHIS2 data worse than gzip).
+
+---
+
+## Nigeria DHIS2 Indicator Finding (cross-project)
+
+Nigeria's national DHIS2 instance contains two indicators nominally measuring RDT test
+positivity rate (TPR). They use different formulas and produce divergent results (Kebbi State:
+Indicator A ~76%, Indicator B ~26% for the same post-transition period — ~50pp gap).
+
+| Label | UID | Formula | Issues |
+|-------|-----|---------|--------|
+| **Indicator A** — `% of Fever cases tested positive with RDT` | `l2eIpdluuTI` | Positives (default) / Tested (default) | Denominator may include untested fever cases → TPR deflated |
+| **Indicator B** — `Test Positivity Rate(TPR) (RDT)` | `uiA07P72s2Z` | Positives (4 groups) / Positives (total) + Tested (3 new-scheme groups) | Positives added to denominator; COC scheme mix; missing new-scheme `<5yrs` |
+
+Key data elements: `GEd2F6skCpT` (RDT positives), `r6WOvUlcQm6` (RDT tested).
+
+**Indicator B bias directions:**
+- **Post-transition (visible):** denominator inflated ~2× by adding positives → TPR deflated ~50 pp
+- **Pre-transition (suppressed):** new-scheme tested = 0 → denominator collapses to positives → TPR ≈ 100%, suppressed by DHIS2 → no rows returned for pre-transition periods
+
+**Indicator A denominator concern:** "Persons presenting with fever & tested by RDT" may in
+practice include untested fever attendees if health workers record total fever cases — also
+deflating TPR.
+
+**NHMIS form transition (Jan 2021):** Kebbi data shows a sharp, coordinated cutover from
+`Age(Malaria)` (old, 2-group) to `NH19_Malaria Testing` (new, 3-group incl. Preg Women).
+Indicator B's formula mixes both COC schemes; its denominator covers only new-scheme COCs.
+
+**Source files:**
+- Analysis/report: `reports/Nigeria/kebbi_tpr_rdt.Rmd`
+- Cross-project write-up: `../DHIS2 Best Practices/Drafts/nigeria_tpr_indicator_error.qmd`

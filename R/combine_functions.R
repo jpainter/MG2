@@ -102,7 +102,7 @@
 #' @return Named list: `data_values`, `cleaning_levels`, `period_type`, `n_rows`.
 #' @export
 read_combine_meta <- function(file_path) {
-  d <- readRDS(file_path)
+  d <- read_file(file_path)
 
   outlier_order <- c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3")
   available     <- intersect(outlier_order, names(d))
@@ -185,7 +185,7 @@ execute_include_step <- function(step, data_folder, period_col, verbose = FALSE)
   fp <- paste0(data_folder, step$source_file)
   if (!file.exists(fp)) stop("File not found: ", fp)
 
-  d <- readRDS(fp)
+  d <- read_file(fp)
   if (!is.data.table(d)) setDT(d)
 
   d <- d[data %chin% step$data_values]
@@ -219,6 +219,13 @@ execute_include_step <- function(step, data_folder, period_col, verbose = FALSE)
 #' @noRd
 execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 
+  # na.rm controls whether partial category data is included in sums.
+  # TRUE (default, backward-compatible): sum available values even when some
+  # selected categories are missing — facilities with partial data contribute.
+  # FALSE: require all selected values to be present; any NA makes the sum NA.
+  na_rm <- isTRUE(step$na_rm)
+  cat("  [Ratio] na.rm =", na_rm, "\n")
+
   load_side <- function(spec, label) {
     cat("  [Ratio]", label, "← file:", spec$source_file,
         "| values:", paste(spec$data_values, collapse = ", "),
@@ -227,7 +234,7 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
     fp <- paste0(data_folder, spec$source_file)
     if (!file.exists(fp)) stop("File not found: ", fp)
 
-    d <- readRDS(fp)
+    d <- read_file(fp)
     if (!is.data.table(d)) setDT(d)
     d <- d[data %chin% spec$data_values]
     if (nrow(d) == 0) {
@@ -265,20 +272,20 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
   # Aggregate per orgUnit × period: sum values, OR flag columns
   flag_cols_n <- intersect(.source_flag_cols, names(num))
   if (length(flag_cols_n) > 0) {
-    num <- num[, c(.(val = sum(val, na.rm = FALSE)),
+    num <- num[, c(.(val = sum(val, na.rm = na_rm)),
                    lapply(.SD, any, na.rm = TRUE)),
                .SDcols = flag_cols_n, by = by_cols]
   } else {
-    num <- num[, .(val = sum(val, na.rm = FALSE)), by = by_cols]
+    num <- num[, .(val = sum(val, na.rm = na_rm)), by = by_cols]
   }
 
   flag_cols_d <- intersect(.source_flag_cols, names(den))
   if (length(flag_cols_d) > 0) {
-    den <- den[, c(.(val = sum(val, na.rm = FALSE)),
+    den <- den[, c(.(val = sum(val, na.rm = na_rm)),
                    lapply(.SD, any, na.rm = TRUE)),
                .SDcols = flag_cols_d, by = by_cols]
   } else {
-    den <- den[, .(val = sum(val, na.rm = FALSE)), by = by_cols]
+    den <- den[, .(val = sum(val, na.rm = na_rm)), by = by_cols]
   }
 
   cat("  num rows:", nrow(num), " | den rows:", nrow(den), "\n")
@@ -362,7 +369,7 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 #'     flag is set, less severe algorithms are skipped for that value.
 #' }
 #'
-#' @param steps List of step definition lists (from a `Combinations_*.rds` file).
+#' @param steps List of step definition lists (from a `Definition_*.rds` file).
 #' @param data_folder Directory path (trailing slash).
 #' @param ousTree data.frame with org unit hierarchy (from `metadata_widget`).
 #' @param formula_name Character; stored as `Formula.Name` in the output.
@@ -395,7 +402,7 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
     if (!is.null(src)) {
       fp <- paste0(data_folder, src)
       if (file.exists(fp)) {
-        tmp        <- readRDS(fp)
+        tmp        <- read_file(fp)
         period_col <- if ("Week" %in% names(tmp)) "Week" else "Month"
         rm(tmp)
         cat("- period type:", period_col, "\n")
@@ -611,7 +618,7 @@ save_combine_definition <- function(definition, file_path) {
 
 #' Load a combination definition from a companion RDS file
 #'
-#' @param file_path Full path to a `Combinations_*.rds` file.
+#' @param file_path Full path to a `Definition_*.rds` file.
 #' @return Definition list.
 #' @export
 load_combine_definition <- function(file_path) {

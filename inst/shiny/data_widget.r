@@ -82,6 +82,9 @@ data_widget_server <- function(
       rescan_val <- reactiveVal(NULL)
       # Incremented by cleaning_widget after saving; dataset() depends on it
       scan_done_counter <- reactiveVal(0L)
+      # Cache for dataset(): skip re-read (and "Reading data" modal) when
+      # input$dataset is re-sent by Shiny with the same file path.
+      .dw_cache <- list(path = NULL, data = NULL, sc = -1L)
 
       # Reactive dependecies
       data.folder = reactive({
@@ -475,13 +478,23 @@ data_widget_server <- function(
         cat('\n* data_widget  dataset():')
 
         # Depend on scan_done_counter so dataset() re-reads after scan saves file
-        scan_done_counter()
+        sc <- scan_done_counter()
 
         req(input$dataset)
 
         file = isolate(dataset.file())
 
         if (!is.null(input$dataset) && file_test("-f", file)) {
+          # Return cached result when file path and scan counter are unchanged.
+          # This prevents "Reading data" from flashing (and replacing other modals)
+          # when Shiny re-sends input$dataset with the same value.
+          if (!is.null(.dw_cache$path) &&
+              .dw_cache$path == file &&
+              .dw_cache$sc   == sc) {
+            cat('\n - returning cached dataset (same file, same scan counter)\n')
+            return(.dw_cache$data)
+          }
+
           showModal(
             modalDialog(
               title = "Reading data",
@@ -497,6 +510,7 @@ data_widget_server <- function(
           removeModal()
 
           cat('\n - done: dataset has', nrow(d), 'rows')
+          .dw_cache <<- list(path = file, data = d, sc = sc)
 
           return(d)
         } else {
