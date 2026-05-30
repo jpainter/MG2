@@ -202,6 +202,122 @@ fac[, .(
   within(pct <- round(n / n[1] * 100, 1))
 ```
 
+### 3.5  Why MG2 counts differ from DHIS2 Indicator A
+
+The raw facility-level sums (before any validity filtering) match DHIS2 Indicator A
+(`l2eIpdluuTI`) exactly, every month. The differences visible in Section 6.3 are entirely
+from MG2's **facility-level validity rules**, which DHIS2's indicator does not apply.
+
+```{r validity-breakdown}
+NUM_VALS <- c(
+  "Persons tested positive for malaria by RDT_<5yrs",
+  "Persons tested positive for malaria by RDT_>=5years",
+  "Persons tested positive for malaria by RDT_≥5yrs (excl PW)",
+  "Persons tested positive for malaria by RDT_Preg Women (PW)"
+)
+DEN_VALS <- c(
+  "Persons presenting with fever & tested by RDT_<5yrs",
+  "Persons presenting with fever & tested by RDT_>=5years",
+  "Persons presenting with fever & tested by RDT_≥5yrs (excl PW)",
+  "Persons presenting with fever & tested by RDT_Preg Women (PW)"
+)
+
+rdt_raw <- kebbi[effectiveLeaf == TRUE & data %in% c(NUM_VALS, DEN_VALS),
+                 .(orgUnit, Month, data, original)]
+rdt_raw[, component := fifelse(data %in% NUM_VALS, "numerator", "denominator")]
+
+fac_sums2 <- rdt_raw[, .(
+  value = if (all(is.na(original))) NA_real_ else sum(original, na.rm = TRUE)
+), by = .(orgUnit, Month, component)]
+fac2 <- dcast(fac_sums2, orgUnit + Month ~ component, value.var = "value")
+
+total_fm      <- nrow(fac2)
+missing_den   <- fac2[is.na(denominator) | denominator == 0, .N]
+num_gt_den    <- fac2[!is.na(numerator) & !is.na(denominator) &
+                        denominator > 0 & numerator > denominator, .N]
+missing_num   <- fac2[is.na(numerator) & !is.na(denominator) & denominator > 0, .N]
+
+cat("=== Facility-month validity breakdown ===\n")
+cat(sprintf("Total facility-months:                %6d\n", total_fm))
+cat(sprintf("Missing/zero denominator (excluded):  %6d  (%4.1f%%)\n",
+            missing_den,  missing_den  / total_fm * 100))
+cat(sprintf("Numerator > denominator (excluded):   %6d  (%4.1f%%)\n",
+            num_gt_den,   num_gt_den   / total_fm * 100))
+cat(sprintf("Missing numerator, valid den (→ 0):   %6d  (%4.1f%%)\n",
+            missing_num,  missing_num  / total_fm * 100))
+```
+
+```{r validity-monthly-diff}
+# Load DHIS2 Indicator A from cache (full fetch is in Section 6)
+d2a_cache <- readRDS(file.path(kebbi_dir, "kebbi_dhis2_indicators.rds"))$correct
+
+fac2[, num_adj := fifelse(
+  is.na(numerator) & !is.na(denominator) & denominator > 0, 0, numerator
+)]
+fac2[, valid := !is.na(num_adj) & !is.na(denominator) &
+                  denominator > 0 & num_adj <= denominator]
+
+monthly_raw2 <- fac2[, .(
+  raw_num = sum(numerator, na.rm = TRUE),
+  raw_den = sum(denominator, na.rm = TRUE)
+), by = Month]
+monthly_filt2 <- fac2[valid == TRUE, .(
+  filt_num = sum(num_adj),
+  filt_den = sum(denominator)
+), by = Month]
+
+monthly_raw2[,  date := as.Date(yearmonth(as.character(Month)))]
+monthly_filt2[, date := as.Date(yearmonth(as.character(Month)))]
+
+diff_tbl <- merge(
+  monthly_raw2[,  .(date, raw_num,  raw_den)],
+  monthly_filt2[, .(date, filt_num, filt_den)],
+  by = "date"
+)
+diff_tbl <- merge(
+  diff_tbl,
+  as.data.table(d2a_cache)[, .(date, d2_num = numerator, d2_den = denominator)],
+  by = "date"
+)
+diff_tbl[, `:=`(num_diff = raw_num - filt_num, den_diff = raw_den - filt_den)]
+
+cat("=== Raw sums match DHIS2 Indicator A exactly? ===\n")
+cat("Months where raw_num != d2_num:", diff_tbl[raw_num != d2_num, .N], "\n")
+cat("Months where raw_den != d2_den:", diff_tbl[raw_den != d2_den, .N], "\n\n")
+
+cat("=== Months where MG2 filtered != raw (i.e., differs from DHIS2) ===\n")
+diff_tbl[num_diff != 0 | den_diff != 0,
+         .(date,
+           `DHIS2 A (=raw) num` = format(d2_num,   big.mark = ","),
+           `MG2 filt num`       = format(filt_num,  big.mark = ","),
+           `num removed`        = format(num_diff,  big.mark = ","),
+           `DHIS2 A (=raw) den` = format(d2_den,   big.mark = ","),
+           `MG2 filt den`       = format(filt_den,  big.mark = ","),
+           `den removed`        = format(den_diff,  big.mark = ","))]
+```
+
+The raw facility sums equal DHIS2 Indicator A to the digit — confirming the MG2 download
+covers identical facilities and data. Every difference between the MG2 TPR series and
+Indicator A comes from three validity rules applied at facility level:
+
+1. **Numerator > denominator — primary driver.** Facility-months where recorded positives
+   exceed tested count are dropped as impossible. Because the numerator was inflated *above*
+   the denominator in those rows, removing them reduces the numerator more than the
+   denominator — explaining why `num removed` is consistently larger than `den removed`.
+
+2. **Missing/zero denominator.** Facility-months with no tested count are excluded entirely.
+   DHIS2 sums those numerator values regardless.
+
+3. **Missing numerator → 0 (minor, offsetting).** When a facility has a valid tested count
+   but no positives recorded, MG2 imputes zero positives. This slightly *raises* the MG2
+   numerator relative to a strict NA-drop, but the effect (0.4% of facility-months) is
+   smaller than the exclusions above.
+
+The magnitude of removed counts has grown in recent years (2024–2025: up to ~9,000
+positives removed in a single month), suggesting a deteriorating data quality signal —
+more facility-months with impossible `num > den` entries — worth monitoring independently
+of the TPR calculation itself.
+
 ---
 
 ## 4  TPR trend — Kebbi State
@@ -754,18 +870,8 @@ nd_compare[, `:=`(
 nd_compare
 ```
 
-Differences in numerator and denominator counts between MG2 and the DHIS2
-indicator reflect:
-
-1. **Aggregation path**: DHIS2 uses the default (total) category option combo
-   for the data elements; MG2 sums the four age-group category option combos.
-   If the "total" rows in DHIS2 are stored separately from the disaggregated
-   rows, one approach double-counts.
-2. **Zero-imputation**: MG2 imputes missing numerators as 0 when the
-   denominator is present; DHIS2 may not, depending on how the analytics
-   table was built.
-3. **Outlier cleaning**: Not applied here (original values); would reduce
-   extreme values in the MG2 series.
+Raw facility sums match DHIS2 Indicator A exactly. Differences here reflect
+MG2's validity filtering — see Section 3.5 for a full breakdown.
 
 ### 6.4  NHMIS form changes and age-disaggregation transition
 
