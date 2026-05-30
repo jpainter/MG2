@@ -203,122 +203,6 @@ fac[, .(
   within(pct <- round(n / n[1] * 100, 1))
 ```
 
-### 3.5  Why MG2 counts differ from DHIS2 Indicator A
-
-The raw facility-level sums (before any validity filtering) match DHIS2 Indicator A
-(`l2eIpdluuTI`) exactly, every month. The differences visible in Section 6.3 are entirely
-from MG2's **facility-level validity rules**, which DHIS2's indicator does not apply.
-
-```{r validity-breakdown}
-NUM_VALS <- c(
-  "Persons tested positive for malaria by RDT_<5yrs",
-  "Persons tested positive for malaria by RDT_>=5years",
-  "Persons tested positive for malaria by RDT_≥5yrs (excl PW)",
-  "Persons tested positive for malaria by RDT_Preg Women (PW)"
-)
-DEN_VALS <- c(
-  "Persons presenting with fever & tested by RDT_<5yrs",
-  "Persons presenting with fever & tested by RDT_>=5years",
-  "Persons presenting with fever & tested by RDT_≥5yrs (excl PW)",
-  "Persons presenting with fever & tested by RDT_Preg Women (PW)"
-)
-
-rdt_raw <- kebbi[effectiveLeaf == TRUE & data %in% c(NUM_VALS, DEN_VALS),
-                 .(orgUnit, Month, data, original)]
-rdt_raw[, component := fifelse(data %in% NUM_VALS, "numerator", "denominator")]
-
-fac_sums2 <- rdt_raw[, .(
-  value = if (all(is.na(original))) NA_real_ else sum(original, na.rm = TRUE)
-), by = .(orgUnit, Month, component)]
-fac2 <- dcast(fac_sums2, orgUnit + Month ~ component, value.var = "value")
-
-total_fm      <- nrow(fac2)
-missing_den   <- fac2[is.na(denominator) | denominator == 0, .N]
-num_gt_den    <- fac2[!is.na(numerator) & !is.na(denominator) &
-                        denominator > 0 & numerator > denominator, .N]
-missing_num   <- fac2[is.na(numerator) & !is.na(denominator) & denominator > 0, .N]
-
-cat("=== Facility-month validity breakdown ===\n")
-cat(sprintf("Total facility-months:                %6d\n", total_fm))
-cat(sprintf("Missing/zero denominator (excluded):  %6d  (%4.1f%%)\n",
-            missing_den,  missing_den  / total_fm * 100))
-cat(sprintf("Numerator > denominator (excluded):   %6d  (%4.1f%%)\n",
-            num_gt_den,   num_gt_den   / total_fm * 100))
-cat(sprintf("Missing numerator, valid den (→ 0):   %6d  (%4.1f%%)\n",
-            missing_num,  missing_num  / total_fm * 100))
-```
-
-```{r validity-monthly-diff}
-# Load DHIS2 Indicator A from cache (full fetch is in Section 6)
-d2a_cache <- readRDS(file.path(kebbi_dir, "kebbi_dhis2_indicators.rds"))$correct
-
-fac2[, num_adj := fifelse(
-  is.na(numerator) & !is.na(denominator) & denominator > 0, 0, numerator
-)]
-fac2[, valid := !is.na(num_adj) & !is.na(denominator) &
-                  denominator > 0 & num_adj <= denominator]
-
-monthly_raw2 <- fac2[, .(
-  raw_num = sum(numerator, na.rm = TRUE),
-  raw_den = sum(denominator, na.rm = TRUE)
-), by = Month]
-monthly_filt2 <- fac2[valid == TRUE, .(
-  filt_num = sum(num_adj),
-  filt_den = sum(denominator)
-), by = Month]
-
-monthly_raw2[,  date := as.Date(yearmonth(as.character(Month)))]
-monthly_filt2[, date := as.Date(yearmonth(as.character(Month)))]
-
-diff_tbl <- merge(
-  monthly_raw2[,  .(date, raw_num,  raw_den)],
-  monthly_filt2[, .(date, filt_num, filt_den)],
-  by = "date"
-)
-diff_tbl <- merge(
-  diff_tbl,
-  as.data.table(d2a_cache)[, .(date, d2_num = numerator, d2_den = denominator)],
-  by = "date"
-)
-diff_tbl[, `:=`(num_diff = raw_num - filt_num, den_diff = raw_den - filt_den)]
-
-cat("=== Raw sums match DHIS2 Indicator A exactly? ===\n")
-cat("Months where raw_num != d2_num:", diff_tbl[raw_num != d2_num, .N], "\n")
-cat("Months where raw_den != d2_den:", diff_tbl[raw_den != d2_den, .N], "\n\n")
-
-cat("=== Months where MG2 filtered != raw (i.e., differs from DHIS2) ===\n")
-diff_tbl[num_diff != 0 | den_diff != 0,
-         .(date,
-           `DHIS2 A (=raw) num` = format(d2_num,   big.mark = ","),
-           `MG2 filt num`       = format(filt_num,  big.mark = ","),
-           `num removed`        = format(num_diff,  big.mark = ","),
-           `DHIS2 A (=raw) den` = format(d2_den,   big.mark = ","),
-           `MG2 filt den`       = format(filt_den,  big.mark = ","),
-           `den removed`        = format(den_diff,  big.mark = ","))]
-```
-
-The raw facility sums equal DHIS2 Indicator A to the digit — confirming the MG2 download
-covers identical facilities and data. Every difference between the MG2 TPR series and
-Indicator A comes from three validity rules applied at facility level:
-
-1. **Numerator > denominator — primary driver.** Facility-months where recorded positives
-   exceed tested count are dropped as impossible. Because the numerator was inflated *above*
-   the denominator in those rows, removing them reduces the numerator more than the
-   denominator — explaining why `num removed` is consistently larger than `den removed`.
-
-2. **Missing/zero denominator.** Facility-months with no tested count are excluded entirely.
-   DHIS2 sums those numerator values regardless.
-
-3. **Missing numerator → 0 (minor, offsetting).** When a facility has a valid tested count
-   but no positives recorded, MG2 imputes zero positives. This slightly *raises* the MG2
-   numerator relative to a strict NA-drop, but the effect (0.4% of facility-months) is
-   smaller than the exclusions above.
-
-The magnitude of removed counts has grown in recent years (2024–2025: up to ~9,000
-positives removed in a single month), suggesting a deteriorating data quality signal —
-more facility-months with impossible `num > den` entries — worth monitoring independently
-of the TPR calculation itself.
-
 ---
 
 ## 4  TPR trend — Kebbi State
@@ -539,118 +423,18 @@ ggplot(plot_champ, aes(x = date, y = tpr_pct, colour = group)) +
 
 ## 6  Comparison with DHIS2 indicators
 
-Two DHIS2 indicators cover RDT positivity. They have **different formulas**
-and the comparison reveals an important data quality issue.
+Nigeria's DHIS2 instance contains two indicators that nominally measure RDT test positivity.
+They have **different formulas** and produce divergent results — a ~50 percentage point gap
+in Kebbi State post-2021.
 
-| Indicator | ID | Formula | Issues |
-|-----------|-----|---------|--------|
-| `% of Fever cases tested positive with RDT` | `l2eIpdluuTI` (**Indicator A**) | Positives (default total) / Fever cases tested (default total) | Denominator may include untested fever cases → TPR deflated |
-| `Test Positivity Rate(TPR) (RDT)` | `uiA07P72s2Z` (**Indicator B**) | Positives (4 groups) / **Positives (total) + Tested (3 groups, new scheme only)** | Positives added to denominator; COC scheme mix; missing new-scheme `<5yrs` |
+| Indicator | ID | Issues |
+|-----------|-----|--------|
+| `% of Fever cases tested positive with RDT` | `l2eIpdluuTI` (**Indicator A**) | Denominator may include untested fever cases → TPR deflated |
+| `Test Positivity Rate(TPR) (RDT)` | `uiA07P72s2Z` (**Indicator B**) | Positives added to denominator; COC scheme mix; missing new-scheme `<5yrs` |
 
-**Indicator A — `l2eIpdluuTI`** uses default aggregation (DHIS2 sums all category option combos).
-
-*Denominator concern:* the data element "Persons presenting with fever & tested by RDT" (`r6WOvUlcQm6`)
-is intended to count only those actually tested. If health workers enter total fever attendees
-rather than the tested subset, the denominator is inflated by untested cases — since
-they cannot be positive, the numerator is unaffected and reported TPR is deflated.
-
-| Role | Data Element | DE UID | Category | COC UID |
-|------|-------------|--------|----------|---------|
-| Numerator | Persons tested positive for malaria by RDT | `GEd2F6skCpT` | *(default — all age groups)* | — |
-| Denominator | Persons presenting with fever & tested by RDT | `r6WOvUlcQm6` | *(default — all age groups)* | — |
-
-**Indicator B — `uiA07P72s2Z`** explicitly names category option combos, mixing old and new age-disaggregation schemes:
-
-| Role | Data Element | DE UID | Category | COC UID | Scheme |
-|------|-------------|--------|----------|---------|--------|
-| Numerator | Persons tested positive for malaria by RDT | `GEd2F6skCpT` | `<5yrs` | `W50DgZrPrUk` | Old |
-| Numerator | Persons tested positive for malaria by RDT | `GEd2F6skCpT` | `>=5years` | `ItGQGDRFD4t` | Old |
-| Numerator | Persons tested positive for malaria by RDT | `GEd2F6skCpT` | `≥5yrs (excl PW)` | `v0QZcUTuyjD` | New |
-| Numerator | Persons tested positive for malaria by RDT | `GEd2F6skCpT` | `Preg Women (PW)` | `V86mzY788hR` | New |
-| ~~Numerator~~ | ~~Persons tested positive for malaria by RDT~~ | `GEd2F6skCpT` | ~~`<5yrs` (new scheme)~~ | `Bl7e1tsRGoZ` | ~~New~~ **missing** |
-| **Denominator** ✗ | **Persons tested positive for malaria by RDT** | `GEd2F6skCpT` | ***(default — all age groups)*** | — | **ERROR: adds positives to denominator** |
-| Denominator | Persons presenting with fever & tested by RDT | `r6WOvUlcQm6` | `<5yrs` | `Bl7e1tsRGoZ` | New |
-| Denominator | Persons presenting with fever & tested by RDT | `r6WOvUlcQm6` | `≥5yrs (excl PW)` | `v0QZcUTuyjD` | New |
-| Denominator | Persons presenting with fever & tested by RDT | `r6WOvUlcQm6` | `Preg Women (PW)` | `V86mzY788hR` | New |
-| ~~Denominator~~ | ~~Persons presenting with fever & tested by RDT~~ | `r6WOvUlcQm6` | ~~`<5yrs` + `>=5years` (old scheme)~~ | — | ~~Old~~ **missing** |
-
-Two errors compound: (1) the denominator adds the **default-aggregation total of RDT positives**
-(`#{GEd2F6skCpT}` without a COC — DHIS2 interprets this as the sum across all category option
-combos), inflating the denominator when positivity is high and deflating apparent TPR; (2) the
-numerator omits the new-scheme `<5yrs` positives (`Bl7e1tsRGoZ`), and neither numerator nor
-denominator covers old-scheme tested (`<5yrs`, `>=5years` of `r6WOvUlcQm6`) since that data
-element does not have the `Age(Malaria)` category combination.
-
-**Pre-transition (falsely elevated, then suppressed).** Before the NH19 age-scheme migration,
-new-scheme tested categories for `r6WOvUlcQm6` returned zero. Indicator B's denominator
-therefore collapsed to `#{GEd2F6skCpT}` default (positives only). With numerator ≈ denominator,
-Indicator B would return TPR ≈ 100% — which DHIS2 suppresses for percentage-type indicators.
-This explains why Indicator B returns **no rows for 2020–2021** in the Kebbi data: not absent
-testing, but an implicit value >100% that DHIS2 will not return. The post-transition deflation
-(~26%) and the pre-transition inflation (~100%) are both consequences of the same formula errors.
-
-### 6.1  Which indicator do programs and implementing partners use?
-
-Nigeria's National Health Management Information System (NHMIS) — deployed on DHIS2 — is the
-official source of malaria surveillance data for the National Malaria Elimination Programme
-(NMEP), the US President's Malaria Initiative (PMI), and implementing partners. The NMEP's
-2021–2025 National Malaria Strategic Plan names HMIS-derived test positivity rate as a core
-programme indicator (NMEP, 2021). PMI's FY 2023 Nigeria Malaria Operational Plan (USAID, 2023)
-and the PMI for States (PMI-S/MSH) programme cite DHIS2 TPR values in all 11 focus states,
-including Kebbi (~80%) and Zamfara (62–89%), to guide resource allocation (Data for Impact,
-2023). Malaria Consortium's SMC implementation in Kebbi, Sokoto, and Bauchi similarly relies on
-HMIS malaria testing data for monitoring and evaluation (GiveWell, 2023).
-
-**No publicly available programme report, operational plan, or implementing-partner document names
-the specific DHIS2 indicator UID or formula used to derive TPR.** All sources describe the metric
-generically as "positive tests / total tests performed among febrile patients" (e.g., Dahunsi
-et al., 2025; Oladoyin et al., 2025), without citing a DHIS2 indicator name or ID. The practical
-consequence is significant: the two available indicators carry different names in the DHIS2
-interface — Indicator B: "Test Positivity Rate(TPR) (RDT)" (`uiA07P72s2Z`); Indicator A:
-"% of Fever cases tested positive with RDT" (`l2eIpdluuTI`). An analyst searching for "TPR"
-would encounter Indicator B (`uiA07P72s2Z`) first; Indicator A (`l2eIpdluuTI`) uses different
-terminology that does not include the "TPR" acronym.
-
-### 6.2  Literature citing Nigeria HMIS/DHIS2 TPR without specifying the indicator
-
-A consistent pattern across the recent literature on Nigeria malaria is that authors extract
-test positivity data from DHIS2 without documenting which of the two indicators — or which
-underlying data elements — were used:
-
-- **Dahunsi et al. (2025)** extracted RDT-based TPR for Oyo State from DHIS2 for 2021–2022
-  (TPR 70–82%), reporting a pre-post decline attributed to RDT quality improvement. The paper
-  defines TPR as "positive tests as a proportion of total tests performed among febrile patients"
-  but cites no DHIS2 indicator name or UID. Funded by PMI; implemented by MSH.
-  *Malaria Journal* 24:65. ([PMC12016084](https://pmc.ncbi.nlm.nih.gov/articles/PMC12016084/))
-
-- **Oladoyin et al. (2025)** selected study facilities in Sokoto and Oyo States on the basis of
-  "the highest TPR reported on the DHIS2," defining TPR as "number of positive tests divided by
-  total number of tests performed." No indicator name or UID is given. Funded by PMI Insights
-  and the Bill & Melinda Gates Foundation.
-  *Malaria Journal* 24 (2025). ([PMC12595662](https://pmc.ncbi.nlm.nih.gov/articles/PMC12595662/))
-
-- **Gnansounou et al. (2025)** assessed concordance of RDT results between facility registers
-  and DHIS2 across Benin, Côte d'Ivoire, Nigeria, and Uganda, extracting "number of positive
-  RDT results and total RDTs administered" from DHIS2. No indicator name or UID specified for
-  any country. PMI-funded.
-  *Malaria Journal* 24 (2025). ([PMC12219610](https://pmc.ncbi.nlm.nih.gov/articles/PMC12219610/))
-
-- **Data for Impact / D4I (2023)** evaluated DHIS2 data quality in Kebbi, Zamfara, and Ebonyi
-  States, reporting that "malaria test positivity has been relatively stable at around 80% in
-  primary health care facilities" in Kebbi and 62–89% in Zamfara. No indicator name cited.
-  *Nigeria DHIS2 Evaluation Baseline Results*, Data for Impact Project (USAID).
-
-- **Multi-country concordance study (2025)** — Nigeria, Uganda, Benin, Côte d'Ivoire — assessed
-  agreement between DHIS2 aggregate data and source registers. TPR is used as a selection
-  criterion but neither defined nor attributed to a specific DHIS2 indicator.
-  ([PMC12866365](https://pmc.ncbi.nlm.nih.gov/articles/PMC12866365/))
-
-The gap matters: if any of these studies extracted data through Indicator B (`uiA07P72s2Z`)
-— whether by selecting it from a DHIS2 dashboard or via an analytics API call referencing it —
-the TPR values reported would be systematically deflated (denominator inflated by adding total
-positives), and the direction and magnitude of any intervention effect or state-level comparison
-would be affected accordingly. None of the papers provide sufficient methodological detail to
-rule this out.
+For a full decomposition of both indicator formulas, the NHMIS form transition evidence,
+programme context, and reproducible approach, see
+[**nigeria_tpr_indicator_error.html**](nigeria_tpr_indicator_error.html).
 
 ```{r dhis2-fetch-setup}
 library(httr)
@@ -854,7 +638,86 @@ ggplot(all_series, aes(x = date, y = value, colour = label)) +
   theme(legend.position = "bottom", legend.text = element_text(size = 8))
 ```
 
-### 6.3  Numerator / denominator comparison
+### 6.1  Why MG2 counts differ from Indicator A
+
+The raw facility-level sums (before validity filtering) match DHIS2 Indicator A
+(`l2eIpdluuTI`) exactly every month. All differences come from MG2's **facility-level
+validity rules**, which DHIS2's pre-computed indicator does not apply.
+
+```{r validity-filter-kebbi}
+fac[, num_adj := fifelse(
+  is.na(numerator) & !is.na(denominator) & denominator > 0, 0, numerator
+)]
+fac[, valid := !is.na(num_adj) & !is.na(denominator) &
+               denominator > 0 & num_adj <= denominator]
+
+total_fm    <- nrow(fac)
+missing_den <- fac[is.na(denominator) | denominator == 0, .N]
+num_gt_den  <- fac[!is.na(numerator) & !is.na(denominator) &
+                     denominator > 0 & numerator > denominator, .N]
+missing_num <- fac[is.na(numerator) & !is.na(denominator) & denominator > 0, .N]
+
+cat("=== Facility-month validity breakdown ===\n")
+cat(sprintf("Total facility-months:                %6d\n", total_fm))
+cat(sprintf("Missing/zero denominator (excluded):  %6d  (%4.1f%%)\n",
+            missing_den,  missing_den  / total_fm * 100))
+cat(sprintf("Numerator > denominator (excluded):   %6d  (%4.1f%%)\n",
+            num_gt_den,   num_gt_den   / total_fm * 100))
+cat(sprintf("Missing numerator, valid den (→ 0):   %6d  (%4.1f%%)\n",
+            missing_num,  missing_num  / total_fm * 100))
+```
+
+```{r validity-monthly-diff-kebbi, eval = !is.null(dhis2_correct)}
+monthly_raw  <- fac[, .(raw_num  = sum(numerator, na.rm = TRUE),
+                        raw_den  = sum(denominator, na.rm = TRUE)), by = Month]
+monthly_filt <- fac[valid == TRUE, .(filt_num = sum(num_adj),
+                                     filt_den = sum(denominator)), by = Month]
+
+monthly_raw[,  date := as.Date(yearmonth(as.character(Month)))]
+monthly_filt[, date := as.Date(yearmonth(as.character(Month)))]
+
+diff_tbl <- merge(monthly_raw[, .(date, raw_num, raw_den)],
+                  monthly_filt[, .(date, filt_num, filt_den)],
+                  by = "date")
+diff_tbl <- merge(diff_tbl,
+                  as.data.table(dhis2_correct)[, .(date, d2_num = numerator, d2_den = denominator)],
+                  by = "date")
+diff_tbl[, `:=`(num_diff = raw_num - filt_num, den_diff = raw_den - filt_den)]
+
+cat("=== Raw sums match DHIS2 Indicator A exactly? ===\n")
+cat("Months where raw_num != d2_num:", diff_tbl[raw_num != d2_num, .N], "\n")
+cat("Months where raw_den != d2_den:", diff_tbl[raw_den != d2_den, .N], "\n\n")
+
+cat("=== Months where MG2 filtered != raw (differs from DHIS2) ===\n")
+diff_tbl[num_diff != 0 | den_diff != 0,
+         .(date,
+           `DHIS2 A (=raw) num` = format(d2_num,   big.mark = ","),
+           `MG2 filt num`       = format(filt_num,  big.mark = ","),
+           `num removed`        = format(num_diff,  big.mark = ","),
+           `DHIS2 A (=raw) den` = format(d2_den,   big.mark = ","),
+           `MG2 filt den`       = format(filt_den,  big.mark = ","),
+           `den removed`        = format(den_diff,  big.mark = ","))]
+```
+
+The raw facility sums equal DHIS2 Indicator A to the digit. Every difference comes from
+three validity rules applied at facility level:
+
+1. **Numerator > denominator — primary driver.** Facility-months where recorded positives
+   exceed tested count are dropped. Because the numerator was inflated *above* the denominator,
+   removing them reduces the numerator more than the denominator.
+
+2. **Missing/zero denominator.** Facility-months with no tested count are excluded entirely.
+   DHIS2 sums the numerator for those rows regardless.
+
+3. **Missing numerator → 0 (minor, offsetting).** When a facility has a valid tested count
+   but no positives recorded, MG2 imputes zero. The effect (0.4% of facility-months) is
+   smaller than the exclusions above.
+
+The magnitude of removed counts has grown in recent years (2024–2025: up to ~9,000 positives
+removed in a single month), suggesting a deteriorating data quality signal worth monitoring
+independently of the TPR calculation itself.
+
+### 6.2  Numerator / denominator comparison
 
 ```{r numden-compare, eval = !is.null(dhis2_correct)}
 # Compare counts for DHIS2 Indicator A vs. MG2
@@ -872,116 +735,7 @@ nd_compare
 ```
 
 Raw facility sums match DHIS2 Indicator A exactly. Differences here reflect
-MG2's validity filtering — see Section 3.5 for a full breakdown.
-
-### 6.4  NHMIS form changes and age-disaggregation transition
-
-Nigeria's NHMIS form was revised from a **2013 version** (dataset UID `lyVV9bPLlVy`) to a
-**2019 version** (`O82o1WlMisO`). Both versions include `GEd2F6skCpT` (positives) and
-`r6WOvUlcQm6` (tested). The revision changed the malaria testing age-disaggregation scheme:
-
-| Scheme | Category Combo | Groups | Key COC UIDs |
-|--------|---------------|--------|-------------|
-| **Old** (pre-2019) | `Age(Malaria)` | `<5yrs`, `>=5years` | `W50DgZrPrUk`, `ItGQGDRFD4t` |
-| **New** (NH19) | `NH19_Malaria Testing` | `<5yrs`, `≥5yrs (excl PW)`, `Preg Women (PW)` | `Bl7e1tsRGoZ`, `v0QZcUTuyjD`, `V86mzY788hR` |
-
-The "NH19" prefix in the new category combination name corresponds to the 2019 NHMIS revision.
-In current metadata, both data elements are assigned `NH19_Malaria Testing`; the `Age(Malaria)`
-combo now appears only for community form data elements.
-
-Kebbi State data reveals a sharp, coordinated rollout:
-
-```{r scheme-transition}
-pos_long <- kebbi[
-  effectiveLeaf == TRUE &
-    grepl("Persons tested positive for malaria by RDT", data)
-]
-
-pos_long[, scheme := fcase(
-  data %like% ">=5years",                  "old",
-  data %like% "≥5yrs|Preg Women",     "new",
-  default                                  = NA_character_
-)]
-
-scheme_facs <- pos_long[
-  !is.na(scheme) & !is.na(original),
-  .(n_fac = uniqueN(orgUnit)),
-  by = .(Month, scheme)
-]
-scheme_facs[, date := as.Date(Month)]
-
-dcast(
-  scheme_facs[date >= as.Date("2020-09-01") & date <= as.Date("2021-06-01")],
-  date ~ scheme, value.var = "n_fac", fill = 0L
-)
-```
-
-Zero facilities reported under the new scheme before January 2021; by February 2021 the old
-scheme had zero facilities. This near-simultaneous cutover across hundreds of facilities is
-consistent with a coordinated national DHIS2 form rollout.
-
-**Consequences for the indicators.** Indicator B's numerator references both old-scheme COC
-UIDs (`W50DgZrPrUk`, `ItGQGDRFD4t`) and new-scheme UIDs; its denominator uses only new-scheme
-COC UIDs for `r6WOvUlcQm6`. Pre-transition, new-scheme tested = 0 → TPR → ~100% (suppressed).
-Post-transition, old-scheme COC UIDs return no new data; the formula error (positives in the
-denominator) produces the observed ~50pp deflation.
-
-An additional scope difference: `GEd2F6skCpT` (positives) also appears in the **Community
-Monthly Summary Form**, while `r6WOvUlcQm6` (tested) does not. If community health extension
-worker positives are aggregated into state totals without a corresponding tested denominator,
-Indicator A's default-aggregation denominator undercounts tested cases from community reporting.
-
-### 6.5  What we cannot answer and what to investigate
-
-The metadata and empirical data reveal *what* the formulas are and *how* they diverge, but
-several historical questions cannot be answered from available evidence:
-
-1. **When was Indicator B created, and was the formula ever correct?** The DHIS2 API exposes
-   `created` and `lastUpdated` timestamps for indicator objects. If Indicator B predates the
-   NH19 transition (≈ 2020), its old-scheme COC UIDs may have been valid references at the time
-   — the error arising from category combination changes without corresponding formula updates
-   (configuration drift). If created after the transition, the mixing of old and new UIDs is an
-   error from inception.
-
-2. **Was `Age(Malaria)` ever assigned to `GEd2F6skCpT` or `r6WOvUlcQm6`?** In current metadata
-   these elements carry `NH19_Malaria Testing`. An audit trail of category combination
-   assignments — if the Nigeria DHIS2 instance maintains one — would confirm whether they
-   previously used `Age(Malaria)`, explaining the old-scheme UIDs in Indicator B's numerator.
-
-3. **Does the Nigeria DHIS2 instance maintain a change log?** Some DHIS2 versions record
-   metadata changes. Without this, reconstructing when and why Indicator B's formula was written
-   as it is requires human investigation of the original configuration staff.
-
-4. **How consistently is `r6WOvUlcQm6` (tested) recorded?** A facility-level comparison of
-   months with valid numerator vs. valid denominator would reveal whether the "tested" field is
-   systematically missing for certain facility types — biasing TPR regardless of which indicator
-   is used.
-
-5. **Do community records contribute to the state aggregate?** If `GEd2F6skCpT` values from
-   the Community form are included in state rollups without a corresponding tested denominator,
-   both indicators understate true TPR.
-
-### 6.6  Computing a transparent TPR with MG2
-
-Section 3 of this report demonstrates the alternative to relying on pre-built DHIS2 indicators:
-building the ratio directly from facility-level data element values. The `steps` list in the
-`build-tpr` chunk is a complete formula specification — data element names, category option
-combos, and validity rules — that is explicit, versioned with the analysis, and reproducible
-without a live DHIS2 connection.
-
-MG2's Combine module (`build_combined_dataset()` with `operation = "Ratio"`) provides this
-capability interactively in the Shiny application. Users can:
-
-- Select specific data element × category combinations for numerator and denominator
-- Choose which age-disaggregation scheme applies to their analysis window
-- Apply validity rules (missing numerator → 0; numerator > denominator → excluded)
-- Save a fully documented formula alongside the computed dataset
-
-This addresses precisely the gap identified in Sections 6.1–6.2: none of the five programme
-reports and published studies cited in those sections provided enough formula detail for a reader
-to reconstruct the analysis. TPR computed from data elements makes that documentation an
-automatic byproduct of the workflow — and makes formula errors like those in Indicator B
-detectable before results are published.
+MG2's validity filtering — see §6.1 for a full breakdown.
 
 ---
 

@@ -3461,6 +3461,7 @@ window.onload = function() {
   <li><a href="#dhis2-indicators-state-level" id="toc-dhis2-indicators-state-level" class="nav-link" data-scroll-target="#dhis2-indicators-state-level">3.2 DHIS2 indicators — state-level</a></li>
   <li><a href="#three-way-comparison-plot" id="toc-three-way-comparison-plot" class="nav-link" data-scroll-target="#three-way-comparison-plot">3.3 Three-way comparison plot</a></li>
   <li><a href="#numerator-and-denominator-decomposition" id="toc-numerator-and-denominator-decomposition" class="nav-link" data-scroll-target="#numerator-and-denominator-decomposition">3.4 Numerator and denominator decomposition</a></li>
+  <li><a href="#why-mg2-counts-differ-from-dhis2-indicator-a" id="toc-why-mg2-counts-differ-from-dhis2-indicator-a" class="nav-link" data-scroll-target="#why-mg2-counts-differ-from-dhis2-indicator-a">3.5 Why MG2 counts differ from DHIS2 Indicator A</a></li>
   </ul></li>
   <li><a href="#programme-context-who-uses-which-indicator" id="toc-programme-context-who-uses-which-indicator" class="nav-link" data-scroll-target="#programme-context-who-uses-which-indicator">4 Programme context: who uses which indicator?</a></li>
   <li><a href="#published-studies-that-cite-nigeria-dhis2-tpr-without-specifying-the-indicator" id="toc-published-studies-that-cite-nigeria-dhis2-tpr-without-specifying-the-indicator" class="nav-link" data-scroll-target="#published-studies-that-cite-nigeria-dhis2-tpr-without-specifying-the-indicator">5 Published studies that cite Nigeria DHIS2 TPR without specifying the indicator</a></li>
@@ -3823,16 +3824,21 @@ window.onload = function() {
 <section id="empirical-comparison-kebbi-state-20202026" class="level2">
 <h2 class="anchored" data-anchor-id="empirical-comparison-kebbi-state-20202026">3 Empirical comparison — Kebbi State, 2020–2026</h2>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(data.table)</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tsibble)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(scales)</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>KEBBI_DIR <span class="ot">&lt;-</span> <span class="st">&quot;~/Library/Mobile Documents/com~apple~CloudDocs/Projects/MG2/reports/Nigeria/&quot;</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 </div>
 <section id="facility-level-tpr-mg2-method-independent-of-dhis2-indicators" class="level3">
 <h3 class="anchored" data-anchor-id="facility-level-tpr-mg2-method-independent-of-dhis2-indicators">3.1 Facility-level TPR (MG2 method, independent of DHIS2 indicators)</h3>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>kebbi <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="fu">file.path</span>(KEBBI_DIR, <span class="st">&quot;kebbi_cache.rds&quot;</span>))</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">setDT</span>(kebbi)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Kebbi rows:&quot;</span>, <span class="fu">format</span>(<span class="fu">nrow</span>(kebbi), <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
@@ -3840,8 +3846,11 @@ window.onload = function() {
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">format</span>(<span class="fu">min</span>(<span class="fu">as.Date</span>(kebbi<span class="sc">$</span>Month)), <span class="st">&quot;%Y-%m&quot;</span>), <span class="st">&quot;to&quot;</span>,</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">format</span>(<span class="fu">max</span>(<span class="fu">as.Date</span>(kebbi<span class="sc">$</span>Month)), <span class="st">&quot;%Y-%m&quot;</span>), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Kebbi rows: 1,860,580 | Date range: 2020-01 to 2026-04</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 </div>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Age-disaggregation schemes</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>NUM_OLD <span class="ot">&lt;-</span> <span class="st">&quot;Persons tested positive for malaria by RDT_&gt;=5years&quot;</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>NUM_NEW <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Persons tested positive for malaria by RDT_≥5yrs (excl PW)&quot;</span>,</span>
@@ -3885,11 +3894,14 @@ window.onload = function() {
 <span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Monthly rows:&quot;</span>, <span class="fu">nrow</span>(mg2_monthly), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Monthly rows: 76</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 </div>
 </section>
 <section id="dhis2-indicators-state-level" class="level3">
 <h3 class="anchored" data-anchor-id="dhis2-indicators-state-level">3.2 DHIS2 indicators — state-level</h3>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>dhis2_cache <span class="ot">&lt;-</span> <span class="fu">readRDS</span>(<span class="fu">file.path</span>(KEBBI_DIR, <span class="st">&quot;kebbi_dhis2_indicators.rds&quot;</span>))</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>dhis2_correct <span class="ot">&lt;-</span> <span class="fu">as.data.table</span>(dhis2_cache<span class="sc">$</span>correct)</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>dhis2_errored <span class="ot">&lt;-</span> <span class="fu">as.data.table</span>(dhis2_cache<span class="sc">$</span>errored)</span>
@@ -3902,8 +3914,11 @@ window.onload = function() {
 <span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;| Range:&quot;</span>, <span class="fu">format</span>(<span class="fu">min</span>(dhis2_errored<span class="sc">$</span>date), <span class="st">&quot;%Y-%m&quot;</span>), <span class="st">&quot;to&quot;</span>,</span>
 <span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">format</span>(<span class="fu">max</span>(dhis2_errored<span class="sc">$</span>date), <span class="st">&quot;%Y-%m&quot;</span>), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
 <span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Erroneous indicator rows: 16 | Range: 2022-01 to 2026-04</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 </div>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Side-by-side comparison for months where both DHIS2 indicators are present</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>overlap <span class="ot">&lt;-</span> <span class="fu">merge</span>(</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  dhis2_correct[, .(date, <span class="at">correct_tpr =</span> value, <span class="at">correct_num =</span> numerator, <span class="at">correct_den =</span> denominator)],</span>
@@ -3920,6 +3935,7 @@ window.onload = function() {
 <span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>            <span class="at">correct_den =</span> <span class="fu">format</span>(correct_den, <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
 <span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>            <span class="at">errored_den =</span> <span class="fu">format</span>(errored_den, <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
 <span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>            den_ratio)]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source type="application/json">
@@ -3933,6 +3949,8 @@ window.onload = function() {
 <section id="three-way-comparison-plot" class="level3">
 <h3 class="anchored" data-anchor-id="three-way-comparison-plot">3.3 Three-way comparison plot</h3>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>mg2_line   <span class="ot">&lt;-</span> mg2_monthly[, .(date, <span class="at">value =</span> mg2_tpr,   <span class="at">source =</span> <span class="st">&quot;MG2 (facility-level, independent)&quot;</span>)]</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>corr_line  <span class="ot">&lt;-</span> dhis2_correct[, .(date, value,           <span class="at">source =</span> <span class="st">&quot;DHIS2 Indicator A (l2eIpdluuTI)&quot;</span>)]</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>err_line   <span class="ot">&lt;-</span> dhis2_errored[, .(date, value,           <span class="at">source =</span> <span class="st">&quot;DHIS2 Indicator B (uiA07P72s2Z)&quot;</span>)]</span>
@@ -3956,6 +3974,7 @@ window.onload = function() {
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
 <span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>() <span class="sc">+</span></span>
 <span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;bottom&quot;</span>, <span class="at">legend.text =</span> <span class="fu">element_text</span>(<span class="at">size =</span> <span class="dv">8</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -3969,6 +3988,8 @@ window.onload = function() {
 <h3 class="anchored" data-anchor-id="numerator-and-denominator-decomposition">3.4 Numerator and denominator decomposition</h3>
 <p>The divergence in denominator values confirms the formula error:</p>
 <div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>numden <span class="ot">&lt;-</span> <span class="fu">merge</span>(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  mg2_monthly[, .(date, mg2_num, mg2_den)],</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  dhis2_correct[, .(date, <span class="at">d2c_num =</span> numerator, <span class="at">d2c_den =</span> denominator)],</span>
@@ -3991,6 +4012,7 @@ window.onload = function() {
 <span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="st">`</span><span class="at">Ind B den</span><span class="st">`</span>        <span class="ot">=</span> <span class="fu">format</span>(d2e_den, <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
 <span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>  <span class="st">`</span><span class="at">Ind B den / Ind A den</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">round</span>(d2e_den <span class="sc">/</span> d2c_den, <span class="dv">2</span>)</span>
 <span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>)]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
 <div class="cell-output-display">
 <div data-pagedtable="false">
   <script data-pagedtable-source type="application/json">
@@ -4000,6 +4022,86 @@ window.onload = function() {
 </div>
 </div>
 <p>Indicator B’s denominator is consistently 1.8–2.8× Indicator A’s denominator for the same months. The ratio tracks TPR: when positivity is high, adding all positives to the denominator inflates it proportionally more.</p>
+</section>
+<section id="why-mg2-counts-differ-from-dhis2-indicator-a" class="level3">
+<h3 class="anchored" data-anchor-id="why-mg2-counts-differ-from-dhis2-indicator-a">3.5 Why MG2 counts differ from DHIS2 Indicator A</h3>
+<p>The raw facility-level sums (before validity filtering) match DHIS2 Indicator A (<code>l2eIpdluuTI</code>) exactly every month. All differences between the MG2 TPR series and Indicator A come from MG2’s <strong>facility-level validity rules</strong>, which DHIS2’s pre-computed indicator does not apply.</p>
+<div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>total_fm    <span class="ot">&lt;-</span> <span class="fu">nrow</span>(fac)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>missing_den <span class="ot">&lt;-</span> fac[<span class="fu">is.na</span>(denominator) <span class="sc">|</span> denominator <span class="sc">==</span> <span class="dv">0</span>, .N]</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>num_gt_den  <span class="ot">&lt;-</span> fac[<span class="sc">!</span><span class="fu">is.na</span>(numerator) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(denominator) <span class="sc">&amp;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>                     denominator <span class="sc">&gt;</span> <span class="dv">0</span> <span class="sc">&amp;</span> numerator <span class="sc">&gt;</span> denominator, .N]</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>missing_num <span class="ot">&lt;-</span> fac[<span class="fu">is.na</span>(numerator) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(denominator) <span class="sc">&amp;</span> denominator <span class="sc">&gt;</span> <span class="dv">0</span>, .N]</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;=== Facility-month validity breakdown ===</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; === Facility-month validity breakdown ===</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">sprintf</span>(<span class="st">&quot;Total facility-months:                %6d</span><span class="sc">\n</span><span class="st">&quot;</span>, total_fm))</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Total facility-months:                 49081</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">sprintf</span>(<span class="st">&quot;Missing/zero denominator (excluded):  %6d  (%4.1f%%)</span><span class="sc">\n</span><span class="st">&quot;</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            missing_den,  missing_den  <span class="sc">/</span> total_fm <span class="sc">*</span> <span class="dv">100</span>))</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Missing/zero denominator (excluded):     632  ( 1.3%)</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">sprintf</span>(<span class="st">&quot;Numerator &gt; denominator (excluded):   %6d  (%4.1f%%)</span><span class="sc">\n</span><span class="st">&quot;</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>            num_gt_den,   num_gt_den   <span class="sc">/</span> total_fm <span class="sc">*</span> <span class="dv">100</span>))</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Numerator &gt; denominator (excluded):      522  ( 1.1%)</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">sprintf</span>(<span class="st">&quot;Missing numerator, valid den (→ 0):   %6d  (%4.1f%%)</span><span class="sc">\n</span><span class="st">&quot;</span>,</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>            missing_num,  missing_num  <span class="sc">/</span> total_fm <span class="sc">*</span> <span class="dv">100</span>))</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Missing numerator, valid den (→ 0):      188  ( 0.4%)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+<div class="cell" data-layout-align="center">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>monthly_raw  <span class="ot">&lt;-</span> fac[, .(<span class="at">raw_num  =</span> <span class="fu">sum</span>(numerator, <span class="at">na.rm =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>                        <span class="at">raw_den  =</span> <span class="fu">sum</span>(denominator, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)), by <span class="ot">=</span> Month]</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>monthly_filt <span class="ot">&lt;-</span> fac[valid <span class="sc">==</span> <span class="cn">TRUE</span>, .(<span class="at">filt_num =</span> <span class="fu">sum</span>(num_adj),</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>                                     <span class="at">filt_den =</span> <span class="fu">sum</span>(denominator)), by <span class="ot">=</span> Month]</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>monthly_raw[,  date <span class="sc">:</span><span class="er">=</span> <span class="fu">as.Date</span>(Month)]</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>monthly_filt[, date <span class="sc">:</span><span class="er">=</span> <span class="fu">as.Date</span>(Month)]</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>diff_tbl <span class="ot">&lt;-</span> <span class="fu">merge</span>(monthly_raw[, .(date, raw_num, raw_den)],</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>                  monthly_filt[, .(date, filt_num, filt_den)],</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>                  <span class="at">by =</span> <span class="st">&quot;date&quot;</span>)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>diff_tbl <span class="ot">&lt;-</span> <span class="fu">merge</span>(diff_tbl,</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>                  dhis2_correct[, .(date, <span class="at">d2_num =</span> numerator, <span class="at">d2_den =</span> denominator)],</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>                  <span class="at">by =</span> <span class="st">&quot;date&quot;</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>diff_tbl[, <span class="st">`</span><span class="at">:=</span><span class="st">`</span>(<span class="at">num_diff =</span> raw_num <span class="sc">-</span> filt_num, <span class="at">den_diff =</span> raw_den <span class="sc">-</span> filt_den)]</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;=== Raw sums match DHIS2 Indicator A exactly? ===</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; === Raw sums match DHIS2 Indicator A exactly? ===</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Months where raw_num != d2_num:&quot;</span>, diff_tbl[raw_num <span class="sc">!=</span> d2_num, .N], <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Months where raw_num != d2_num: 0</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Months where raw_den != d2_den:&quot;</span>, diff_tbl[raw_den <span class="sc">!=</span> d2_den, .N], <span class="st">&quot;</span><span class="sc">\n\n</span><span class="st">&quot;</span>)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; Months where raw_den != d2_den: 0</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;=== Months where MG2 filtered != raw (differs from DHIS2) ===</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="co">#&gt; === Months where MG2 filtered != raw (differs from DHIS2) ===</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>diff_tbl[num_diff <span class="sc">!=</span> <span class="dv">0</span> <span class="sc">|</span> den_diff <span class="sc">!=</span> <span class="dv">0</span>,</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>         .(date,</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>           <span class="st">`</span><span class="at">DHIS2 A (=raw) num</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">format</span>(d2_num,   <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>           <span class="st">`</span><span class="at">MG2 filt num</span><span class="st">`</span>       <span class="ot">=</span> <span class="fu">format</span>(filt_num,  <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>           <span class="st">`</span><span class="at">num removed</span><span class="st">`</span>        <span class="ot">=</span> <span class="fu">format</span>(num_diff,  <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>           <span class="st">`</span><span class="at">DHIS2 A (=raw) den</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">format</span>(d2_den,   <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>           <span class="st">`</span><span class="at">MG2 filt den</span><span class="st">`</span>       <span class="ot">=</span> <span class="fu">format</span>(filt_den,  <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>),</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>           <span class="st">`</span><span class="at">den removed</span><span class="st">`</span>        <span class="ot">=</span> <span class="fu">format</span>(den_diff,  <span class="at">big.mark =</span> <span class="st">&quot;,&quot;</span>))]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output-display">
+<div data-pagedtable="false">
+  <script data-pagedtable-source type="application/json">
+{"columns":[{"label":["date"],"name":[1],"type":["date"],"align":["right"]},{"label":["DHIS2 A (=raw) num"],"name":[2],"type":["chr"],"align":["left"]},{"label":["MG2 filt num"],"name":[3],"type":["chr"],"align":["left"]},{"label":["num removed"],"name":[4],"type":["chr"],"align":["left"]},{"label":["DHIS2 A (=raw) den"],"name":[5],"type":["chr"],"align":["left"]},{"label":["MG2 filt den"],"name":[6],"type":["chr"],"align":["left"]},{"label":["den removed"],"name":[7],"type":["chr"],"align":["left"]}],"data":[{"1":"2020-03-01","2":"49,704","3":"49,605","4":"99","5":"66,536","6":"66,503","7":"33"},{"1":"2020-05-01","2":"32,665","3":"32,487","4":"178","5":"45,253","6":"45,088","7":"165"},{"1":"2020-06-01","2":"42,356","3":"39,695","4":"2,661","5":"53,101","6":"52,993","7":"108"},{"1":"2020-07-01","2":"42,504","3":"42,384","4":"120","5":"54,636","6":"54,601","7":"35"},{"1":"2020-08-01","2":"55,870","3":"55,810","4":"60","5":"69,681","6":"69,653","7":"28"},{"1":"2020-09-01","2":"64,251","3":"57,909","4":"6,342","5":"71,642","6":"71,528","7":"114"},{"1":"2020-10-01","2":"69,799","3":"69,747","4":"52","5":"88,725","6":"88,725","7":"0"},{"1":"2020-11-01","2":"55,563","3":"55,542","4":"21","5":"71,069","6":"71,069","7":"0"},{"1":"2020-12-01","2":"53,475","3":"53,338","4":"137","5":"69,959","6":"69,926","7":"33"},{"1":"2021-01-01","2":"50,696","3":"49,100","4":"1,596","5":"67,014","6":"66,636","7":"378"},{"1":"2021-02-01","2":"52,113","3":"51,038","4":"1,075","5":"66,502","6":"65,790","7":"712"},{"1":"2021-03-01","2":"48,474","3":"47,584","4":"890","5":"64,301","6":"63,693","7":"608"},{"1":"2021-04-01","2":"45,214","3":"44,286","4":"928","5":"57,023","6":"56,833","7":"190"},{"1":"2021-05-01","2":"39,929","3":"39,706","4":"223","5":"55,114","6":"54,965","7":"149"},{"1":"2021-06-01","2":"50,893","3":"48,282","4":"2,611","5":"67,240","6":"65,685","7":"1,555"},{"1":"2021-07-01","2":"56,670","3":"55,411","4":"1,259","5":"72,916","6":"72,119","7":"797"},{"1":"2021-08-01","2":"86,958","3":"84,591","4":"2,367","5":"107,597","6":"106,619","7":"978"},{"1":"2021-09-01","2":"83,492","3":"81,365","4":"2,127","5":"104,525","6":"103,430","7":"1,095"},{"1":"2021-10-01","2":"83,618","3":"79,541","4":"4,077","5":"101,721","6":"98,921","7":"2,800"},{"1":"2021-11-01","2":"67,606","3":"66,935","4":"671","5":"86,566","6":"86,102","7":"464"},{"1":"2021-12-01","2":"66,200","3":"63,286","4":"2,914","5":"83,227","6":"82,678","7":"549"},{"1":"2022-01-01","2":"61,629","3":"61,066","4":"563","5":"80,654","6":"80,447","7":"207"},{"1":"2022-02-01","2":"61,789","3":"60,780","4":"1,009","5":"79,858","6":"79,331","7":"527"},{"1":"2022-03-01","2":"57,881","3":"56,999","4":"882","5":"77,465","6":"76,858","7":"607"},{"1":"2022-04-01","2":"54,515","3":"54,489","4":"26","5":"73,484","6":"73,484","7":"0"},{"1":"2022-05-01","2":"53,785","3":"53,193","4":"592","5":"73,049","6":"72,556","7":"493"},{"1":"2022-06-01","2":"59,451","3":"58,888","4":"563","5":"79,970","6":"79,524","7":"446"},{"1":"2022-07-01","2":"69,643","3":"69,238","4":"405","5":"91,452","6":"91,243","7":"209"},{"1":"2022-08-01","2":"98,277","3":"96,151","4":"2,126","5":"124,321","6":"122,449","7":"1,872"},{"1":"2022-09-01","2":"98,776","3":"97,556","4":"1,220","5":"130,717","6":"130,159","7":"558"},{"1":"2022-10-01","2":"93,031","3":"89,883","4":"3,148","5":"113,474","6":"110,913","7":"2,561"},{"1":"2022-11-01","2":"85,376","3":"84,405","4":"971","5":"110,476","6":"109,842","7":"634"},{"1":"2022-12-01","2":"73,706","3":"71,055","4":"2,651","5":"93,755","6":"93,455","7":"300"},{"1":"2023-01-01","2":"65,460","3":"63,859","4":"1,601","5":"84,905","6":"84,009","7":"896"},{"1":"2023-02-01","2":"65,578","3":"64,876","4":"702","5":"84,512","6":"83,970","7":"542"},{"1":"2023-03-01","2":"63,944","3":"60,740","4":"3,204","5":"83,568","6":"82,453","7":"1,115"},{"1":"2023-04-01","2":"60,959","3":"59,748","4":"1,211","5":"81,819","6":"81,357","7":"462"},{"1":"2023-05-01","2":"64,210","3":"61,561","4":"2,649","5":"85,814","6":"83,879","7":"1,935"},{"1":"2023-06-01","2":"67,533","3":"64,812","4":"2,721","5":"87,143","6":"85,785","7":"1,358"},{"1":"2023-07-01","2":"61,479","3":"59,573","4":"1,906","5":"81,529","6":"80,487","7":"1,042"},{"1":"2023-08-01","2":"70,393","3":"69,432","4":"961","5":"95,639","6":"94,815","7":"824"},{"1":"2023-09-01","2":"74,711","3":"69,243","4":"5,468","5":"96,113","6":"94,290","7":"1,823"},{"1":"2023-10-01","2":"78,759","3":"76,460","4":"2,299","5":"103,700","6":"101,993","7":"1,707"},{"1":"2023-11-01","2":"69,864","3":"63,694","4":"6,170","5":"90,402","6":"87,706","7":"2,696"},{"1":"2023-12-01","2":"67,028","3":"60,429","4":"6,599","5":"85,014","6":"81,787","7":"3,227"},{"1":"2024-01-01","2":"59,422","3":"51,340","4":"8,082","5":"75,471","6":"73,146","7":"2,325"},{"1":"2024-02-01","2":"56,079","3":"52,051","4":"4,028","5":"74,222","6":"71,866","7":"2,356"},{"1":"2024-03-01","2":"50,366","3":"45,921","4":"4,445","5":"66,424","6":"64,564","7":"1,860"},{"1":"2024-04-01","2":"51,480","3":"48,648","4":"2,832","5":"70,971","6":"69,258","7":"1,713"},{"1":"2024-05-01","2":"61,187","3":"59,037","4":"2,150","5":"83,466","6":"82,930","7":"536"},{"1":"2024-06-01","2":"63,179","3":"60,655","4":"2,524","5":"84,213","6":"82,689","7":"1,524"},{"1":"2024-07-01","2":"79,524","3":"75,890","4":"3,634","5":"103,548","6":"101,569","7":"1,979"},{"1":"2024-08-01","2":"92,683","3":"83,346","4":"9,337","5":"113,279","6":"111,130","7":"2,149"},{"1":"2024-09-01","2":"84,031","3":"75,003","4":"9,028","5":"100,925","6":"98,861","7":"2,064"},{"1":"2024-12-01","2":"71,454","3":"71,246","4":"208","5":"96,204","6":"96,082","7":"122"},{"1":"2025-01-01","2":"64,199","3":"63,082","4":"1,117","5":"89,527","6":"88,704","7":"823"},{"1":"2025-02-01","2":"59,068","3":"57,722","4":"1,346","5":"80,552","6":"79,578","7":"974"},{"1":"2025-03-01","2":"52,355","3":"51,566","4":"789","5":"72,081","6":"71,523","7":"558"},{"1":"2025-04-01","2":"63,296","3":"61,399","4":"1,897","5":"87,376","6":"86,499","7":"877"},{"1":"2025-05-01","2":"54,765","3":"52,649","4":"2,116","5":"75,323","6":"74,190","7":"1,133"},{"1":"2025-06-01","2":"64,864","3":"64,617","4":"247","5":"90,972","6":"90,843","7":"129"},{"1":"2025-07-01","2":"70,224","3":"69,083","4":"1,141","5":"95,457","6":"94,796","7":"661"},{"1":"2025-08-01","2":"84,040","3":"83,438","4":"602","5":"111,994","6":"111,637","7":"357"},{"1":"2025-09-01","2":"83,669","3":"83,204","4":"465","5":"111,916","6":"111,701","7":"215"},{"1":"2025-10-01","2":"80,571","3":"79,332","4":"1,239","5":"107,322","6":"106,298","7":"1,024"},{"1":"2025-11-01","2":"73,113","3":"72,644","4":"469","5":"99,136","6":"98,669","7":"467"},{"1":"2025-12-01","2":"70,521","3":"69,541","4":"980","5":"96,986","6":"96,649","7":"337"},{"1":"2026-01-01","2":"71,628","3":"70,476","4":"1,152","5":"97,272","6":"96,722","7":"550"},{"1":"2026-02-01","2":"70,826","3":"70,548","4":"278","5":"98,493","6":"98,300","7":"193"},{"1":"2026-03-01","2":"73,839","3":"73,451","4":"388","5":"103,451","6":"103,161","7":"290"},{"1":"2026-04-01","2":"65,000","3":"64,579","4":"421","5":"91,792","6":"91,407","7":"385"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+</div>
+</div>
+<p>The raw facility sums equal DHIS2 Indicator A to the digit. Every difference comes from three validity rules applied at facility level:</p>
+<ol type="1">
+<li><p><strong>Numerator &gt; denominator — primary driver.</strong> Facility-months where recorded positives exceed tested count are dropped. Because the numerator was inflated <em>above</em> the denominator, removing them reduces the numerator more than the denominator.</p></li>
+<li><p><strong>Missing/zero denominator.</strong> Facility-months with no tested count are excluded entirely. DHIS2 sums the numerator for those rows regardless.</p></li>
+<li><p><strong>Missing numerator → 0 (minor, offsetting).</strong> When a facility has a valid tested count but no positives recorded, MG2 imputes zero. The effect (0.4% of facility-months) is smaller than the exclusions above.</p></li>
+</ol>
+<p>The magnitude of removed counts has grown in recent years (2024–2025: up to ~9,000 positives removed in a single month), suggesting a deteriorating data quality signal worth monitoring independently of the TPR calculation itself.</p>
 <hr>
 </section>
 </section>
@@ -4067,13 +4169,13 @@ window.onload = function() {
 <p><strong>1c. Indicator specification:</strong> If a pre-computed DHIS2 indicator is used, report the indicator name <em>and</em> UID. Verify the indicator formula against instance metadata (DHIS2 maintenance app or API call to <code>/api/indicators/{uid}.json</code>) before reporting.</p>
 </blockquote>
 <p>The following practice would have detected and prevented this error:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Retrieve and inspect indicator formula from DHIS2 API</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace with your base_url / credentials</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>url <span class="ot">&lt;-</span> <span class="fu">paste0</span>(base_url, <span class="st">&quot;api/indicators/uiA07P72s2Z.json&quot;</span>,</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;?fields=name,numerator,denominator,numeratorDescription,denominatorDescription&quot;</span>)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>resp <span class="ot">&lt;-</span> httr<span class="sc">::</span><span class="fu">GET</span>(url, httr<span class="sc">::</span><span class="fu">authenticate</span>(username, password))</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>httr<span class="sc">::</span><span class="fu">content</span>(resp)</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co"># → denominator expression reveals #{GEd2F6skCpT} (positives) added to denominator</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Retrieve and inspect indicator formula from DHIS2 API</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Replace with your base_url / credentials</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>url <span class="ot">&lt;-</span> <span class="fu">paste0</span>(base_url, <span class="st">&quot;api/indicators/uiA07P72s2Z.json&quot;</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>              <span class="st">&quot;?fields=name,numerator,denominator,numeratorDescription,denominatorDescription&quot;</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>resp <span class="ot">&lt;-</span> httr<span class="sc">::</span><span class="fu">GET</span>(url, httr<span class="sc">::</span><span class="fu">authenticate</span>(username, password))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>httr<span class="sc">::</span><span class="fu">content</span>(resp)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># → denominator expression reveals #{GEd2F6skCpT} (positives) added to denominator</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Reporting the UID enables readers to: 1. Retrieve the formula from any copy of the instance metadata. 2. Verify it matches the generic definition stated in the Methods section. 3. Detect discrepancies (as demonstrated here) without access to the live DHIS2 instance.</p>
 <p>The secondary error — mixing old and new age-disaggregation schemes in a single indicator — illustrates <strong>Domain 5: Instance Attributes</strong> (documenting form version and category scheme transitions). Nigeria’s NHMIS underwent a form revision that introduced a new three-group age breakdown (<code>&lt;5yrs</code>, <code>≥5yrs excl PW</code>, <code>Preg Women</code>) to replace the two-group scheme (<code>&lt;5yrs</code>, <code>&gt;=5years</code>). Indicators created against the old scheme are not automatically updated; they continue to reference legacy category option combo UIDs that return no data for facilities that have transitioned to the new form.</p>
 <section id="evidence-of-the-nhmis-form-transition" class="level3">
@@ -4157,7 +4259,7 @@ window.onload = function() {
 </table>
 <hr>
 <p><em>Analysis: MG2 R package facility-level computation + DHIS2 analytics API (Kebbi State OU: <code>M689V9w3Gs3</code>). Data: Nigeria national HMIS (DHIS2), January 2020 – April 2026. Nigeria DHIS2 credentials required to reproduce DHIS2 indicator series; cached results embedded.</em></p>
-<p><em>Analysis run: 2026-05-30 09:04:09.704723</em></p>
+<p><em>Analysis run: 2026-05-30 10:01:16.844807</em></p>
 </section>
 
 </main>
