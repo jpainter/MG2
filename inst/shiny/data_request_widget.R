@@ -267,7 +267,7 @@ data_request_widget_server <- function(
             ),
             footer = tagList(
               modalButton("Cancel"),
-              actionButton(ns("confirm_region_download"), "Download filtered region",
+              actionButton(session$ns("confirm_region_download"), "Download filtered region",
                            class = "btn-warning")
             ),
             easyClose = TRUE, fade = FALSE, size = "m"
