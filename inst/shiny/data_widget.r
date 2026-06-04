@@ -646,6 +646,15 @@ data_widget_server <- function(
         # (d(), cleanedData, selectedData, etc.) skip individual conversions.
         if (!is.data.table(d1)) setDT(d1)
 
+        # setDT() can silently drop S3 subclass attributes on integer columns.
+        # Restore yearmonth class so format(Month, "%Y") dispatches correctly
+        # throughout all downstream widgets.
+        if ("Month" %in% names(d1) && !inherits(d1[["Month"]], "yearmonth")) {
+          data.table::set(d1, j = "Month",
+                          value = structure(d1[["Month"]],
+                                            class = c("yearmonth", "vctrs_vctr")))
+        }
+
         cat("\n - end d1  class/cols:\n -- ", class(d1), "\n")
 
         return(d1)
