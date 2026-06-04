@@ -2,8 +2,7 @@
 % Please edit documentation in R/data_Functions.R
 \name{getLevelNames}
 \alias{getLevelNames}
-\title{functions for data manipulation
-Get level names from org units}
+\title{Get level names from org units}
 \usage{
 getLevelNames(orgUnits, .cat = FALSE)
 }
@@ -16,6 +15,5 @@ getLevelNames(orgUnits, .cat = FALSE)
 character vector of level names in ascending order
 }
 \description{
-functions for data manipulation
 Get level names from org units
 }

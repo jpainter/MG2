@@ -35,19 +35,19 @@ burden_aci(
 
 \item{population_element}{character or NULL; \code{data} value for population.}
 
-\item{cat_map_attend}{named character; confirmed → attendance category map.}
+\item{cat_map_attend}{named character; confirmed -> attendance category map.}
 
-\item{cat_map_tested}{named character; confirmed → tested category map.}
+\item{cat_map_tested}{named character; confirmed -> tested category map.}
 
-\item{beta_young}{numeric; β for < 5 years (Thwing 2020 default 0.73).}
+\item{beta_young}{numeric; beta for < 5 years (Thwing 2020 default 0.73).}
 
-\item{beta_old}{numeric; β for ≥ 5 years (Thwing 2020 default 0.57).}
+\item{beta_old}{numeric; beta for >= 5 years (Thwing 2020 default 0.57).}
 
 \item{alpha}{numeric; TPR ratio untested/tested febrile (default 0.48).}
 
 \item{gamma_young}{numeric; expected NMF episodes/person/year < 5 yrs (default 2.0).}
 
-\item{gamma_old}{numeric; expected NMF episodes/person/year ≥ 5 yrs (default 1.0).}
+\item{gamma_old}{numeric; expected NMF episodes/person/year >= 5 yrs (default 1.0).}
 
 \item{lambdamin}{numeric; minimum malaria-attributable fraction (default 0.75).}
 
@@ -58,8 +58,6 @@ burden_aci(
 \item{region_col}{character; region column name.}
 
 \item{n_bootstrap}{integer; bootstrap draws.}
-
-\item{years}{integer; calendar years.}
 }
 \value{
 list with \verb{$subnational} and \verb{$national} data.tables.  When
@@ -75,10 +73,10 @@ to estimate community-level incidence per 1,000 population.
 \details{
 Only champion facilities that consistently report all three required
 elements (confirmed cases, total attendance, patients tested) are included.
-Non-champion facilities are excluded — they do not influence the estimate.
+Non-champion facilities are excluded  -  they do not influence the estimate.
 Elements are summed across qualifying champions within each region before
 the correction is applied.
 
-Uncertainty is propagated by drawing β, α, and λmin simultaneously from
+Uncertainty is propagated by drawing beta, alpha, and lambdamin simultaneously from
 uniform distributions spanning the published ranges from Thwing et al. 2020.
 }

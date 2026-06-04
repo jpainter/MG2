@@ -12,7 +12,7 @@
 
 # Worker count helper ---------------------------------------------------------
 #
-# On macOS/Linux: multicore (fork) is used — workers inherit the parent process
+# On macOS/Linux: multicore (fork) is used  -  workers inherit the parent process
 # so packages are not reloaded and data is not serialized.  Use all cores minus
 # 2 (reserved for main R session + OS), no memory cap needed.
 #
@@ -25,9 +25,10 @@
 .mg2_n_workers <- function(per_worker_mb = 400L) {
   n_cores <- max(1L, parallelly::availableCores() - 2L)
   if (.Platform$OS.type == "unix") return(n_cores)   # fork: no per-worker memory cost
-  free_mb <- tryCatch(
-    as.integer(parallelly::freeMemory() / 1024^2),
-    error = function(e) 4000L                         # conservative fallback if unavailable
+  free_mb <- tryCatch({
+    mem_fn <- getExportedValue("parallelly", "freeMemory")
+    as.integer(mem_fn() / 1024^2)
+  }, error = function(e) 4000L                        # conservative fallback if unavailable
   )
   mem_limit <- max(1L, floor((free_mb - 2000L) / per_worker_mb))
   min(n_cores, mem_limit)
@@ -37,13 +38,13 @@
 #'
 #' For a numeric vector `x`, computes the median and median absolute deviation
 #' (MAD), then flags values that deviate from the median by more than
-#' `deviation × MAD`. When MAD is near zero, falls back to a trimmed SD.
+#' `deviation x MAD`. When MAD is near zero, falls back to a trimmed SD.
 #' Returns `NA` for all values when the series is entirely below
 #' `smallThreshold`.
 #'
 #' @param x Numeric vector.
 #' @param deviation Numeric. Multiple of MAD used as threshold (default: `15`).
-#' @param smallThreshold Numeric. Series with all values ≤ this are skipped
+#' @param smallThreshold Numeric. Series with all values <= this are skipped
 #'   (default: `50`).
 #' @param key_entry_error Logical vector. Pre-flagged key-entry errors (unused
 #'   internally; kept for API compatibility).
@@ -90,7 +91,7 @@ extremely_mad <- function(x,
   medianVal          <- stats::median(y, na.rm = TRUE)
   medianAbsDeviation <- stats::mad(y, na.rm = TRUE)
 
-  # When MAD is negligible, fall back to trimmed SD × 0.6745
+  # When MAD is negligible, fall back to trimmed SD x 0.6745
   if (medianAbsDeviation < .01 * medianVal) {
     q01 <- stats::quantile(x, .01, na.rm = TRUE)
     q99 <- stats::quantile(x, .99, na.rm = TRUE)
@@ -111,10 +112,10 @@ extremely_mad <- function(x,
 #'
 #' Uses `forecast::tsclean()` to produce a seasonally-adjusted forecast for
 #' each series and flags values that deviate from the forecast by more than
-#' `deviation × MAD`.
+#' `deviation x MAD`.
 #'
 #' @param x Numeric vector (one time series).
-#' @param smallThreshold Numeric. Skip series with all values ≤ this
+#' @param smallThreshold Numeric. Skip series with all values <= this
 #'   (default: `100`).
 #' @param deviation Numeric. MAD multiplier for outlier threshold (default: `3`).
 #' @param logical Logical. Return logical flag when `TRUE`, cleaned series when
@@ -161,7 +162,7 @@ unseasonal <- function(x,
 
   MAD     <- stats::mad(x, na.rm = TRUE)
   # as.logical() strips the "ts" class that `>= deviation` inherits when x.ts
-  # is a ts object — without it, rbindlist sees a class mismatch between buckets
+  # is a ts object  -  without it, rbindlist sees a class mismatch between buckets
   # where some series were processed (class "ts") and others were skipped
   # (class "logical" from rep(NA, n)).
   outlier <- as.logical(abs((x.forecast - x.ts) / MAD) >= deviation)
@@ -172,18 +173,20 @@ unseasonal <- function(x,
 
 #' Flag MAD-Based Outliers Across All Series in a tsibble
 #'
-#' Applies [extremely_mad()] across every org unit × data element series,
-#' flagging key-entry errors, over-max values, and MAD extremes at 15×, 10×,
-#' and 5× thresholds.
+#' Applies [extremely_mad()] across every org unit x data element series,
+#' flagging key-entry errors, over-max values, and MAD extremes at 15x, 10x,
+#' and 5x thresholds.
 #'
 #' @param d A tsibble (output of [data_1()]).
 #' @param .total Integer. Number of series (used for progress). If `NULL`,
 #'   computed automatically from `tsibble::n_keys(d)`.
-#' @param .threshold Numeric. All-small threshold; series with all values ≤
+#' @param .threshold Numeric. All-small threshold; series with all values <=
 #'   this are skipped (default: `50`).
 #' @param key_entry_errors Numeric vector. Pre-specified key-entry error values.
 #'   If `NULL`, detected automatically.
 #' @param progress Logical. Show Shiny progress increments (default: `TRUE`).
+#' @param .progress_fn Optional function accepting a message string; called at
+#'   key stages to report progress (e.g., a Shiny `setProgress` wrapper).
 #'
 #' @return The input tsibble with additional logical flag columns:
 #'   `key_entry_error`, `over_max`, `mad15`, `mad10`, `mad5`.
@@ -226,7 +229,7 @@ mad_outliers <- function(d,
     if (rlang::is_empty(key_entry_errors)) key_entry_errors <- NA
   }
 
-  # ── data.table fast path ─────────────────────────────────────────────────
+  # -- data.table fast path -------------------------------------------------
   if (requireNamespace("data.table", quietly = TRUE)) {
     if (tsibble::is_tsibble(d)) {
       key_vars <- tsibble::key_vars(d)
@@ -237,7 +240,7 @@ mad_outliers <- function(d,
     }
     dt <- data.table::as.data.table(tibble::as_tibble(d))
 
-    # ── Fast vectorized pre-processing (no per-group R calls) ────────────────
+    # -- Fast vectorized pre-processing (no per-group R calls) ----------------
     dt[, .max := dplyr::if_else(
       grepl("stock", data, ignore.case = TRUE) &
         grepl("out|rupture", data, ignore.case = TRUE) &
@@ -262,7 +265,7 @@ mad_outliers <- function(d,
       original, NA_real_
     )]
 
-    # ── Determine parallelism ─────────────────────────────────────────────────
+    # -- Determine parallelism -------------------------------------------------
     use_parallel <- .total >= 5000L &&   # sequential is faster for tiny series counts
       requireNamespace("furrr",  quietly = TRUE) &&
       requireNamespace("future", quietly = TRUE)
@@ -273,25 +276,25 @@ mad_outliers <- function(d,
 
     if (is.function(.progress_fn))
       .progress_fn(sprintf("MAD: starting%s",
-        if (use_parallel) sprintf(" — %d cores", n_workers) else ""))
+        if (use_parallel) sprintf("  -  %d cores", n_workers) else ""))
 
     if (use_parallel) {
-      # ── Bucket-parallel path (same pattern as seasonal_outliers) ─────────
+      # -- Bucket-parallel path (same pattern as seasonal_outliers) ---------
       cat("    gc before MAD fork...\n"); flush.console()
-      gc(verbose = FALSE)   # release accumulated garbage before forking — workers inherit parent heap
+      gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
       old_plan <- future::plan()
       on.exit(future::plan(old_plan), add = TRUE)
       old_max_size <- getOption("future.globals.maxSize")
       on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
-      options(future.globals.maxSize = 2 * 1024^3)   # 2 GB — for large bucket data.tables
-      # multicore (fork) on macOS/Linux: workers inherit parent memory — no
+      options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
+      # multicore (fork) on macOS/Linux: workers inherit parent memory  -  no
       # package reload, no data serialization, copy-on-write overhead only.
       # multisession on Windows (fork unavailable).
       .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
       future::plan(.plan_type, workers = n_workers)
 
-      # Compute n_steps_target first: n_buckets = n_workers × n_steps_target so
-      # step_sz == n_workers — every step dispatches exactly n_workers buckets in
+      # Compute n_steps_target first: n_buckets = n_workers x n_steps_target so
+      # step_sz == n_workers  -  every step dispatches exactly n_workers buckets in
       # parallel and seq(from, to) in the loop is never descending.
       n_steps_target <- max(10L, min(50L, as.integer(.total / 5000L)))
       n_buckets      <- n_workers * n_steps_target
@@ -341,7 +344,7 @@ mad_outliers <- function(d,
                               maximum_allowed = .max,
                               logical         = TRUE), by = key_vars]
         # Return only key + index + MAD outputs.
-        # Use with=FALSE (character vector selection) — avoids calling := NULL
+        # Use with=FALSE (character vector selection)  -  avoids calling := NULL
         # which fails in baseenv() where := is not on the search path.
         sub[, .keep_cols, with = FALSE]
       }
@@ -353,7 +356,7 @@ mad_outliers <- function(d,
         parent = baseenv()
       )
 
-      # n_buckets = n_workers × n_steps_target → step_sz = n_workers exactly:
+      # n_buckets = n_workers x n_steps_target -> step_sz = n_workers exactly:
       # every step fills all workers and seq(from, to) is never descending.
       step_sz        <- n_workers
       n_steps        <- n_steps_target
@@ -373,7 +376,7 @@ mad_outliers <- function(d,
       }
       cat("\n")
 
-      # Free bucket_list before combining — no longer needed
+      # Free bucket_list before combining  -  no longer needed
       rm(bucket_list); gc(verbose = FALSE)
 
       # Combine slim results (key + index + mad15/mad10/mad5 only)
@@ -396,7 +399,7 @@ mad_outliers <- function(d,
       }
 
     } else {
-      # ── Sequential path ───────────────────────────────────────────────────
+      # -- Sequential path ---------------------------------------------------
       dt[, mad15 := extremely_mad(
         not_key_or_over_under, deviation = 15, smallThreshold = .threshold,
         key_entry_error = key_entry_error, over_max = over_max,
@@ -421,7 +424,7 @@ mad_outliers <- function(d,
     return(m_o)
   }
 
-  # ── Fallback: original tsibble grouped-mutate path ────────────────────────
+  # -- Fallback: original tsibble grouped-mutate path ------------------------
   m_o <- d |>
     tsibble::group_by_key() |>
     dplyr::mutate(
@@ -485,7 +488,7 @@ mad_outliers <- function(d,
 #' Flag Seasonal Outliers Across All Series in a tsibble
 #'
 #' Applies [unseasonal()] to every series, flagging values that deviate from a
-#' seasonal forecast by more than 5× MAD (`seasonal5`) and 3× MAD
+#' seasonal forecast by more than 5x MAD (`seasonal5`) and 3x MAD
 #' (`seasonal3`).
 #'
 #' @param d A tsibble (output of [mad_outliers()]).
@@ -497,6 +500,9 @@ mad_outliers <- function(d,
 #' @param tests Character vector. Which seasonal tests to run; subset of
 #'   `c("seasonal5", "seasonal3")` (default: both).
 #' @param progress Logical. Use `progressr` progress bar (default: `FALSE`).
+#' @param shiny_progress Logical. Use Shiny incremental progress (default: `FALSE`).
+#' @param .progress_fn Optional function accepting a message string; called at
+#'   key stages for custom progress reporting.
 #'
 #' @return The input tsibble with `not_mad`, `seasonal5`, and `seasonal3`
 #'   columns added.
@@ -546,42 +552,42 @@ seasonal_outliers <- function(d,
 
   if (is.function(.progress_fn))
     .progress_fn(sprintf("starting%s",
-      if (use_parallel) sprintf(" — %d cores", n_workers) else ""))
+      if (use_parallel) sprintf("  -  %d cores", n_workers) else ""))
 
-  # Capture unseasonal() for workers — strip MG2 namespace so workers don't
+  # Capture unseasonal() for workers  -  strip MG2 namespace so workers don't
   # attempt to load the package; all calls inside use :: notation or base/stats.
   .unseasonal <- unseasonal
   environment(.unseasonal) <- baseenv()
 
-  # ── Vectorised not_mad (row-level, no group context needed) ──────────────
+  # -- Vectorised not_mad (row-level, no group context needed) --------------
   # Compute once globally so workers receive it pre-filled rather than
   # recomputing it per series inside the by expression.
   mad_vec <- dt[[mad]]
   dt[, not_mad := data.table::fifelse(!mad_vec, original, NA_real_)]
 
   if (use_parallel) {
-    # ── Bucket-parallel path ────────────────────────────────────────────────
-    # Split into (n_workers × n_steps_target) buckets.  Each step of the progress
+    # -- Bucket-parallel path ------------------------------------------------
+    # Split into (n_workers x n_steps_target) buckets.  Each step of the progress
     # loop dispatches exactly n_workers buckets in parallel.  Each task receives
     # one compact data.table and applies tsclean() per key via data.table `by`.
     # Final rbindlist over n_buckets objects is instant vs. the old approach of
     # splitting into .total individual series.
 
     cat("    gc before seasonal fork...\n"); flush.console()
-    gc(verbose = FALSE)   # release accumulated garbage before forking — workers inherit parent heap
+    gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
     old_plan <- future::plan()
     on.exit(future::plan(old_plan), add = TRUE)
     old_max_size <- getOption("future.globals.maxSize")
     on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
-    options(future.globals.maxSize = 2 * 1024^3)   # 2 GB — for large bucket data.tables
-    # multicore (fork) on macOS/Linux: workers inherit parent memory — forecast
+    options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
+    # multicore (fork) on macOS/Linux: workers inherit parent memory  -  forecast
     # is not reloaded, bucket data is not serialized, copy-on-write only.
     # multisession on Windows (fork unavailable).
     .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
     future::plan(.plan_type, workers = n_workers)
 
-    # Compute n_steps_target first: n_buckets = n_workers × n_steps_target so
-    # step_sz == n_workers — every step dispatches exactly n_workers buckets in
+    # Compute n_steps_target first: n_buckets = n_workers x n_steps_target so
+    # step_sz == n_workers  -  every step dispatches exactly n_workers buckets in
     # parallel and seq(from, to) in the loop is never descending.
     n_steps_target <- max(10L, min(50L, as.integer(.total / 5000L)))
     n_buckets      <- n_workers * n_steps_target
@@ -636,7 +642,7 @@ seasonal_outliers <- function(d,
         )
       }, by = key_vars]
       # Return only key + index + seasonal outputs.
-      # Use with=FALSE (character vector selection) — avoids calling := NULL
+      # Use with=FALSE (character vector selection)  -  avoids calling := NULL
       # which fails in baseenv() where := is not on the search path.
       sub[, .keep_cols, with = FALSE]
     }
@@ -648,7 +654,7 @@ seasonal_outliers <- function(d,
       parent = baseenv()
     )
 
-    # n_buckets = n_workers × n_steps_target → step_sz = n_workers exactly:
+    # n_buckets = n_workers x n_steps_target -> step_sz = n_workers exactly:
     # every step fills all workers and seq(from, to) is never descending.
     step_sz        <- n_workers
     n_steps        <- n_steps_target
@@ -674,9 +680,9 @@ seasonal_outliers <- function(d,
     cat("\n")
 
     if (is.function(.progress_fn))
-      .progress_fn(sprintf("seasonal: %d series — building tsibble", .total))
+      .progress_fn(sprintf("seasonal: %d series  -  building tsibble", .total))
 
-    # Free bucket_list before combining — no longer needed and would otherwise
+    # Free bucket_list before combining  -  no longer needed and would otherwise
     # sit alongside bucket_results and the rbindlist output (~18 GB peak total).
     rm(bucket_list); gc(verbose = FALSE)
 
@@ -697,7 +703,7 @@ seasonal_outliers <- function(d,
     dt_result <- dt
 
   } else {
-    # ── Sequential path: data.table by (no split/bind overhead) ─────────────
+    # -- Sequential path: data.table by (no split/bind overhead) -------------
     # For small datasets (n_workers == 1) there is no parallelism benefit, so
     # we apply tsclean() per key directly via data.table's by engine.
     dt[, c("seasonal5", "seasonal3", "expected") := {

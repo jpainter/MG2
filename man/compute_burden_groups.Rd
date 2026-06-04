@@ -8,10 +8,10 @@ compute_burden_groups(subnational, n_groups, category = NULL)
 }
 \arguments{
 \item{subnational}{data.frame or data.table from a burden result
-\verb{$subnational} — must contain columns \code{region}, \code{category}, \code{estimate},
+\verb{$subnational}  -  must contain columns \code{region}, \code{category}, \code{estimate},
 \code{lower}, \code{upper}.}
 
-\item{n_groups}{integer; number of groups (2–5).}
+\item{n_groups}{integer; number of groups (2-5).}
 
 \item{category}{character; which category to group on.  If NULL, estimates
 are summed across categories before clustering.}
@@ -25,5 +25,5 @@ fewer regions than requested groups.
 Clusters sub-national regions into K groups such that regions within a group
 are not significantly different from each other and regions across groups
 are.  Uses hierarchical clustering on a pairwise Z-score distance matrix
-(distance = |est_i − est_j| / √(SE_i² + SE_j²)).
+(distance = |est_i - est_j| / sqrt(SE_i^2 + SE_j^2)).
 }

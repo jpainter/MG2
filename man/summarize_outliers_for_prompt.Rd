@@ -13,7 +13,7 @@ summarize_outliers_for_prompt(data2)
 character string or NULL
 }
 \description{
-Summarises flagged values from \code{cleaning_widget_output$data2()} —
+Summarises flagged values from \code{cleaning_widget_output$data2()}  -
 counts by element and algorithm, plus most-affected periods.
 Returns NULL if the Outliers tab has not been visited yet.
 }

@@ -18,7 +18,7 @@ unseasonal(
 \arguments{
 \item{x}{Numeric vector (one time series).}
 
-\item{smallThreshold}{Numeric. Skip series with all values ≤ this
+\item{smallThreshold}{Numeric. Skip series with all values <= this
 (default: \code{100}).}
 
 \item{deviation}{Numeric. MAD multiplier for outlier threshold (default: \code{3}).}
@@ -40,5 +40,5 @@ Logical or numeric vector the same length as \code{x}.
 \description{
 Uses \code{forecast::tsclean()} to produce a seasonally-adjusted forecast for
 each series and flags values that deviate from the forecast by more than
-\verb{deviation × MAD}.
+\verb{deviation x MAD}.
 }

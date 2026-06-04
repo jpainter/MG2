@@ -292,6 +292,7 @@ dqa_consistency_table <- function(consistency_data) {
 #' @param data Processed dataset (output of `data_1()`).
 #' @param validation_rules Tibble from metadata.
 #' @param rule_id Character. ID of the rule to drilldown.
+#' @param max_rows Integer. Maximum rows returned (default `2000`).
 #'
 #' @return A tibble of failed facility-periods.
 #' @export
@@ -391,6 +392,8 @@ dqa_years <- function(dqa_data) {
 #' @param count.any Logical. Count facilities reporting any data element
 #'   (default: `TRUE`).
 #' @param .cat Logical. Print progress messages (default: `FALSE`).
+#' @param .progress Optional function `(i, n)` called after processing each
+#'   year, for Shiny progress feedback.
 #' @param ... additional arguments passed to `mostFrequentReportingOUs()`
 #'
 #' @return Numeric vector with count of consistently reporting facilities per year.
@@ -434,6 +437,8 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
 #'
 #' @param dqa_data tsibble of prepared data.
 #' @param .cat Logical. Print progress messages (default: `FALSE`).
+#' @param .progress Optional function `(i, n)` passed through to
+#'   [dqa_reporting()] for Shiny progress feedback.
 #'
 #' @return A tibble with columns `Year`, `n_frequently_reporting`,
 #'   `n_facilities`, `pr`, `label`.

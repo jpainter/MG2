@@ -28,7 +28,11 @@ mostFrequentReportingOUs(
 
 \item{missing_reports}{integer; number of allowed missing months (default 0)}
 
-\item{count.any}{logical; count a facility if it reports any data element (default TRUE)}
+\item{count.any}{logical; deprecated — use \code{reporting_rule} instead}
+
+\item{reporting_rule}{character; one of \code{"all_categories"}, \code{"all_elements"},
+\code{"any_selected"}, or \code{"any_data"} — controls which facilities are counted
+as consistently reporting.}
 
 \item{data_categories}{character vector; data element categories to consider}
 

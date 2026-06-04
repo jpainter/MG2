@@ -15,7 +15,7 @@
 #' Reporting completeness summary for AI prompt
 #'
 #' Computes the percentage of facilities with a non-missing value in each
-#' period, per data element. Uses raw `data1` — no Reporting tab visit needed.
+#' period, per data element. Uses raw `data1`  -  no Reporting tab visit needed.
 #'
 #' @param data1 tsibble/tibble from `data_widget_output$data1()`
 #' @param max_periods most-recent periods to include
@@ -40,7 +40,7 @@ summarize_completeness_for_prompt <- function(data1, max_periods = 24L) {
     if (length(periods) > max_periods) periods <- periods[seq_len(max_periods)]
     d <- d[d$..period %in% periods, ]
 
-    # n_present / n_total per element × period
+    # n_present / n_total per element x period
     n_total   <- stats::aggregate(rep(1L,    nrow(d)), list(d$..period, d$..element), sum)
     n_present <- stats::aggregate(!is.na(d$..val),     list(d$..period, d$..element), sum)
     names(n_total)   <- c("period", "element", "n")
@@ -72,7 +72,7 @@ summarize_completeness_for_prompt <- function(data1, max_periods = 24L) {
 
 #' Reporting-adjusted national totals for AI prompt
 #'
-#' Summarises `data.total()` from the Reporting widget — champion-facility
+#' Summarises `data.total()` from the Reporting widget  -  champion-facility
 #' adjusted aggregates (unadjusted for incomplete periods).
 #' Returns NULL if the Reporting tab has not been visited yet.
 #'
@@ -121,7 +121,7 @@ summarize_reporting_for_prompt <- function(data_total, period_col = "Month",
 
 #' Outlier detection summary for AI prompt
 #'
-#' Summarises flagged values from `cleaning_widget_output$data2()` —
+#' Summarises flagged values from `cleaning_widget_output$data2()`  - 
 #' counts by element and algorithm, plus most-affected periods.
 #' Returns NULL if the Outliers tab has not been visited yet.
 #'
@@ -199,7 +199,7 @@ summarize_outliers_for_prompt <- function(data2) {
 #' @param ending_month yearmonth/character end of data period
 #' @param validation_rules tibble from `metadata_widget_output$validationRules()`
 #' @param completeness_summary output of [summarize_completeness_for_prompt()]
-#' @param raw_totals_summary output of [summarize_data_for_prompt()]
+#' @param raw_totals_summary output of `summarize_data_for_prompt()`
 #' @param reporting_summary output of [summarize_reporting_for_prompt()]
 #' @param outlier_summary output of [summarize_outliers_for_prompt()]
 #' @return single character string suitable for an ellmer system prompt
@@ -310,7 +310,7 @@ build_mg2_system_prompt <- function(
   lines <- c(lines,
     "## Important caveats for DHIS2 routine data",
     "- Reporting completeness is often incomplete and varies by facility and period.",
-    "- The within-dataset completeness figures above overestimate true completeness — always defer to the Reporting tab for the authoritative completeness estimate.",
+    "- The within-dataset completeness figures above overestimate true completeness  -  always defer to the Reporting tab for the authoritative completeness estimate.",
     "- Outliers may be data entry errors OR genuine epidemiological signals.",
     "- Trends may reflect changes in reporting practice, not true disease burden.",
     "- Comparisons across periods are only valid for consistently reporting facilities.",

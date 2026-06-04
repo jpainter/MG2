@@ -9,19 +9,25 @@ A data frame with columns:
 \describe{
 \item{Formula.Name}{Formula label (character). All rows use
 \code{"Sierra Leone Malaria Demo"}.}
-\item{role}{Element role: \code{"primary"} for ACT treatment (the main
-analytic indicator); \code{"secondary"} for all other elements.}
+\item{role}{Element role: \code{"primary"} for ACT treatment; \code{"secondary"}
+for all others (character).}
 \item{dataElement}{Human-readable data element name (character).}
 \item{Categories}{Category option combo name (character).}
 \item{dataElement.id}{DHIS2 data element UID (character).}
 \item{categoryOptionCombo.ids}{Category option combo UID (character).}
-\item{n_categoryOptions}{Number of category options for this combo
-(integer).}
+\item{n_categoryOptions}{Number of category options for this combo (integer).}
 \item{categoryCombo}{Category combo name (character).}
 \item{categoryCombo.id}{Category combo UID (character).}
+\item{dataSet}{Data set name (character).}
+\item{dataSet.ids}{Data set UID (character).}
+\item{dataElementGroup}{Data element group name (character).}
+\item{dataElementGroups.id}{Data element group UID (character).}
+\item{displayName}{DHIS2 display name (character).}
+\item{displayShortName}{DHIS2 display short name (character).}
+\item{shortName}{Short name (character).}
+\item{periodType}{DHIS2 period type, e.g. \code{"Monthly"} (character).}
+\item{zeroIsSignificant}{Logical; whether zero values are meaningful.}
 }
-Additional columns from the data element dictionary are included: data set,
-period type, display name, etc.
 }
 \usage{
 mg2_demo_formula

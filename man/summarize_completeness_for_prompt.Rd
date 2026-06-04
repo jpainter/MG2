@@ -16,5 +16,5 @@ character string or NULL
 }
 \description{
 Computes the percentage of facilities with a non-missing value in each
-period, per data element. Uses raw \code{data1} — no Reporting tab visit needed.
+period, per data element. Uses raw \code{data1}  -  no Reporting tab visit needed.
 }

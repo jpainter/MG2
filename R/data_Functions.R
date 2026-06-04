@@ -1,12 +1,14 @@
 #' functions for data manipulation
 
+# Local shim for purrr::is_empty - avoids a hard purrr Imports dependency
+#' @noRd
+.is_empty <- function(x) length(x) == 0L
+
 #' Get level names from org units
 #' @param orgUnits data frame of org units with level and levelName columns
 #' @param .cat logical; if TRUE print progress messages
 #' @return character vector of level names in ascending order
 #' @export
-# Local shim for purrr::is_empty — avoids a hard purrr Imports dependency
-.is_empty <- function(x) length(x) == 0L
 getLevelNames = function(orgUnits, .cat = FALSE) {
   if ('sf' %in% class(orgUnits)) {
     orgUnits = orgUnits %>% st_drop_geometry()
@@ -177,7 +179,10 @@ cleanedData = function(
 #' @param startingMonth yearmonth; first month of the reporting window (NULL uses data minimum)
 #' @param period character; time index column name ("Month" or "Week")
 #' @param missing_reports integer; number of allowed missing months (default 0)
-#' @param count.any logical; count a facility if it reports any data element (default TRUE)
+#' @param count.any logical; deprecated — use `reporting_rule` instead
+#' @param reporting_rule character; one of `"all_categories"`, `"all_elements"`,
+#'   `"any_selected"`, or `"any_data"` — controls which facilities are counted
+#'   as consistently reporting.
 #' @param data_categories character vector; data element categories to consider
 #' @param testing logical; save intermediate objects for debugging
 #' @param .cat logical; print progress messages to the console

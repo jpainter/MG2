@@ -31,8 +31,6 @@
 #'   \item{dataElement}{DHIS2 data element UID (character).}
 #'   \item{period}{DHIS2 monthly period code, e.g. `"202301"` (character).}
 #'   \item{orgUnit}{DHIS2 org unit UID (character).}
-#'   \item{categoryOptionCombo}{Category option combo UID, or `NA` for
-#'     elements with a single (default) category (character).}
 #'   \item{COUNT}{Number of facilities that reported a value (integer).}
 #'   \item{SUM}{Sum of reported values across reporting facilities (numeric).}
 #' }
@@ -97,19 +95,25 @@
 #' \describe{
 #'   \item{Formula.Name}{Formula label (character). All rows use
 #'     `"Sierra Leone Malaria Demo"`.}
-#'   \item{role}{Element role: `"primary"` for ACT treatment (the main
-#'     analytic indicator); `"secondary"` for all other elements.}
+#'   \item{role}{Element role: `"primary"` for ACT treatment; `"secondary"`
+#'     for all others (character).}
 #'   \item{dataElement}{Human-readable data element name (character).}
 #'   \item{Categories}{Category option combo name (character).}
 #'   \item{dataElement.id}{DHIS2 data element UID (character).}
 #'   \item{categoryOptionCombo.ids}{Category option combo UID (character).}
-#'   \item{n_categoryOptions}{Number of category options for this combo
-#'     (integer).}
+#'   \item{n_categoryOptions}{Number of category options for this combo (integer).}
 #'   \item{categoryCombo}{Category combo name (character).}
 #'   \item{categoryCombo.id}{Category combo UID (character).}
+#'   \item{dataSet}{Data set name (character).}
+#'   \item{dataSet.ids}{Data set UID (character).}
+#'   \item{dataElementGroup}{Data element group name (character).}
+#'   \item{dataElementGroups.id}{Data element group UID (character).}
+#'   \item{displayName}{DHIS2 display name (character).}
+#'   \item{displayShortName}{DHIS2 display short name (character).}
+#'   \item{shortName}{Short name (character).}
+#'   \item{periodType}{DHIS2 period type, e.g. `"Monthly"` (character).}
+#'   \item{zeroIsSignificant}{Logical; whether zero values are meaningful.}
 #' }
-#' Additional columns from the data element dictionary are included: data set,
-#' period type, display name, etc.
 #'
 #' @seealso `mg2_demo`, `mg2_demo_meta`
 #' @examples

@@ -14,7 +14,7 @@ build_combined_dataset(
 )
 }
 \arguments{
-\item{steps}{List of step definition lists (from a \code{Combinations_*.rds} file).}
+\item{steps}{List of step definition lists (from a \code{Definition_*.rds} file).}
 
 \item{data_folder}{Directory path (trailing slash).}
 
@@ -25,7 +25,7 @@ build_combined_dataset(
 \item{verbose}{Logical; print progress messages (always prints to console).}
 
 \item{.progress}{Optional function \verb{(value, message, detail = "")} called at
-key stages.  \code{value} is 0–1.  Pass \code{shiny::setProgress} (or a wrapper)
+key stages.  \code{value} is 0-1.  Pass \code{shiny::setProgress} (or a wrapper)
 when calling from a Shiny \code{withProgress()} context.}
 }
 \value{
@@ -35,19 +35,19 @@ data.table in standard processed-dataset format.
 Executes each step in sequence and binds results into a single
 processed-format dataset, joining the org unit hierarchy from \code{ousTree}.
 The output is compatible with the standard MG2 pipeline
-(DQA → Reporting → Outliers → Evaluation).
+(DQA -> Reporting -> Outliers -> Evaluation).
 }
 \details{
 Outlier flags are populated in two phases:
 \enumerate{
-\item \strong{Inheritance} — each step carries flag columns from its
+\item \strong{Inheritance}  -  each step carries flag columns from its
 source dataset(s).  For Ratio steps, flags from numerator and
-denominator are combined with OR per orgUnit × period.
-\item \strong{Direct scan} — \code{\link[=extremely_mad]{extremely_mad()}} and \code{\link[=unseasonal]{unseasonal()}} are
+denominator are combined with OR per orgUnit x period.
+\item \strong{Direct scan}  -  \code{\link[=extremely_mad]{extremely_mad()}} and \code{\link[=unseasonal]{unseasonal()}} are
 applied to the combined values using \code{smallThreshold = 0} (the default
 of 50 would skip all ratio series whose values are in [0, 1]).
 Results are OR-ed with Phase 1 flags: an inherited \code{TRUE} is never
-cleared.  The scan respects the severity hierarchy — once a more severe
+cleared.  The scan respects the severity hierarchy  -  once a more severe
 flag is set, less severe algorithms are skipped for that value.
 }
 }

@@ -13,3 +13,10 @@
 ^Meta$
 ^reports$
 ^analysis$
+^air\.toml$
+^burden_estimate_plan$
+^docs$
+^logo\.png$
+^logo\.svg$
+^logo_icon\.png$
+^logo_icon\.svg$

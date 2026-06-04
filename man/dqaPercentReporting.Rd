@@ -10,6 +10,9 @@ dqaPercentReporting(dqa_data, .cat = FALSE, .progress = NULL)
 \item{dqa_data}{tsibble of prepared data.}
 
 \item{.cat}{Logical. Print progress messages (default: \code{FALSE}).}
+
+\item{.progress}{Optional function \verb{(i, n)} passed through to
+\code{\link[=dqa_reporting]{dqa_reporting()}} for Shiny progress feedback.}
 }
 \value{
 A tibble with columns \code{Year}, \code{n_frequently_reporting},

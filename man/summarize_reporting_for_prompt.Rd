@@ -21,7 +21,7 @@ summarize_reporting_for_prompt(
 character string or NULL
 }
 \description{
-Summarises \code{data.total()} from the Reporting widget — champion-facility
+Summarises \code{data.total()} from the Reporting widget  -  champion-facility
 adjusted aggregates (unadjusted for incomplete periods).
 Returns NULL if the Reporting tab has not been visited yet.
 }

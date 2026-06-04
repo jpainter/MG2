@@ -29,7 +29,7 @@ build_mg2_system_prompt(
 
 \item{completeness_summary}{output of \code{\link[=summarize_completeness_for_prompt]{summarize_completeness_for_prompt()}}}
 
-\item{raw_totals_summary}{output of \code{\link[=summarize_data_for_prompt]{summarize_data_for_prompt()}}}
+\item{raw_totals_summary}{output of \code{summarize_data_for_prompt()}}
 
 \item{reporting_summary}{output of \code{\link[=summarize_reporting_for_prompt]{summarize_reporting_for_prompt()}}}
 

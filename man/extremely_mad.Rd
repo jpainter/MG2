@@ -21,7 +21,7 @@ extremely_mad(
 
 \item{deviation}{Numeric. Multiple of MAD used as threshold (default: \code{15}).}
 
-\item{smallThreshold}{Numeric. Series with all values ≤ this are skipped
+\item{smallThreshold}{Numeric. Series with all values <= this are skipped
 (default: \code{50}).}
 
 \item{key_entry_error}{Logical vector. Pre-flagged key-entry errors (unused
@@ -45,7 +45,7 @@ Logical or numeric vector the same length as \code{x}.
 \description{
 For a numeric vector \code{x}, computes the median and median absolute deviation
 (MAD), then flags values that deviate from the median by more than
-\verb{deviation × MAD}. When MAD is near zero, falls back to a trimmed SD.
+\verb{deviation x MAD}. When MAD is near zero, falls back to a trimmed SD.
 Returns \code{NA} for all values when the series is entirely below
 \code{smallThreshold}.
 }

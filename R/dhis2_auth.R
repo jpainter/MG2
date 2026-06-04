@@ -26,6 +26,12 @@
 #'   )
 #' }
 loginDHIS2 <- function(baseurl, username, password, timeout = 30, ...) {
+  if (!grepl("^https://", baseurl)) {
+    warning(
+      "Connecting over http:// - credentials will be sent in plain text.",
+      call. = FALSE
+    )
+  }
   url <- paste0(baseurl, "api/me")
 
   r <- httr::GET(

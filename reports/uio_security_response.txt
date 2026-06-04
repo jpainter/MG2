@@ -1,0 +1,64 @@
+To: [UiO reviewer name / email]
+From: John Painter <painter.ja@gmail.com>
+Subject: Re: MagicGlasses2 Security Review — follow-up and planned fixes
+
+Dear [name],
+
+Thank you very much for the careful security review of MagicGlasses2. All three items are
+well-founded and we will address them. Brief notes on each below.
+
+---
+
+1. Plaintext passwords in credentials.rds (and possible cloud sync)
+
+Confirmed. The "Save credentials" button in the Login tab writes a tibble of
+url / username / password in plaintext to credentials.rds inside the user's chosen data
+directory. Because the demo-data folder picker offers iCloud Drive and OneDrive as roots,
+that file can silently end up in a cloud-synced location.
+
+Planned fix: stop storing passwords in credentials.rds entirely. Only url and username
+will be retained. On next launch the user selects the saved URL/username and is prompted
+to re-enter their password. This eliminates the stored-secret without requiring an
+external dependency. We will also add a notice in the UI making clear that the data
+folder can be a cloud-synced location, so users choose it knowingly.
+
+---
+
+2. SSL peer verification disabled process-wide (dhis2_api.R line 31)
+
+Confirmed. The call httr::set_config(httr::config(ssl_verifypeer = 0L)) is made inside
+dhis2_get(), which is called on every API request. set_config() applies globally for the
+entire R session rather than to a single request, so it silently downgrades TLS
+verification for every subsequent httr call, including any made by other packages.
+
+The original intent was to accommodate DHIS2 deployments that use self-signed
+certificates, which is genuinely common in low-resource country settings. We will replace
+set_config() with httr::with_config(), scoping the bypass to only the one request where
+it is needed. We will also emit a one-time warning the first time SSL verification is
+bypassed, so the user is aware.
+
+---
+
+3. No warning when connecting over http://
+
+Confirmed. loginDHIS2() accepts any URL without inspecting the scheme. Combined with the
+SSL bypass above, basic-auth credentials (Base64-encoded username:password in the
+Authorization header) travel in clear text over an unencrypted connection.
+
+Planned fix: check the scheme in the Login widget's attempt_login() function before
+calling loginDHIS2(). If the URL begins with http:// (not https://), display a
+Shiny modal asking the user to confirm before proceeding, with a plain-language
+explanation of the risk. We will also add a similar guard inside loginDHIS2() itself
+so the check applies when the function is called from scripts outside the Shiny UI.
+
+---
+
+Timeline: we plan to implement all three fixes in the next development sprint and will
+share the updated code for your review if helpful.
+
+Please let us know if you have any questions or additional recommendations.
+
+With thanks,
+
+John Painter
+painter.ja@gmail.com

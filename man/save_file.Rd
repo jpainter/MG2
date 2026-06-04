@@ -12,8 +12,8 @@ save_file(x, filename, compress = 100)
 \item{filename}{Character. Destination path. Extension must be \code{".fst"} or
 \code{".rds"}.}
 
-\item{compress}{Integer (0–100). Compression level for \code{.fst} files (default
-\code{100} — best compression while still ~4× faster than RDS). Ignored for
+\item{compress}{Integer (0-100). Compression level for \code{.fst} files (default
+\code{100}  -  best compression while still ~4x faster than RDS). Ignored for
 \code{.rds} files (which always use \code{compress = TRUE}).}
 }
 \value{
@@ -21,7 +21,7 @@ save_file(x, filename, compress = 100)
 }
 \description{
 Writes a data frame to an \code{.fst} or \code{.rds} file based on the file extension
-in \code{filename}. \code{.fst} is 5–10× faster than compressed \code{.rds} for large flat
+in \code{filename}. \code{.fst} is 5-10x faster than compressed \code{.rds} for large flat
 data frames and is preferred when the \code{fst} package is available.
 }
 \details{

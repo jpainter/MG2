@@ -30,6 +30,11 @@ detection (default: \code{"mad10"}).}
 \code{c("seasonal5", "seasonal3")} (default: both).}
 
 \item{progress}{Logical. Use \code{progressr} progress bar (default: \code{FALSE}).}
+
+\item{shiny_progress}{Logical. Use Shiny incremental progress (default: \code{FALSE}).}
+
+\item{.progress_fn}{Optional function accepting a message string; called at
+key stages for custom progress reporting.}
 }
 \value{
 The input tsibble with \code{not_mad}, \code{seasonal5}, and \code{seasonal3}
@@ -37,6 +42,6 @@ columns added.
 }
 \description{
 Applies \code{\link[=unseasonal]{unseasonal()}} to every series, flagging values that deviate from a
-seasonal forecast by more than 5× MAD (\code{seasonal5}) and 3× MAD
+seasonal forecast by more than 5x MAD (\code{seasonal5}) and 3x MAD
 (\code{seasonal3}).
 }

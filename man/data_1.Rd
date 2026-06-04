@@ -41,7 +41,7 @@ driving a Shiny \code{withProgress} / \code{setProgress} UI. \code{i} is the 1-b
 element index, \code{n} is the total number of elements, \code{element_name} is the
 human-readable element label (first value of the \code{dataElement} column in
 the chunk), and \code{phase} is a short string describing the current stage
-(\code{"preparing"}, \code{"MAD scan — X series"}, \code{"seasonal — X series"},
+(\code{"preparing"}, \code{"MAD scan  -  X series"}, \code{"seasonal  -  X series"},
 \code{"combining"}).}
 
 \item{.shiny_progress}{Logical. When \code{TRUE} and \code{.scan_outliers = TRUE},

@@ -21,14 +21,12 @@ burden_b(
 \item{attendance_elements}{character; attendance \code{data} column values.}
 
 \item{cat_map}{named character vector: names = target categories, values =
-corresponding attendance categories. \code{NULL} → single attendance element
+corresponding attendance categories. \code{NULL} -> single attendance element
 used for all target categories (or 1:1 by position).}
 
 \item{region_col}{character; region column name.}
 
 \item{n_bootstrap}{integer; bootstrap draws.}
-
-\item{years}{integer; calendar years.}
 }
 \value{
 list with \verb{$subnational} and \verb{$national} data.tables.

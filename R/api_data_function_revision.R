@@ -148,7 +148,7 @@ api_data = function(
       ('Month' %in% names(prev.data) || 'Week' %in% names(prev.data))
 
     if (is_processed) {
-      cat('\n - prev.data is a processed file — reconstructing raw format')
+      cat('\n - prev.data is a processed file  -  reconstructing raw format')
       idx_var <- if ('Month' %in% names(prev.data)) 'Month' else 'Week'
       idx_col <- prev.data[[idx_var]]
       prev.data <- prev.data %>%
@@ -163,7 +163,7 @@ api_data = function(
           ),
           period = if (idx_var == 'Month') {
             # Restore class if stripped (data.table operations can drop vctrs_vctr),
-            # then use as.Date() → format() to produce YYYYMM.  This avoids the
+            # then use as.Date() -> format() to produce YYYYMM.  This avoids the
             # fragile as.numeric() arithmetic which returns days (not months) when
             # the vctrs_vctr class is absent, causing year-3583 period corruption.
             safe_ym <- if (tsibble::is_yearmonth(idx_col)) idx_col else

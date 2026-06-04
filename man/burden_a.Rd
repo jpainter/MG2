@@ -23,9 +23,15 @@ data, value, Selected, and a region column).}
 \item{region_col}{character; name of the region column (typically
 \code{levelNames[2]}).}
 
-\item{n_bootstrap}{integer; bootstrap draws (default 1000).}
+\item{period_start}{yearmonth; start of the estimate window (NULL = all data).}
 
-\item{years}{integer; which calendar years to estimate.}
+\item{period_end}{yearmonth; end of the estimate window (NULL = all data).}
+
+\item{neighbor_list}{named list; maps each region to a character vector of
+neighbouring region names used as a fallback when a region has no
+champion facilities.}
+
+\item{n_bootstrap}{integer; bootstrap draws (default 1000).}
 }
 \value{
 list with \verb{$subnational} and \verb{$national} data.tables.

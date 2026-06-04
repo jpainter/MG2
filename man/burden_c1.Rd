@@ -15,7 +15,7 @@ burden_c1(
 )
 }
 \arguments{
-\item{data}{data.table from \code{selectedData()} — the \strong{full available history},
+\item{data}{data.table from \code{selectedData()}  -  the \strong{full available history},
 not pre-filtered to the estimate period.  The full history improves model
 fitting; summation is restricted to [period_start, period_end].}
 

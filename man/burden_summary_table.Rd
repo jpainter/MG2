@@ -10,11 +10,14 @@ burden_summary_table(results_list, level = "national", show_rate = FALSE)
 \item{results_list}{named list of burden results.}
 
 \item{level}{"national" or "subnational".}
+
+\item{show_rate}{Logical; when \code{TRUE} and incidence columns are present,
+append a rate-per-100k column (default \code{FALSE}).}
 }
 \value{
 data.frame suitable for DT::datatable().
 }
 \description{
-Pivots multiple method results so each row is a region × year × category and
+Pivots multiple method results so each row is a region x year x category and
 each pair of columns is one method's estimate with CI.
 }

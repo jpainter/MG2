@@ -12,6 +12,8 @@ dqa_consistency_detail_rule(data, validation_rules, rule_id, max_rows = 2000L)
 \item{validation_rules}{Tibble from metadata.}
 
 \item{rule_id}{Character. ID of the rule to drilldown.}
+
+\item{max_rows}{Integer. Maximum rows returned (default \code{2000}).}
 }
 \value{
 A tibble of failed facility-periods.

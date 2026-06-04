@@ -23,6 +23,9 @@ dqa_reporting(
 
 \item{.cat}{Logical. Print progress messages (default: \code{FALSE}).}
 
+\item{.progress}{Optional function \verb{(i, n)} called after processing each
+year, for Shiny progress feedback.}
+
 \item{...}{additional arguments passed to \code{mostFrequentReportingOUs()}}
 }
 \value{

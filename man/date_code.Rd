@@ -16,7 +16,7 @@ date_code(
 \arguments{
 \item{years}{Integer vector of years. If \code{NULL}, computed from \code{YrsPrevious}.}
 
-\item{months}{Integer vector of months (1–12). Ignored when \code{years} is \code{NULL}.}
+\item{months}{Integer vector of months (1-12). Ignored when \code{years} is \code{NULL}.}
 
 \item{startPeriod}{Character. Explicit start period in \code{"YYYYMM"} format.}
 

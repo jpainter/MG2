@@ -7,7 +7,7 @@
 load_combine_definition(file_path)
 }
 \arguments{
-\item{file_path}{Full path to a \code{Combinations_*.rds} file.}
+\item{file_path}{Full path to a \code{Definition_*.rds} file.}
 }
 \value{
 Definition list.

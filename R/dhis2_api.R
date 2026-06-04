@@ -1,6 +1,9 @@
 # DHIS2 API helpers
 # Functions for retrieving data and metadata from a DHIS2 server.
 
+# Session-level flags for one-time notifications
+.mg2_state <- new.env(parent = emptyenv())
+
 #' GET a DHIS2 API Endpoint and Parse JSON
 #'
 #' Sends an authenticated GET request to a DHIS2 API URL and parses the JSON
@@ -27,16 +30,26 @@
 #'   )
 #' }
 dhis2_get <- function(source_url, username = NULL, password = NULL, .print = FALSE) {
-  # Many DHIS2 deployments use self-signed certificates
-  httr::set_config(httr::config(ssl_verifypeer = 0L))
+  # Many DHIS2 deployments use self-signed certificates; scope the bypass to
+  # this request only via with_config() rather than the session-wide set_config().
+  if (!isTRUE(.mg2_state$ssl_bypass_warned)) {
+    message(
+      "Note: SSL certificate verification is disabled for DHIS2 requests. ",
+      "This accommodates self-signed certificates common in DHIS2 deployments."
+    )
+    .mg2_state$ssl_bypass_warned <- TRUE
+  }
 
   if (.print) message("Requesting: ", source_url)
 
-  response <- if (!is.null(username) && nchar(username) > 0) {
-    httr::GET(source_url, httr::authenticate(username, password), httr::timeout(300))
-  } else {
-    httr::GET(source_url, httr::timeout(300))
-  }
+  ssl_cfg  <- httr::config(ssl_verifypeer = 0L)
+  response <- httr::with_config(ssl_cfg, {
+    if (!is.null(username) && nchar(username) > 0) {
+      httr::GET(source_url, httr::authenticate(username, password), httr::timeout(300))
+    } else {
+      httr::GET(source_url, httr::timeout(300))
+    }
+  })
 
   if (response$status_code != 200L) {
     message("HTTP ", response$status_code, " for: ", source_url)

@@ -2,10 +2,20 @@
 % Please edit documentation in R/burden_functions.R
 \name{format_burden_estimate}
 \alias{format_burden_estimate}
-\title{Format a burden estimate as "N \link{L – U}"}
+\title{Format a burden estimate as "N [L - U]"}
 \usage{
 format_burden_estimate(estimate, lower, upper)
 }
+\arguments{
+\item{estimate}{Numeric. Point estimate.}
+
+\item{lower}{Numeric. Lower bound of the confidence interval.}
+
+\item{upper}{Numeric. Upper bound of the confidence interval.}
+}
+\value{
+Character string formatted as \code{"N [lower-upper]"}.
+}
 \description{
-Format a burden estimate as "N \link{L – U}"
+Format a burden estimate as "N [L - U]"
 }

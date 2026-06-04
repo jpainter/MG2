@@ -17,11 +17,11 @@ outlier flag columns.}
 Numeric vector of cleaned values, same length as \code{nrow(d)}.
 }
 \description{
-Replaces values flagged as outliers — at or below the chosen severity — with
+Replaces values flagged as outliers  -  at or below the chosen severity  -  with
 the modelled \code{expected} value (or \code{NA} when \code{expected} is unavailable).
 }
 \details{
-Severity order (most → least severe):
+Severity order (most -> least severe):
 \code{key_entry_error} > \code{over_max} > \code{mad15} > \code{mad10} > \code{seasonal5} > \code{seasonal3}
 
 "Use mad15" means: only replace values flagged by key_entry_error, over_max,

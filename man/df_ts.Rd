@@ -24,7 +24,7 @@ df_ts(
 \item{.verbose}{Logical. Print progress messages (default: \code{FALSE}).}
 }
 \value{
-A \code{tsibble} keyed by \code{orgUnit} × \code{data.id}.
+A \code{tsibble} keyed by \code{orgUnit} x \code{data.id}.
 }
 \description{
 Convert Prepared Data to a tsibble Time-Series Object

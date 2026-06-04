@@ -10,8 +10,6 @@ A data frame with columns:
 \item{dataElement}{DHIS2 data element UID (character).}
 \item{period}{DHIS2 monthly period code, e.g. \code{"202301"} (character).}
 \item{orgUnit}{DHIS2 org unit UID (character).}
-\item{categoryOptionCombo}{Category option combo UID, or \code{NA} for
-elements with a single (default) category (character).}
 \item{COUNT}{Number of facilities that reported a value (integer).}
 \item{SUM}{Sum of reported values across reporting facilities (numeric).}
 }

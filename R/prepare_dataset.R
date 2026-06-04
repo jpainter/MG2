@@ -90,7 +90,7 @@ translate_dataset_2 <- function(data, dataElements, categories, .verbose = FALSE
 
 # Leaf determination ----------------------------------------------------------
 
-#' Determine Effective Reporting Leaf Status per Org Unit × Data Element
+#' Determine Effective Reporting Leaf Status per Org Unit x Data Element
 #'
 #' @details
 #' **Deprecated for modern downloads.** The DHIS2 download API (post ~2022) returns
@@ -136,7 +136,7 @@ df_pre_ts <- function(df, period = "Month", missing.value = NA, .verbose = FALSE
   .period <- if (period %in% c("Week", "Weekly")) "Week" else "Month"
 
   # Remove rows with no count or a malformed period value.
-  # Use df$period (explicit) rather than dplyr NSE — the function argument is
+  # Use df$period (explicit) rather than dplyr NSE  -  the function argument is
   # also named 'period', which shadows the column name in tidy evaluation and
   # causes the filter to silently misbehave.
   # DHIS2 monthly periods are exactly 6 digits (YYYYMM); weekly are YYYYWww.
@@ -202,7 +202,7 @@ df_pre_ts <- function(df, period = "Month", missing.value = NA, .verbose = FALSE
 #' @param missing.value Value to fill for gaps (default: `NA`).
 #' @param .verbose Logical. Print progress messages (default: `FALSE`).
 #'
-#' @return A `tsibble` keyed by `orgUnit` × `data.id`.
+#' @return A `tsibble` keyed by `orgUnit` x `data.id`.
 #' @export
 df_ts <- function(df.pre.ts, period = "Month", fill.gaps = FALSE,
                   missing.value = NA, .verbose = FALSE) {
@@ -256,7 +256,7 @@ df_ts <- function(df.pre.ts, period = "Month", fill.gaps = FALSE,
 #'   element index, `n` is the total number of elements, `element_name` is the
 #'   human-readable element label (first value of the `dataElement` column in
 #'   the chunk), and `phase` is a short string describing the current stage
-#'   (`"preparing"`, `"MAD scan — X series"`, `"seasonal — X series"`,
+#'   (`"preparing"`, `"MAD scan  -  X series"`, `"seasonal  -  X series"`,
 #'   `"combining"`).
 #' @param .shiny_progress Logical. When `TRUE` and `.scan_outliers = TRUE`,
 #'   passes `shiny_progress = TRUE` to [seasonal_outliers()] so that per-series
@@ -301,7 +301,7 @@ data_1 <- function(data,
     data <- dplyr::mutate(data, categoryOptionCombo = NA_character_)
   }
 
-  # Build dataset → data element lookup
+  # Build dataset -> data element lookup
   dataSetElements <- dataSets |>
     tidyr::unnest(dataSetElements.id, names_sep = "_") |>
     dplyr::select(dataSet.id, dataSet, periodType, dataSetElements.id_dataElement) |>
@@ -327,7 +327,7 @@ data_1 <- function(data,
   message("data_1: translate_dataset_2")
   d. <- translate_dataset_2(d., dataElements, categories, .verbose = .verbose)
 
-  # Use data.table merges for the two large joins — much faster than dplyr on
+  # Use data.table merges for the two large joins  -  much faster than dplyr on
   # 10M+ rows because data.table uses a radix sort-merge rather than hash join.
   if (is.function(.progress)) .progress(0L, 0L, "", "Joining dataset metadata...")
   message("data_1: join dataSetElements")
@@ -366,7 +366,7 @@ data_1 <- function(data,
     )
   }
 
-  # Free raw inputs — no longer needed once dt. is built
+  # Free raw inputs  -  no longer needed once dt. is built
   rm(data, d.)
   gc(verbose = FALSE)
 
@@ -431,7 +431,7 @@ data_1 <- function(data,
     chunk[, .chunk_key := NULL]   # drop helper column from this copy
     element_name <- combo_keys$label[i]
 
-    message(sprintf("data_1: element %d/%d — %s", i, n_elements, element_name))
+    message(sprintf("data_1: element %d/%d  -  %s", i, n_elements, element_name))
     .t0 <- proc.time()[["elapsed"]]
     if (is.function(.progress)) .progress(i, n_elements, element_name, "parsing periods...")
 
@@ -448,7 +448,7 @@ data_1 <- function(data,
     n_series <- tsibble::n_keys(chunk_ts)
 
     if (.scan_outliers) {
-      message(sprintf("data_1:   MAD scan — %d series", n_series))
+      message(sprintf("data_1:   MAD scan  -  %d series", n_series))
       if (is.function(.progress)) {
         .progress(i, n_elements, element_name,
                   sprintf("MAD scan \u2014 %d series", n_series))
@@ -462,7 +462,7 @@ data_1 <- function(data,
       chunk_ts <- mad_outliers(chunk_ts, .total = n_series, progress = FALSE,
                                .progress_fn = .mad_fn)
 
-      message(sprintf("data_1:   seasonal scan — %d series", n_series))
+      message(sprintf("data_1:   seasonal scan  -  %d series", n_series))
       if (is.function(.progress)) {
         .progress(i, n_elements, element_name,
                   sprintf("seasonal \u2014 %d series", n_series))
@@ -479,7 +479,7 @@ data_1 <- function(data,
     }
 
     # Drop internal processing columns and columns removed at data_1() end
-    # before accumulating — significantly reduces per-element memory footprint.
+    # before accumulating  -  significantly reduces per-element memory footprint.
     .drop_early <- intersect(
       names(chunk_ts),
       c("SUM", "COUNT", "dataElement.id", "categoryOptionCombo.ids",
@@ -498,8 +498,8 @@ data_1 <- function(data,
     message("data_1:   gc...")
     gc(verbose = FALSE)
 
-    # Accumulate incrementally — never hold all N element results simultaneously.
-    # rbindlist(all_results_at_once) would require 2× total memory at combine.
+    # Accumulate incrementally  -  never hold all N element results simultaneously.
+    # rbindlist(all_results_at_once) would require 2x total memory at combine.
     if (is.null(combined_dt)) {
       combined_dt <- result_i
     } else {
@@ -511,7 +511,7 @@ data_1 <- function(data,
   }
 
   # --------------------------------------------------------------------------
-  # Finish up — free dt. (no longer needed), restore index class
+  # Finish up  -  free dt. (no longer needed), restore index class
   # --------------------------------------------------------------------------
   # Elements were accumulated incrementally inside the loop so combined_dt is
   # already complete.  Free the raw joined dataset and loop helpers.
@@ -543,7 +543,7 @@ data_1 <- function(data,
 
   .t_total <- proc.time()[["elapsed"]] - .t_start
   message(sprintf(
-    "data_1: done — %s rows, %s series, total %.0f s (%.1f min)",
+    "data_1: done  -  %s rows, %s series, total %.0f s (%.1f min)",
     format(nrow(d..), big.mark = ","),
     format(tsibble::n_keys(d..), big.mark = ","),
     .t_total, .t_total / 60

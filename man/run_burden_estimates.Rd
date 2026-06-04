@@ -28,7 +28,7 @@ run_burden_estimates(
 )
 }
 \arguments{
-\item{data}{data.table from \code{selectedData()} — must have columns \code{orgUnit},
+\item{data}{data.table from \code{selectedData()}  -  must have columns \code{orgUnit},
 \code{Month}, \code{data}, \code{value}, \code{Selected}, and a region column.}
 
 \item{target_elements}{character; \code{data} values for the outcome (e.g.
@@ -47,17 +47,17 @@ confirmed malaria cases).}
 \item{population_element}{character or NULL; triggers per-100k rates for all
 methods and the incidence output for method E.}
 
-\item{cat_map_attend}{named character; confirmed → attendance category map.}
+\item{cat_map_attend}{named character; confirmed -> attendance category map.}
 
-\item{cat_map_tested}{named character; confirmed → tested category map.}
+\item{cat_map_tested}{named character; confirmed -> tested category map.}
 
-\item{beta_young, beta_old}{numeric; β for method E (default Thwing 2020).}
+\item{beta_young, beta_old}{numeric; beta for method E (default Thwing 2020).}
 
-\item{alpha}{numeric; α for method E (default 0.48).}
+\item{alpha}{numeric; alpha for method E (default 0.48).}
 
-\item{gamma_young, gamma_old}{numeric; γ for method E (default 2.0 / 1.0).}
+\item{gamma_young, gamma_old}{numeric; gamma for method E (default 2.0 / 1.0).}
 
-\item{lambdamin}{numeric; λmin for method E (default 0.75).}
+\item{lambdamin}{numeric; lambdamin for method E (default 0.75).}
 
 \item{run_d}{logical; whether to apply the care-seeking adjustment (D).}
 

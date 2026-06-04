@@ -1,17 +1,17 @@
 # Burden estimation functions
-# Each function returns list($subnational, $national) — both data.tables with
+# Each function returns list($subnational, $national)  -  both data.tables with
 # columns: method, year, region, category, estimate, lower, upper
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# -- helpers ------------------------------------------------------------------
 
 # Draw `n_fac` independent samples from `x` and sum them, repeated `n_boot`
 # times.  Summing independent draws gives variance proportional to n_fac
-# (correct), not n_fac² (the bug that results from multiplying a single draw).
+# (correct), not n_fac^2 (the bug that results from multiplying a single draw).
 .burden_resample_sum <- function(x, n_fac, n_boot) {
   x <- x[is.finite(x) & !is.na(x)]
   if (length(x) == 0L || n_fac == 0L) return(rep(0, n_boot))
   if (n_fac == 1L) return(sample(x, n_boot, replace = TRUE))
-  # Efficient: draw an n_fac × n_boot matrix and colSums
+  # Efficient: draw an n_fac x n_boot matrix and colSums
   colSums(matrix(sample(x, n_fac * n_boot, replace = TRUE), nrow = n_fac))
 }
 
@@ -23,7 +23,7 @@
 }
 
 # Build facility universe from the FULL data (all elements), not just the
-# target element. Gives the complete orgUnit → region → Selected mapping.
+# target element. Gives the complete orgUnit -> region -> Selected mapping.
 .fac_universe <- function(data, region_col) {
   dt <- data.table::as.data.table(data)
   univ <- unique(dt[!is.na(get(region_col)),
@@ -60,16 +60,20 @@
   champ
 }
 
-# ── format helper (exported) ─────────────────────────────────────────────────
+# -- format helper (exported) -------------------------------------------------
 
-#' Format a burden estimate as "N [L – U]"
+#' Format a burden estimate as "N \[L - U\]"
+#' @param estimate Numeric. Point estimate.
+#' @param lower Numeric. Lower bound of the confidence interval.
+#' @param upper Numeric. Upper bound of the confidence interval.
+#' @return Character string formatted as `"N [lower-upper]"`.
 #' @export
 format_burden_estimate <- function(estimate, lower, upper) {
   fmt <- function(x) formatC(as.integer(x), format = "d", big.mark = ",")
-  paste0(fmt(estimate), " [", fmt(lower), "–", fmt(upper), "]")
+  paste0(fmt(estimate), " [", fmt(lower), "-", fmt(upper), "]")
 }
 
-# ── Method A: Champion Multiple ───────────────────────────────────────────────
+# -- Method A: Champion Multiple -----------------------------------------------
 
 #' Burden Method A: Champion Multiple
 #'
@@ -79,9 +83,13 @@ format_burden_estimate <- function(estimate, lower, upper) {
 #' @param data data.table from `selectedData()` (columns: orgUnit, Month,
 #'   data, value, Selected, and a region column).
 #' @param target_elements character; which values of the `data` column to use.
-#' @param years integer; which calendar years to estimate.
 #' @param region_col character; name of the region column (typically
 #'   `levelNames[2]`).
+#' @param period_start yearmonth; start of the estimate window (NULL = all data).
+#' @param period_end yearmonth; end of the estimate window (NULL = all data).
+#' @param neighbor_list named list; maps each region to a character vector of
+#'   neighbouring region names used as a fallback when a region has no
+#'   champion facilities.
 #' @param n_bootstrap integer; bootstrap draws (default 1000).
 #' @return list with `$subnational` and `$national` data.tables.
 #' @export
@@ -124,7 +132,7 @@ burden_a <- function(data, target_elements, region_col,
       tbl$total
     }
 
-    # Fallback hierarchy: neighbors → national → zero.
+    # Fallback hierarchy: neighbors -> national -> zero.
     # Returns a numeric vector (champion per-facility totals) from the best
     # available reference population, or NULL if nothing is available.
     get_fallback_vec <- function(reg) {
@@ -156,7 +164,7 @@ burden_a <- function(data, target_elements, region_col,
       if (!needs_fallback) {
         champ_vec <- build_champ_vec(champ_ous)
         champ_sum <- sum(champ_vec)
-        # All regional champions had 0 for this element — no signal locally
+        # All regional champions had 0 for this element  -  no signal locally
         if (champ_sum == 0L) needs_fallback <- TRUE
       }
 
@@ -201,7 +209,7 @@ burden_a <- function(data, target_elements, region_col,
   )
 }
 
-# ── Method B: Attendance-Based Champion Multiple ──────────────────────────────
+# -- Method B: Attendance-Based Champion Multiple ------------------------------
 
 #' Burden Method B: Attendance-Based Champion Multiple
 #'
@@ -212,9 +220,8 @@ burden_a <- function(data, target_elements, region_col,
 #' @param target_elements character; target `data` column values.
 #' @param attendance_elements character; attendance `data` column values.
 #' @param cat_map named character vector: names = target categories, values =
-#'   corresponding attendance categories. `NULL` → single attendance element
+#'   corresponding attendance categories. `NULL` -> single attendance element
 #'   used for all target categories (or 1:1 by position).
-#' @param years integer; calendar years.
 #' @param region_col character; region column name.
 #' @param n_bootstrap integer; bootstrap draws.
 #' @return list with `$subnational` and `$national` data.tables.
@@ -323,7 +330,7 @@ burden_b <- function(data, target_elements, attendance_elements,
   )
 }
 
-# ── Method C1: Facility-Level Linear Imputation ───────────────────────────────
+# -- Method C1: Facility-Level Linear Imputation -------------------------------
 
 #' Burden Method C1: Facility-Level Imputation (Linear Regression)
 #'
@@ -332,7 +339,7 @@ burden_b <- function(data, target_elements, attendance_elements,
 #' year using the model's prediction distribution.  Facilities with too few
 #' observations are flagged as not modeled.
 #'
-#' @param data data.table from `selectedData()` — the **full available history**,
+#' @param data data.table from `selectedData()`  -  the **full available history**,
 #'   not pre-filtered to the estimate period.  The full history improves model
 #'   fitting; summation is restricted to \[period_start, period_end\].
 #' @param target_elements character; target `data` values.
@@ -349,7 +356,7 @@ burden_c1 <- function(data, target_elements, region_col,
   dt <- data.table::as.data.table(data)
   dt[, .month_int := lubridate::month(Month)]
 
-  # Facility universe from ALL elements — ground truth for who exists
+  # Facility universe from ALL elements  -  ground truth for who exists
   fac_univ <- .fac_universe(dt, region_col)
   regions  <- sort(unique(fac_univ[[region_col]]))
 
@@ -388,7 +395,7 @@ burden_c1 <- function(data, target_elements, region_col,
       reg_facs  <- fac_univ[get(region_col) == reg]
       fac_samps <- rep(0, n_bootstrap)
 
-      # Facilities with any target data in the period — impute missing months
+      # Facilities with any target data in the period  -  impute missing months
       facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
 
       for (fac in facilities) {
@@ -457,8 +464,8 @@ burden_c1 <- function(data, target_elements, region_col,
       }
 
       # Facilities in the region with NO target data at all:
-      #   Champions → assumed true zero (add nothing)
-      #   Non-champions → extrapolate using the champion per-facility distribution
+      #   Champions -> assumed true zero (add nothing)
+      #   Non-champions -> extrapolate using the champion per-facility distribution
       no_data_facs <- reg_facs[!orgUnit %in% facilities]
       nc_no_data   <- nrow(no_data_facs[Selected != "Champion"])
 
@@ -476,7 +483,7 @@ burden_c1 <- function(data, target_elements, region_col,
           champ_tbl[is.na(total), total := 0L]
           champ_dist <- champ_tbl$total
         } else {
-          # No regional champions → use national
+          # No regional champions -> use national
           champ_dist_nat <- dt_sub_p[Selected == "Champion" & !is.na(value),
             .(total = sum(value, na.rm = TRUE)), by = "orgUnit"
           ]$total
@@ -506,7 +513,7 @@ burden_c1 <- function(data, target_elements, region_col,
   )
 }
 
-# ── Method C2: Facility-Level ARIMA Imputation ────────────────────────────────
+# -- Method C2: Facility-Level ARIMA Imputation --------------------------------
 
 #' Burden Method C2: Facility-Level Imputation (ARIMA)
 #'
@@ -515,7 +522,7 @@ burden_c1 <- function(data, target_elements, region_col,
 #' Falls back to C1 (linear) when the series is too short (< `min_months`)
 #' or fitting fails.
 #'
-#' @param data data.table from `selectedData()` — the **full available history**.
+#' @param data data.table from `selectedData()`  -  the **full available history**.
 #' @param target_elements character; target `data` values.
 #' @param region_col character; region column name.
 #' @param period_start,period_end yearmonth; estimate period window (NULL = all data).
@@ -695,7 +702,7 @@ burden_c2 <- function(data, target_elements, region_col,
         fac_samps <- fac_samps + ann_samps
       }
 
-      # Non-champions with NO target data in the period → champion-distribution fallback
+      # Non-champions with NO target data in the period -> champion-distribution fallback
       no_data_facs <- reg_facs[!orgUnit %in% facilities]
       nc_no_data   <- nrow(no_data_facs[Selected != "Champion"])
 
@@ -741,7 +748,7 @@ burden_c2 <- function(data, target_elements, region_col,
   )
 }
 
-# ── Method D: Care-Seeking Adjustment ────────────────────────────────────────
+# -- Method D: Care-Seeking Adjustment ----------------------------------------
 
 #' Burden Method D: Care-Seeking Adjustment
 #'
@@ -774,7 +781,7 @@ burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
         p     <- if (!is.null(care_seeking[[cat_i]])) care_seeking[[cat_i]] else default_p
         # Propagate uncertainty: draw p from Beta matched to p with small SD (~0.03)
         # Treat p as Beta mean: alpha = p*(p*(1-p)/0.03^2 - 1), beta = (1-p)*...
-        # For simplicity use p ± 5% via uniform
+        # For simplicity use p +/- 5% via uniform
         p_draws <- stats::runif(n_bootstrap, max(0.01, p - 0.05), min(0.99, p + 0.05))
         base_samps <- stats::rnorm(n_bootstrap,
           mean = df$estimate[i],
@@ -800,7 +807,7 @@ burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
   data.table::rbindlist(rows, fill = TRUE)
 }
 
-# ── Method E: Robust Malaria Incidence Estimator ─────────────────────────────
+# -- Method E: Robust Malaria Incidence Estimator -----------------------------
 #
 # Full 5-equation implementation of the Robust Estimator.
 # Reference: Thwing, Plucinski, Painter et al. (2020).
@@ -815,11 +822,11 @@ burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
 #
 # Parameters (all bootstrap vectors of length n):
 #   beta     = proportion of non-malaria consults that are febrile
-#              (gold-standard surveys: <5 yrs median 0.73, ≥5 yrs median 0.57)
+#              (gold-standard surveys: <5 yrs median 0.73, >=5 yrs median 0.57)
 #   alpha    = ratio: TPR among untested febrile / TPR among tested febrile
 #              (health facility exit surveys: median 0.48)
-#   si       = standard non-malaria fever incidence per 1,000 pop (gamma × 1000)
-#              (<5 yrs: 2,000; ≥5 yrs: 1,000)
+#   si       = standard non-malaria fever incidence per 1,000 pop (gamma x 1000)
+#              (<5 yrs: 2,000; >=5 yrs: 1,000)
 #   lambdamin = minimum malaria-attributable fraction (median 0.75, range 0.5-0.95)
 .robust_estimator <- function(D, E, Fn, pop,
                                beta, alpha, si, lambdamin) {
@@ -877,11 +884,11 @@ burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
 #'
 #' Only champion facilities that consistently report all three required
 #' elements (confirmed cases, total attendance, patients tested) are included.
-#' Non-champion facilities are excluded — they do not influence the estimate.
+#' Non-champion facilities are excluded  -  they do not influence the estimate.
 #' Elements are summed across qualifying champions within each region before
 #' the correction is applied.
 #'
-#' Uncertainty is propagated by drawing β, α, and λmin simultaneously from
+#' Uncertainty is propagated by drawing beta, alpha, and lambdamin simultaneously from
 #' uniform distributions spanning the published ranges from Thwing et al. 2020.
 #'
 #' @param data data.table from `selectedData()` with a `Selected` column.
@@ -889,17 +896,16 @@ burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
 #' @param attendance_elements character; `data` values for total attendance.
 #' @param tested_elements character; `data` values for patients tested.
 #' @param population_element character or NULL; `data` value for population.
-#' @param cat_map_attend named character; confirmed → attendance category map.
-#' @param cat_map_tested named character; confirmed → tested category map.
-#' @param beta_young numeric; β for < 5 years (Thwing 2020 default 0.73).
-#' @param beta_old numeric; β for ≥ 5 years (Thwing 2020 default 0.57).
+#' @param cat_map_attend named character; confirmed -> attendance category map.
+#' @param cat_map_tested named character; confirmed -> tested category map.
+#' @param beta_young numeric; beta for < 5 years (Thwing 2020 default 0.73).
+#' @param beta_old numeric; beta for >= 5 years (Thwing 2020 default 0.57).
 #' @param alpha numeric; TPR ratio untested/tested febrile (default 0.48).
 #' @param gamma_young numeric; expected NMF episodes/person/year < 5 yrs (default 2.0).
-#' @param gamma_old numeric; expected NMF episodes/person/year ≥ 5 yrs (default 1.0).
+#' @param gamma_old numeric; expected NMF episodes/person/year >= 5 yrs (default 1.0).
 #' @param lambdamin numeric; minimum malaria-attributable fraction (default 0.75).
 #' @param young_pattern regex matching "younger" category labels.
 #' @param min_months integer; minimum reported months to qualify (default 10).
-#' @param years integer; calendar years.
 #' @param region_col character; region column name.
 #' @param n_bootstrap integer; bootstrap draws.
 #' @return list with `$subnational` and `$national` data.tables.  When
@@ -936,7 +942,7 @@ burden_aci <- function(data,
   all_elems <- c(confirmed_elements, attendance_elements, tested_elements,
                  if (!is.null(population_element)) population_element)
 
-  # Totals over the full filtered period — champions only
+  # Totals over the full filtered period  -  champions only
   ann <- dt[
     get("data") %in% all_elems & !is.na(value) & Selected == "Champion",
     .(annual   = sum(value, na.rm = TRUE),
@@ -1031,7 +1037,7 @@ burden_aci <- function(data,
   )
 }
 
-# ── Population rate helper ────────────────────────────────────────────────────
+# -- Population rate helper ----------------------------------------------------
 
 #' Add per-100,000 population rate to a burden result
 #'
@@ -1083,15 +1089,17 @@ add_population_rate <- function(result, pop_data, pop_element, region_col) {
   )
 }
 
-# ── Summary helpers ───────────────────────────────────────────────────────────
+# -- Summary helpers -----------------------------------------------------------
 
 #' Combine burden results into a wide display table
 #'
-#' Pivots multiple method results so each row is a region × year × category and
+#' Pivots multiple method results so each row is a region x year x category and
 #' each pair of columns is one method's estimate with CI.
 #'
 #' @param results_list named list of burden results.
 #' @param level "national" or "subnational".
+#' @param show_rate Logical; when `TRUE` and incidence columns are present,
+#'   append a rate-per-100k column (default `FALSE`).
 #' @return data.frame suitable for DT::datatable().
 #' @export
 burden_summary_table <- function(results_list, level = "national",
@@ -1110,7 +1118,7 @@ burden_summary_table <- function(results_list, level = "national",
         !all(is.na(df2$rate_per_100k))) {
       df2$rate_fmt <- paste0(
         df2$rate_per_100k, " [",
-        df2$rate_lower, "–", df2$rate_upper, "]"
+        df2$rate_lower, "-", df2$rate_upper, "]"
       )
       has_rate <- TRUE
     }
@@ -1119,7 +1127,7 @@ burden_summary_table <- function(results_list, level = "national",
   if (length(rows) == 0L) return(NULL)
   long <- data.table::rbindlist(rows, fill = TRUE)
 
-  # Pivot count estimates: rows = region × year × category, cols = method
+  # Pivot count estimates: rows = region x year x category, cols = method
   wide <- data.table::dcast(
     long,
     region + category ~ method,
@@ -1143,12 +1151,12 @@ burden_summary_table <- function(results_list, level = "national",
   as.data.frame(wide)
 }
 
-# ── Category totals ──────────────────────────────────────────────────────────
+# -- Category totals ----------------------------------------------------------
 
 #' Add "Total" rows that sum across all categories
 #'
 #' For each region, sums estimates across categories and combines uncertainty
-#' via SE_total = √ΣSE_i² (assumes independence across categories).  A "Total"
+#' via SE_total = sqrtsum()SE_i^2 (assumes independence across categories).  A "Total"
 #' row is appended to both `$subnational` and `$national` when more than one
 #' category is present.
 #'
@@ -1202,19 +1210,19 @@ add_category_totals <- function(result) {
   )
 }
 
-# ── Significance grouping ─────────────────────────────────────────────────────
+# -- Significance grouping -----------------------------------------------------
 
 #' Group regions by statistical significance
 #'
 #' Clusters sub-national regions into K groups such that regions within a group
 #' are not significantly different from each other and regions across groups
 #' are.  Uses hierarchical clustering on a pairwise Z-score distance matrix
-#' (distance = |est_i − est_j| / √(SE_i² + SE_j²)).
+#' (distance = |est_i - est_j| / sqrt(SE_i^2 + SE_j^2)).
 #'
 #' @param subnational data.frame or data.table from a burden result
-#'   `$subnational` — must contain columns `region`, `category`, `estimate`,
+#'   `$subnational`  -  must contain columns `region`, `category`, `estimate`,
 #'   `lower`, `upper`.
-#' @param n_groups integer; number of groups (2–5).
+#' @param n_groups integer; number of groups (2-5).
 #' @param category character; which category to group on.  If NULL, estimates
 #'   are summed across categories before clustering.
 #' @return Named integer vector: names = region, values = group number
@@ -1264,14 +1272,14 @@ compute_burden_groups <- function(subnational, n_groups, category = NULL) {
   groups   # named integer vector: names = region
 }
 
-# ── Wrapper ───────────────────────────────────────────────────────────────────
+# -- Wrapper -------------------------------------------------------------------
 
 #' Run all requested burden estimation methods
 #'
 #' A non-Shiny entry point that calls each requested method in sequence and
 #' returns a named list of results suitable for scripted analysis or testing.
 #'
-#' @param data data.table from `selectedData()` — must have columns `orgUnit`,
+#' @param data data.table from `selectedData()`  -  must have columns `orgUnit`,
 #'   `Month`, `data`, `value`, `Selected`, and a region column.
 #' @param target_elements character; `data` values for the outcome (e.g.
 #'   confirmed malaria cases).
@@ -1283,12 +1291,12 @@ compute_burden_groups <- function(subnational, n_groups, category = NULL) {
 #' @param tested_elements character or NULL; required for method E.
 #' @param population_element character or NULL; triggers per-100k rates for all
 #'   methods and the incidence output for method E.
-#' @param cat_map_attend named character; confirmed → attendance category map.
-#' @param cat_map_tested named character; confirmed → tested category map.
-#' @param beta_young,beta_old numeric; β for method E (default Thwing 2020).
-#' @param alpha numeric; α for method E (default 0.48).
-#' @param gamma_young,gamma_old numeric; γ for method E (default 2.0 / 1.0).
-#' @param lambdamin numeric; λmin for method E (default 0.75).
+#' @param cat_map_attend named character; confirmed -> attendance category map.
+#' @param cat_map_tested named character; confirmed -> tested category map.
+#' @param beta_young,beta_old numeric; beta for method E (default Thwing 2020).
+#' @param alpha numeric; alpha for method E (default 0.48).
+#' @param gamma_young,gamma_old numeric; gamma for method E (default 2.0 / 1.0).
+#' @param lambdamin numeric; lambdamin for method E (default 0.75).
 #' @param run_d logical; whether to apply the care-seeking adjustment (D).
 #' @param care_seeking named numeric; care-seeking proportions by category for D.
 #' @param default_p numeric; fallback care-seeking proportion for D.
@@ -1348,7 +1356,7 @@ run_burden_estimates <- function(
     if (!is.null(results$A))
       .log(sprintf("  Done. %d region-category rows.", nrow(results$A$subnational)))
     else
-      .log("  No results — check champion facilities are defined.")
+      .log("  No results  -  check champion facilities are defined.")
   }
 
   if ("B" %in% methods) {
@@ -1364,7 +1372,7 @@ run_burden_estimates <- function(
       if (!is.null(results$B))
         .log(sprintf("  Done. %d rows.", nrow(results$B$subnational)))
       else
-        .log("  No results — need >= 3 champion facilities with attendance data.")
+        .log("  No results  -  need >= 3 champion facilities with attendance data.")
     }
   }
 
@@ -1422,7 +1430,7 @@ run_burden_estimates <- function(
       if (!is.null(results$E))
         .log(sprintf("  Done. %d rows.", nrow(results$E$subnational)))
       else
-        .log("  No results — check all three elements are present in champion data.")
+        .log("  No results  -  check all three elements are present in champion data.")
     }
   }
 

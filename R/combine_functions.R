@@ -1,4 +1,4 @@
-# Combine Functions — build derived datasets from multiple processed .rds files
+# Combine Functions  -  build derived datasets from multiple processed .rds files
 #
 # These functions support combine_widget.R, which lets users construct new
 # datasets (e.g. Test Positivity Rate) by combining and transforming variables
@@ -21,8 +21,8 @@
 #' Uses `smallThreshold = 0` so ratio values in \[0, 1\] are not silently skipped
 #' (the default threshold of 50 would skip every ratio series).
 #'
-#' @param original Numeric vector (one orgUnit × data series).
-#' @param over_max,mad15,mad10,seasonal5,seasonal3 Logical vectors —
+#' @param original Numeric vector (one orgUnit x data series).
+#' @param over_max,mad15,mad10,seasonal5,seasonal3 Logical vectors  - 
 #'   Phase 1 inherited flags for the same series.
 #' @return Named list of length 4: mad15, mad10, seasonal5, seasonal3 (in that
 #'   order, matching the LHS of the `data.table` `:=` assignment).
@@ -121,10 +121,10 @@ read_combine_meta <- function(file_path) {
 
 #' Apply outlier cleaning at a specified cumulative severity level
 #'
-#' Replaces values flagged as outliers — at or below the chosen severity — with
+#' Replaces values flagged as outliers  -  at or below the chosen severity  -  with
 #' the modelled `expected` value (or `NA` when `expected` is unavailable).
 #'
-#' Severity order (most → least severe):
+#' Severity order (most -> least severe):
 #' `key_entry_error` > `over_max` > `mad15` > `mad10` > `seasonal5` > `seasonal3`
 #'
 #' "Use mad15" means: only replace values flagged by key_entry_error, over_max,
@@ -178,7 +178,7 @@ apply_combine_cleaning <- function(d, cleaning_level = "seasonal3") {
 #' Execute an Include step
 #' @noRd
 execute_include_step <- function(step, data_folder, period_col, verbose = FALSE) {
-  cat("  [Include]", step$output_name, "← file:", step$source_file,
+  cat("  [Include]", step$output_name, "<- file:", step$source_file,
       "| values:", paste(step$data_values, collapse = ", "),
       "| cleaning:", step$cleaning_level, "\n")
 
@@ -203,7 +203,7 @@ execute_include_step <- function(step, data_folder, period_col, verbose = FALSE)
     d[, data := out_name]
   }
 
-  # Build output — carry Phase 1 flag columns from source data
+  # Build output  -  carry Phase 1 flag columns from source data
   out <- d[, .(orgUnit, data, original = cleaned)]
   set(out, j = period_col, value = d[[period_col]])
 
@@ -221,13 +221,13 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 
   # na.rm controls whether partial category data is included in sums.
   # TRUE (default, backward-compatible): sum available values even when some
-  # selected categories are missing — facilities with partial data contribute.
+  # selected categories are missing  -  facilities with partial data contribute.
   # FALSE: require all selected values to be present; any NA makes the sum NA.
   na_rm <- isTRUE(step$na_rm)
   cat("  [Ratio] na.rm =", na_rm, "\n")
 
   load_side <- function(spec, label) {
-    cat("  [Ratio]", label, "← file:", spec$source_file,
+    cat("  [Ratio]", label, "<- file:", spec$source_file,
         "| values:", paste(spec$data_values, collapse = ", "),
         "| cleaning:", spec$cleaning_level, "\n")
 
@@ -246,7 +246,7 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 
     cleaned <- apply_combine_cleaning(d, spec$cleaning_level)
 
-    # Build output — carry Phase 1 flag columns from source data
+    # Build output  -  carry Phase 1 flag columns from source data
     out <- d[, .(orgUnit)]
     set(out, j = period_col, value = d[[period_col]])
     out[, val := cleaned]
@@ -259,8 +259,8 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
     out
   }
 
-  num <- load_side(step$numerator,   paste("numerator  →", step$output_name))
-  den <- load_side(step$denominator, paste("denominator →", step$output_name))
+  num <- load_side(step$numerator,   paste("numerator  ->", step$output_name))
+  den <- load_side(step$denominator, paste("denominator ->", step$output_name))
 
   if (nrow(num) == 0 || nrow(den) == 0) {
     warning("execute_ratio_step '", step$output_name, "': empty numerator or denominator")
@@ -269,7 +269,7 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 
   by_cols <- c("orgUnit", period_col)
 
-  # Aggregate per orgUnit × period: sum values, OR flag columns
+  # Aggregate per orgUnit x period: sum values, OR flag columns
   flag_cols_n <- intersect(.source_flag_cols, names(num))
   if (length(flag_cols_n) > 0) {
     num <- num[, c(.(val = sum(val, na.rm = na_rm)),
@@ -325,7 +325,7 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 
   joined[, data := step$output_name]
 
-  # Build output — always include numerator/denominator for ratio-aware aggregation,
+  # Build output  -  always include numerator/denominator for ratio-aware aggregation,
   # and carry Phase 1 inherited flags
   flag_cols_final <- intersect(.source_flag_cols, names(joined))
 
@@ -354,18 +354,18 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 #' Executes each step in sequence and binds results into a single
 #' processed-format dataset, joining the org unit hierarchy from `ousTree`.
 #' The output is compatible with the standard MG2 pipeline
-#' (DQA → Reporting → Outliers → Evaluation).
+#' (DQA -> Reporting -> Outliers -> Evaluation).
 #'
 #' Outlier flags are populated in two phases:
 #' \enumerate{
-#'   \item \strong{Inheritance} — each step carries flag columns from its
+#'   \item \strong{Inheritance}  -  each step carries flag columns from its
 #'     source dataset(s).  For Ratio steps, flags from numerator and
-#'     denominator are combined with OR per orgUnit × period.
-#'   \item \strong{Direct scan} — [extremely_mad()] and [unseasonal()] are
+#'     denominator are combined with OR per orgUnit x period.
+#'   \item \strong{Direct scan}  -  [extremely_mad()] and [unseasonal()] are
 #'     applied to the combined values using `smallThreshold = 0` (the default
 #'     of 50 would skip all ratio series whose values are in \[0, 1\]).
 #'     Results are OR-ed with Phase 1 flags: an inherited `TRUE` is never
-#'     cleared.  The scan respects the severity hierarchy — once a more severe
+#'     cleared.  The scan respects the severity hierarchy  -  once a more severe
 #'     flag is set, less severe algorithms are skipped for that value.
 #' }
 #'
@@ -375,7 +375,7 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 #' @param formula_name Character; stored as `Formula.Name` in the output.
 #' @param verbose Logical; print progress messages (always prints to console).
 #' @param .progress Optional function `(value, message, detail = "")` called at
-#'   key stages.  `value` is 0–1.  Pass `shiny::setProgress` (or a wrapper)
+#'   key stages.  `value` is 0-1.  Pass `shiny::setProgress` (or a wrapper)
 #'   when calling from a Shiny `withProgress()` context.
 #' @return data.table in standard processed-dataset format.
 #' @export
@@ -384,7 +384,7 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
                                    .progress = NULL) {
   if (length(steps) == 0) stop("build_combined_dataset: no steps defined")
 
-  # Progress reporting helper — no-op when .progress is NULL
+  # Progress reporting helper  -  no-op when .progress is NULL
   rp <- function(value, message, detail = "") {
     if (is.function(.progress)) .progress(value = value, message = message, detail = detail)
   }
@@ -416,7 +416,7 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
 
   for (i in seq_along(steps)) {
     s <- steps[[i]]
-    cat("\n- step", i, "[", s$operation, "] →", s$output_name, "\n")
+    cat("\n- step", i, "[", s$operation, "] ->", s$output_name, "\n")
     rp(0.05 + (i - 1) / n_steps * 0.50,
        paste0("Step ", i, " of ", n_steps, ": ", s$output_name),
        s$operation)
@@ -462,7 +462,7 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
   combined[, key_entry_error := FALSE]
 
   # Phase 1 flags are already in `combined` (inherited from source datasets via
-  # execute_*_step).  Only initialize columns that are missing; coerce NA→FALSE
+  # execute_*_step).  Only initialize columns that are missing; coerce NA->FALSE
   # for any NAs introduced by rbindlist(fill=TRUE) across steps with different
   # source flag coverage.
   for (fc in .source_flag_cols) {
@@ -489,15 +489,15 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
       combined[data == s$output_name & !is.na(original) & as.numeric(original) > mv,
                over_max := TRUE]
       n_over <- sum(combined[data == s$output_name]$over_max, na.rm = TRUE)
-      cat("- over_max: '", s$output_name, "' max =", mv, "→", n_over, "flagged\n")
+      cat("- over_max: '", s$output_name, "' max =", mv, "->", n_over, "flagged\n")
     }
   }
 
   # Phase 2: direct outlier scan on combined values.
-  # Respects hierarchy: over_max → stop; mad15 → skip mad10; mad10 → skip seasonal.
+  # Respects hierarchy: over_max -> stop; mad15 -> skip mad10; mad10 -> skip seasonal.
   # Uses smallThreshold=0 because ratio values in [0,1] would all be skipped by
   # the default threshold of 50 used in mad_outliers()/seasonal_outliers().
-  # New flags are OR-ed with Phase 1 inherited flags — once TRUE, stays TRUE.
+  # New flags are OR-ed with Phase 1 inherited flags  -  once TRUE, stays TRUE.
   n_series <- nrow(unique(combined[, .(orgUnit, data)]))
   cat("- Phase 2: scanning combined values for outliers (smallThreshold=0)\n")
   cat("  ", n_series, "series to scan\n")
@@ -558,7 +558,7 @@ register_combined_formula <- function(formula_name, formula_file) {
 
   if (formula_name %in% current$Formula.Name) {
     message("register_combined_formula: '", formula_name,
-            "' already present — no change made")
+            "' already present  -  no change made")
     return(invisible(TRUE))
   }
 
@@ -572,7 +572,7 @@ register_combined_formula <- function(formula_name, formula_file) {
 
   updated <- rbind(current, new_row)
 
-  # If the sheet contains an Excel Table object, remove it first — writeData
+  # If the sheet contains an Excel Table object, remove it first  -  writeData
   # cannot overwrite table headers.  The data is re-written as plain cells.
   tbls <- openxlsx::getTables(wb, sheet = "Formula")
   for (tbl in tbls) {

@@ -107,7 +107,11 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
       saved_credentials <- reactive({
         req(cred_file())
         if (file.exists(cred_file())) {
-          tryCatch(readRDS(cred_file()), error = function(e) NULL)
+          tryCatch({
+            creds <- readRDS(cred_file())
+            # Drop password column if present (migration from earlier format)
+            creds[, setdiff(names(creds), "password"), drop = FALSE]
+          }, error = function(e) NULL)
         } else {
           NULL
         }
@@ -144,17 +148,16 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         )
       })
 
-      # Populate fields and trigger login when saved credential is chosen
+      # Populate fields when saved credential is chosen; password is not stored
+      # so the user must re-enter it to complete the login.
       observeEvent(input$saved_cred_select, {
         req(input$saved_cred_select != "")
         creds <- saved_credentials()
         idx   <- as.integer(input$saved_cred_select)
         row   <- creds[idx, ]
-        updateTextInput(session, "baseurl",  value = row$url)
-        updateTextInput(session, "username", value = row$username)
-        updateTextInput(session, "password", value = row$password)
-        # Force login attempt regardless of whether fields were already populated
-        loginTrigger(loginTrigger() + 1L)
+        updateTextInput(session,    "baseurl",  value = row$url)
+        updateTextInput(session,    "username", value = row$username)
+        updateTextInput(session,    "password", value = "")
       })
 
       # Save credentials button: shown after a new successful login
@@ -164,21 +167,27 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         already_saved <- !is.null(creds) && nrow(creds) > 0 &&
           any(creds$url == baseurl() & creds$username == input$username)
         if (already_saved) return(NULL)
-        actionButton(
-          ns("save_credentials"),
-          label = "Save credentials",
-          icon  = icon("floppy-disk"),
-          class = "btn-success btn-sm",
-          style = "margin-top: 25px;"
+        tagList(
+          actionButton(
+            ns("save_credentials"),
+            label = "Save URL & username",
+            icon  = icon("floppy-disk"),
+            class = "btn-success btn-sm",
+            style = "margin-top: 25px;"
+          ),
+          tags$p(
+            tags$small(icon("lock"), " Password is not saved."),
+            style = "color: #666; margin-top: 4px; font-size: 11px;"
+          )
         )
       })
 
       observeEvent(input$save_credentials, {
         req(login(), data.folder())
+        # Only url + username are stored; passwords are never written to disk.
         new_row <- tibble::tibble(
           url      = baseurl(),
-          username = input$username,
-          password = input$password
+          username = input$username
         )
         existing <- saved_credentials()
         if (!is.null(existing) && nrow(existing) > 0) {
@@ -193,7 +202,8 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         }
         saveRDS(all_creds, cred_file())
         showNotification(
-          paste0("Credentials saved for ", input$username, "."),
+          paste0("URL and username saved for ", input$username,
+                 ". Password is not stored."),
           type     = "message",
           duration = 4
         )
@@ -201,7 +211,7 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
 
       # Core login logic ----
 
-      attempt_login <- function() {
+      attempt_login <- function(confirmed = FALSE) {
         if (
           is_empty(baseurl()) ||
             is_empty(input$username) ||
@@ -210,6 +220,31 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
           login(FALSE)
           return()
         }
+
+        # Warn before connecting over plain HTTP
+        if (!confirmed && grepl("^http://", baseurl())) {
+          showModal(modalDialog(
+            title = "Insecure connection — confirm?",
+            tags$p(
+              icon("triangle-exclamation", style = "color: #f0ad4e; margin-right: 6px;"),
+              "This URL uses ", tags$strong("http://"), " (not https://)."
+            ),
+            tags$p(
+              "Your username and password will be transmitted in ",
+              tags$strong("plain text"), " and could be intercepted on the network."
+            ),
+            tags$p("Are you sure you want to continue?"),
+            footer    = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("confirm_http_login"), "Connect anyway",
+                           class = "btn-warning")
+            ),
+            easyClose = TRUE,
+            fade      = FALSE
+          ))
+          return()
+        }
+
         cat('\n* login attempt:', baseurl(), input$username)
         loginAttempted(TRUE)
         l <- try(loginDHIS2(baseurl(), input$username, input$password, timeout = 45))
@@ -218,6 +253,11 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         loginError(!result)
         cat('\n - login result:', result)
       }
+
+      observeEvent(input$confirm_http_login, {
+        removeModal()
+        attempt_login(confirmed = TRUE)
+      })
 
       # Auto-login when all fields become non-empty
       credentialsProvided <- reactive({

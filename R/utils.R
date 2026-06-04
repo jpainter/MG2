@@ -26,7 +26,7 @@
 #' as.yearmonth("2025 Jan")
 #' as.yearmonth("201901")
 as.yearmonth <- function(date.string, fmt = NULL) {
-  # Already the right type — return as-is
+  # Already the right type  -  return as-is
   if (tsibble::is_yearmonth(date.string)) return(date.string)
 
   # Explicit format supplied
@@ -114,7 +114,7 @@ read_file <- function(filename) {
     }
     df <- fst::read_fst(filename)
 
-    # FST stores yearmonth/yearweek as plain numeric — restore the S3 class
+    # FST stores yearmonth/yearweek as plain numeric  -  restore the S3 class
     # so downstream tsibble operations work correctly.
     # Must include "vctrs_vctr" in the class vector; without it as.Date()
     # falls through to as.Date.default and throws "do not know how to convert".
@@ -122,7 +122,7 @@ read_file <- function(filename) {
     # Guard: tsibble yearmonth integers for 2000-2040 are ~360-840.
     # Days-since-1970-01-01 for the same range are ~10,000-25,000.
     # If the median value exceeds 5000 the column is a Date integer, not a
-    # yearmonth integer — leave it alone to avoid corrupting the values.
+    # yearmonth integer  -  leave it alone to avoid corrupting the values.
     if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth")) {
       m_vals <- as.numeric(df[["Month"]])
       if (median(m_vals, na.rm = TRUE) <= 5000)
@@ -174,7 +174,7 @@ mg2_data_ext <- function() {
 #' Save a Data Frame to Disk
 #'
 #' Writes a data frame to an `.fst` or `.rds` file based on the file extension
-#' in `filename`. `.fst` is 5–10× faster than compressed `.rds` for large flat
+#' in `filename`. `.fst` is 5-10x faster than compressed `.rds` for large flat
 #' data frames and is preferred when the `fst` package is available.
 #'
 #' Existing `.rds` files are always readable by [read_file()] regardless of
@@ -183,8 +183,8 @@ mg2_data_ext <- function() {
 #' @param x A data frame or data.table.
 #' @param filename Character. Destination path. Extension must be `".fst"` or
 #'   `".rds"`.
-#' @param compress Integer (0–100). Compression level for `.fst` files (default
-#'   `100` — best compression while still ~4× faster than RDS). Ignored for
+#' @param compress Integer (0-100). Compression level for `.fst` files (default
+#'   `100`  -  best compression while still ~4x faster than RDS). Ignored for
 #'   `.rds` files (which always use `compress = TRUE`).
 #'
 #' @return `filename`, invisibly.
@@ -261,7 +261,7 @@ list_dir_files <- function(search = "All", type = "xlsx", other = "", dir = NULL
 #' current month.
 #'
 #' @param years Integer vector of years. If `NULL`, computed from `YrsPrevious`.
-#' @param months Integer vector of months (1–12). Ignored when `years` is `NULL`.
+#' @param months Integer vector of months (1-12). Ignored when `years` is `NULL`.
 #' @param startPeriod Character. Explicit start period in `"YYYYMM"` format.
 #' @param YrsPrevious Integer. Number of full years prior to the current year
 #'   to start from (default: `1`).
@@ -402,14 +402,14 @@ check_mg2_dependencies <- function() {
       info <- c(info, paste0(p, " ", v))
     } else if (p == "leaflet.providers") {
       warns <- c(warns,
-        "leaflet.providers not installed — only OpenStreetMap tiles available. ",
+        "leaflet.providers not installed  -  only OpenStreetMap tiles available. ",
         "Install with: install.packages('leaflet.providers')")
     }
   }
 
   known_issues <- list(
     list(pkg = "bslib",   min = "0.9.0",
-         msg = "bslib >= 0.9.0 changed page_navbar() — use navbar_options() for bg colour."),
+         msg = "bslib >= 0.9.0 changed page_navbar()  -  use navbar_options() for bg colour."),
     list(pkg = "leaflet", min = "2.2.0",
          msg = "leaflet < 2.2 has sf polygon rendering bugs. Update with install.packages('leaflet').")
   )

@@ -19,20 +19,23 @@ mad_outliers(
 \item{.total}{Integer. Number of series (used for progress). If \code{NULL},
 computed automatically from \code{tsibble::n_keys(d)}.}
 
-\item{.threshold}{Numeric. All-small threshold; series with all values ≤
+\item{.threshold}{Numeric. All-small threshold; series with all values <=
 this are skipped (default: \code{50}).}
 
 \item{key_entry_errors}{Numeric vector. Pre-specified key-entry error values.
 If \code{NULL}, detected automatically.}
 
 \item{progress}{Logical. Show Shiny progress increments (default: \code{TRUE}).}
+
+\item{.progress_fn}{Optional function accepting a message string; called at
+key stages to report progress (e.g., a Shiny \code{setProgress} wrapper).}
 }
 \value{
 The input tsibble with additional logical flag columns:
 \code{key_entry_error}, \code{over_max}, \code{mad15}, \code{mad10}, \code{mad5}.
 }
 \description{
-Applies \code{\link[=extremely_mad]{extremely_mad()}} across every org unit × data element series,
-flagging key-entry errors, over-max values, and MAD extremes at 15×, 10×,
-and 5× thresholds.
+Applies \code{\link[=extremely_mad]{extremely_mad()}} across every org unit x data element series,
+flagging key-entry errors, over-max values, and MAD extremes at 15x, 10x,
+and 5x thresholds.
 }

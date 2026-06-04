@@ -15,7 +15,7 @@ burden_c2(
 )
 }
 \arguments{
-\item{data}{data.table from \code{selectedData()} — the \strong{full available history}.}
+\item{data}{data.table from \code{selectedData()}  -  the \strong{full available history}.}
 
 \item{target_elements}{character; target \code{data} values.}
 

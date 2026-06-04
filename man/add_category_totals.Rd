@@ -14,7 +14,7 @@ Modified result with Total rows appended.
 }
 \description{
 For each region, sums estimates across categories and combines uncertainty
-via SE_total = √ΣSE_i² (assumes independence across categories).  A "Total"
+via SE_total = sqrtsum()SE_i^2 (assumes independence across categories).  A "Total"
 row is appended to both \verb{$subnational} and \verb{$national} when more than one
 category is present.
 }
