@@ -242,8 +242,48 @@ data_request_widget_server <- function(
           return()
         }
 
+        # Warn if a region filter is active — only selected org units will download
+        sr <- tryCatch(selected_regions(), error = function(e) NULL)
+        active_regions <- unlist(sr)
+        if (length(active_regions) > 0) {
+          showModal(modalDialog(
+            title = "Region filter is active",
+            tags$p(
+              icon("triangle-exclamation", style = "color: #f0ad4e; margin-right: 6px;"),
+              "A region filter is selected in the Regions tab. ",
+              tags$strong("Only the filtered org units will be downloaded"),
+              " — not the full country."
+            ),
+            tags$p(
+              "Selected: ",
+              tags$strong(paste(active_regions, collapse = ", "))
+            ),
+            tags$p(
+              tags$small(
+                "To download all org units, go to the Regions tab,",
+                " clear the selection, and return here."
+              ),
+              style = "color: #666;"
+            ),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton(ns("confirm_region_download"), "Download filtered region",
+                           class = "btn-warning")
+            ),
+            easyClose = TRUE, fade = FALSE, size = "m"
+          ))
+          return()
+        }
+
         request(TRUE)
         cat('\n * data_request_widget requestData Button', request(), '\n')
+        formula.request()
+      })
+
+      observeEvent(input$confirm_region_download, {
+        removeModal()
+        request(TRUE)
+        cat('\n * data_request_widget requestData Button (region confirmed)', request(), '\n')
         formula.request()
       })
 
