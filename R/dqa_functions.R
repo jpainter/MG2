@@ -378,11 +378,9 @@ data_ous <- function(dqa_data) {
 #' Extract Years Present in DQA Data
 #' @noRd
 dqa_years <- function(dqa_data) {
-  dqa_data |>
-    tibble::as_tibble() |>
-    dplyr::ungroup() |>
-    dplyr::count(Year = as.integer(format(Month, "%Y"))) |>
-    dplyr::select(-n)
+  # Use integer arithmetic on the raw yearmonth value so this works whether or
+  # not the yearmonth S3 class is present (e.g. after setDT() strips it).
+  tibble::tibble(Year = sort(unique(as.integer(dqa_data$Month) %/% 12L + 1970L)))
 }
 
 #' Count Consistently Reporting Facilities per Year
@@ -407,7 +405,7 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
   endingMonth <- dqa_data |>
     tibble::as_tibble() |>
     dplyr::ungroup() |>
-    dplyr::group_by(year = as.integer(format(Month, "%Y"))) |>
+    dplyr::group_by(year = as.integer(Month) %/% 12L + 1970L) |>
     dplyr::summarize(latest_month = max(Month), .groups = "drop") |>
     dplyr::pull(latest_month)
 
@@ -542,7 +540,7 @@ dqa_reporting_by_region <- function(dqa_data, level_col,
   endMonths   <- dqa_data |>
     tibble::as_tibble() |>
     dplyr::ungroup() |>
-    dplyr::group_by(year = as.integer(format(Month, "%Y"))) |>
+    dplyr::group_by(year = as.integer(Month) %/% 12L + 1970L) |>
     dplyr::summarize(latest_month = max(Month), .groups = "drop") |>
     dplyr::pull(latest_month)
   endMonths[length(endMonths)] <- endMonths[length(endMonths)] - 1L
@@ -662,7 +660,7 @@ mase <- function(actual, predicted, step_size = 1) {
 #' @noRd
 mase_year <- function(dqa_data, .year) {
   d_all <- data.table::setDT(tibble::as_tibble(dqa_data))[
-    as.integer(format(Month, "%Y")) <= .year,
+    as.integer(Month) %/% 12L + 1970L <= .year,
     .(
       expected = sum(expected, na.rm = TRUE),
       original = sum(original, na.rm = TRUE)
