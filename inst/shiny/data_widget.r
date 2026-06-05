@@ -647,12 +647,20 @@ data_widget_server <- function(
         if (!is.data.table(d1)) setDT(d1)
 
         # setDT() can silently drop S3 subclass attributes on integer columns.
-        # Restore yearmonth class so format(Month, "%Y") dispatches correctly
-        # throughout all downstream widgets.
+        # Restore (or convert to) yearmonth so all downstream format(Month, "%Y")
+        # calls dispatch format.yearmonth correctly.
+        # Two encodings are possible in FST files:
+        #   months-since-epoch (yearmonth): ~360-840 for 2000-2040
+        #   days-since-epoch (Date):       ~10000-25000 for 2000-2040
+        # The > 5000 threshold (same as read_file()) distinguishes them.
         if ("Month" %in% names(d1) && !inherits(d1[["Month"]], "yearmonth")) {
-          data.table::set(d1, j = "Month",
-                          value = structure(d1[["Month"]],
-                                            class = c("yearmonth", "vctrs_vctr")))
+          m_raw <- as.numeric(d1[["Month"]])
+          ym_vals <- if (median(m_raw, na.rm = TRUE) > 5000) {
+            tsibble::yearmonth(as.Date(as.integer(m_raw), origin = "1970-01-01"))
+          } else {
+            structure(m_raw, class = c("yearmonth", "vctrs_vctr"))
+          }
+          data.table::set(d1, j = "Month", value = ym_vals)
         }
 
         cat("\n - end d1  class/cols:\n -- ", class(d1), "\n")
