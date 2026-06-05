@@ -67,10 +67,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         new_dir  <- sub("/$", "", new_dir)
         existing <- sub("/$", "", existing)
         updated  <- unique(c(new_dir, existing[nchar(existing) > 0]))
-        tryCatch(
-          saveRDS(list(directories = head(updated, 10)), config_path),
-          error = function(e) NULL
-        )
+        # Skip disk write in demo mode (server filesystem is ephemeral)
+        if (!nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
+          tryCatch(
+            saveRDS(list(directories = head(updated, 10)), config_path),
+            error = function(e) NULL
+          )
+        }
         head(updated, 10)
       }
 

@@ -216,6 +216,17 @@ server <- function(input, output, session) {
   # directory_widget watches it to update the directory input automatically.
   demo_dir <- reactiveVal(NULL)
 
+  # Demo mode (shinyapps.io): pre-populate Sierra Leone data so users skip
+  # Step 1 entirely. Activated by setting MG2_DEMO_MODE env var.
+  if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
+    demo_path <- file.path(tempdir(), "mg2_demo")
+    tryCatch(
+      mg2_demo_setup(dir = demo_path, overwrite = FALSE),
+      error = function(e) message("Demo setup: ", conditionMessage(e))
+    )
+    demo_dir(demo_path)
+  }
+
   directory_widget_output <- directory_widget_server("directory1", demo_dir = demo_dir)
 
   login_widget_output <- login_widget_server(

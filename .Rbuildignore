@@ -13,6 +13,7 @@
 ^Meta$
 ^reports$
 ^analysis$
+^deploy$
 ^air\.toml$
 ^burden_estimate_plan$
 ^docs$
