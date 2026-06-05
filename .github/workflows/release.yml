@@ -1,0 +1,37 @@
+name: Build and release R package
+
+on:
+  push:
+    tags:
+      - 'v*'   # triggers on v0.1.6, v1.0.0, etc.
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: build
+
+      - name: Build package tarball
+        run: |
+          R CMD build --no-build-vignettes .
+          echo "TARBALL=$(ls *.tar.gz)" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: ${{ env.TARBALL }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
