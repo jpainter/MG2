@@ -375,12 +375,23 @@ data_ous <- function(dqa_data) {
     dplyr::select(-n)
 }
 
+# Extract calendar year from a Month value regardless of encoding.
+# Handles both months-since-epoch (~360-840 for 2000-2040, correct yearmonth)
+# and days-since-epoch (~10k-25k, legacy encoding from older MG2 builds).
+.month_to_year <- function(x) {
+  raw <- c(unclass(x))
+  if (length(raw) == 0) return(integer(0))
+  if (median(raw, na.rm = TRUE) > 5000) {
+    as.integer(format(as.Date(as.integer(raw), origin = "1970-01-01"), "%Y"))
+  } else {
+    as.integer(raw) %/% 12L + 1970L
+  }
+}
+
 #' Extract Years Present in DQA Data
 #' @noRd
 dqa_years <- function(dqa_data) {
-  # unclass() strips the yearmonth/vctrs wrapper to expose the raw integer
-  # without triggering vec_cast, which rejects as.integer(<yearmonth>).
-  tibble::tibble(Year = sort(unique(unclass(dqa_data$Month) %/% 12L + 1970L)))
+  tibble::tibble(Year = sort(unique(.month_to_year(dqa_data$Month))))
 }
 
 #' Count Consistently Reporting Facilities per Year
@@ -405,7 +416,7 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
   endingMonth <- dqa_data |>
     tibble::as_tibble() |>
     dplyr::ungroup() |>
-    dplyr::group_by(year = unclass(Month) %/% 12L + 1970L) |>
+    dplyr::group_by(year = .month_to_year(Month)) |>
     dplyr::summarize(latest_month = max(Month), .groups = "drop") |>
     dplyr::pull(latest_month)
 
@@ -540,7 +551,7 @@ dqa_reporting_by_region <- function(dqa_data, level_col,
   endMonths   <- dqa_data |>
     tibble::as_tibble() |>
     dplyr::ungroup() |>
-    dplyr::group_by(year = unclass(Month) %/% 12L + 1970L) |>
+    dplyr::group_by(year = .month_to_year(Month)) |>
     dplyr::summarize(latest_month = max(Month), .groups = "drop") |>
     dplyr::pull(latest_month)
   endMonths[length(endMonths)] <- endMonths[length(endMonths)] - 1L
@@ -660,7 +671,7 @@ mase <- function(actual, predicted, step_size = 1) {
 #' @noRd
 mase_year <- function(dqa_data, .year) {
   d_all <- data.table::setDT(tibble::as_tibble(dqa_data))[
-    unclass(Month) %/% 12L + 1970L <= .year,
+    .month_to_year(Month) <= .year,
     .(
       expected = sum(expected, na.rm = TRUE),
       original = sum(original, na.rm = TRUE)
