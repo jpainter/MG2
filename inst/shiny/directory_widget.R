@@ -127,7 +127,7 @@ directory_widget_server <- function(id, demo_dir = NULL) {
             selected = d
           )
         }
-      }, ignoreNULL = TRUE, ignoreInit = TRUE)
+      }, ignoreNULL = TRUE, ignoreInit = FALSE)
 
       data.folder = reactive({
         cat('\n* data.folder:\n')
