@@ -220,7 +220,7 @@ server <- function(input, output, session) {
   # Activated by MG2_DEMO_MODE env var.
   # MG2_DEMO_COUNTRY controls which dataset: "pdrlao" (default) or "sl".
   if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
-    country    <- tolower(Sys.getenv("MG2_DEMO_COUNTRY", unset = "pdrlao"))
+    country    <- tolower(Sys.getenv("MG2_DEMO_COUNTRY", unset = "sl"))
     setup_fn   <- if (country == "sl") mg2_demo_setup else mg2_pdrlao_setup
     demo_path  <- file.path(tempdir(), paste0("mg2_demo_", country))
     tryCatch(

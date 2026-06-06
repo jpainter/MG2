@@ -223,12 +223,14 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
     message("Metadata exists (skipped): ", basename(meta_path))
   }
 
-  # 3. Processed dataset
+  # 3. Processed dataset — use save_file() so FST is used when available,
+  #    which is much faster and uses less peak memory than saveRDS().
   n_months  <- length(unique(mg2_pdrlao_processed$Month))
   n_years   <- round(n_months / 12)
-  data_path <- file.path(dir, paste0(formula_name, "_Facility_", n_years, "yrs_", today, ".rds"))
+  ext       <- mg2_data_ext()   # ".fst" if fst is installed, otherwise ".rds"
+  data_path <- file.path(dir, paste0(formula_name, "_Facility_", n_years, "yrs_", today, ext))
   if (!file.exists(data_path) || overwrite) {
-    saveRDS(mg2_pdrlao_processed, data_path, compress = TRUE)
+    save_file(mg2_pdrlao_processed, data_path)
     message("Dataset saved:         ", basename(data_path))
   } else {
     message("Dataset exists (skipped): ", basename(data_path))
