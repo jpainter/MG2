@@ -383,7 +383,7 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
 
         pdr_choices <- list(
           "PDR Lao" = c("PDR Lao HMIS (demo_en / District1#)" =
-                          "https://demos.dhis2.org/hmis_data/")
+                          "https://demos.dhis2.org/hmis/")
         )
         choices <- c(pdr_choices, api_choices)
 
