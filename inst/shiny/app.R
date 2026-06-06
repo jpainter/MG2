@@ -216,12 +216,15 @@ server <- function(input, output, session) {
   # directory_widget watches it to update the directory input automatically.
   demo_dir <- reactiveVal(NULL)
 
-  # Demo mode (shinyapps.io): pre-populate Sierra Leone data so users skip
-  # Step 1 entirely. Activated by setting MG2_DEMO_MODE env var.
+  # Demo mode (shinyapps.io): pre-populate demo data so users skip Step 1.
+  # Activated by MG2_DEMO_MODE env var.
+  # MG2_DEMO_COUNTRY controls which dataset: "pdrlao" (default) or "sl".
   if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
-    demo_path <- file.path(tempdir(), "mg2_demo")
+    country    <- tolower(Sys.getenv("MG2_DEMO_COUNTRY", unset = "pdrlao"))
+    setup_fn   <- if (country == "sl") mg2_demo_setup else mg2_pdrlao_setup
+    demo_path  <- file.path(tempdir(), paste0("mg2_demo_", country))
     tryCatch(
-      mg2_demo_setup(dir = demo_path, overwrite = FALSE),
+      setup_fn(dir = demo_path, overwrite = FALSE),
       error = function(e) message("Demo setup: ", conditionMessage(e))
     )
     demo_dir(demo_path)

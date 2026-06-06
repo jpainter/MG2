@@ -54,23 +54,36 @@ login_widget_ui <- function(id) {
         column(
           6,
           hr(),
-          h4("Or load MG2 demo data:"),
+          h4("Or load demo data:"),
           tags$p(
-            tags$small(
-              "5 years of Sierra Leone malaria data — no server connection needed.",
-              tags$br(),
-              tags$a("See About tab for details.", href = "#"),
-              tags$br(),
-              "Browse to choose where demo files will be written."
-            ),
+            tags$small("Pre-built datasets — no server connection needed."),
             style = "color: #555; margin-bottom: 8px;"
           ),
-          shinyFiles::shinyDirButton(
-            ns("demo_folder"),
-            label = "Load MG2 Demo Data",
-            title = "Choose folder for demo data",
-            icon  = icon("play-circle"),
-            class = "btn-success"
+          fluidRow(
+            column(
+              6,
+              shinyFiles::shinyDirButton(
+                ns("demo_folder"),
+                label = "Sierra Leone Malaria",
+                title = "Choose folder for Sierra Leone demo data",
+                icon  = icon("play-circle"),
+                class = "btn-success btn-block"
+              ),
+              tags$p(tags$small("5 elements, 6 years"),
+                     style = "color:#555; margin-top:4px;")
+            ),
+            column(
+              6,
+              shinyFiles::shinyDirButton(
+                ns("demo_pdrlao_folder"),
+                label = "PDR Lao Malaria",
+                title = "Choose folder for PDR Lao demo data",
+                icon  = icon("play-circle"),
+                class = "btn-info btn-block"
+              ),
+              tags$p(tags$small("22 elements, ~5 years"),
+                     style = "color:#555; margin-top:4px;")
+            )
           )
         )
       )
@@ -320,29 +333,22 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
 
       shinyFiles::shinyDirChoose(input, "demo_folder",
                                  roots = demo_volumes, session = session)
+      shinyFiles::shinyDirChoose(input, "demo_pdrlao_folder",
+                                 roots = demo_volumes, session = session)
 
-      observeEvent(input$demo_folder, {
-        if (is.integer(input$demo_folder)) return()   # not yet chosen
-
-        chosen_dir <- shinyFiles::parseDirPath(demo_volumes, input$demo_folder)
-        if (length(chosen_dir) == 0 || !nzchar(chosen_dir)) return()
-
+      .run_demo_setup <- function(chosen_dir, setup_fn, label) {
         req(!is.null(demo_dir))
-
         showModal(modalDialog(
-          title     = "Loading demo data...",
-          paste0("Writing Sierra Leone malaria demo files to:\n", chosen_dir),
-          easyClose = FALSE,
-          footer    = NULL,
-          fade      = FALSE
+          title     = paste0("Loading ", label, " demo data..."),
+          paste0("Writing files to:\n", chosen_dir),
+          easyClose = FALSE, footer = NULL, fade = FALSE
         ))
-
         tryCatch({
-          result_dir <- mg2_demo_setup(dir = chosen_dir, overwrite = TRUE)
+          result_dir <- setup_fn(dir = chosen_dir, overwrite = TRUE)
           removeModal()
           demo_dir(result_dir)
           showNotification(
-            paste0("Demo data ready. Directory: ", chosen_dir),
+            paste0(label, " demo data ready. Directory: ", chosen_dir),
             type = "message", duration = 5
           )
         }, error = function(e) {
@@ -352,6 +358,20 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
             type = "error", duration = 8
           )
         })
+      }
+
+      observeEvent(input$demo_folder, {
+        if (is.integer(input$demo_folder)) return()
+        chosen_dir <- shinyFiles::parseDirPath(demo_volumes, input$demo_folder)
+        if (length(chosen_dir) == 0 || !nzchar(chosen_dir)) return()
+        .run_demo_setup(chosen_dir, mg2_demo_setup, "Sierra Leone")
+      })
+
+      observeEvent(input$demo_pdrlao_folder, {
+        if (is.integer(input$demo_pdrlao_folder)) return()
+        chosen_dir <- shinyFiles::parseDirPath(demo_volumes, input$demo_pdrlao_folder)
+        if (length(chosen_dir) == 0 || !nzchar(chosen_dir)) return()
+        .run_demo_setup(chosen_dir, mg2_pdrlao_setup, "PDR Lao")
       })
 
       # Demo instance picker ----
@@ -383,7 +403,7 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
 
         pdr_choices <- list(
           "PDR Lao" = c("PDR Lao HMIS (demo_en / District1#)" =
-                          "https://demos.dhis2.org/hmis/")
+                          "https://demos.dhis2.org/hmis_dev/")
         )
         choices <- c(pdr_choices, api_choices)
 

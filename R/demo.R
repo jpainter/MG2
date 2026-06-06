@@ -146,3 +146,98 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
 
   invisible(dir)
 }
+
+
+#' Set Up PDR Lao Demo Data Directory
+#'
+#' Writes the PDR Lao malaria demo datasets (82 data elements, ~5 years)
+#' to a local directory in the format the Shiny app expects.
+#'
+#' @param dir Path to the directory. If `NULL`, uses an interactive chooser.
+#' @param overwrite Logical. Overwrite existing files (default `FALSE`).
+#' @return The path to `dir`, invisibly.
+#' @export
+mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
+
+  if (is.null(dir)) {
+    dir <- tryCatch(
+      if (requireNamespace("rstudioapi", quietly = TRUE) &&
+          rstudioapi::isAvailable() &&
+          exists("selectDirectory", envir = asNamespace("rstudioapi")))
+        rstudioapi::selectDirectory(
+          caption = "Choose a folder for PDR Lao demo data",
+          label   = "Select",
+          path    = path.expand("~")
+        ),
+      error = function(e) NULL
+    )
+    if (is.null(dir) || !nzchar(dir)) {
+      default_path <- file.path(path.expand("~"), "mg2_pdrlao_demo")
+      answer <- readline(prompt = paste0("Directory [", default_path, "]: "))
+      dir <- if (nzchar(trimws(answer))) trimws(answer) else default_path
+    }
+  }
+
+  dir <- path.expand(dir)
+  if (!dir.exists(dir)) {
+    dir.create(dir, recursive = TRUE)
+    message("Created directory: ", dir)
+  }
+
+  formula_name <- "PDR Lao Malaria Demo"
+  today        <- Sys.Date()
+
+  # 1. Formula xlsx
+  xlsx_path <- file.path(dir, paste0("Formulas_PDRLao_", format(today, "%Y_%b%d"), ".xlsx"))
+  if (!file.exists(xlsx_path) || overwrite) {
+    fe <- mg2_pdrlao_formula
+    fe_rows <- tryCatch(
+      tidyr::separate_rows(fe, Categories, categoryOptionCombo.ids, sep = ";") |>
+        dplyr::mutate(
+          dataElement = trimws(dataElement),
+          Categories  = trimws(ifelse(is.na(Categories), "", Categories))
+        ),
+      error = function(e) fe
+    )
+    a. <- paste0("[", format(fe_rows$dataElement), "]")
+    b. <- paste0("[", format(fe_rows$Categories),  "]")
+    formula_str <- paste(paste(a., b., sep = "."), collapse = " + ")
+    formula_sheet <- tibble::tibble(Formula.Name = formula_name, Formula = formula_str)
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, "Formula")
+    openxlsx::addWorksheet(wb, "Formula Elements")
+    openxlsx::writeDataTable(wb, 1, formula_sheet, rowNames = FALSE)
+    openxlsx::writeDataTable(wb, 2, fe,            rowNames = FALSE)
+    openxlsx::saveWorkbook(wb, xlsx_path, overwrite = TRUE)
+    message("Formula file written:  ", basename(xlsx_path))
+  } else {
+    message("Formula file exists (skipped): ", basename(xlsx_path))
+  }
+
+  # 2. Metadata rds
+  meta_path <- file.path(dir, paste0("metadata_", today, ".rds"))
+  if (!file.exists(meta_path) || overwrite) {
+    saveRDS(mg2_pdrlao_meta, meta_path)
+    message("Metadata saved:        ", basename(meta_path))
+  } else {
+    message("Metadata exists (skipped): ", basename(meta_path))
+  }
+
+  # 3. Processed dataset
+  n_months  <- length(unique(mg2_pdrlao_processed$Month))
+  n_years   <- round(n_months / 12)
+  data_path <- file.path(dir, paste0(formula_name, "_Facility_", n_years, "yrs_", today, ".rds"))
+  if (!file.exists(data_path) || overwrite) {
+    saveRDS(mg2_pdrlao_processed, data_path, compress = TRUE)
+    message("Dataset saved:         ", basename(data_path))
+  } else {
+    message("Dataset exists (skipped): ", basename(data_path))
+  }
+
+  message(
+    "\nPDR Lao demo data ready. In the MG2 app, paste this path into the Directory box:\n",
+    "  ", dir
+  )
+
+  invisible(dir)
+}
