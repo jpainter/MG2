@@ -655,7 +655,12 @@ data_widget_server <- function(
         #       standardised (e.g. mg2_demo_processed, Mike's DRC/Zambia data)
         # The > 5000 threshold distinguishes days from months encoding.
         if ("Month" %in% names(d1)) {
-          m_raw <- as.numeric(d1[["Month"]])
+          # c(unclass(...)) strips class without triggering vctrs dispatch,
+          # giving the raw integer: ~360-840 for months-since-epoch (yearmonth),
+          # ~10000-25000 for days-since-epoch (legacy Date encoding).
+          # as.numeric() must NOT be used here — it goes through vctrs dispatch
+          # and converts yearmonth to days-since-epoch, breaking the threshold.
+          m_raw <- c(unclass(d1[["Month"]]))
           if (!inherits(d1[["Month"]], "yearmonth") ||
               median(m_raw, na.rm = TRUE) > 5000) {
             ym_vals <- if (median(m_raw, na.rm = TRUE) > 5000) {
