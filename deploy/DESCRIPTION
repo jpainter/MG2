@@ -1,0 +1,33 @@
+Package: MG2App
+Type: Package
+Title: Magic Glasses 2 Demo
+Version: 0.1.0
+Imports:
+    assertthat,
+    bslib,
+    data.table,
+    DT,
+    dplyr,
+    httr,
+    httpuv,
+    data.tree,
+    jsonlite,
+    lubridate,
+    magrittr,
+    parallelly,
+    purrr,
+    rlang,
+    rstudioapi,
+    shiny (>= 1.7.0),
+    shinybusy,
+    shinyFiles,
+    shinyjs,
+    shinyWidgets,
+    stringi,
+    stringr,
+    tibble,
+    tidyr,
+    tools,
+    tsibble,
+    zoo,
+    readxl
