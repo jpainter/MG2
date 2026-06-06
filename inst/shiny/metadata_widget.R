@@ -2133,7 +2133,7 @@ metadata_widget_server <- function(
             if (!inherits(geosf., "sf") && "co" %in% names(geosf.)) {
               cat('\n- converting raw geoFeatures API response to sf')
               geosf. <- tryCatch(
-                .geofeatures_raw_to_sf(geosf., orgUnitLevels()),
+                geofeatures_raw_to_sf(geosf., orgUnitLevels()),
                 error = function(e) {
                   cat('\n- conversion failed:', conditionMessage(e))
                   NULL

@@ -3,6 +3,77 @@
 # export to Excel (openxlsx). Particularly useful for DHIS2 metadata
 # which often contains non-printable Unicode characters or very long strings.
 
+#' Convert raw DHIS2 geoFeatures to an sf object
+#'
+#' Converts the old DHIS2 geoFeatures API response format (data frame with
+#' columns `co`/`ty`/`na`/`le`/`pn`) to an sf object. Pre-computing this
+#' once (e.g. when saving demo metadata) avoids the ~2-minute runtime
+#' conversion on low-powered servers such as shinyapps.io free tier.
+#'
+#' @param gf Data frame with DHIS2 geoFeatures API columns.
+#' @param orgUnitLevels Optional data frame with `level` and `levelName`.
+#' @return An sf object, or `NULL` if `sf` is not installed.
+#' @noRd
+geofeatures_raw_to_sf <- function(gf, orgUnitLevels = NULL) {
+  if (!requireNamespace("sf", quietly = TRUE)) return(NULL)
+  geometries <- lapply(seq_len(nrow(gf)), function(i) {
+    co_str <- gf$co[i]
+    ty     <- gf$ty[i]
+    if (is.na(co_str) || !nzchar(co_str))
+      return(sf::st_geometrycollection())
+    coords <- tryCatch(jsonlite::fromJSON(co_str), error = function(e) NULL)
+    if (is.null(coords)) return(sf::st_geometrycollection())
+    tryCatch({
+      if (ty == 1L) {
+        sf::st_point(as.numeric(coords))
+      } else {
+        if (is.array(coords) && length(dim(coords)) == 3) {
+          rings <- lapply(seq_len(dim(coords)[1]),
+                          function(r) coords[r, , , drop = FALSE][1,,])
+          sf::st_polygon(rings)
+        } else if (is.list(coords)) {
+          .make_polygon <- function(poly_elt) {
+            if (is.array(poly_elt) && length(dim(poly_elt)) == 3) {
+              rings <- lapply(seq_len(dim(poly_elt)[1]),
+                              function(r) poly_elt[r, , , drop = FALSE][1,,])
+              sf::st_polygon(rings)
+            } else if (is.list(poly_elt)) {
+              rings <- lapply(poly_elt, function(r)
+                if (is.list(r)) do.call(rbind, r) else as.matrix(r))
+              sf::st_polygon(rings)
+            } else NULL
+          }
+          polys <- Filter(Negate(is.null), lapply(coords, .make_polygon))
+          if (length(polys) == 0)       sf::st_geometrycollection()
+          else if (length(polys) == 1)  polys[[1]]
+          else                           sf::st_multipolygon(lapply(polys, unclass))
+        } else {
+          sf::st_geometrycollection()
+        }
+      }
+    }, error = function(e) sf::st_geometrycollection())
+  })
+  out <- sf::st_sf(
+    id         = gf$id,
+    name       = gf$na,
+    level      = suppressWarnings(as.integer(gf$le)),
+    parentName = if ("pn" %in% names(gf)) gf$pn else NA_character_,
+    geometry   = sf::st_sfc(geometries, crs = 4326),
+    stringsAsFactors = FALSE
+  )
+  if (!is.null(orgUnitLevels) && all(c("level","levelName") %in% names(orgUnitLevels)))
+    out$levelName <- orgUnitLevels$levelName[match(out$level, orgUnitLevels$level)]
+  out$latitude  <- NA_real_
+  out$longitude <- NA_real_
+  is_pt <- sf::st_geometry_type(out) == "POINT"
+  if (any(is_pt)) {
+    coords_pt <- sf::st_coordinates(out[is_pt, ])
+    out$longitude[is_pt] <- coords_pt[, "X"]
+    out$latitude[is_pt]  <- coords_pt[, "Y"]
+  }
+  out
+}
+
 # Regex matching control characters and zero-width/invisible Unicode that
 # cause problems in Excel exports.
 .invalid_regex <- paste0(
