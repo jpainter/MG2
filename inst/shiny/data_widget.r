@@ -674,7 +674,7 @@ data_widget_server <- function(
             }
             # Store as plain integer, then attach yearmonth class via setattr
             # to avoid any class-stripping or vctrs conversion in set().
-            data.table::set(d1, j = "Month", value = months_int)
+            data.table::set(d1, j = "Month", value = as.double(months_int))
             data.table::setattr(d1[["Month"]], "class", c("yearmonth", "vctrs_vctr"))
           }
         }
