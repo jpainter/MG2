@@ -68,6 +68,18 @@ suppressPackageStartupMessages(library(dplyr))
 options(dplyr.summarise.inform = FALSE)
 options(future.globals.maxSize = 30 * 1024^3)
 
+# UI helper: small next-step hint bar at the bottom of a tab
+.mg2_step_hint <- function(text) {
+  div(
+    style = paste0(
+      "margin-top:24px; padding:8px 16px; background:#f0f4ff;",
+      " border-left:4px solid #4a90d9; border-radius:3px; color:#555; font-size:13px;"
+    ),
+    icon("circle-info", style = "color:#4a90d9; margin-right:6px;"),
+    text
+  )
+}
+
 # Source Shiny modules ------------------------------------------------------
 # Each file defines a *_ui() and *_server() function for one app tab/panel.
 
@@ -107,7 +119,17 @@ ui <- bslib::page_navbar(
          table.dataTable td { vertical-align: top !important; }
          .leaflet-container svg,
          .leaflet-pane svg,
-         .leaflet-overlay-pane svg { overflow: visible !important; }"
+         .leaflet-overlay-pane svg { overflow: visible !important; }
+         @keyframes mg2-glow {
+           0%,100% { box-shadow: 0 0 0 0 rgba(74,144,217,0); }
+           50%      { box-shadow: 0 0 6px 3px rgba(74,144,217,0.6); }
+         }
+         .next-step-glow {
+           animation: mg2-glow 2s ease-in-out infinite;
+           border-radius: 4px;
+           font-weight: 600 !important;
+           color: #4a90d9 !important;
+         }"
       )
     ),
     shinyWidgets::setBackgroundColor(color = "#F5F5F5")
@@ -174,12 +196,21 @@ ui <- bslib::page_navbar(
     fluidRow(
       column(6, directory_widget_ui("directory1")),
       column(6, login_widget_ui("login1"))
-    )
+    ),
+    uiOutput("setup_next_btn")
   ),
 
-  bslib::nav_panel("Metadata", metadata_widget_ui("metadata1")),
+  bslib::nav_panel(
+    "Metadata",
+    metadata_widget_ui("metadata1"),
+    .mg2_step_hint("→ Next: explore Regions to filter by geography, then go to Data to load a dataset.")
+  ),
 
-  bslib::nav_panel("Regions", regions_widget_ui("regions1")),
+  bslib::nav_panel(
+    "Regions",
+    regions_widget_ui("regions1"),
+    .mg2_step_hint("→ Next: go to Data to select and load a dataset.")
+  ),
 
   bslib::nav_menu(
     "Data",
@@ -194,8 +225,8 @@ ui <- bslib::page_navbar(
     bslib::nav_panel("Combine",  combine_widget_ui("combine1"))
   ),
 
-  bslib::nav_panel("DQA",        dqa_widget_ui("dqa1")),
-  bslib::nav_panel("Reporting",  reporting_widget_ui("reporting1")),
+  bslib::nav_panel("DQA",        uiOutput("dqa_empty_hint"),       dqa_widget_ui("dqa1")),
+  bslib::nav_panel("Reporting",  uiOutput("reporting_empty_hint"), reporting_widget_ui("reporting1")),
   bslib::nav_panel("Outliers",   cleaning_widget_ui("cleaning1")),
   bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1")),
   bslib::nav_panel(
@@ -240,18 +271,85 @@ server <- function(input, output, session) {
   # directory_widget watches it to update the directory input automatically.
   demo_dir <- reactiveVal(NULL)
 
-  # Demo mode: login_widget shows Sierra Leone / PDR Lao actionButtons.
-  # Users click to load their chosen dataset; no auto-load at startup so
-  # the choice is explicit. (MG2_DEMO_COUNTRY env var can still force a
-  # specific country if set, e.g. for automated testing.)
+  # nav_goto: login_widget sets this to a tab name to trigger navigation.
+  nav_goto <- reactiveVal(NULL)
+  observeEvent(nav_goto(), {
+    req(!is.null(nav_goto()))
+    updateNavbarPage(session, "tabs", selected = nav_goto())
+    nav_goto(NULL)
+  })
 
   directory_widget_output <- directory_widget_server("directory1", demo_dir = demo_dir)
 
   login_widget_output <- login_widget_server(
     "login1",
     directory_widget_output = directory_widget_output,
-    demo_dir                = demo_dir
+    demo_dir                = demo_dir,
+    nav_goto                = nav_goto
   )
+
+  # Setup tab: "Next →" button once a data directory is set (#2)
+  output$setup_next_btn <- renderUI({
+    req(directory_widget_output$directory())
+    div(
+      style = "margin-top:24px; padding:8px 16px;",
+      actionButton(
+        "setup_go_next",
+        if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) "→ Go to Data tab" else "→ Go to Metadata",
+        icon  = icon("arrow-right"),
+        class = "btn-primary"
+      )
+    )
+  })
+  observeEvent(input$setup_go_next, {
+    target <- if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) "Data" else "Metadata"
+    updateNavbarPage(session, "tabs", selected = target)
+  })
+
+  # Empty-state hints for DQA and Reporting (#5)
+  .no_data_hint <- function(next_tab) {
+    div(
+      class = "alert alert-info",
+      style = "margin:16px;",
+      icon("circle-info", style = "margin-right:6px;"),
+      "No dataset loaded yet. Go to the ",
+      tags$strong(next_tab), " tab to select and load a dataset."
+    )
+  }
+  output$dqa_empty_hint <- renderUI({
+    d <- tryCatch(data1_Widget_output$data1(), error = function(e) NULL)
+    if (is.null(d) || nrow(d) == 0) .no_data_hint("Data") else NULL
+  })
+  output$reporting_empty_hint <- renderUI({
+    d <- tryCatch(data1_Widget_output$data1(), error = function(e) NULL)
+    if (is.null(d) || nrow(d) == 0) .no_data_hint("Data") else NULL
+  })
+
+  # Navbar highlight: pulse the next recommended tab via CSS (#4)
+  # Highlights "Data" when directory is set but no data loaded yet.
+  observe({
+    has_dir  <- !is.null(directory_widget_output$directory()) &&
+                nzchar(directory_widget_output$directory())
+    has_data <- tryCatch(
+      !is.null(data1_Widget_output$data1()) && nrow(data1_Widget_output$data1()) > 0,
+      error = function(e) FALSE
+    )
+    css_id <- if (has_dir && !has_data) "tab-Data" else if (has_data) "tab-DQA" else NULL
+    shinyjs::runjs(sprintf('
+      document.querySelectorAll(".nav-link.next-step-glow").forEach(
+        function(el){ el.classList.remove("next-step-glow"); }
+      );
+      if ("%s" !== "null") {
+        var els = document.querySelectorAll(".nav-link");
+        els.forEach(function(el){
+          if (el.textContent.trim().startsWith("%s"))
+            el.classList.add("next-step-glow");
+        });
+      }
+    ', ifelse(is.null(css_id), "null", css_id),
+       ifelse(is.null(css_id), "null",
+              if (!is.null(css_id) && css_id == "tab-Data") "Data" else "DQA")))
+  })
 
   metadata_widget_output <- metadata_widget_server(
     "metadata1",

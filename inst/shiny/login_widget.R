@@ -131,7 +131,7 @@ login_widget_ui <- function(id) {
 } # ui
 
 # Server function ####
-login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = NULL) {
+login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = NULL, nav_goto = NULL) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -397,7 +397,10 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
               tags$strong("Data"), " tab."
             ),
             easyClose = TRUE, fade = FALSE,
-            footer = modalButton("OK")
+            footer = actionButton(session$ns("demo_ok_go"),
+                                  "OK — Go to Data tab",
+                                  class = "btn-primary",
+                                  icon  = icon("arrow-right"))
           ))
         }, error = function(e) {
           showModal(modalDialog(
@@ -408,6 +411,12 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
           ))
         })
       }
+
+      # Modal OK button: dismiss modal and trigger navigation to Data tab (#1)
+      observeEvent(input$demo_ok_go, {
+        removeModal()
+        if (!is.null(nav_goto)) nav_goto("Data")
+      })
 
       observeEvent(input$demo_folder, {
         if (is.integer(input$demo_folder)) return()
