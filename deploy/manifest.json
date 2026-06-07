@@ -4,9 +4,9 @@
   "platform": "4.5.0",
   "metadata": {
     "appmode": "shiny",
-    "primary_rmd": null,
-    "primary_html": null,
-    "content_category": null,
+    "primary_rmd": {},
+    "primary_html": {},
+    "content_category": {},
     "has_parameters": false
   },
   "packages": {
@@ -155,7 +155,7 @@
     },
     "MG2": {
       "Source": "github",
-      "Repository": null,
+      "Repository": {},
       "description": {
         "Package": "MG2",
         "Title": "Magic Glasses 2: Epidemiological Analysis of DHIS2 Health Data",
@@ -174,8 +174,20 @@
         "Config/testthat/edition": "3",
         "VignetteBuilder": "knitr",
         "Depends": "R (>= 3.5)",
-        "Config/roxygen2/version": "8.0.0"
-      }
+        "Config/roxygen2/version": "8.0.0",
+        "GithubUsername": "jpainter",
+        "GithubRepo": "MG2",
+        "GithubRef": "HEAD",
+        "GithubSHA1": "bda4778ff2dddeb86fe16431398c24cc63050261",
+        "RemoteType": "github",
+        "RemoteUsername": "jpainter",
+        "RemoteRepo": "MG2",
+        "RemoteSha": "bda4778ff2dddeb86fe16431398c24cc63050261"
+      },
+      "GithubUsername": "jpainter",
+      "GithubRepo": "MG2",
+      "GithubRef": "HEAD",
+      "GithubSHA1": "bda4778ff2dddeb86fe16431398c24cc63050261"
     },
     "R6": {
       "Source": "CRAN",
@@ -4088,5 +4100,5 @@
       "checksum": "4e1f40369098513dcdc24de0d0f8b091"
     }
   },
-  "users": null
+  "users": {}
 }
