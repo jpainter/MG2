@@ -119,17 +119,7 @@ ui <- bslib::page_navbar(
          table.dataTable td { vertical-align: top !important; }
          .leaflet-container svg,
          .leaflet-pane svg,
-         .leaflet-overlay-pane svg { overflow: visible !important; }
-         @keyframes mg2-glow {
-           0%,100% { box-shadow: 0 0 0 0 rgba(74,144,217,0); }
-           50%      { box-shadow: 0 0 6px 3px rgba(74,144,217,0.6); }
-         }
-         .next-step-glow {
-           animation: mg2-glow 2s ease-in-out infinite;
-           border-radius: 4px;
-           font-weight: 600 !important;
-           color: #4a90d9 !important;
-         }"
+         .leaflet-overlay-pane svg { overflow: visible !important; }"
       )
     ),
     shinyWidgets::setBackgroundColor(color = "#F5F5F5")
@@ -324,31 +314,6 @@ server <- function(input, output, session) {
     if (is.null(d) || nrow(d) == 0) .no_data_hint("Data") else NULL
   })
 
-  # Navbar highlight: pulse the next recommended tab via CSS (#4)
-  # Highlights "Data" when directory is set but no data loaded yet.
-  observe({
-    has_dir  <- !is.null(directory_widget_output$directory()) &&
-                nzchar(directory_widget_output$directory())
-    has_data <- tryCatch(
-      !is.null(data1_Widget_output$data1()) && nrow(data1_Widget_output$data1()) > 0,
-      error = function(e) FALSE
-    )
-    css_id <- if (has_dir && !has_data) "tab-Data" else if (has_data) "tab-DQA" else NULL
-    shinyjs::runjs(sprintf('
-      document.querySelectorAll(".nav-link.next-step-glow").forEach(
-        function(el){ el.classList.remove("next-step-glow"); }
-      );
-      if ("%s" !== "null") {
-        var els = document.querySelectorAll(".nav-link");
-        els.forEach(function(el){
-          if (el.textContent.trim().startsWith("%s"))
-            el.classList.add("next-step-glow");
-        });
-      }
-    ', ifelse(is.null(css_id), "null", css_id),
-       ifelse(is.null(css_id), "null",
-              if (!is.null(css_id) && css_id == "tab-Data") "Data" else "DQA")))
-  })
 
   metadata_widget_output <- metadata_widget_server(
     "metadata1",

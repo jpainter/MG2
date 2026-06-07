@@ -375,6 +375,11 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
       shinyFiles::shinyDirChoose(input, "demo_pdrlao_folder",
                                  roots = demo_volumes, session = session)
 
+      # Holds the prepared directory path until the user dismisses the modal.
+      # demo_dir() is only set when OK is clicked — avoids reactive updates
+      # triggered by demo_dir() replacing the modal before the user reads it.
+      .pending_demo_dir <- reactiveVal(NULL)
+
       .run_demo_setup <- function(chosen_dir, setup_fn, label) {
         req(!is.null(demo_dir))
         showModal(modalDialog(
@@ -384,7 +389,7 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         ))
         tryCatch({
           result_dir <- setup_fn(dir = chosen_dir, overwrite = TRUE)
-          demo_dir(result_dir)
+          .pending_demo_dir(result_dir)   # store result; do NOT set demo_dir yet
           showModal(modalDialog(
             title     = paste0(label, " demo ready"),
             tags$p(
@@ -412,9 +417,14 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         })
       }
 
-      # Modal OK button: dismiss modal and trigger navigation to Data tab (#1)
+      # Modal OK: NOW set demo_dir (after user reads the message) and navigate
       observeEvent(input$demo_ok_go, {
         removeModal()
+        d <- .pending_demo_dir()
+        if (!is.null(d)) {
+          demo_dir(d)
+          .pending_demo_dir(NULL)
+        }
         if (!is.null(nav_goto)) nav_goto("Metadata")
       })
 
