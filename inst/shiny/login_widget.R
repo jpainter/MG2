@@ -388,11 +388,13 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
           demo_dir(result_dir)
           showNotification(
             tags$span(
-              tags$strong(label, " demo ready."),
-              tags$br(),
-              "Go to the ", tags$strong("Data"), " tab to select the downloaded dataset."
+              tags$strong(label, " demo ready."), tags$br(),
+              icon("circle-check", style="color:#3c763d;"),
+              " Metadata and Regions map are ready to browse.", tags$br(),
+              icon("arrow-right"), " To load sample malaria data, go to the ",
+              tags$strong("Data"), " tab."
             ),
-            type = "message", duration = 8
+            type = "message", duration = 10
           )
         }, error = function(e) {
           removeModal()
