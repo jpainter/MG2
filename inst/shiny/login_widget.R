@@ -55,16 +55,38 @@ login_widget_ui <- function(id) {
           6,
           hr(),
           if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
-            # Demo mode (shinyapps.io): data is auto-loaded at startup;
-            # shinyFiles directory picker cannot browse a server filesystem.
+            # Demo mode: use actionButtons with fixed server-side temp paths.
+            # shinyDirButton cannot browse a server filesystem; actionButtons
+            # call the setup functions directly — no file picker needed.
             tagList(
-              h4("Demo data"),
+              h4("Demo data:"),
               tags$p(
-                tags$small(
-                  icon("circle-check", style="color:#3c763d;"),
-                  " Pre-built Sierra Leone malaria data is already loaded."
+                tags$small("Pre-built datasets — no server connection needed."),
+                style = "color: #555; margin-bottom: 8px;"
+              ),
+              fluidRow(
+                column(
+                  6,
+                  actionButton(
+                    ns("load_sl_demo"),
+                    label = "Sierra Leone Malaria",
+                    icon  = icon("play-circle"),
+                    class = "btn-success btn-block"
+                  ),
+                  tags$p(tags$small("5 elements, 6 years"),
+                         style = "color:#555; margin-top:4px;")
                 ),
-                style = "color: #555;"
+                column(
+                  6,
+                  actionButton(
+                    ns("load_pdrlao_demo"),
+                    label = "PDR Lao Malaria",
+                    icon  = icon("play-circle"),
+                    class = "btn-info btn-block"
+                  ),
+                  tags$p(tags$small("22 elements, ~5 years"),
+                         style = "color:#555; margin-top:4px;")
+                )
               )
             )
           } else {
@@ -389,6 +411,24 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         chosen_dir <- shinyFiles::parseDirPath(demo_volumes, input$demo_pdrlao_folder)
         if (length(chosen_dir) == 0 || !nzchar(chosen_dir)) return()
         .run_demo_setup(chosen_dir, mg2_pdrlao_setup, "PDR Lao")
+      })
+
+      # Demo mode actionButtons (Connect Cloud / server deployments where
+      # shinyDirButton cannot browse the server filesystem)
+      observeEvent(input$load_sl_demo, {
+        .run_demo_setup(
+          file.path(tempdir(), "mg2_demo_sl"),
+          mg2_demo_setup,
+          "Sierra Leone"
+        )
+      })
+
+      observeEvent(input$load_pdrlao_demo, {
+        .run_demo_setup(
+          file.path(tempdir(), "mg2_demo_pdrlao"),
+          mg2_pdrlao_setup,
+          "PDR Lao"
+        )
       })
 
       # Demo instance picker ----
