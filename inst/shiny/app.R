@@ -203,13 +203,13 @@ ui <- bslib::page_navbar(
   bslib::nav_panel(
     "Metadata",
     metadata_widget_ui("metadata1"),
-    .mg2_step_hint("→ Next: go to Regions to filter by geography, then Data to select and load a dataset.")
+    .mg2_step_hint("→ Next: go to Regions — choose to analyse data nationally or sub-nationally — then go to Data to select and load a dataset.")
   ),
 
   bslib::nav_panel(
     "Regions",
     regions_widget_ui("regions1"),
-    .mg2_step_hint("→ Next: go to Data to select and load a dataset.")
+    .mg2_step_hint("→ Next: go to Data to select and load a dataset for analysis.")
   ),
 
   bslib::nav_menu(
