@@ -54,37 +54,54 @@ login_widget_ui <- function(id) {
         column(
           6,
           hr(),
-          h4("Or load demo data:"),
-          tags$p(
-            tags$small("Pre-built datasets — no server connection needed."),
-            style = "color: #555; margin-bottom: 8px;"
-          ),
-          fluidRow(
-            column(
-              6,
-              shinyFiles::shinyDirButton(
-                ns("demo_folder"),
-                label = "Sierra Leone Malaria",
-                title = "Choose folder for Sierra Leone demo data",
-                icon  = icon("play-circle"),
-                class = "btn-success btn-block"
-              ),
-              tags$p(tags$small("5 elements, 6 years"),
-                     style = "color:#555; margin-top:4px;")
-            ),
-            column(
-              6,
-              shinyFiles::shinyDirButton(
-                ns("demo_pdrlao_folder"),
-                label = "PDR Lao Malaria",
-                title = "Choose folder for PDR Lao demo data",
-                icon  = icon("play-circle"),
-                class = "btn-info btn-block"
-              ),
-              tags$p(tags$small("22 elements, ~5 years"),
-                     style = "color:#555; margin-top:4px;")
+          if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
+            # Demo mode (shinyapps.io): data is auto-loaded at startup;
+            # shinyFiles directory picker cannot browse a server filesystem.
+            tagList(
+              h4("Demo data"),
+              tags$p(
+                tags$small(
+                  icon("circle-check", style="color:#3c763d;"),
+                  " Pre-built Sierra Leone malaria data is already loaded."
+                ),
+                style = "color: #555;"
+              )
             )
-          )
+          } else {
+            tagList(
+              h4("Or load demo data:"),
+              tags$p(
+                tags$small("Pre-built datasets — no server connection needed."),
+                style = "color: #555; margin-bottom: 8px;"
+              ),
+              fluidRow(
+                column(
+                  6,
+                  shinyFiles::shinyDirButton(
+                    ns("demo_folder"),
+                    label = "Sierra Leone Malaria",
+                    title = "Choose folder for Sierra Leone demo data",
+                    icon  = icon("play-circle"),
+                    class = "btn-success btn-block"
+                  ),
+                  tags$p(tags$small("5 elements, 6 years"),
+                         style = "color:#555; margin-top:4px;")
+                ),
+                column(
+                  6,
+                  shinyFiles::shinyDirButton(
+                    ns("demo_pdrlao_folder"),
+                    label = "PDR Lao Malaria",
+                    title = "Choose folder for PDR Lao demo data",
+                    icon  = icon("play-circle"),
+                    class = "btn-info btn-block"
+                  ),
+                  tags$p(tags$small("22 elements, ~5 years"),
+                         style = "color:#555; margin-top:4px;")
+                )
+              )
+            )
+          }
         )
       )
     )

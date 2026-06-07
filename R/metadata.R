@@ -53,11 +53,13 @@ geofeatures_raw_to_sf <- function(gf, orgUnitLevels = NULL) {
       }
     }, error = function(e) sf::st_geometrycollection())
   })
+  pn <- if ("pn" %in% names(gf)) gf$pn else NA_character_
   out <- sf::st_sf(
     id         = gf$id,
     name       = gf$na,
     level      = suppressWarnings(as.integer(gf$le)),
-    parentName = if ("pn" %in% names(gf)) gf$pn else NA_character_,
+    parent     = pn,   # used by regions_widget map label
+    parentName = pn,   # used by regions_widget BFS lookup
     geometry   = sf::st_sfc(geometries, crs = 4326),
     stringsAsFactors = FALSE
   )
