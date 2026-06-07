@@ -655,20 +655,27 @@ data_widget_server <- function(
         #       standardised (e.g. mg2_demo_processed, Mike's DRC/Zambia data)
         # The > 5000 threshold distinguishes days from months encoding.
         if ("Month" %in% names(d1)) {
-          # c(unclass(...)) strips class without triggering vctrs dispatch,
-          # giving the raw integer: ~360-840 for months-since-epoch (yearmonth),
-          # ~10000-25000 for days-since-epoch (legacy Date encoding).
-          # as.numeric() must NOT be used here — it goes through vctrs dispatch
-          # and converts yearmonth to days-since-epoch, breaking the threshold.
+          # c(unclass()) gives the raw integer without vctrs dispatch:
+          #   ~360-840  = months-since-epoch (correct yearmonth)
+          #   ~10k-25k  = days-since-epoch   (legacy encoding in older FST/RDS)
           m_raw <- c(unclass(d1[["Month"]]))
           if (!inherits(d1[["Month"]], "yearmonth") ||
               median(m_raw, na.rm = TRUE) > 5000) {
-            ym_vals <- if (median(m_raw, na.rm = TRUE) > 5000) {
-              tsibble::yearmonth(as.Date(as.integer(m_raw), origin = "1970-01-01"))
+            if (median(m_raw, na.rm = TRUE) > 5000) {
+              # Days-since-epoch: compute months-since-epoch as plain integers.
+              # Do NOT pass a yearmonth object to data.table::set() — it triggers
+              # vctrs dispatch which converts months back to days internally.
+              dates <- as.Date(as.integer(m_raw), origin = "1970-01-01")
+              yr    <- as.integer(format(dates, "%Y"))
+              mo    <- as.integer(format(dates, "%m"))
+              months_int <- (yr - 1970L) * 12L + (mo - 1L)
             } else {
-              structure(m_raw, class = c("yearmonth", "vctrs_vctr"))
+              months_int <- as.integer(m_raw)
             }
-            data.table::set(d1, j = "Month", value = ym_vals)
+            # Store as plain integer, then attach yearmonth class via setattr
+            # to avoid any class-stripping or vctrs conversion in set().
+            data.table::set(d1, j = "Month", value = months_int)
+            data.table::setattr(d1[["Month"]], "class", c("yearmonth", "vctrs_vctr"))
           }
         }
 
