@@ -125,8 +125,17 @@ read_file <- function(filename) {
     # yearmonth integer  -  leave it alone to avoid corrupting the values.
     if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth")) {
       m_vals <- as.numeric(df[["Month"]])
-      if (median(m_vals, na.rm = TRUE) <= 5000)
+      if (median(m_vals, na.rm = TRUE) <= 5000) {
         df[["Month"]] <- structure(m_vals, class = c("yearmonth", "vctrs_vctr"))
+      } else {
+        # Days-since-epoch encoding (legacy FST): convert to months-since-epoch.
+        # Done here on a plain data.frame — avoids data.table/vctrs dispatch issues.
+        dates      <- as.Date(as.integer(m_vals), origin = "1970-01-01")
+        yr         <- as.integer(format(dates, "%Y"))
+        mo         <- as.integer(format(dates, "%m"))
+        months_dbl <- as.double((yr - 1970L) * 12L + (mo - 1L))
+        df[["Month"]] <- structure(months_dbl, class = c("yearmonth", "vctrs_vctr"))
+      }
     }
     if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek")) {
       w_vals <- as.numeric(df[["Week"]])

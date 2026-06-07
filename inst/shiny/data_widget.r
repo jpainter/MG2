@@ -654,29 +654,13 @@ data_widget_server <- function(
         #       — happens when datasets were built before yearmonth encoding was
         #       standardised (e.g. mg2_demo_processed, Mike's DRC/Zambia data)
         # The > 5000 threshold distinguishes days from months encoding.
-        if ("Month" %in% names(d1)) {
-          # c(unclass()) gives the raw integer without vctrs dispatch:
-          #   ~360-840  = months-since-epoch (correct yearmonth)
-          #   ~10k-25k  = days-since-epoch   (legacy encoding in older FST/RDS)
+        # Month encoding is now fixed upstream in read_file() for FST files.
+        # For RDS files, yearmonth class is preserved by saveRDS/readRDS.
+        # setDT() can silently drop the S3 class; restore it if missing.
+        if ("Month" %in% names(d1) && !inherits(d1[["Month"]], "yearmonth")) {
           m_raw <- c(unclass(d1[["Month"]]))
-          if (!inherits(d1[["Month"]], "yearmonth") ||
-              median(m_raw, na.rm = TRUE) > 5000) {
-            if (median(m_raw, na.rm = TRUE) > 5000) {
-              # Days-since-epoch: compute months-since-epoch as plain integers.
-              # Do NOT pass a yearmonth object to data.table::set() — it triggers
-              # vctrs dispatch which converts months back to days internally.
-              dates <- as.Date(as.integer(m_raw), origin = "1970-01-01")
-              yr    <- as.integer(format(dates, "%Y"))
-              mo    <- as.integer(format(dates, "%m"))
-              months_int <- (yr - 1970L) * 12L + (mo - 1L)
-            } else {
-              months_int <- as.integer(m_raw)
-            }
-            # Store as plain integer, then attach yearmonth class via setattr
-            # to avoid any class-stripping or vctrs conversion in set().
-            data.table::set(d1, j = "Month", value = as.double(months_int))
-            data.table::setattr(d1[["Month"]], "class", c("yearmonth", "vctrs_vctr"))
-          }
+          data.table::set(d1, j = "Month",
+                          value = structure(m_raw, class = c("yearmonth", "vctrs_vctr")))
         }
 
         cat("\n - end d1  class/cols:\n -- ", class(d1), "\n")
