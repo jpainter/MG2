@@ -428,9 +428,16 @@ dqa_widget_server <- function(
       })
 
       chartModuleServer("dqaReportingOutput", reactive({
-        on.exit(removeNotification("dqa_reporting_computing"), add = TRUE)
         plotDqaReporting() + labs(caption = region_caption_text())
       }))
+
+      # Remove the "computing completeness" notification once the chart is ready.
+      # on.exit() in a reactive only fires on re-execution, not cache hits,
+      # so use an observer that invalidates whenever plotDqaReporting() does.
+      observe({
+        plotDqaReporting()
+        removeNotification("dqa_reporting_computing")
+      })
 
       plotDqaNoError = reactive({
         cat('\n*  dqa_widget plotDqaNoError')
@@ -463,7 +470,13 @@ dqa_widget_server <- function(
       dqa_region_reporting = reactive({
         req(dqa_data())
         req(levelNames())
-        level_col <- if (length(levelNames()) >= 2L) levelNames()[2L] else return(NULL)
+        req(geoFeatures())
+
+        # Match the grouping level to the lowest non-national level in geoFeatures.
+        gf_levels  <- sort(unique(geoFeatures()$level))
+        map_level  <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
+        # levelNames()[1]=National, [2]=level2, [3]=level3, ...
+        level_col  <- if (length(levelNames()) >= map_level) levelNames()[map_level] else levelNames()[2L]
         req(level_col %in% names(dqa_data()))
 
         notif_id <- showNotification("DQA map: computing per-region reporting…",
@@ -504,8 +517,13 @@ dqa_widget_server <- function(
         yr <- if (!is.null(input$dqa_map_year)) input$dqa_map_year else max(res$Year)
 
         rep_yr <- res |> dplyr::filter(Year == yr)
-        gf2    <- geoFeatures() |>
-          dplyr::filter(level == 2L) |>
+
+        # Use the lowest non-national level present in geoFeatures.
+        # Some demo datasets only have chiefdom (level 3) shapes, not district (level 2).
+        gf_levels <- sort(unique(geoFeatures()$level))
+        map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
+        gf2 <- geoFeatures() |>
+          dplyr::filter(level == map_level) |>
           dplyr::left_join(rep_yr, by = c("name" = "region_name"))
         req(nrow(gf2) > 0)
 
