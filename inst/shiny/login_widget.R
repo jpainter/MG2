@@ -396,9 +396,9 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
               "To load sample malaria data, go to the ",
               tags$strong("Data"), " tab."
             ),
-            easyClose = TRUE, fade = FALSE,
+            easyClose = FALSE, fade = FALSE,
             footer = actionButton(session$ns("demo_ok_go"),
-                                  "OK — Go to Data tab",
+                                  "OK — Browse Metadata",
                                   class = "btn-primary",
                                   icon  = icon("arrow-right"))
           ))
@@ -415,7 +415,7 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
       # Modal OK button: dismiss modal and trigger navigation to Data tab (#1)
       observeEvent(input$demo_ok_go, {
         removeModal()
-        if (!is.null(nav_goto)) nav_goto("Data")
+        if (!is.null(nav_goto)) nav_goto("Metadata")
       })
 
       observeEvent(input$demo_folder, {

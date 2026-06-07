@@ -1247,7 +1247,7 @@ metadata_widget_server <- function(
         }
 
         form_html <- tryCatch(
-          .build_dhis2_form_html(form_data, ds_name),
+          MG2:::.build_dhis2_form_html(form_data, ds_name),
           error = function(e) {
             cat("\n- formClick render error:", conditionMessage(e))
             paste0("<p>Could not render form: ", conditionMessage(e), "</p>")

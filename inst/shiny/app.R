@@ -203,7 +203,7 @@ ui <- bslib::page_navbar(
   bslib::nav_panel(
     "Metadata",
     metadata_widget_ui("metadata1"),
-    .mg2_step_hint("→ Next: explore Regions to filter by geography, then go to Data to load a dataset.")
+    .mg2_step_hint("→ Next: go to Regions to filter by geography, then Data to select and load a dataset.")
   ),
 
   bslib::nav_panel(
@@ -295,15 +295,14 @@ server <- function(input, output, session) {
       style = "margin-top:24px; padding:8px 16px;",
       actionButton(
         "setup_go_next",
-        if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) "→ Go to Data tab" else "→ Go to Metadata",
+        "→ Browse Metadata",
         icon  = icon("arrow-right"),
         class = "btn-primary"
       )
     )
   })
   observeEvent(input$setup_go_next, {
-    target <- if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) "Data" else "Metadata"
-    updateNavbarPage(session, "tabs", selected = target)
+    updateNavbarPage(session, "tabs", selected = "Metadata")
   })
 
   # Empty-state hints for DQA and Reporting (#5)
