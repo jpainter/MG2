@@ -378,8 +378,8 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
       .run_demo_setup <- function(chosen_dir, setup_fn, label) {
         req(!is.null(demo_dir))
         showModal(modalDialog(
-          title     = paste0("Loading ", label, " demo data..."),
-          paste0("Writing files to:\n", chosen_dir),
+          title     = paste0("Setting up ", label, " demo"),
+          tags$p("Preparing metadata, formula, and dataset files..."),
           easyClose = FALSE, footer = NULL, fade = FALSE
         ))
         tryCatch({
@@ -387,8 +387,12 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
           removeModal()
           demo_dir(result_dir)
           showNotification(
-            paste0(label, " demo data ready. Directory: ", chosen_dir),
-            type = "message", duration = 5
+            tags$span(
+              tags$strong(label, " demo ready."),
+              tags$br(),
+              "Go to the ", tags$strong("Data"), " tab to select the downloaded dataset."
+            ),
+            type = "message", duration = 8
           )
         }, error = function(e) {
           removeModal()
