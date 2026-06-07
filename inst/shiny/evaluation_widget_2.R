@@ -484,9 +484,9 @@ evaluation_widget_server <- function(
           updateSelectInput(
             session,
             'evaluation_month',
-            choices = dates(),
+            choices = setNames(as.character(c(unclass(dates()))), as.character(dates())),
             # selected = dates()[ round(length(dates())/2) ]
-            selected = max(dates()) - 12
+            selected = as.character(unclass(max(dates()) - 12))
             # ifelse( period() %in% 'Month' ,
             #                  dates()[12],
             #                  dates()[52] )
@@ -532,9 +532,9 @@ evaluation_widget_server <- function(
           updateSelectInput(
             session,
             'evaluation_month',
-            choices = dates(),
+            choices = setNames(as.character(c(unclass(dates()))), as.character(dates())),
             # selected = dates()[ round(length(dates())/2) ]
-            selected = max(dates()) - 11
+            selected = as.character(unclass(max(dates()) - 11))
             # ifelse( period() %in% 'Month' ,
             #                  dates()[12],
             #                  dates()[52] )
@@ -1057,7 +1057,7 @@ evaluation_widget_server <- function(
           data             = isolate(mable_Data())
           model_data       = as_tsibble(data)
           startMonth       = min(model_data$Month, na.rm = T)
-          evaluation_month = yearmonth(isolate(input$evaluation_month))
+          evaluation_month = yearmonth(as.integer(isolate(input$evaluation_month)))
           numberTestMonths = as.integer(isolate(input$horizon))
           endEvalMonth     = evaluation_month + numberTestMonths
           ensemble         = input$ensemble
@@ -1846,7 +1846,7 @@ evaluation_widget_server <- function(
         req(input$horizon)
         req(input$evaluation_month)
 
-        eval_month = yearmonth(input$evaluation_month)
+        eval_month = yearmonth(as.integer(input$evaluation_month))
         time_period = seq(eval_month - 11, eval_month, by = 1)
 
         cat('\n* evaluation_widget tsPreForecast')
@@ -2056,7 +2056,7 @@ evaluation_widget_server <- function(
         cat('\n - evaluation date', input$evaluation_month)
         .period = period()
         if (.period %in% 'Month') {
-          eval_date = yearmonth(input$evaluation_month)
+          eval_date = yearmonth(as.integer(input$evaluation_month))
         }
         if (.period %in% 'Week') {
           eval_date = yearweek(input$evaluation_month)
@@ -2199,7 +2199,7 @@ evaluation_widget_server <- function(
 
           cat('\n - pre-evaluation date')
           if (.period %in% 'Month') {
-            pre_eval_date = yearmonth(input$evaluation_month) - 12
+            pre_eval_date = yearmonth(as.integer(input$evaluation_month)) - 12
           }
           if (.period %in% 'Week') {
             pre_eval_date = yearweek(input$evaluation_month) - 25
