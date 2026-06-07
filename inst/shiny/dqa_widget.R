@@ -468,6 +468,9 @@ dqa_widget_server <- function(
       # Reporting Map ####
 
       dqa_region_reporting = reactive({
+        cat('\n* dqa_region_reporting: dqa_data rows=', if(!is.null(dqa_data())) nrow(dqa_data()) else 'NULL')
+        cat('\n* dqa_region_reporting: levelNames=', paste(levelNames(), collapse=','))
+        cat('\n* dqa_region_reporting: geoFeatures rows=', if(!is.null(geoFeatures())) nrow(geoFeatures()) else 'NULL')
         req(dqa_data())
         req(levelNames())
         req(geoFeatures())
