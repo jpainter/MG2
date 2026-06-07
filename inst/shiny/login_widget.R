@@ -384,24 +384,28 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         ))
         tryCatch({
           result_dir <- setup_fn(dir = chosen_dir, overwrite = TRUE)
-          removeModal()
           demo_dir(result_dir)
-          showNotification(
-            tags$span(
-              tags$strong(label, " demo ready."), tags$br(),
-              icon("circle-check", style="color:#3c763d;"),
-              " Metadata and Regions map are ready to browse.", tags$br(),
-              icon("arrow-right"), " To load sample malaria data, go to the ",
+          showModal(modalDialog(
+            title     = paste0(label, " demo ready"),
+            tags$p(
+              icon("circle-check", style = "color:#3c763d; margin-right:6px;"),
+              tags$strong("Metadata and Regions map are ready to browse.")
+            ),
+            tags$p(
+              icon("arrow-right", style = "margin-right:6px;"),
+              "To load sample malaria data, go to the ",
               tags$strong("Data"), " tab."
             ),
-            type = "message", duration = 10
-          )
+            easyClose = TRUE, fade = FALSE,
+            footer = modalButton("OK")
+          ))
         }, error = function(e) {
-          removeModal()
-          showNotification(
-            paste0("Demo setup failed: ", conditionMessage(e)),
-            type = "error", duration = 8
-          )
+          showModal(modalDialog(
+            title     = "Demo setup failed",
+            tags$p(conditionMessage(e)),
+            easyClose = TRUE, fade = FALSE,
+            footer = modalButton("Close")
+          ))
         })
       }
 
