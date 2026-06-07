@@ -175,9 +175,7 @@ read_file <- function(filename) {
 #'
 #' @return `"fst"` or `"rds"`.
 #' @export
-mg2_data_ext <- function() {
-  if (requireNamespace("fst", quietly = TRUE)) "fst" else "rds"
-}
+mg2_data_ext <- function() "rds"
 
 
 #' Save a Data Frame to Disk
@@ -210,7 +208,7 @@ save_file <- function(x, filename, compress = 100) {
   }
 
   if (ext == "rds") {
-    saveRDS(x, filename, compress = TRUE)
+    saveRDS(x, filename, compress = FALSE)
     return(invisible(filename))
   }
 
