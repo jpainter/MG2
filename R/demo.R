@@ -227,7 +227,7 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   #    which is much faster and uses less peak memory than saveRDS().
   n_months  <- length(unique(mg2_pdrlao_processed$Month))
   n_years   <- round(n_months / 12)
-  ext       <- mg2_data_ext()   # ".fst" if fst is installed, otherwise ".rds"
+  ext       <- paste0(".", mg2_data_ext())   # e.g. ".rds"
   data_path <- file.path(dir, paste0(formula_name, "_Facility_", n_years, "yrs_", today, ext))
   if (!file.exists(data_path) || overwrite) {
     save_file(mg2_pdrlao_processed, data_path)
