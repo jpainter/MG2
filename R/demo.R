@@ -191,6 +191,7 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   xlsx_path <- file.path(dir, paste0("Formulas_PDRLao_", format(today, "%Y_%b%d"), ".xlsx"))
   if (!file.exists(xlsx_path) || overwrite) {
     fe <- mg2_pdrlao_formula
+    fe$Formula.Name <- formula_name   # rename from "malaria" to "PDR Lao Malaria Demo"
     fe_rows <- tryCatch(
       tidyr::separate_rows(fe, Categories, categoryOptionCombo.ids, sep = ";") |>
         dplyr::mutate(
