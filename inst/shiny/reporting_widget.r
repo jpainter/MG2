@@ -153,7 +153,7 @@ reporting_widget_ui = function(id) {
               actionButton(ns('update_data_categories'), label = "Update",
                            class = "btn-info btn-sm"),
               checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
-              checkboxInput(ns("select_all_categories"), "All", value = TRUE)
+              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = TRUE)
             ),
 
             div(
