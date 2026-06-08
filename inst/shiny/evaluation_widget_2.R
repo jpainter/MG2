@@ -992,7 +992,10 @@ evaluation_widget_server <- function(
         n_forecasts_val  = NULL,
         type_val         = NULL,
         ensemble_val     = NULL,
-        ntestmonths_val  = NULL
+        ntestmonths_val  = NULL,
+        # Incremented by Phase 1 each time validation completes so Phase 2 fires
+        # even when the best model name is unchanged from the previous run.
+        phase2_trigger   = 0L
       )
 
       # Tracks whether the model dropdown has been populated for the current validation run.
@@ -1143,8 +1146,12 @@ evaluation_widget_server <- function(
       })
 
       # Phase 2: Evaluation — run only the selected model on the full pre-intervention data ####
-      # Fires whenever the model selector changes (including first population after validation).
-      observeEvent(input$selected_model, ignoreInit = TRUE, ignoreNULL = TRUE, {
+      # Fires when (a) Phase 1 completes (phase2_trigger increments) or (b) user picks a
+      # different model. Watching the trigger is necessary because updateSelectInput() does
+      # not fire input$selected_model if the new value equals the current value (e.g.
+      # Champion → All facilities, both auto-select "P1").
+      observeEvent(list(input$selected_model, auto_model_values$phase2_trigger),
+                   ignoreInit = TRUE, ignoreNULL = TRUE, {
         req(auto_model_values$validation_done)
         req(!auto_model_values$computing)
         req(!is.null(auto_model_values$modeling_data))
@@ -1349,6 +1356,10 @@ evaluation_widget_server <- function(
             selected = models[1]
           )
           dropdown_initialized(TRUE)
+          # Increment trigger so Phase 2 fires even if best model name is unchanged
+          # from the previous run (observeEvent(input$selected_model) won't fire
+          # when the value stays the same, e.g. p1 → All facilities → p1 again).
+          auto_model_values$phase2_trigger <- auto_model_values$phase2_trigger + 1L
         }
       })
 
