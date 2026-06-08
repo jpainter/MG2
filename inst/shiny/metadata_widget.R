@@ -940,7 +940,6 @@ metadata_widget_server <- function(
               paging         = FALSE,
               searching      = TRUE,
               info           = TRUE,
-              server         = TRUE,
               dom            = 'ti'
           )
         )
@@ -1054,7 +1053,6 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            server         = TRUE,
             dom            = 'ti'
           )
         ))
@@ -1089,7 +1087,6 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            server         = TRUE,
             dom            = 'ti'
           )
         )
@@ -1547,7 +1544,6 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            server         = TRUE,
             dom            = 'ti'
           )
         )
@@ -1666,7 +1662,6 @@ metadata_widget_server <- function(
           paging         = FALSE,
           searching      = TRUE,
           info           = TRUE,
-          server         = TRUE,
           dom            = 'ti'
         )
       ))
@@ -1833,7 +1828,6 @@ metadata_widget_server <- function(
           paging         = FALSE,
           searching      = TRUE,
           info           = TRUE,
-          server         = TRUE,
           dom            = 'ti'
         )
       ))
@@ -1946,7 +1940,6 @@ metadata_widget_server <- function(
           paging         = FALSE,
           searching      = TRUE,
           info           = TRUE,
-          server         = TRUE,
           dom            = 'ti'
         )
       ))
@@ -2415,7 +2408,6 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            server         = TRUE,
             dom            = 'ti'
           )
         )
@@ -2486,7 +2478,6 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            server         = TRUE,
             dom            = 'ti',
             columnDefs     = list(list(width = '250px', targets = 0))
           )

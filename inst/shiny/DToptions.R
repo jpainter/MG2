@@ -42,7 +42,6 @@ DToptions_no_buttons = function(...) {
     ),
     pageLength = 15,
     rownames = FALSE,
-    server = TRUE,
     escape = FALSE,
     selection = list(mode = 'single')
   )
