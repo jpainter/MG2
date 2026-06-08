@@ -1057,7 +1057,7 @@ evaluation_widget_server <- function(
           data             = isolate(mable_Data())
           model_data       = as_tsibble(data)
           startMonth       = min(model_data$Month, na.rm = T)
-          evaluation_month = yearmonth(as.integer(isolate(input$evaluation_month)))
+          evaluation_month = yearmonth(as.Date(as.integer(isolate(input$evaluation_month)), origin = "1970-01-01"))
           numberTestMonths = as.integer(isolate(input$horizon))
           endEvalMonth     = evaluation_month + numberTestMonths
           ensemble         = input$ensemble
@@ -1399,7 +1399,7 @@ evaluation_widget_server <- function(
 
         mable_data = mable_Data()
         model_formula = model_formula()
-        evaluation_month = input$evaluation_month
+        evaluation_month = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01"))
         period = period()
         model = input$model
         transform = input$transform
@@ -1580,7 +1580,7 @@ evaluation_widget_server <- function(
 
         mable_data = mable_Data()
         model_formula = model_formula()
-        evaluation_month = input$evaluation_month
+        evaluation_month = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01"))
         period = period()
         model = input$model
         transform = input$transform
@@ -1590,12 +1590,12 @@ evaluation_widget_server <- function(
         }
         cat('\n* evaluation_widget tsPreModel():', as.character(model_formula))
 
-        eval_month = input$evaluation_month
+        eval_month = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01"))
         if (period() %in% "Month") {
-          time_period = yearmonth(eval_month) - 12
+          time_period = eval_month - 12
         }
         if (period() %in% "Week") {
-          time_period = yearweek(eval_month) - 52
+          time_period = yearweek(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01")) - 52
         }
 
         cat("\n - time_period:", time_period)
@@ -1738,7 +1738,7 @@ evaluation_widget_server <- function(
 
         mable_data = mable_Data()
         model_formula = model_formula()
-        evaluation_month = input$evaluation_month
+        evaluation_month = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01"))
         period = period()
         model = input$model
         transform = input$transform
@@ -1748,7 +1748,7 @@ evaluation_widget_server <- function(
         covariates = input$covariates
         tsModel = tsModel()
 
-        eval_month = yearmonth(evaluation_month)
+        eval_month = yearmonth(as.Date(as.integer(evaluation_month), origin = "1970-01-01"))
         time_period = seq(
           eval_month,
           eval_month + as.integer(horizon) - 1,
@@ -1756,10 +1756,10 @@ evaluation_widget_server <- function(
         )
 
         if (period() %in% "Month") {
-          time_period = yearmonth(evaluation_month)
+          time_period = eval_month
         } # - month(1)
         if (period() %in% "Week") {
-          time_period = yearweek(evaluation_month)
+          time_period = yearweek(as.Date(as.integer(evaluation_month), origin = "1970-01-01"))
         }
 
         forecast.fit.data = mable_data %>%
@@ -1846,7 +1846,7 @@ evaluation_widget_server <- function(
         req(input$horizon)
         req(input$evaluation_month)
 
-        eval_month = yearmonth(as.integer(input$evaluation_month))
+        eval_month = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01"))
         time_period = seq(eval_month - 11, eval_month, by = 1)
 
         cat('\n* evaluation_widget tsPreForecast')
@@ -2056,7 +2056,7 @@ evaluation_widget_server <- function(
         cat('\n - evaluation date', input$evaluation_month)
         .period = period()
         if (.period %in% 'Month') {
-          eval_date = yearmonth(as.integer(input$evaluation_month))
+          eval_date = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01"))
         }
         if (.period %in% 'Week') {
           eval_date = yearweek(input$evaluation_month)
@@ -2201,7 +2201,7 @@ evaluation_widget_server <- function(
 
           cat('\n - pre-evaluation date')
           if (.period %in% 'Month') {
-            pre_eval_date = yearmonth(as.integer(input$evaluation_month)) - 12
+            pre_eval_date = yearmonth(as.Date(as.integer(input$evaluation_month), origin = "1970-01-01")) - 12
           }
           if (.period %in% 'Week') {
             pre_eval_date = yearweek(input$evaluation_month) - 25

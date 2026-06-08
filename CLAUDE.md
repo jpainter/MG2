@@ -177,11 +177,12 @@ with days-to-months conversion. Do NOT revert to FST without solving the vctrs d
 issue where `data.table::set()` converts yearmonth months back to days internally.
 
 **yearmonth encoding (critical):**
-- Correct encoding: months-since-epoch, ~360-840 for 2000-2040
-- Legacy FST/old RDS: days-since-epoch, ~10k-25k — detected by `median > 5000` in `read_file()`
-- `data_widget.r` restores yearmonth class after `setDT()` strips it
+- Internal storage: days-since-epoch (~18000-20000 for 2020-2025); `unclass(yearmonth("2024 Dec")) = 20058`
+- Old tsibble (pre-stored data): months-since-epoch (~360-840); `median > 5000` in `read_file()` detects legacy days encoding
+- `data_widget.r` restores yearmonth class after `setDT()` strips it via `structure(as.double(m_raw), class=c("yearmonth","vctrs_vctr"))`
 - `dqa_functions.R` uses `.month_to_year()` helper that handles both encodings
-- Evaluation widget: `selectInput` stores integer month values ("660"), parsed via `yearmonth(as.integer(...))`
+- Evaluation widget: `selectInput` stores `unclass(yearmonth)` = days-since-epoch ("20058"); parse via `yearmonth(as.Date(as.integer(x), origin="1970-01-01"))`
+- DO NOT use `yearmonth(as.integer(x))` on stored unclass values — treats days as months → year ~3656 AD
 
 **UX improvements (2026-06-08):**
 - Welcome page: getting-started prompt, full tab descriptions, dev tab callouts
