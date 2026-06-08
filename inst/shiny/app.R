@@ -108,8 +108,8 @@ source("burden_widget.R")      # Tab: Burden Estimate (under development)
 ui <- bslib::page_navbar(
   title = span("Magic Glasses 2", style = "color:#61A1FA; font-weight:bold;"),
   id    = "tabs",
-  theme = bslib::bs_theme(bootswatch = "yeti", base_font_size = "16px"),
-  bg    = "#222222",
+  theme           = bslib::bs_theme(bootswatch = "yeti", base_font_size = "16px"),
+  navbar_options  = bslib::navbar_options(bg = "#222222"),
   header = tagList(
     shinyjs::useShinyjs(),
     tags$head(
