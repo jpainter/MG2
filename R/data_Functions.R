@@ -1442,13 +1442,13 @@ htsData = function(
     period = dataPeriod(data)
 
     # Restore yearmonth/yearweek class stripped by data.table operations upstream.
-    # Without this, as_tsibble() produces an integer-indexed tsibble and autoplot()
-    # uses an integer x-axis (~650-720), causing geom_vline(xintercept = as.Date(...))
-    # values (~20000) to stretch the axis and compress all data into a sliver.
+    # yearmonth stores days-since-epoch (~18000-20000) internally; just reattach
+    # the S3/vctrs class without re-interpreting the values (yearmonth(x) would
+    # treat x as months-since-epoch and produce dates in year ~3491 AD).
     if (period == "Month" && !inherits(data[["Month"]], "yearmonth"))
-      data[["Month"]] <- tsibble::yearmonth(data[["Month"]])
+      data[["Month"]] <- structure(data[["Month"]], class = c("yearmonth", "vctrs_vctr"))
     if (period == "Week" && !inherits(data[["Week"]], "yearweek"))
-      data[["Week"]] <- tsibble::yearweek(data[["Week"]])
+      data[["Week"]] <- structure(data[["Week"]], class = c("yearweek", "vctrs_vctr"))
 
     key.cols = setdiff(group_by_cols, period)
 
@@ -1632,13 +1632,13 @@ aggData = function(
     period = dataPeriod(data)
 
     # Restore yearmonth/yearweek class stripped by data.table operations upstream.
-    # Without this, as_tsibble() produces an integer-indexed tsibble and autoplot()
-    # uses an integer x-axis (~650-720), causing geom_vline(xintercept = as.Date(...))
-    # values (~20000) to stretch the axis and compress all data into a sliver.
+    # yearmonth stores days-since-epoch (~18000-20000) internally; just reattach
+    # the S3/vctrs class without re-interpreting the values (yearmonth(x) would
+    # treat x as months-since-epoch and produce dates in year ~3491 AD).
     if (period == "Month" && !inherits(data[["Month"]], "yearmonth"))
-      data[["Month"]] <- tsibble::yearmonth(data[["Month"]])
+      data[["Month"]] <- structure(data[["Month"]], class = c("yearmonth", "vctrs_vctr"))
     if (period == "Week" && !inherits(data[["Week"]], "yearweek"))
-      data[["Week"]] <- tsibble::yearweek(data[["Week"]])
+      data[["Week"]] <- structure(data[["Week"]], class = c("yearweek", "vctrs_vctr"))
 
     key.cols = setdiff(group_by_cols, period)
 
