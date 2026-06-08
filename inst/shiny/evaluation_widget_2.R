@@ -2169,7 +2169,7 @@ evaluation_widget_server <- function(
         # Time scale
         cat('\n - Evaluation: setting x axis time scale', period())
         if (.period %in% 'Month') {
-          n_months <- tryCatch(length(unique(dplyr::pull(.d, Month))), error = function(e) 24L)
+          n_months <- tryCatch(length(unique(dplyr::pull(mable_Data, Month))), error = function(e) 24L)
           x_breaks <- if (n_months <= 18) "3 months" else if (n_months <= 36) "6 months" else "1 year"
           g = g + scale_x_yearmonth("", date_breaks = x_breaks, date_labels = "%b %Y")
         }

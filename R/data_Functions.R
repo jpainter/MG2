@@ -1441,6 +1441,15 @@ htsData = function(
 
     period = dataPeriod(data)
 
+    # Restore yearmonth/yearweek class stripped by data.table operations upstream.
+    # Without this, as_tsibble() produces an integer-indexed tsibble and autoplot()
+    # uses an integer x-axis (~650-720), causing geom_vline(xintercept = as.Date(...))
+    # values (~20000) to stretch the axis and compress all data into a sliver.
+    if (period == "Month" && !inherits(data[["Month"]], "yearmonth"))
+      data[["Month"]] <- tsibble::yearmonth(data[["Month"]])
+    if (period == "Week" && !inherits(data[["Week"]], "yearweek"))
+      data[["Week"]] <- tsibble::yearweek(data[["Week"]])
+
     key.cols = setdiff(group_by_cols, period)
 
     data = data %>%
@@ -1621,6 +1630,15 @@ aggData = function(
     }
 
     period = dataPeriod(data)
+
+    # Restore yearmonth/yearweek class stripped by data.table operations upstream.
+    # Without this, as_tsibble() produces an integer-indexed tsibble and autoplot()
+    # uses an integer x-axis (~650-720), causing geom_vline(xintercept = as.Date(...))
+    # values (~20000) to stretch the axis and compress all data into a sliver.
+    if (period == "Month" && !inherits(data[["Month"]], "yearmonth"))
+      data[["Month"]] <- tsibble::yearmonth(data[["Month"]])
+    if (period == "Week" && !inherits(data[["Week"]], "yearweek"))
+      data[["Week"]] <- tsibble::yearweek(data[["Week"]])
 
     key.cols = setdiff(group_by_cols, period)
 
