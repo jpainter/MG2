@@ -18,7 +18,7 @@ buttonList = function(file_name = paste('downloaded_', Sys.Date())) {
 
 DToptions_with_buttons = function(...) {
   list(
-    autoWidth = TRUE,
+    autoWidth = FALSE,   # TRUE breaks column widths with Bootstrap 5 (bslib)
     scrollX = TRUE,
     lengthMenu = list(
       c(15, 25, 50, 100, -1),
