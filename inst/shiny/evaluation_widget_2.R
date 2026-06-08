@@ -78,6 +78,9 @@ evaluation_widget_ui = function(id) {
 
                     checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
 
+                    checkboxInput(ns("fit_per_region"),
+                                  "Fit model per region when stratified", TRUE),
+
                     actionButton(ns("forecast"), "Calculate Percent Change",
                                  width = "100%", class = "btn-primary btn-sm",
                                  style = "margin-top:4px; margin-bottom:2px;"),
@@ -189,12 +192,13 @@ evaluation_widget_ui = function(id) {
 
                   fluidPage(
                     fluidRow(
-                      style = "height:60vh;",
+                      style = "height:70vh;",
 
                       chartModuleUI(ns('plotOutput'), "Trend Analysis")
                     ),
 
                     fluidRow(
+                      style = "max-height:320px; overflow-y:auto; padding:4px 0;",
                       uiOutput(ns("forecastResultUI"))
                     )
                   )
@@ -995,7 +999,14 @@ evaluation_widget_server <- function(
         ntestmonths_val  = NULL,
         # Incremented by Phase 1 each time validation completes so Phase 2 fires
         # even when the best model name is unchanged from the previous run.
-        phase2_trigger   = 0L
+        phase2_trigger   = 0L,
+        # Per-region support: snapshot of keyed tsibble + date params captured in Phase 1
+        mable_data_snapshot  = NULL,
+        evaluation_month_val = NULL,
+        endEvalMonth_val     = NULL,
+        startMonth_val       = NULL,
+        split_col_val        = NULL,   # NULL = no stratification
+        grouped_actual       = NULL    # post-intervention data per region (Phase 2 output)
       )
 
       # Tracks whether the model dropdown has been populated for the current validation run.
@@ -1070,11 +1081,17 @@ evaluation_widget_server <- function(
           )
 
           # Store for Phase 2 (run before future so they're accessible in the observer)
-          auto_model_values$modeling_data   <- modelingData
-          auto_model_values$n_forecasts_val <- n_forecasts
-          auto_model_values$type_val        <- .type
-          auto_model_values$ensemble_val    <- ensemble
-          auto_model_values$ntestmonths_val <- numberTestMonths
+          auto_model_values$modeling_data       <- modelingData
+          auto_model_values$n_forecasts_val     <- n_forecasts
+          auto_model_values$type_val            <- .type
+          auto_model_values$ensemble_val        <- ensemble
+          auto_model_values$ntestmonths_val     <- numberTestMonths
+          # Per-region: snapshot of district-keyed data + date params
+          auto_model_values$mable_data_snapshot  <- data
+          auto_model_values$evaluation_month_val <- evaluation_month
+          auto_model_values$endEvalMonth_val     <- endEvalMonth
+          auto_model_values$startMonth_val       <- startMonth
+          auto_model_values$split_col_val        <- isolate(split_col())
 
           train_data = modelingData$pre.intervention.train
           test_data  = modelingData$pre.intervention.test
@@ -1178,10 +1195,36 @@ evaluation_widget_server <- function(
           run_ensemble <- TRUE
         }
 
+        # Per-region: when a stratification split is active and the user wants
+        # per-region fits, prepare district-keyed train/test data from the
+        # snapshot captured in Phase 1.  fable handles keyed tsibbles natively —
+        # one model is fit per key group (district).  Ensembles are disabled for
+        # per-region runs to keep computation time reasonable.
+        sc <- auto_model_values$split_col_val
+        per_region <- !is.null(sc) && isTRUE(isolate(input$fit_per_region))
+
+        if (per_region) {
+          raw_snap  <- auto_model_values$mable_data_snapshot
+          eval_mo   <- auto_model_values$evaluation_month_val
+          end_mo    <- auto_model_values$endEvalMonth_val
+          p2_train  <- raw_snap %>% dplyr::filter(Month <  eval_mo)
+          p2_test   <- raw_snap %>% dplyr::filter(Month >= eval_mo,
+                                                  Month <= end_mo)
+          auto_model_values$grouped_actual <- p2_test
+          run_ensemble <- FALSE   # ensembles not supported for per-region runs
+          cat("\n* Phase 2 per-region: split_col =", sc, " | districts =",
+              length(unique(dplyr::pull(p2_train, !!rlang::sym(sc)))))
+        } else {
+          p2_train <- modelingData$pre.intervention
+          p2_test  <- modelingData$post.intervention
+          auto_model_values$grouped_actual <- NULL
+        }
+
         cat("\n* Phase 2 evaluation for model:", sel_model,
             " base_models:", paste(base_names, collapse = ","))
         showModal(modalDialog(
-          paste("Estimating prediction with", input$selected_model, "model..."),
+          paste("Estimating prediction with", input$selected_model,
+                if (per_region) paste0("model per ", sc, "...") else "model..."),
           footer = NULL
         ))
 
@@ -1190,8 +1233,8 @@ evaluation_widget_server <- function(
 
         fut2 <- future(seed = TRUE, {
           evaluation.forecasts <- tsmodels(
-            train_data           = modelingData$pre.intervention,
-            test_data            = modelingData$post.intervention,
+            train_data           = p2_train,
+            test_data            = p2_test,
             n_forecasts          = n_forecasts,
             .var                 = 'total',
             numberForecastMonths = ntestmonths,
@@ -1285,11 +1328,35 @@ evaluation_widget_server <- function(
         req(auto_model())
         req(selected_predicted())
         cat("\n* output$forecastResult: impactSummary")
-        wpe_summary(
-          actual    = auto_model()$actual,
-          predicted = selected_predicted(),
-          .var      = 'total'
-        )
+
+        sc <- auto_model_values$split_col_val
+        if (!is.null(sc) && !is.null(auto_model_values$grouped_actual)) {
+          # Per-region WPE: compute wpe_summary for each district separately,
+          # then bind into one table with the district name as first column.
+          pred   <- selected_predicted()
+          actual <- auto_model_values$grouped_actual
+          key_sym <- rlang::sym(sc)
+          districts <- sort(unique(dplyr::pull(actual, !!key_sym)))
+
+          purrr::map_dfr(districts, function(d) {
+            act_d  <- dplyr::filter(actual, !!key_sym == d)
+            pred_d <- dplyr::filter(pred,   !!key_sym == d)
+            if (nrow(pred_d) == 0 || nrow(act_d) == 0) return(NULL)
+            wpe <- tryCatch(
+              wpe_summary(actual = act_d, predicted = pred_d, .var = 'total'),
+              error = function(e) NULL
+            )
+            if (is.null(wpe)) return(NULL)
+            dplyr::bind_cols(tibble::tibble(!!sc := d), wpe)
+          }) %>%
+            dplyr::mutate(dplyr::across(c(mean, sd, median), ~round(., 1)))
+        } else {
+          wpe_summary(
+            actual    = auto_model()$actual,
+            predicted = selected_predicted(),
+            .var      = 'total'
+          )
+        }
       })
 
       wpeHistogram <- reactive({
@@ -2172,8 +2239,16 @@ evaluation_widget_server <- function(
         ) %>%
           nrow()
 
-        # if ( input$agg_level != levelNames()[1] & input$facet_admin ){
-        if (num_agg_levels > 1 & input$facet_admin) {
+        # Auto-facet by split column when stratification is active.
+        # This shows each region on its own panel and allows per-region
+        # prediction ribbons to appear on the correct facet.
+        sc <- split_col()
+        if (!is.null(sc) && sc %in% names(mable_Data)) {
+          cat('\n -  split facets by', sc)
+          g <- g + facet_wrap(vars(!!rlang::sym(sc)), scales = "free_y") +
+            theme(legend.position = "none")
+        } else if (num_agg_levels > 1 & input$facet_admin) {
+          # if ( input$agg_level != levelNames()[1] & input$facet_admin ){
           cat('\n -  admin facets')
 
           if (input$facet_split) {
