@@ -486,25 +486,6 @@ evaluation_widget_server <- function(
         return(dates)
       })
 
-      observeEvent(
-        dates(),
-        {
-          cat('\n* evaluation_widget update evaluation_month:')
-          updateSelectInput(
-            session,
-            'evaluation_month',
-            choices = setNames(as.character(c(unclass(dates()))), as.character(dates())),
-            # selected = dates()[ round(length(dates())/2) ]
-            selected = as.character(unclass(max(dates()) - 12))
-            # ifelse( period() %in% 'Month' ,
-            #                  dates()[12],
-            #                  dates()[52] )
-            # length(  dates()  ) - 12  ,
-            # length(  dates()  ) - 12            )
-          )
-        }
-      )
-
       # Model ####
       # level names
       observeEvent(
