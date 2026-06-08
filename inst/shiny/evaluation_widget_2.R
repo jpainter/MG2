@@ -1125,6 +1125,22 @@ evaluation_widget_server <- function(
               auto_model_values$validation_done <- TRUE
               auto_model_values$computing       <- FALSE
               removeModal()
+
+              # Notify user about models that failed to fit (e.g. not enough data)
+              if (!is.null(result)) {
+                expected <- c("a", "e", "n", "t", "p1", "p4", "p8")
+                fitted   <- if (!is.null(result$validations)) tolower(result$validations$.model) else character(0)
+                failed   <- setdiff(expected, fitted)
+                if (length(failed) > 0) {
+                  showNotification(
+                    paste0("Some models could not be fitted (likely not enough data): ",
+                           paste(toupper(failed), collapse = ", "),
+                           ". Results shown for models that succeeded."),
+                    type     = "warning",
+                    duration = 10
+                  )
+                }
+              }
             } else {
               invalidateLater(100)
             }
@@ -2119,7 +2135,7 @@ evaluation_widget_server <- function(
 
         if (input$label) {
           g = g +
-            geom_label_repel(
+            ggrepel::geom_label_repel(
               data = mable_Data %>%
                 filter(
                   !!rlang::sym(.period) ==
@@ -2233,7 +2249,7 @@ evaluation_widget_server <- function(
 
           if (input$pe) {
             g = g +
-              geom_label_repel(
+              ggrepel::geom_label_repel(
                 data = key.mape(),
                 aes(
                   x = !!rlang::sym(period()),
@@ -2278,7 +2294,7 @@ evaluation_widget_server <- function(
 
           if (input$pe) {
             g = g +
-              geom_label_repel(
+              ggrepel::geom_label_repel(
                 data = key.mpe(),
                 aes(
                   x = !!rlang::sym(period()),
