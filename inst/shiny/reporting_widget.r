@@ -153,7 +153,7 @@ reporting_widget_ui = function(id) {
               actionButton(ns('update_data_categories'), label = "Update",
                            class = "btn-info btn-sm"),
               checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
-              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = TRUE)
+              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = FALSE)
             ),
 
             div(
@@ -675,6 +675,11 @@ reporting_widget_server <- function(
 
       reporting_elem_map_rv <- reactiveVal(list())
 
+      # Auto-select primary elements only when there are few (≤ .max_auto_select).
+      # With many elements (e.g. PDR Lao: 82) start empty so the user chooses
+      # deliberately — same threshold logic as the DQA page.
+      .max_auto_select <- 5L
+
       .update_data_categories <- function(all_choices, fe, d) {
         map <- .reporting_element_map(all_choices, fe, d)
         reporting_elem_map_rv(map)
@@ -684,13 +689,14 @@ reporting_widget_server <- function(
 
         if (!isTRUE(input$collapse_reporting)) {
           roles <- .split_by_role(all_choices, fe)
+          sel   <- if (length(roles$primary) > .max_auto_select) character(0) else roles$primary
           updateCheckboxGroupInput(
             session, 'data_categories',
             choiceNames  = .make_choice_names(all_choices, roles$secondary),
             choiceValues = all_choices,
-            selected     = roles$primary
+            selected     = sel
           )
-          selected_data_categories$elements <- roles$primary
+          selected_data_categories$elements <- sel
         } else {
           elems     <- stringr::str_sort(names(map), numeric = TRUE)
           fe_roles  <- if (!is.null(fe) && nrow(fe) > 0 && "role" %in% names(fe))
@@ -698,13 +704,14 @@ reporting_widget_server <- function(
           else character(0)
           sec_elems  <- elems[!is.na(fe_roles) & fe_roles == "secondary"]
           prim_elems <- setdiff(elems, sec_elems)
+          sel        <- if (length(prim_elems) > .max_auto_select) character(0) else prim_elems
           updateCheckboxGroupInput(
             session, 'data_categories',
             choiceNames  = .make_choice_names(elems, sec_elems),
             choiceValues = elems,
-            selected     = prim_elems
+            selected     = sel
           )
-          selected_data_categories$elements <- unique(unlist(map[prim_elems], use.names = FALSE))
+          selected_data_categories$elements <- unique(unlist(map[sel], use.names = FALSE))
         }
 
         if (has_secondary) {

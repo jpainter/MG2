@@ -78,9 +78,6 @@ evaluation_widget_ui = function(id) {
 
                     checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
 
-                    checkboxInput(ns("fit_per_region"),
-                                  "Fit model per region when stratified", TRUE),
-
                     actionButton(ns("forecast"), "Calculate Percent Change",
                                  width = "100%", class = "btn-primary btn-sm",
                                  style = "margin-top:4px; margin-bottom:2px;"),
@@ -150,8 +147,14 @@ evaluation_widget_ui = function(id) {
 
                   checkboxInput(
                     ns("facet_admin"),
-                    label = "Facet by admin",
+                    label = "Stratify results by this level",
                     value = TRUE
+                  ),
+
+                  checkboxInput(
+                    ns("fit_per_region"),
+                    "Validate model per region when stratified (slower and potentially causing a model type bias in predictions)",
+                    FALSE
                   ),
 
                   checkboxInput(
@@ -192,16 +195,18 @@ evaluation_widget_ui = function(id) {
 
                   fluidPage(
                     fluidRow(
-                      style = "height:70vh;",
+                      style = "height:auto;",
 
-                      chartModuleUI(ns('plotOutput'), "Trend Analysis")
-                    ),
-
-                    fluidRow(
-                      style = "max-height:320px; overflow-y:auto; padding:4px 0;",
-                      uiOutput(ns("forecastResultUI"))
+                      chartModuleUI(ns('plotOutput'), "Trend Analysis",
+                                    height = "calc(70vh - 50px)")
                     )
                   )
+                ),
+
+                tabPanel(
+                  "Impact",
+                  div(style = "padding: 8px 4px;",
+                      uiOutput(ns("forecastResultUI")))
                 ),
 
                 tabPanel("Annual Change", uiOutput(ns("annualTable"))),
@@ -537,29 +542,45 @@ evaluation_widget_server <- function(
         }
       )
 
-      # Map the user-friendly split_data choice to the actual data column name
+      # Derive the active split column.
+      # Regional stratification is now driven exclusively by the Stratifications
+      # tab: when "Stratify results by this level" is checked and agg_level is
+      # not the top (national) level, that admin column becomes the split.
+      # The Data tab split_data handles only non-regional splits (Reporting,
+      # Categories).
       split_col <- reactive({
+        # Regional: agg_level below top + stratify checkbox
+        if (isTRUE(input$facet_admin)) {
+          top_lvl <- tryCatch(levelNames()[1], error = function(e) NULL)
+          agg     <- input$agg_level
+          if (!is.null(agg) && nzchar(agg) &&
+              !is.null(top_lvl) && agg != top_lvl)
+            return(agg)
+        }
+        # Non-regional split from Data tab
         choice <- input$split_data
         if (is.null(choice) || choice == "None") return(NULL)
         if (choice == "Reporting")   return("Selected")
         if (choice == "Categories")  return("data")
-        if (startsWith(choice, "Region"))  return(sub_agg_level())
         NULL
       })
 
-      # Populate split_data choices based on what is actually in the data
+      # Populate split_data choices based on what is actually in the data.
+      # sub_agg_level() is NOT in the trigger list — it can throw silently during
+      # startup (before orgUnits is ready), which would prevent the observer from
+      # registering its other dependencies correctly.  Instead it is called inside
+      # the body where tryCatch handles the silent failure gracefully.
+      # ignoreInit = FALSE so the observer fires as soon as data arrives.
       observeEvent(
-        list(region_filtered_selected_data(), input$agg_level, sub_agg_level()),
+        list(region_filtered_selected_data(), input$agg_level),
         {
           cat('\n* evaluation_widget update split_data choices')
           d       <- tryCatch(region_filtered_selected_data(), error = function(e) NULL)
           choices <- "None"
 
           if (!is.null(d) && nrow(d) > 0) {
-            # Region: next org-unit level down from current agg_level
-            sub_lvl <- tryCatch(sub_agg_level(), error = function(e) NULL)
-            if (!is.null(sub_lvl) && nzchar(sub_lvl) && sub_lvl %in% names(d))
-              choices <- c(choices, paste0("Region (", sub_lvl, ")"))
+            # Regional stratification is now handled by the Stratifications tab
+            # (agg_level + "Stratify results by this level") — not here.
 
             # Reporting: champion vs non-champion
             if ("Selected" %in% names(d) &&
@@ -575,8 +596,7 @@ evaluation_widget_server <- function(
           updateSelectInput(session, 'split_data',
                             choices  = choices,
                             selected = if (prev %in% choices) prev else "None")
-        },
-        ignoreInit = TRUE
+        }
       )
 
       # Legacy observer kept for filter_display only
@@ -1051,7 +1071,7 @@ evaluation_widget_server <- function(
         req(input$evaluation_month)
 
         cat("\n* observeEvent(input$forecast: validation phase)")
-        showModal(modalDialog("Running model validation...", footer = NULL))
+        showModal(modalDialog("Running model validation...", footer = NULL, fade = FALSE))
 
         auto_model_values$computing       <- TRUE
         auto_model_values$validation_done <- FALSE
@@ -1127,16 +1147,24 @@ evaluation_widget_server <- function(
 
           observe({
             if (resolved(fut)) {
+              had_error <- FALSE
               result <- tryCatch(value(fut), error = function(e) {
                 cat("\n-- Validation failed:", e$message)
-                showModal(modalDialog(title = "Error",
-                  paste("Validation failed:", e$message), footer = modalButton("OK")))
+                removeModal()  # dismiss progress modal before showing error
+                showModal(modalDialog(
+                  title  = "Validation failed",
+                  paste("Could not fit models:", e$message,
+                        "\n\nTry a different evaluation start date, fewer months of evaluation, or a larger date range."),
+                  footer = modalButton("OK"),
+                  fade   = FALSE
+                ))
+                had_error <<- TRUE
                 NULL
               })
+              if (!had_error) removeModal()
               auto_model_values$model_output    <- result
-              auto_model_values$validation_done <- TRUE
+              auto_model_values$validation_done <- !is.null(result)
               auto_model_values$computing       <- FALSE
-              removeModal()
 
               # Notify user about models that failed to fit (e.g. not enough data).
               # With .safely=TRUE, fable keeps a null placeholder; those appear in
@@ -1198,15 +1226,16 @@ evaluation_widget_server <- function(
           run_ensemble <- TRUE
         }
 
-        # Per-region: when a stratification split is active and the user wants
-        # per-region fits, prepare district-keyed train/test data from the
-        # snapshot captured in Phase 1.  fable handles keyed tsibbles natively —
-        # one model is fit per key group (district).  Ensembles are disabled for
-        # per-region runs to keep computation time reasonable.
+        # Per-region: when a stratification split is active, always use
+        # region-keyed data so fable fits one model per district.  The checkbox
+        # controls whether each region gets its own validation (slower, and
+        # risks model-type bias across regions) or whether the national best
+        # model is applied uniformly to all regions (default).
         sc <- auto_model_values$split_col_val
-        per_region <- !is.null(sc) && isTRUE(isolate(input$fit_per_region))
+        is_stratified       <- !is.null(sc)
+        validate_per_region <- is_stratified && isTRUE(isolate(input$fit_per_region))
 
-        if (per_region) {
+        if (is_stratified) {
           raw_snap  <- auto_model_values$mable_data_snapshot
           eval_mo   <- auto_model_values$evaluation_month_val
           end_mo    <- auto_model_values$endEvalMonth_val
@@ -1215,7 +1244,13 @@ evaluation_widget_server <- function(
                                                   Month <= end_mo)
           auto_model_values$grouped_actual <- p2_test
           run_ensemble <- FALSE   # ensembles not supported for per-region runs
-          cat("\n* Phase 2 per-region: split_col =", sc, " | districts =",
+          if (validate_per_region) {
+            base_names <- NULL   # all primary models; best per region selected after fitting
+          }
+          # else: base_names already set to national sel_model above
+          cat("\n* Phase 2",
+              if (validate_per_region) "per-region validation" else "national model per region",
+              ": split_col =", sc, " | districts =",
               length(unique(dplyr::pull(p2_train, !!rlang::sym(sc)))))
         } else {
           p2_train <- modelingData$pre.intervention
@@ -1227,7 +1262,9 @@ evaluation_widget_server <- function(
             " base_models:", paste(base_names, collapse = ","))
         showModal(modalDialog(
           paste("Estimating prediction with", input$selected_model,
-                if (per_region) paste0("model per ", sc, "...") else "model..."),
+                if (is_stratified)
+                  paste0(if (validate_per_region) "— validating per " else "model per ", sc, "...")
+                else "model..."),
           footer = NULL
         ))
 
@@ -1247,17 +1284,49 @@ evaluation_widget_server <- function(
             base_models          = base_names,
             msg                  = TRUE,
             .set.seed            = TRUE
-          ) %>% dplyr::filter(.model == sel_model)
+          )
+
+          if (validate_per_region) {
+            # Compute SWAPE per region per model and keep only the best-fitting
+            # model for each region.  Note: this uses the post-intervention
+            # period for model selection, which the user understands may
+            # introduce model-type bias in cross-region comparisons.
+            region_metrics <- model_metrics(
+              test.forecasts = evaluation.forecasts,
+              test.data      = p2_test,
+              msg            = FALSE,
+              .var           = "total",
+              grouping       = TRUE,
+              groups         = sc
+            )
+            best_per_region <- region_metrics %>%
+              dplyr::filter(!is.na(swape)) %>%
+              dplyr::group_by(!!rlang::sym(sc)) %>%
+              dplyr::slice_min(swape, n = 1L, with_ties = FALSE) %>%
+              dplyr::ungroup()
+            evaluation.forecasts <- evaluation.forecasts %>%
+              dplyr::semi_join(best_per_region, by = c(sc, ".model"))
+          } else {
+            evaluation.forecasts <- evaluation.forecasts %>%
+              dplyr::filter(.model == sel_model)
+          }
 
           evaluation.forecasts
         })
 
         observe({
           if (resolved(fut2)) {
+            had_error2 <- FALSE
             pred <- tryCatch(value(fut2), error = function(e) {
               cat("\n-- Evaluation failed:", e$message)
-              showModal(modalDialog(title = "Error",
-                paste("Evaluation failed:", e$message), footer = modalButton("OK")))
+              showModal(modalDialog(
+                title  = "Evaluation failed",
+                paste("Could not generate predictions:", e$message,
+                      "\n\nTry a different evaluation start date or a larger date range."),
+                footer = modalButton("OK"),
+                fade   = FALSE
+              ))
+              had_error2 <<- TRUE
               NULL
             })
             cat("\n* Phase 2 inner observer: resolved. pred is",
@@ -1280,7 +1349,7 @@ evaluation_widget_server <- function(
               cat("\n-- Evaluation returned 0 rows; model name may not match filter")
             }
             auto_model_values$computing <- FALSE
-            removeModal()
+            if (!had_error2) removeModal()
           } else {
             invalidateLater(100)
           }
@@ -1460,7 +1529,7 @@ evaluation_widget_server <- function(
           dplyr::filter(.model == tolower(input$selected_model))
       })
 
-      # WPE summary statistics for the selected model (used for chart annotations)
+      # WPE summary statistics for the selected model (national, for chart annotation)
       selected_wpe_stats = reactive({
         req(auto_model())
         req(selected_predicted())
@@ -1474,6 +1543,41 @@ evaluation_widget_server <- function(
           ),
           error = function(e) NULL
         )
+      })
+
+      # Per-region WPE annotation data frame: one row per district with label text.
+      # Used by plotTrends to place a result box in each facet panel.
+      wpe_annotation_df = reactive({
+        req(auto_model_values$done)
+        sc_val  <- auto_model_values$split_col_val
+        actual  <- auto_model_values$grouped_actual
+        req(!is.null(sc_val), !is.null(actual))
+        pred <- tryCatch(selected_predicted(), error = function(e) NULL)
+        req(!is.null(pred), nrow(pred) > 0)
+
+        key_sym   <- rlang::sym(sc_val)
+        districts <- sort(unique(dplyr::pull(actual, !!key_sym)))
+
+        purrr::map_dfr(districts, function(d) {
+          act_d  <- dplyr::filter(actual, !!key_sym == d)
+          pred_d <- dplyr::filter(pred,   !!key_sym == d)
+          if (nrow(pred_d) == 0 || nrow(act_d) == 0) return(NULL)
+          wpe <- tryCatch(
+            wpe_summary(actual = act_d, predicted = pred_d, .var = 'total'),
+            error = function(e) NULL
+          )
+          if (is.null(wpe)) return(NULL)
+          tibble::tibble(
+            !!sc_val := d,
+            .label   = paste(
+              paste("Model:", isolate(input$selected_model)),
+              paste("Mean:",   round(wpe$mean[1],   1), "%"),
+              paste("SD:",     round(wpe$sd[1],     1), "%"),
+              paste("Median:", round(wpe$median[1], 1), "%"),
+              sep = "\n"
+            )
+          )
+        })
       })
 
       output$wpeValidationTable =
@@ -2294,13 +2398,15 @@ evaluation_widget_server <- function(
           labs(
             y = "",
             x = "",
-            title    = str_wrap(data.text, 100),
-            subtitle = {
+            # Suppress title/subtitle when faceted — strip labels name each region
+            # and the vertical space is better used by the panels themselves.
+            title    = if (is.null(sc)) str_wrap(data.text, 100) else NULL,
+            subtitle = if (is.null(sc)) {
               ind <- input$indicator
               if (!is.null(ind) && length(ind) > 0 && nzchar(trimws(ind)))
                 str_wrap(ind, 120)
               else NULL
-            },
+            } else NULL,
             caption  = str_wrap(caption.text(), 200)
           )
 
@@ -2441,25 +2547,44 @@ evaluation_widget_server <- function(
                 alpha    = .5
               )
 
-            # Lower-right annotation: selected model + WPE stats
-            stats <- tryCatch(selected_wpe_stats(), error = function(e) NULL)
-            if (!is.null(stats) && nrow(stats) > 0) {
-              annotation_text <- paste(
-                paste("Model:", input$selected_model),
-                paste("Mean:",   round(stats$mean[1],   1), "%"),
-                paste("SD:",     round(stats$sd[1],     1), "%"),
-                paste("Median:", round(stats$median[1], 1), "%"),
-                sep = "\n"
-              )
-              g <- g + annotate(
-                "label",
-                x = Inf, y = -Inf,
-                label    = annotation_text,
-                hjust    = 1.05, vjust = -0.1,
-                size     = 3,
-                alpha    = 0.85,
-                label.size = 0.3
-              )
+            # Bottom-left result box: per-region when faceted, national otherwise.
+            if (!is.null(sc)) {
+              # Faceted view: one label per panel using per-region WPE stats
+              ann_df <- tryCatch(wpe_annotation_df(), error = function(e) NULL)
+              if (!is.null(ann_df) && nrow(ann_df) > 0) {
+                ann_df$.x <- -Inf
+                ann_df$.y <- -Inf
+                g <- g + ggplot2::geom_label(
+                  data         = ann_df,
+                  mapping      = ggplot2::aes(x = .x, y = .y, label = .label),
+                  inherit.aes  = FALSE,
+                  hjust        = -0.05, vjust = -0.05,
+                  size         = 3.5,
+                  alpha        = 0.85,
+                  label.size   = 0.3
+                )
+              }
+            } else {
+              # National view: single annotation with national WPE stats
+              stats <- tryCatch(selected_wpe_stats(), error = function(e) NULL)
+              if (!is.null(stats) && nrow(stats) > 0) {
+                annotation_text <- paste(
+                  paste("Model:", input$selected_model),
+                  paste("Mean:",   round(stats$mean[1],   1), "%"),
+                  paste("SD:",     round(stats$sd[1],     1), "%"),
+                  paste("Median:", round(stats$median[1], 1), "%"),
+                  sep = "\n"
+                )
+                g <- g + annotate(
+                  "label",
+                  x = -Inf, y = -Inf,
+                  label      = annotation_text,
+                  hjust      = -0.05, vjust = -0.1,
+                  size       = 4,
+                  alpha      = 0.85,
+                  label.size = 0.3
+                )
+              }
             }
           } else {
             cat('\n - selected predicted or test.forecasts is NULL; skipping autolayer')
