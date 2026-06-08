@@ -67,6 +67,7 @@ suppressPackageStartupMessages(library(dplyr))
 # Options -------------------------------------------------------------------
 options(dplyr.summarise.inform = FALSE)
 options(future.globals.maxSize = 30 * 1024^3)
+future::plan(future::multisession, workers = 1L)
 
 # UI helper: small next-step hint bar at the bottom of a tab
 .mg2_step_hint <- function(text) {
