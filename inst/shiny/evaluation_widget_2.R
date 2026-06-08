@@ -1115,18 +1115,23 @@ evaluation_widget_server <- function(
               auto_model_values$computing       <- FALSE
               removeModal()
 
-              # Notify user about models that failed to fit (e.g. not enough data)
+              # Notify user about models that failed to fit (e.g. not enough data).
+              # With .safely=TRUE, fable keeps a null placeholder; those appear in
+              # validations with NA swape rather than being absent from the table.
               if (!is.null(result)) {
-                expected <- c("a", "e", "n", "t", "p1", "p4", "p8")
-                fitted   <- if (!is.null(result$validations)) tolower(result$validations$.model) else character(0)
-                failed   <- setdiff(expected, fitted)
+                expected   <- c("a", "e", "n", "t", "p1", "p4", "p8")
+                good_models <- if (!is.null(result$validations))
+                  tolower(result$validations$.model[!is.na(result$validations$swape)])
+                else
+                  character(0)
+                failed <- setdiff(expected, good_models)
                 if (length(failed) > 0) {
                   showNotification(
                     paste0("Some models could not be fitted (likely not enough data): ",
                            paste(toupper(failed), collapse = ", "),
                            ". Results shown for models that succeeded."),
                     type     = "warning",
-                    duration = 10
+                    duration = 15
                   )
                 }
               }
