@@ -153,6 +153,35 @@
         "Archs": "MASS.so.dSYM"
       }
     },
+    "QuickJSR": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "QuickJSR",
+        "Title": "Interface for the 'QuickJS-NG' Lightweight 'JavaScript' Engine",
+        "Version": "1.10.0",
+        "Authors@R": "c(\n    person(c(\"Andrew\", \"R.\"), \"Johnson\", , \"andrew.johnson@arjohnsonau.com\", role = c(\"aut\", \"cre\"),\n           comment = c(ORCID = \"0000-0001-7000-8065\")),\n    person(\"QuickJS\", \"Authors\", role = c(\"cph\"),\n           comment = \"QuickJS sources and headers\"),\n    person(\"QuickJS-NG\", \"Authors\", role = c(\"cph\"),\n           comment = \"QuickJS-NG sources and headers\")\n  )",
+        "Description": "An 'R' interface to the 'QuickJS' portable 'JavaScript'\n    engine.  The engine and all 'R' to 'JavaScript' interoperability is bundled\n    within the package, requiring no dependencies beyond a 'C' compiler.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://github.com/andrjohns/QuickJSR,\nhttps://github.com/quickjs-ng/quickjs",
+        "BugReports": "https://github.com/andrjohns/QuickJSR/issues",
+        "Suggests": "knitr, rmarkdown, tinytest",
+        "Encoding": "UTF-8",
+        "Language": "en-AU",
+        "NeedsCompilation": "yes",
+        "RoxygenNote": "7.3.3",
+        "SystemRequirements": "GNU make",
+        "VignetteBuilder": "knitr",
+        "Config/build/compilation-database": "true",
+        "Packaged": "2026-05-17 07:50:19 UTC; andrew",
+        "Author": "Andrew R. Johnson [aut, cre] (ORCID:\n    <https://orcid.org/0000-0001-7000-8065>),\n  QuickJS Authors [cph] (QuickJS sources and headers),\n  QuickJS-NG Authors [cph] (QuickJS-NG sources and headers)",
+        "Maintainer": "Andrew R. Johnson <andrew.johnson@arjohnsonau.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-05-17 12:50:12 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-05-17 15:35:39 UTC; unix",
+        "Archs": "QuickJSR.so.dSYM"
+      }
+    },
     "R6": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -263,6 +292,64 @@
         "Archs": "RcppArmadillo.so.dSYM"
       }
     },
+    "RcppEigen": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "RcppEigen",
+        "Type": "Package",
+        "Title": "'Rcpp' Integration for the 'Eigen' Templated Linear Algebra\nLibrary",
+        "Version": "0.3.4.0.2",
+        "Date": "2024-08-23",
+        "Authors@R": "c(person(\"Doug\", \"Bates\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0001-8316-9503\")),\n             person(\"Dirk\", \"Eddelbuettel\", role = c(\"aut\", \"cre\"), email = \"edd@debian.org\",\n                    comment = c(ORCID = \"0000-0001-6419-907X\")),\n             person(\"Romain\", \"Francois\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0002-2444-4226\")),\n             person(\"Yixuan\", \"Qiu\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0003-0109-6692\")),\n             person(\"Authors of\", \"Eigen\", role = \"cph\",\n                    comment = \"Authorship and copyright in included Eigen library as detailed in inst/COPYRIGHTS\"))",
+        "Copyright": "See the file COPYRIGHTS for various Eigen copyright details",
+        "Description": "R and 'Eigen' integration using 'Rcpp'.\n 'Eigen' is a C++ template library for linear algebra: matrices, vectors,\n numerical solvers and related algorithms.  It supports dense and sparse\n matrices on integer, floating point and complex numbers, decompositions of\n such matrices, and solutions of linear systems. Its performance on many\n algorithms is comparable with some of the best implementations based on\n 'Lapack' and level-3 'BLAS'. The 'RcppEigen' package includes the header\n files from the 'Eigen' C++ template library. Thus users do not need to\n install 'Eigen' itself in order to use 'RcppEigen'. Since version 3.1.1,\n 'Eigen' is licensed under the Mozilla Public License (version 2); earlier\n version were licensed under the GNU LGPL version 3 or later. 'RcppEigen'\n (the 'Rcpp' bindings/bridge to 'Eigen') is licensed under the GNU GPL\n version 2 or later, as is the rest of 'Rcpp'.",
+        "License": "GPL (>= 2) | file LICENSE",
+        "LazyLoad": "yes",
+        "Depends": "R (>= 3.6.0)",
+        "LinkingTo": "Rcpp",
+        "Imports": "Rcpp (>= 0.11.0), stats, utils",
+        "Suggests": "Matrix, inline, tinytest, pkgKitten, microbenchmark",
+        "URL": "https://github.com/RcppCore/RcppEigen,\nhttps://dirk.eddelbuettel.com/code/rcpp.eigen.html",
+        "BugReports": "https://github.com/RcppCore/RcppEigen/issues",
+        "NeedsCompilation": "yes",
+        "Packaged": "2024-08-23 18:11:22 UTC; edd",
+        "Author": "Doug Bates [aut] (<https://orcid.org/0000-0001-8316-9503>),\n  Dirk Eddelbuettel [aut, cre] (<https://orcid.org/0000-0001-6419-907X>),\n  Romain Francois [aut] (<https://orcid.org/0000-0002-2444-4226>),\n  Yixuan Qiu [aut] (<https://orcid.org/0000-0003-0109-6692>),\n  Authors of Eigen [cph] (Authorship and copyright in included Eigen\n    library as detailed in inst/COPYRIGHTS)",
+        "Maintainer": "Dirk Eddelbuettel <edd@debian.org>",
+        "Repository": "CRAN",
+        "Date/Publication": "2024-08-24 06:30:02 UTC",
+        "Built": "R 4.4.1; aarch64-apple-darwin20; 2024-08-24 08:51:52 UTC; unix",
+        "Archs": "RcppEigen.so.dSYM"
+      }
+    },
+    "RcppParallel": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "RcppParallel",
+        "Type": "Package",
+        "Title": "Parallel Programming Tools for 'Rcpp'",
+        "Version": "5.1.11-2",
+        "Authors@R": "c(\n    person(\"JJ\", \"Allaire\", role = c(\"aut\"), email = \"jj@rstudio.com\"),\n    person(\"Romain\", \"Francois\", role = c(\"aut\", \"cph\")),\n    person(\"Kevin\", \"Ushey\", role = c(\"aut\", \"cre\"), email = \"kevin@rstudio.com\"),\n    person(\"Gregory\", \"Vandenbrouck\", role = \"aut\"),\n    person(\"Marcus\", \"Geelnard\", role = c(\"aut\", \"cph\"),\n       comment = \"TinyThread library, https://tinythreadpp.bitsnbites.eu/\"),\n    person(\"Hamada S.\", \"Badr\",\n       email = \"badr@jhu.edu\",\n       role = c(\"ctb\"),\n       comment = c(ORCID = \"0000-0002-9808-2344\")),\n    person(family = \"Posit, PBC\", role = \"cph\"),\n    person(family = \"Intel\", role = c(\"aut\", \"cph\"),\n       comment = \"Intel TBB library, https://www.threadingbuildingblocks.org/\"),\n    person(family = \"Microsoft\", role = \"cph\")\n    )",
+        "Description": "High level functions for parallel programming with 'Rcpp'.\n    For example, the 'parallelFor()' function can be used to convert the work of\n    a standard serial \"for\" loop into a parallel one and the 'parallelReduce()'\n    function can be used for accumulating aggregate or other values.",
+        "Depends": "R (>= 3.0.2)",
+        "Suggests": "Rcpp, RUnit, knitr, rmarkdown",
+        "SystemRequirements": "GNU make, Intel TBB, Windows: cmd.exe and\ncscript.exe, Solaris: g++ is required",
+        "License": "GPL (>= 3)",
+        "URL": "https://rcppcore.github.io/RcppParallel/,\nhttps://github.com/RcppCore/RcppParallel",
+        "BugReports": "https://github.com/RcppCore/RcppParallel/issues",
+        "Biarch": "TRUE",
+        "RoxygenNote": "7.1.1",
+        "Encoding": "UTF-8",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-03-03 18:36:15 UTC; kevin",
+        "Maintainer": "Kevin Ushey <kevin@rstudio.com>",
+        "Author": "JJ Allaire [aut],\n  Romain Francois [aut, cph],\n  Kevin Ushey [aut, cre],\n  Gregory Vandenbrouck [aut],\n  Marcus Geelnard [aut, cph] (TinyThread library,\n    https://tinythreadpp.bitsnbites.eu/),\n  Hamada S. Badr [ctb] (ORCID: <https://orcid.org/0000-0002-9808-2344>),\n  Posit, PBC [cph],\n  Intel [aut, cph] (Intel TBB library,\n    https://www.threadingbuildingblocks.org/),\n  Microsoft [cph]",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-03-05 12:20:09 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-03-05 13:43:44 UTC; unix"
+      }
+    },
     "S7": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -294,6 +381,56 @@
         "Date/Publication": "2026-04-22 11:00:10 UTC",
         "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-04-22 14:36:04 UTC; unix",
         "Archs": "S7.so.dSYM"
+      }
+    },
+    "StanHeaders": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "StanHeaders",
+        "Title": "C++ Header Files for Stan",
+        "Version": "2.32.10",
+        "Authors@R": "c(person(\"Ben\",family=\"Goodrich\", email=\"benjamin.goodrich@columbia.edu\", role=c('cre','aut')),\n             person(\"Joshua\", \"Pritikin\", role = \"ctb\"),\n             person(\"Andrew\", \"Gelman\", role = \"aut\"),\n             person(\"Bob\", \"Carpenter\",  role = \"aut\"),\n             person(\"Matt\", \"Hoffman\", role = \"aut\"),\n             person(\"Daniel\", \"Lee\", role = \"aut\"),\n             person(\"Michael\", \"Betancourt\", role = \"aut\"),\n             person(\"Marcus\", \"Brubaker\", role = \"aut\"),\n             person(\"Jiqiang\", \"Guo\", role = \"aut\"),\n             person(\"Peter\", \"Li\", role = \"aut\"),\n             person(\"Allen\", \"Riddell\", role = \"aut\"),\n             person(\"Marco\", \"Inacio\", role = \"aut\"),\n             person(\"Mitzi\", \"Morris\", role = \"aut\"),\n             person(\"Jeffrey\", \"Arnold\", role = \"aut\"),\n             person(\"Rob\", \"Goedman\", role = \"aut\"),\n             person(\"Brian\", \"Lau\", role = \"aut\"),\n             person(\"Rob\", \"Trangucci\", role = \"aut\"),\n             person(\"Jonah\", \"Gabry\", role = \"aut\"),\n             person(\"Alp\", \"Kucukelbir\", role = \"aut\"),\n             person(\"Robert\", \"Grant\", role = \"aut\"),\n             person(\"Dustin\", \"Tran\", role = \"aut\"),\n             person(\"Michael\", \"Malecki\", role = \"aut\"),\n             person(\"Yuanjun\", \"Gao\", role = \"aut\"),\n             person(\"Hamada S.\", \"Badr\", role = c(\"aut\"),\n                    email = \"badr@jhu.edu\",\n                    comment = c(ORCID = \"0000-0002-9808-2344\")),\n             person(\"Trustees of\", \"Columbia University\", role = \"cph\"),\n             person(\"Lawrence Livermore\", \"National Security\", role = \"cph\", comment = \"CVODES\"),\n             person(\"The Regents of the\", \"University of California\", role = \"cph\", comment = \"CVODES\"),\n             person(\"Southern Methodist\", \"University\", role = \"cph\", comment = \"CVODES\"))",
+        "URL": "https://mc-stan.org/",
+        "Description": "The C++ header files of the Stan project are provided by this package, but it contains little R code or documentation. The main reference is the vignette. There is a shared object containing part of the 'CVODES' library, but its functionality is not accessible from R. 'StanHeaders' is primarily useful for developers who want to utilize the 'LinkingTo' directive of their package's DESCRIPTION file to build on the Stan library without incurring unnecessary dependencies. The Stan project develops a probabilistic programming language that implements full or approximate Bayesian statistical inference via Markov Chain Monte Carlo or 'variational' methods and implements (optionally penalized) maximum likelihood estimation via optimization. The Stan library includes an advanced automatic differentiation scheme, 'templated' statistical and linear algebra functions that can handle the automatically 'differentiable' scalar types (and doubles, 'ints', etc.), and a parser for the Stan language. The 'rstan' package provides user-facing R functions to parse, compile, test, estimate, and analyze Stan models.",
+        "Imports": "RcppParallel (>= 5.1.4)",
+        "Suggests": "Rcpp, BH (>= 1.75.0-0), knitr (>= 1.36), rmarkdown, Matrix,\nmethods, rstan, withr",
+        "LinkingTo": "RcppEigen (>= 0.3.4.0.0), RcppParallel (>= 5.1.4)",
+        "VignetteBuilder": "knitr",
+        "SystemRequirements": "GNU make, pandoc",
+        "Depends": "R (>= 3.4.0)",
+        "License": "BSD_3_clause + file LICENSE",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.1.2",
+        "NeedsCompilation": "yes",
+        "Packaged": "2024-07-15 06:14:33 UTC; ben",
+        "Author": "Ben Goodrich [cre, aut],\n  Joshua Pritikin [ctb],\n  Andrew Gelman [aut],\n  Bob Carpenter [aut],\n  Matt Hoffman [aut],\n  Daniel Lee [aut],\n  Michael Betancourt [aut],\n  Marcus Brubaker [aut],\n  Jiqiang Guo [aut],\n  Peter Li [aut],\n  Allen Riddell [aut],\n  Marco Inacio [aut],\n  Mitzi Morris [aut],\n  Jeffrey Arnold [aut],\n  Rob Goedman [aut],\n  Brian Lau [aut],\n  Rob Trangucci [aut],\n  Jonah Gabry [aut],\n  Alp Kucukelbir [aut],\n  Robert Grant [aut],\n  Dustin Tran [aut],\n  Michael Malecki [aut],\n  Yuanjun Gao [aut],\n  Hamada S. Badr [aut] (<https://orcid.org/0000-0002-9808-2344>),\n  Trustees of Columbia University [cph],\n  Lawrence Livermore National Security [cph] (CVODES),\n  The Regents of the University of California [cph] (CVODES),\n  Southern Methodist University [cph] (CVODES)",
+        "Maintainer": "Ben Goodrich <benjamin.goodrich@columbia.edu>",
+        "Repository": "CRAN",
+        "Date/Publication": "2024-07-15 08:50:02 UTC",
+        "Built": "R 4.4.0; aarch64-apple-darwin20; 2024-07-17 01:21:06 UTC; unix"
+      }
+    },
+    "abind": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "abind",
+        "Version": "1.4-8",
+        "Date": "2024-09-08",
+        "Title": "Combine Multidimensional Arrays",
+        "Authors@R": "c(person(\"Tony\", \"Plate\", email = \"tplate@acm.org\", role = c(\"aut\", \"cre\")), person(\"Richard\", \"Heiberger\", role = c(\"aut\")))",
+        "Maintainer": "Tony Plate <tplate@acm.org>",
+        "Description": "Combine multidimensional arrays into a single array.\n  This is a generalization of 'cbind' and 'rbind'.  Works with\n  vectors, matrices, and higher-dimensional arrays (aka tensors).\n  Also provides functions 'adrop', 'asub', and 'afill' for\n  manipulating, extracting and replacing data in arrays.",
+        "Depends": "R (>= 1.5.0)",
+        "Imports": "methods, utils",
+        "License": "MIT + file LICENSE",
+        "NeedsCompilation": "no",
+        "Packaged": "2024-09-11 21:58:20 UTC; tap",
+        "Author": "Tony Plate [aut, cre],\n  Richard Heiberger [aut]",
+        "Repository": "CRAN",
+        "Date/Publication": "2024-09-12 17:40:54 UTC",
+        "Built": "R 4.4.1; ; 2024-09-12 18:05:25 UTC; unix"
       }
     },
     "anytime": {
@@ -376,6 +513,33 @@
         "Repository": "CRAN",
         "Date/Publication": "2019-03-21 14:53:46 UTC",
         "Built": "R 4.3.0; ; 2023-04-11 04:32:43 UTC; unix"
+      }
+    },
+    "backports": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "backports",
+        "Type": "Package",
+        "Title": "Reimplementations of Functions Introduced Since R-3.0.0",
+        "Version": "1.5.1",
+        "Authors@R": "c(\n    person(\"Michel\", \"Lang\", NULL, \"michellang@gmail.com\",\n      role = c(\"cre\", \"aut\"), comment = c(ORCID = \"0000-0001-9754-0393\")),\n    person(\"Duncan\", \"Murdoch\", NULL, \"murdoch.duncan@gmail.com\",\n      role = c(\"aut\")),\n    person(\"R Core Team\", role = \"aut\"))",
+        "Maintainer": "Michel Lang <michellang@gmail.com>",
+        "Description": "\n    Functions introduced or changed since R v3.0.0 are re-implemented in this\n    package. The backports are conditionally exported in order to let R resolve\n    the function name to either the implemented backport, or the respective base\n    version, if available. Package developers can make use of new functions or\n    arguments by selectively importing specific backports to\n    support older installations.",
+        "URL": "https://github.com/r-lib/backports",
+        "BugReports": "https://github.com/r-lib/backports/issues",
+        "License": "GPL-2 | GPL-3",
+        "NeedsCompilation": "yes",
+        "ByteCompile": "yes",
+        "Depends": "R (>= 3.0.0)",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.3",
+        "Packaged": "2026-04-02 18:05:52 UTC; michel",
+        "Author": "Michel Lang [cre, aut] (ORCID: <https://orcid.org/0000-0001-9754-0393>),\n  Duncan Murdoch [aut],\n  R Core Team [aut]",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-04-03 05:10:23 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-04-03 06:27:07 UTC; unix",
+        "Archs": "backports.so.dSYM"
       }
     },
     "base64enc": {
@@ -463,6 +627,35 @@
         "Archs": "cachem.so.dSYM"
       }
     },
+    "callr": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "callr",
+        "Title": "Call R from R",
+        "Version": "3.7.6",
+        "Authors@R": "c(\n    person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = c(\"aut\", \"cre\", \"cph\"),\n           comment = c(ORCID = \"0000-0001-7098-9676\")),\n    person(\"Winston\", \"Chang\", role = \"aut\"),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")),\n    person(\"Ascent Digital Services\", role = c(\"cph\", \"fnd\"))\n  )",
+        "Description": "It is sometimes useful to perform a computation in a separate\n    R process, without affecting the current R process at all.  This\n    packages does exactly that.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://callr.r-lib.org, https://github.com/r-lib/callr",
+        "BugReports": "https://github.com/r-lib/callr/issues",
+        "Depends": "R (>= 3.4)",
+        "Imports": "processx (>= 3.6.1), R6, utils",
+        "Suggests": "asciicast (>= 2.3.1), cli (>= 1.1.0), mockery, ps, rprojroot,\nspelling, testthat (>= 3.2.0), withr (>= 2.3.0)",
+        "Config/Needs/website": "r-lib/asciicast, glue, htmlwidgets, igraph,\ntibble, tidyverse/tidytemplate",
+        "Config/testthat/edition": "3",
+        "Encoding": "UTF-8",
+        "Language": "en-US",
+        "RoxygenNote": "7.3.1.9000",
+        "NeedsCompilation": "no",
+        "Packaged": "2024-03-25 12:10:25 UTC; gaborcsardi",
+        "Author": "Gábor Csárdi [aut, cre, cph] (<https://orcid.org/0000-0001-7098-9676>),\n  Winston Chang [aut],\n  Posit Software, PBC [cph, fnd],\n  Ascent Digital Services [cph, fnd]",
+        "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2024-03-25 13:30:06 UTC",
+        "Built": "R 4.4.0; ; 2024-04-06 02:54:18 UTC; unix"
+      }
+    },
     "cellranger": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -488,6 +681,38 @@
         "Repository": "CRAN",
         "Date/Publication": "2016-07-27 03:17:48",
         "Built": "R 4.3.0; ; 2023-04-11 04:45:54 UTC; unix"
+      }
+    },
+    "checkmate": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "checkmate",
+        "Type": "Package",
+        "Title": "Fast and Versatile Argument Checks",
+        "Description": "Tests and assertions to perform frequent argument checks. A\n    substantial part of the package was written in C to minimize any worries\n    about execution time overhead.",
+        "Version": "2.3.4",
+        "Authors@R": "c(\n    person(\"Michel\", \"Lang\", NULL, \"michellang@gmail.com\",\n      role = c(\"cre\", \"aut\"), comment = c(ORCID = \"0000-0001-9754-0393\")),\n    person(\"Bernd\", \"Bischl\", NULL, \"bernd_bischl@gmx.net\", role = \"ctb\"),\n    person(\"Dénes\", \"Tóth\", NULL, \"toth.denes@kogentum.hu\", role = \"ctb\",\n      comment = c(ORCID = \"0000-0003-4262-3217\"))\n    )",
+        "URL": "https://mllg.github.io/checkmate/,\nhttps://github.com/mllg/checkmate",
+        "URLNote": "https://github.com/mllg/checkmate",
+        "BugReports": "https://github.com/mllg/checkmate/issues",
+        "NeedsCompilation": "yes",
+        "ByteCompile": "yes",
+        "Encoding": "UTF-8",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "backports (>= 1.1.0), utils",
+        "Suggests": "R6, fastmatch, data.table (>= 1.9.8), devtools, ggplot2,\nknitr, magrittr, microbenchmark, rmarkdown, testthat (>=\n3.0.4), tinytest (>= 1.1.0), tibble",
+        "License": "BSD_3_clause + file LICENSE",
+        "VignetteBuilder": "knitr",
+        "RoxygenNote": "7.3.3",
+        "Collate": "'AssertCollection.R' 'allMissing.R' 'anyInfinite.R'\n'anyMissing.R' 'anyNaN.R' 'asInteger.R' 'assert.R' 'helper.R'\n'makeExpectation.R' 'makeTest.R' 'makeAssertion.R'\n'checkAccess.R' 'checkArray.R' 'checkAtomic.R'\n'checkAtomicVector.R' 'checkCharacter.R' 'checkChoice.R'\n'checkClass.R' 'checkComplex.R' 'checkCount.R'\n'checkDataFrame.R' 'checkDataTable.R' 'checkDate.R'\n'checkDirectoryExists.R' 'checkDisjunct.R' 'checkDouble.R'\n'checkEnvironment.R' 'checkFALSE.R' 'checkFactor.R'\n'checkFileExists.R' 'checkFlag.R' 'checkFormula.R'\n'checkFunction.R' 'checkInt.R' 'checkInteger.R'\n'checkIntegerish.R' 'checkList.R' 'checkLogical.R'\n'checkMatrix.R' 'checkMultiClass.R' 'checkNamed.R'\n'checkNames.R' 'checkNull.R' 'checkNumber.R' 'checkNumeric.R'\n'checkOS.R' 'checkPOSIXct.R' 'checkPathForOutput.R'\n'checkPermutation.R' 'checkR6.R' 'checkRaw.R' 'checkScalar.R'\n'checkScalarNA.R' 'checkSetEqual.R' 'checkString.R'\n'checkSubset.R' 'checkTRUE.R' 'checkTibble.R' 'checkVector.R'\n'coalesce.R' 'isIntegerish.R' 'matchArg.R' 'qassert.R'\n'qassertr.R' 'vname.R' 'wfwl.R' 'zzz.R'",
+        "Packaged": "2026-02-02 10:59:55 UTC; michel",
+        "Author": "Michel Lang [cre, aut] (ORCID: <https://orcid.org/0000-0001-9754-0393>),\n  Bernd Bischl [ctb],\n  Dénes Tóth [ctb] (ORCID: <https://orcid.org/0000-0003-4262-3217>)",
+        "Maintainer": "Michel Lang <michellang@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-02-03 08:40:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-02-03 12:30:20 UTC; unix",
+        "Archs": "checkmate.so.dSYM"
       }
     },
     "class": {
@@ -825,6 +1050,36 @@
         "Built": "R 4.5.0; ; 2025-08-25 23:25:06 UTC; unix"
       }
     },
+    "desc": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "desc",
+        "Title": "Manipulate DESCRIPTION Files",
+        "Version": "1.4.3",
+        "Authors@R": "c(\n    person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = c(\"aut\", \"cre\")),\n    person(\"Kirill\", \"Müller\", role = \"aut\"),\n    person(\"Jim\", \"Hester\", , \"james.f.hester@gmail.com\", role = \"aut\"),\n    person(\"Maëlle\", \"Salmon\", role = \"ctb\",\n           comment = c(ORCID = \"0000-0002-2815-0399\")),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"))\n  )",
+        "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
+        "Description": "Tools to read, write, create, and manipulate DESCRIPTION\n    files.  It is intended for packages that create or manipulate other\n    packages.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://desc.r-lib.org/, https://github.com/r-lib/desc",
+        "BugReports": "https://github.com/r-lib/desc/issues",
+        "Depends": "R (>= 3.4)",
+        "Imports": "cli, R6, utils",
+        "Suggests": "callr, covr, gh, spelling, testthat, whoami, withr",
+        "Config/Needs/website": "tidyverse/tidytemplate",
+        "Config/testthat/edition": "3",
+        "Encoding": "UTF-8",
+        "Language": "en-US",
+        "RoxygenNote": "7.2.3",
+        "Collate": "'assertions.R' 'authors-at-r.R' 'built.R' 'classes.R'\n'collate.R' 'constants.R' 'deps.R' 'desc-package.R'\n'description.R' 'encoding.R' 'find-package-root.R' 'latex.R'\n'non-oo-api.R' 'package-archives.R' 'read.R' 'remotes.R'\n'str.R' 'syntax_checks.R' 'urls.R' 'utils.R' 'validate.R'\n'version.R'",
+        "NeedsCompilation": "no",
+        "Packaged": "2023-12-10 11:07:50 UTC; gaborcsardi",
+        "Author": "Gábor Csárdi [aut, cre],\n  Kirill Müller [aut],\n  Jim Hester [aut],\n  Maëlle Salmon [ctb] (<https://orcid.org/0000-0002-2815-0399>),\n  Posit Software, PBC [cph, fnd]",
+        "Repository": "CRAN",
+        "Date/Publication": "2023-12-10 11:40:08 UTC",
+        "Built": "R 4.3.1; ; 2023-12-10 11:59:18 UTC; unix"
+      }
+    },
     "digest": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -914,6 +1169,33 @@
         "Archs": "dplyr.so.dSYM"
       }
     },
+    "dygraphs": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "dygraphs",
+        "Type": "Package",
+        "Title": "Interface to 'Dygraphs' Interactive Time Series Charting Library",
+        "Version": "1.1.1.6",
+        "Authors@R": "c(\n    person(\"Dan\", \"Vanderkam\", role = c(\"aut\", \"cph\"),\n       comment = \"dygraphs library in htmlwidgets/lib, http://dygraphs.com/\"),\n    person(\"Petr\", \"Shevtsov\", role = c(\"cre\", \"cph\"),\n       email = \"petr.shevtsov@gmail.com\"),\n    person(\"JJ\", \"Allaire\", role = c(\"aut\")),\n    person(family = \"RStudio\", role = \"cph\"),\n    person(\"Jonathan\", \"Owen\", role = c(\"aut\", \"cph\")),\n    person(\"Daniel\", \"Gromer\", role = c(\"aut\", \"cph\")),\n    person(\"Benoit\", \"Thieurmel\", role = c(\"aut\", \"cph\")),\n    person(\"Kent\", \"Laukhuf\", role = \"ctb\"),\n    person(family = \"jQuery Foundation\", role = \"cph\",\n           comment = \"jQuery library\"),\n    person(family = \"jQuery contributors\", role = c(\"ctb\", \"cph\"),\n           comment = \"jQuery library; authors listed in inst/htmlwidgets/lib/jquery/AUTHORS.txt\")\n    )",
+        "URL": "https://github.com/rstudio/dygraphs",
+        "BugReports": "https://github.com/rstudio/dygraphs/issues",
+        "Description": "An R interface to the 'dygraphs' JavaScript charting library\n    (a copy of which is included in the package). Provides rich facilities\n    for charting time-series data in R, including highly configurable\n    series- and axis-display and interactive features like zoom/pan and\n    series/point highlighting.",
+        "License": "MIT + file LICENSE",
+        "Depends": "R (>= 3.0)",
+        "Imports": "magrittr, htmlwidgets (>= 0.6), htmltools (>= 0.3.5), zoo (>=\n1.7-10), xts (>= 0.9-7)",
+        "Suggests": "testthat",
+        "Enhances": "rmarkdown (>= 0.3.3), shiny (>= 0.10.2.1)",
+        "RoxygenNote": "6.0.1",
+        "NeedsCompilation": "no",
+        "Packaged": "2018-07-11 21:29:28 UTC; petr",
+        "Author": "Dan Vanderkam [aut, cph] (dygraphs library in htmlwidgets/lib,\n    http://dygraphs.com/),\n  Petr Shevtsov [cre, cph],\n  JJ Allaire [aut],\n  RStudio [cph],\n  Jonathan Owen [aut, cph],\n  Daniel Gromer [aut, cph],\n  Benoit Thieurmel [aut, cph],\n  Kent Laukhuf [ctb],\n  jQuery Foundation [cph] (jQuery library),\n  jQuery contributors [ctb, cph] (jQuery library; authors listed in\n    inst/htmlwidgets/lib/jquery/AUTHORS.txt)",
+        "Maintainer": "Petr Shevtsov <petr.shevtsov@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2018-07-11 22:00:03 UTC",
+        "Built": "R 4.3.0; ; 2023-04-06 19:12:53 UTC; unix"
+      }
+    },
     "e1071": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -970,6 +1252,36 @@
         "Built": "R 4.5.0; ; 2025-09-01 01:31:01 UTC; unix"
       }
     },
+    "extraDistr": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "extraDistr",
+        "Type": "Package",
+        "Title": "Additional Univariate and Multivariate Distributions",
+        "Version": "1.10.0.4",
+        "Date": "2026-05-18",
+        "Authors@R": "c(person(given  = \"Tymoteusz\",\n                    family = \"Wolodzko\",\n                    role   = \"aut\",\n                    email  = \"twolodzko+extradistr@gmail.com\"),\n             person(given  = \"Sigbert\",\n                    family = \"Klinke\",\n                    role   = \"cre\",\n                    email  = \"sigbert@wiwi.hu-berlin.de\"),\n             person(given  = \"Thomas\",\n                    family = \"Farrar\",\n                    role   = \"ctb\",\n                    email  = \"FarrarT@cput.ac.za\")\n            )",
+        "Description": "Density, distribution function, quantile function\n    and random generation for a number of univariate\n    and multivariate distributions. This package implements the\n    following distributions: Bernoulli, beta-binomial, beta-negative\n    binomial, beta prime, Bhattacharjee, Birnbaum-Saunders,\n    bivariate normal, bivariate Poisson, categorical, Dirichlet,\n    Dirichlet-multinomial, discrete gamma, discrete Laplace,\n    discrete normal, discrete uniform, discrete Weibull, Frechet,\n    gamma-Poisson, generalized extreme value, Gompertz,\n    generalized Pareto, Gumbel, half-Cauchy, half-normal, half-t,\n    Huber density, inverse chi-squared, inverse-gamma, Kumaraswamy,\n    Laplace, location-scale t, logarithmic, Lomax, multivariate\n    hypergeometric, multinomial, negative hypergeometric,\n    non-standard beta, normal mixture, Poisson mixture, Pareto,\n    power, reparametrized beta, Rayleigh, shifted Gompertz, Skellam,\n    slash, triangular, truncated binomial, truncated normal,\n    truncated Poisson, Tukey lambda, Wald, zero-inflated binomial,\n    zero-inflated negative binomial, zero-inflated Poisson.",
+        "License": "GPL-2",
+        "URL": "https://github.com/sigbertklinke/extraDistr",
+        "Encoding": "UTF-8",
+        "Depends": "R (>= 3.1.0)",
+        "LinkingTo": "Rcpp, RcppArmadillo",
+        "Imports": "Rcpp",
+        "Suggests": "testthat, LaplacesDemon, VGAM, evd, skellam, triangle, actuar",
+        "NeedsCompilation": "yes",
+        "Config/roxygen2/version": "8.0.0",
+        "RoxygenNote": "7.3.3",
+        "Packaged": "2026-05-18 08:48:53 UTC; sigbert",
+        "Author": "Tymoteusz Wolodzko [aut],\n  Sigbert Klinke [cre],\n  Thomas Farrar [ctb]",
+        "Maintainer": "Sigbert Klinke <sigbert@wiwi.hu-berlin.de>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-05-18 10:30:07 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-05-18 14:22:59 UTC; unix",
+        "Archs": "extraDistr.so.dSYM"
+      }
+    },
     "fable": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -999,6 +1311,36 @@
         "Date/Publication": "2026-01-23 11:10:02 UTC",
         "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-01-23 12:53:24 UTC; unix",
         "Archs": "fable.so.dSYM"
+      }
+    },
+    "fable.prophet": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "fable.prophet",
+        "Version": "0.1.0",
+        "Title": "Prophet Modelling Interface for 'fable'",
+        "Description": "Allows prophet models from the 'prophet' package to be used in a tidy workflow with the modelling interface of 'fabletools'. This extends 'prophet' to provide enhanced model specification and management, performance evaluation methods, and model combination tools.",
+        "Authors@R": "c(\n    person(\"Mitchell\", \"O'Hara-Wild\", role = c(\"aut\", \"cre\"), email = \"mail@mitchelloharawild.com\"),\n    person(\"Sean\", \"Taylor\", role = \"ctb\", comment = \"Prophet library, https://facebook.github.io/prophet/\"),\n    person(\"Ben\", \"Letham\", role = \"ctb\", comment = \"Prophet library, https://facebook.github.io/prophet/\")\n    )",
+        "Depends": "R (>= 3.1.3), Rcpp, fabletools (>= 0.2.0)",
+        "Imports": "rlang, tsibble, lubridate, prophet, dplyr, distributional",
+        "Suggests": "tsibbledata, testthat, ggplot2, covr, knitr, rmarkdown",
+        "ByteCompile": "true",
+        "License": "GPL-3",
+        "Encoding": "UTF-8",
+        "LazyData": "true",
+        "RoxygenNote": "7.1.1",
+        "Language": "en-GB",
+        "URL": "https://pkg.mitchelloharawild.com/fable.prophet/",
+        "BugReports": "https://github.com/mitchelloharawild/fable.prophet/issues",
+        "VignetteBuilder": "knitr",
+        "NeedsCompilation": "no",
+        "Packaged": "2020-08-13 02:30:58 UTC; mitchell",
+        "Author": "Mitchell O'Hara-Wild [aut, cre],\n  Sean Taylor [ctb] (Prophet library,\n    https://facebook.github.io/prophet/),\n  Ben Letham [ctb] (Prophet library, https://facebook.github.io/prophet/)",
+        "Maintainer": "Mitchell O'Hara-Wild <mail@mitchelloharawild.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2020-08-20 09:30:03 UTC",
+        "Built": "R 4.3.0; ; 2023-07-10 05:49:34 UTC; unix"
       }
     },
     "fabletools": {
@@ -1083,6 +1425,82 @@
         "Archs": "fastmap.so.dSYM"
       }
     },
+    "flextable": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Type": "Package",
+        "Package": "flextable",
+        "Title": "Functions for Tabular Reporting",
+        "Version": "0.9.11",
+        "Authors@R": "c(\n    person(\"David\", \"Gohel\", , \"david.gohel@ardata.fr\", role = c(\"aut\", \"cre\")),\n    person(\"ArData\", role = \"cph\"),\n    person(\"Clementine\", \"Jager\", role = \"ctb\"),\n    person(\"Eli\", \"Daniels\", role = \"ctb\"),\n    person(\"Panagiotis\", \"Skintzos\", , \"panagiotis.skintzos@ardata.fr\", role = \"aut\"),\n    person(\"Quentin\", \"Fazilleau\", role = \"ctb\"),\n    person(\"Maxim\", \"Nazarov\", role = \"ctb\"),\n    person(\"Titouan\", \"Robert\", role = \"ctb\"),\n    person(\"Michael\", \"Barrowman\", role = \"ctb\"),\n    person(\"Atsushi\", \"Yasumoto\", role = \"ctb\"),\n    person(\"Paul\", \"Julian\", role = \"ctb\"),\n    person(\"Sean\", \"Browning\", role = \"ctb\"),\n    person(\"Rémi\", \"Thériault\", role = \"ctb\",\n           comment = c(ORCID = \"0000-0003-4315-6788\")),\n    person(\"Samuel\", \"Jobert\", role = \"ctb\"),\n    person(\"Keith\", \"Newman\", role = \"ctb\")\n  )",
+        "Description": "Use a grammar for creating and customizing pretty tables.\n    The following formats are supported: 'HTML', 'PDF', 'RTF', 'Microsoft\n    Word', 'Microsoft PowerPoint', R 'Grid Graphics' and 'patchwork'.\n    'R Markdown', 'Quarto' and the package 'officer' can be used to\n    produce the result files. The syntax is the same for the user\n    regardless of the type of output to be produced. A set of functions\n    allows the creation, definition of cell arrangement, addition of\n    headers or footers, formatting and definition of cell content with\n    text and or images. The package also offers a set of high-level\n    functions that allow tabular reporting of statistical models and the\n    creation of complex cross tabulations.",
+        "License": "GPL-3",
+        "URL": "https://ardata-fr.github.io/flextable-book/,\nhttps://davidgohel.github.io/flextable/",
+        "BugReports": "https://github.com/davidgohel/flextable/issues",
+        "Imports": "data.table (>= 1.13.0), gdtools (>= 0.5.0), graphics,\ngrDevices, grid, htmltools, knitr, officer (>= 0.7.3), ragg,\nrlang, rmarkdown (>= 2.0), stats, utils, uuid (>= 0.1-4), xml2",
+        "Suggests": "bookdown (>= 0.40), broom, broom.mixed, chromote, cluster,\ncommonmark, doconv (>= 0.3.0), equatags, ggplot2, gtable,\njsonlite, lme4, magick, mgcv, nlme, officedown, patchwork,\npdftools, pkgdown (>= 2.0.0), scales, svglite, tables (>=\n0.9.17), testthat (>= 3.0.0), webshot2, withr, xtable",
+        "VignetteBuilder": "knitr",
+        "Config/testthat/edition": "3",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.3",
+        "NeedsCompilation": "no",
+        "Packaged": "2026-02-12 17:16:00 UTC; davidgohel",
+        "Author": "David Gohel [aut, cre],\n  ArData [cph],\n  Clementine Jager [ctb],\n  Eli Daniels [ctb],\n  Panagiotis Skintzos [aut],\n  Quentin Fazilleau [ctb],\n  Maxim Nazarov [ctb],\n  Titouan Robert [ctb],\n  Michael Barrowman [ctb],\n  Atsushi Yasumoto [ctb],\n  Paul Julian [ctb],\n  Sean Browning [ctb],\n  Rémi Thériault [ctb] (ORCID: <https://orcid.org/0000-0003-4315-6788>),\n  Samuel Jobert [ctb],\n  Keith Newman [ctb]",
+        "Maintainer": "David Gohel <david.gohel@ardata.fr>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-02-13 07:00:42 UTC",
+        "Built": "R 4.5.2; ; 2026-02-13 08:23:53 UTC; unix"
+      }
+    },
+    "fontBitstreamVera": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "fontBitstreamVera",
+        "Title": "Fonts with 'Bitstream Vera Fonts' License",
+        "Version": "0.1.1",
+        "Authors@R": "c(\n    person(\"Lionel\", \"Henry\", , \"lionel.hry@gmail.com\", c(\"cre\", \"aut\")),\n    person(\"Bitstream\", role = \"cph\"))",
+        "Description": "Provides fonts licensed under the 'Bitstream Vera Fonts'\n    license for the 'fontquiver' package.",
+        "Depends": "R (>= 3.0.0)",
+        "License": "file LICENCE",
+        "Encoding": "UTF-8",
+        "LazyData": "true",
+        "RoxygenNote": "5.0.1",
+        "NeedsCompilation": "no",
+        "Packaged": "2017-01-31 20:03:43 UTC; lionel",
+        "Author": "Lionel Henry [cre, aut],\n  Bitstream [cph]",
+        "Maintainer": "Lionel Henry <lionel.hry@gmail.com>",
+        "License_is_FOSS": "yes",
+        "Repository": "CRAN",
+        "Date/Publication": "2017-02-01 00:53:34",
+        "Built": "R 4.3.0; ; 2023-04-11 04:32:07 UTC; unix"
+      }
+    },
+    "fontLiberation": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "fontLiberation",
+        "Title": "Liberation Fonts",
+        "Version": "0.1.0",
+        "Authors@R": "c(\n    person(\"Lionel\", \"Henry\", , \"lionel@rstudio.com\", \"cre\"),\n    person(\"Pravin Satpute\", role = \"aut\"),\n    person(\"Steve Matteson\", role = \"aut\"),\n    person(\"Red Hat, Inc\", role = \"cph\"),\n    person(\"Google Corporation\", role = \"cph\"))",
+        "Description": "A placeholder for the Liberation fontset intended for the\n    `fontquiver` package. This fontset covers the 12 combinations of\n    families (sans, serif, mono) and faces (plain, bold, italic, bold\n    italic) supported in R graphics devices.",
+        "Depends": "R (>= 3.0)",
+        "License": "file LICENSE",
+        "Encoding": "UTF-8",
+        "LazyData": "true",
+        "RoxygenNote": "5.0.1",
+        "NeedsCompilation": "no",
+        "Packaged": "2016-10-14 14:21:59 UTC; lionel",
+        "Author": "Lionel Henry [cre],\n  Pravin Satpute [aut],\n  Steve Matteson [aut],\n  Red Hat, Inc [cph],\n  Google Corporation [cph]",
+        "Maintainer": "Lionel Henry <lionel@rstudio.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2016-10-15 11:24:18",
+        "License_is_FOSS": "yes",
+        "Built": "R 4.3.0; ; 2023-04-11 04:32:08 UTC; unix"
+      }
+    },
     "fontawesome": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -1110,6 +1528,32 @@
         "Repository": "CRAN",
         "Date/Publication": "2024-11-16 17:30:02 UTC",
         "Built": "R 4.4.1; ; 2024-11-18 04:10:53 UTC; unix"
+      }
+    },
+    "fontquiver": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "fontquiver",
+        "Title": "Set of Installed Fonts",
+        "Version": "0.2.1",
+        "Authors@R": "c(\n    person(\"Lionel\", \"Henry\", , \"lionel@rstudio.com\", c(\"cre\", \"aut\")),\n    person(\"RStudio\", role = \"cph\"),\n    person(\"George Douros\", role = \"cph\", comment = \"Symbola font\"))",
+        "Description": "Provides a set of fonts with permissive licences. This is\n    useful when you want to avoid system fonts to make sure your\n    outputs are reproducible.",
+        "Depends": "R (>= 3.0.0)",
+        "Imports": "fontBitstreamVera (>= 0.1.0), fontLiberation (>= 0.1.0)",
+        "Suggests": "testthat, htmltools",
+        "License": "GPL-3 | file LICENSE",
+        "Encoding": "UTF-8",
+        "LazyData": "true",
+        "RoxygenNote": "5.0.1",
+        "Collate": "'font-getters.R' 'fontset.R' 'fontset-bitstream-vera.R'\n'fontset-dejavu.R' 'fontset-liberation.R' 'fontset-symbola.R'\n'html-dependency.R' 'utils.R'",
+        "NeedsCompilation": "no",
+        "Packaged": "2017-01-31 20:11:24 UTC; lionel",
+        "Author": "Lionel Henry [cre, aut],\n  RStudio [cph],\n  George Douros [cph] (Symbola font)",
+        "Maintainer": "Lionel Henry <lionel@rstudio.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2017-02-01 00:52:56",
+        "Built": "R 4.3.0; ; 2023-04-11 04:37:26 UTC; unix"
       }
     },
     "forecast": {
@@ -1327,6 +1771,35 @@
         "Built": "R 4.5.2; ; 2026-03-22 21:01:23 UTC; unix"
       }
     },
+    "gdtools": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "gdtools",
+        "Title": "Font Metrics and Font Management Utilities for R Graphics",
+        "Version": "0.5.1",
+        "Authors@R": "c(\n    person(\"David\", \"Gohel\", , \"david.gohel@ardata.fr\", role = c(\"aut\", \"cre\")),\n    person(\"Hadley\", \"Wickham\", , \"hadley@rstudio.com\", role = \"aut\"),\n    person(\"Lionel\", \"Henry\", , \"lionel@rstudio.com\", role = \"aut\"),\n    person(\"Jeroen\", \"Ooms\", , \"jeroen@berkeley.edu\", role = \"aut\",\n           comment = c(ORCID = \"0000-0002-4035-0289\")),\n    person(\"Yixuan\", \"Qiu\", role = \"ctb\"),\n    person(\"R Core Team\", role = \"cph\",\n           comment = \"Cairo code from X11 device\"),\n    person(\"ArData\", role = \"cph\"),\n    person(\"RStudio\", role = \"cph\")\n  )",
+        "Description": "Compute text metrics (width, ascent, descent) using 'Cairo'\n    and 'FreeType', independently of the active graphic device. Font\n    lookup is delegated to 'systemfonts'. Additional utilities let users\n    register 'Google Fonts' or bundled 'Liberation' fonts, check font\n    availability, and assemble 'htmlDependency' objects so that fonts are\n    correctly embedded in 'Shiny' applications, 'R Markdown' documents,\n    and 'htmlwidgets' outputs such as 'ggiraph'.",
+        "License": "GPL-3 | file LICENSE",
+        "URL": "https://davidgohel.github.io/gdtools/",
+        "BugReports": "https://github.com/davidgohel/gdtools/issues",
+        "Depends": "R (>= 4.0.0)",
+        "Imports": "fontquiver (>= 0.2.0), htmltools, Rcpp (>= 0.12.12),\nsystemfonts (>= 1.3.1), tools",
+        "Suggests": "curl, gfonts, methods, testthat",
+        "LinkingTo": "Rcpp",
+        "Encoding": "UTF-8",
+        "SystemRequirements": "cairo, freetype2, fontconfig",
+        "Config/roxygen2/version": "8.0.0",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-05-25 16:16:18 UTC; davidgohel",
+        "Author": "David Gohel [aut, cre],\n  Hadley Wickham [aut],\n  Lionel Henry [aut],\n  Jeroen Ooms [aut] (ORCID: <https://orcid.org/0000-0002-4035-0289>),\n  Yixuan Qiu [ctb],\n  R Core Team [cph] (Cairo code from X11 device),\n  ArData [cph],\n  RStudio [cph]",
+        "Maintainer": "David Gohel <david.gohel@ardata.fr>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-05-25 17:10:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-05-25 17:26:36 UTC; unix",
+        "Archs": "gdtools.so.dSYM"
+      }
+    },
     "generics": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -1479,6 +1952,30 @@
         "Repository": "CRAN",
         "Date/Publication": "2026-04-17 05:11:01 UTC",
         "Built": "R 4.5.0; aarch64-apple-darwin20; 2026-04-20 18:39:22 UTC; unix"
+      }
+    },
+    "gridExtra": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "gridExtra",
+        "Authors@R": "c(person(\"Baptiste\", \"Auguie\",\n    email = \"baptiste.auguie@gmail.com\",\n    role = c(\"aut\", \"cre\")), person(\"Anton\", \"Antonov\",\n    email = \"tonytonov@gmail.com\",\n    role = c(\"ctb\")))",
+        "License": "GPL (>= 2)",
+        "Title": "Miscellaneous Functions for \"Grid\" Graphics",
+        "Type": "Package",
+        "Description": "Provides a number of user-level functions to work with \"grid\"\n    graphics, notably to arrange multiple grid-based plots on a page, and draw\n    tables.",
+        "Version": "2.3",
+        "VignetteBuilder": "knitr",
+        "Imports": "gtable, grid, grDevices, graphics, utils",
+        "Suggests": "ggplot2, egg, lattice, knitr, testthat",
+        "RoxygenNote": "6.0.1",
+        "NeedsCompilation": "no",
+        "Packaged": "2017-09-08 22:52:09 UTC; baptiste",
+        "Author": "Baptiste Auguie [aut, cre],\n  Anton Antonov [ctb]",
+        "Maintainer": "Baptiste Auguie <baptiste.auguie@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2017-09-09 14:12:08 UTC",
+        "Built": "R 4.3.0; ; 2023-04-11 04:42:09 UTC; unix"
       }
     },
     "gtable": {
@@ -1697,6 +2194,32 @@
         "Repository": "CRAN",
         "Date/Publication": "2026-02-13 16:20:15 UTC",
         "Built": "R 4.5.2; ; 2026-02-13 18:18:17 UTC; unix"
+      }
+    },
+    "inline": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "inline",
+        "Version": "0.3.21",
+        "Date": "2025-01-08",
+        "Title": "Functions to Inline C, C++, Fortran Function Calls from R",
+        "Authors@R": "c(person(\"Oleg\", \"Sklyar\", role = \"aut\"),\n             person(\"Dirk\", \"Eddelbuettel\", role = c(\"aut\", \"cre\"), email = \"edd@debian.org\",\n                    comment = c(ORCID = \"0000-0001-6419-907X\")),\n             person(\"Romain\", \"Francois\", role = \"aut\",\n                    comment = c(ORCID = \"0000-0002-2444-4226\")),\n             person(\"Mike\", \"Smith\", role = \"ctb\"),\n             person(\"Duncan\", \"Murdoch\", role = \"ctb\"),\n             person(\"Karline\", \"Soetaert\", role = \"ctb\",\n                    comment = c(ORCID = \"0000-0003-4603-7100\")),\n             person(\"Johannes\", \"Ranke\", role = \"ctb\",\n                    comment = c(ORCID = \"0000-0003-4371-6538\")))",
+        "Imports": "methods",
+        "Suggests": "Rcpp, tinytest",
+        "Description": "Functionality to dynamically define R functions and S4 methods\n with 'inlined' C, C++ or Fortran code supporting the .C and .Call calling\n conventions.",
+        "License": "LGPL",
+        "Copyright": "Oleg Sklyar, 2005-2010 and other authors per their commits",
+        "LazyLoad": "yes",
+        "URL": "https://github.com/eddelbuettel/inline,\nhttps://dirk.eddelbuettel.com/code/inline.html",
+        "BugReports": "https://github.com/eddelbuettel/inline/issues",
+        "NeedsCompilation": "no",
+        "Packaged": "2025-01-08 22:04:33 UTC; edd",
+        "Author": "Oleg Sklyar [aut],\n  Dirk Eddelbuettel [aut, cre] (<https://orcid.org/0000-0001-6419-907X>),\n  Romain Francois [aut] (<https://orcid.org/0000-0002-2444-4226>),\n  Mike Smith [ctb],\n  Duncan Murdoch [ctb],\n  Karline Soetaert [ctb] (<https://orcid.org/0000-0003-4603-7100>),\n  Johannes Ranke [ctb] (<https://orcid.org/0000-0003-4371-6538>)",
+        "Maintainer": "Dirk Eddelbuettel <edd@debian.org>",
+        "Repository": "CRAN",
+        "Date/Publication": "2025-01-09 13:00:02 UTC",
+        "Built": "R 4.4.1; ; 2025-01-09 13:57:06 UTC; unix"
       }
     },
     "isoband": {
@@ -2110,6 +2633,45 @@
         "Archs": "lmtest.so.dSYM"
       }
     },
+    "loo": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Type": "Package",
+        "Package": "loo",
+        "Title": "Efficient Leave-One-Out Cross-Validation and WAIC for Bayesian\nModels",
+        "Version": "2.9.0",
+        "Date": "2025-12-22",
+        "Authors@R": "c(\n    person(\"Aki\", \"Vehtari\", email = \"Aki.Vehtari@aalto.fi\", role = \"aut\"),\n    person(\"Jonah\", \"Gabry\", email = \"jgabry@gmail.com\", role = c(\"cre\", \"aut\")),\n    person(\"Måns\", \"Magnusson\", role = \"aut\"),\n    person(\"Yuling\", \"Yao\", role = \"aut\"),\n    person(\"Paul-Christian\", \"Bürkner\", role = \"aut\"),\n    person(\"Topi\", \"Paananen\", role = \"aut\"),\n    person(\"Andrew\", \"Gelman\", role = \"aut\"),\n    person(\"Ben\", \"Goodrich\", role = \"ctb\"),\n    person(\"Juho\", \"Piironen\", role = \"ctb\"),\n    person(\"Bruno\", \"Nicenboim\", role = \"ctb\"),\n    person(\"Leevi\", \"Lindgren\", role = \"ctb\"),\n    person(\"Visruth\", \"Srimath Kandali\", role = \"ctb\")\n  )",
+        "Maintainer": "Jonah Gabry <jgabry@gmail.com>",
+        "Description": "Efficient approximate leave-one-out cross-validation (LOO)\n    for Bayesian models fit using Markov chain Monte Carlo, as described\n    in Vehtari, Gelman, and Gabry (2017) <doi:10.1007/s11222-016-9696-4>.\n    The approximation uses Pareto smoothed importance sampling (PSIS), a\n    new procedure for regularizing importance weights.  As a byproduct of\n    the calculations, we also obtain approximate standard errors for\n    estimated predictive errors and for the comparison of predictive\n    errors between models. The package also provides methods for using\n    stacking and other model weighting techniques to average Bayesian\n    predictive distributions.",
+        "License": "GPL (>= 3)",
+        "URL": "https://mc-stan.org/loo/, https://discourse.mc-stan.org",
+        "BugReports": "https://github.com/stan-dev/loo/issues",
+        "Depends": "R (>= 3.1.2)",
+        "Imports": "checkmate, matrixStats (>= 0.52), parallel, posterior (>=\n1.5.0), stats",
+        "Suggests": "bayesplot (>= 1.7.0), brms (>= 2.10.0), ggplot2, graphics,\nknitr, rmarkdown, rstan, rstanarm (>= 2.19.0), rstantools,\nspdep, testthat (>= 3.0)",
+        "VignetteBuilder": "knitr",
+        "Config/testthat/edition": "3",
+        "Config/testthat/parallel": "true",
+        "Config/testthat/start-first": "loo_subsampling_cases, loo_subsampling",
+        "Encoding": "UTF-8",
+        "LazyData": "TRUE",
+        "RoxygenNote": "7.3.3",
+        "SystemRequirements": "pandoc (>= 1.12.3), pandoc-citeproc",
+        "NeedsCompilation": "no",
+        "Packaged": "2025-12-22 18:20:57 UTC; jgabry",
+        "Author": "Aki Vehtari [aut],\n  Jonah Gabry [cre, aut],\n  Måns Magnusson [aut],\n  Yuling Yao [aut],\n  Paul-Christian Bürkner [aut],\n  Topi Paananen [aut],\n  Andrew Gelman [aut],\n  Ben Goodrich [ctb],\n  Juho Piironen [ctb],\n  Bruno Nicenboim [ctb],\n  Leevi Lindgren [ctb],\n  Visruth Srimath Kandali [ctb]",
+        "Repository": "CRAN",
+        "Date/Publication": "2025-12-23 07:50:02 UTC",
+        "Built": "R 4.5.2; ; 2025-12-23 09:52:57 UTC; unix",
+        "RemoteType": "standard",
+        "RemotePkgRef": "loo",
+        "RemoteRef": "loo",
+        "RemoteRepos": "https://cran.rstudio.com",
+        "RemoteSha": "2.9.0"
+      }
+    },
     "lubridate": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -2173,6 +2735,34 @@
         "Date/Publication": "2026-04-04 08:00:02 UTC",
         "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-04-04 10:13:02 UTC; unix",
         "Archs": "magrittr.so.dSYM"
+      }
+    },
+    "matrixStats": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "matrixStats",
+        "Version": "1.5.0",
+        "Depends": "R (>= 3.4.0)",
+        "Suggests": "utils, base64enc, ggplot2, knitr, markdown, microbenchmark,\nR.devices, R.rsp",
+        "VignetteBuilder": "R.rsp",
+        "Title": "Functions that Apply to Rows and Columns of Matrices (and to\nVectors)",
+        "Authors@R": "c(\n  person(\"Henrik\", \"Bengtsson\", role=c(\"aut\", \"cre\", \"cph\"),\n                                 email=\"henrikb@braju.com\"),\n  person(\"Constantin\", \"Ahlmann-Eltze\", role = \"ctb\"),\n  person(\"Hector\", \"Corrada Bravo\", role=\"ctb\"),\n  person(\"Robert\", \"Gentleman\", role=\"ctb\"),\n  person(\"Jan\", \"Gleixner\", role=\"ctb\"),\n  person(\"Peter\", \"Hickey\", role=\"ctb\"),\n  person(\"Ola\", \"Hossjer\", role=\"ctb\"),\n  person(\"Harris\", \"Jaffee\", role=\"ctb\"),\n  person(\"Dongcan\", \"Jiang\", role=\"ctb\"),\n  person(\"Peter\", \"Langfelder\", role=\"ctb\"),\n  person(\"Brian\", \"Montgomery\", role=\"ctb\"),\n  person(\"Angelina\", \"Panagopoulou\", role=\"ctb\"),\n  person(\"Hugh\", \"Parsonage\", role=\"ctb\"),\n  person(\"Jakob Peder\", \"Pettersen\", role=\"ctb\"))",
+        "Author": "Henrik Bengtsson [aut, cre, cph],\n  Constantin Ahlmann-Eltze [ctb],\n  Hector Corrada Bravo [ctb],\n  Robert Gentleman [ctb],\n  Jan Gleixner [ctb],\n  Peter Hickey [ctb],\n  Ola Hossjer [ctb],\n  Harris Jaffee [ctb],\n  Dongcan Jiang [ctb],\n  Peter Langfelder [ctb],\n  Brian Montgomery [ctb],\n  Angelina Panagopoulou [ctb],\n  Hugh Parsonage [ctb],\n  Jakob Peder Pettersen [ctb]",
+        "Maintainer": "Henrik Bengtsson <henrikb@braju.com>",
+        "Description": "High-performing functions operating on rows and columns of matrices, e.g. col / rowMedians(), col / rowRanks(), and col / rowSds().  Functions optimized per data type and for subsetted calculations such that both memory usage and processing time is minimized.  There are also optimized vector-based methods, e.g. binMeans(), madDiff() and weightedMedian().",
+        "License": "Artistic-2.0",
+        "LazyLoad": "TRUE",
+        "NeedsCompilation": "yes",
+        "ByteCompile": "TRUE",
+        "URL": "https://github.com/HenrikBengtsson/matrixStats",
+        "BugReports": "https://github.com/HenrikBengtsson/matrixStats/issues",
+        "RoxygenNote": "7.3.2",
+        "Packaged": "2025-01-07 17:25:20 UTC; henrik",
+        "Repository": "CRAN",
+        "Date/Publication": "2025-01-07 19:50:02 UTC",
+        "Built": "R 4.4.1; aarch64-apple-darwin20; 2025-01-07 20:30:33 UTC; unix",
+        "Archs": "matrixStats.so.dSYM"
       }
     },
     "memoise": {
@@ -2304,6 +2894,33 @@
         "Repository": "CRAN",
         "Date/Publication": "2019-06-06 09:51:09 UTC",
         "Built": "R 4.3.0; ; 2023-04-11 04:31:36 UTC; unix"
+      }
+    },
+    "officer": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Type": "Package",
+        "Package": "officer",
+        "Title": "Manipulation of Microsoft Word and PowerPoint Documents",
+        "Version": "0.7.5",
+        "Authors@R": "c(\n    person(\"David\", \"Gohel\", , \"david.gohel@ardata.fr\", role = c(\"aut\", \"cre\")),\n    person(\"Stefan\", \"Moog\", , \"moogs@gmx.de\", role = \"aut\"),\n    person(\"Mark\", \"Heckmann\", , \"heckmann.mark@gmail.com\", role = \"aut\",\n           comment = c(ORCID = \"0000-0002-0736-7417\")),\n    person(\"ArData\", role = \"cph\"),\n    person(\"Frank\", \"Hangler\", , \"frank@plotandscatter.com\", role = \"ctb\",\n           comment = \"function body_replace_all_text\"),\n    person(\"Liz\", \"Sander\", , \"lsander@civisanalytics.com\", role = \"ctb\",\n           comment = \"several documentation fixes\"),\n    person(\"Anton\", \"Victorson\", , \"anton@victorson.se\", role = \"ctb\",\n           comment = \"fixes xml structures\"),\n    person(\"Jon\", \"Calder\", , \"jonmcalder@gmail.com\", role = \"ctb\",\n           comment = \"update vignettes\"),\n    person(\"John\", \"Harrold\", , \"john.m.harrold@gmail.com\", role = \"ctb\",\n           comment = \"function annotate_base\"),\n    person(\"John\", \"Muschelli\", , \"muschellij2@gmail.com\", role = \"ctb\",\n           comment = \"google doc compatibility\"),\n    person(\"Bill\", \"Denney\", , \"wdenney@humanpredictions.com\", role = \"ctb\",\n           comment = c(ORCID = \"0000-0002-5759-428X\", \"function as.matrix.rpptx\")),\n    person(\"Nikolai\", \"Beck\", , \"beck.nikolai@gmail.com\", role = \"ctb\",\n           comment = \"set speaker notes for .pptx documents\"),\n    person(\"Greg\", \"Leleu\", , \"gregoire.leleu@gmail.com\", role = \"ctb\",\n           comment = \"fields functionality in ppt\"),\n    person(\"Majid\", \"Eismann\", role = \"ctb\"),\n    person(\"Wahiduzzaman\", \"Khan\", role = \"ctb\",\n           comment = \"vectorization of remove_slide\"),\n    person(\"Hongyuan\", \"Jia\", , \"hongyuanjia@cqust.edu.cn\", role = \"ctb\",\n           comment = c(ORCID = \"0000-0002-0075-8183\")),\n    person(\"Michael\", \"Stackhouse\", , \"mike.stackhouse@atorusresearch.com\", role = \"ctb\")\n  )",
+        "Description": "Access and manipulate 'Microsoft Word', 'RTF' and 'Microsoft\n    PowerPoint' documents from R.  The package focuses on tabular and\n    graphical reporting from R; it also provides two functions that let\n    users get document content into data objects. A set of functions lets\n    add and remove images, tables and paragraphs of text in new or\n    existing documents.  The package does not require any installation of\n    Microsoft products to be able to write Microsoft files.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://ardata-fr.github.io/officeverse/,\nhttps://davidgohel.github.io/officer/",
+        "BugReports": "https://github.com/davidgohel/officer/issues",
+        "Imports": "cli, dplyr, graphics, grDevices, openssl, R6, ragg, stats,\ntidyr, utils, uuid, xml2 (>= 1.1.0), zip (>= 2.1.0)",
+        "Suggests": "devEMF, doconv (>= 0.3.0), gdtools, ggplot2, knitr, magick,\nrmarkdown, rsvg, mschart, testthat, withr",
+        "Encoding": "UTF-8",
+        "Collate": "'core_properties.R' 'custom_properties.R' 'defunct.R'\n'dev-utils.R' 'docx_add.R' 'docx_comments.R' 'docx_cursor.R'\n'docx_embed_font.R' 'docx_part.R' 'docx_replace.R'\n'docx_section.R' 'docx_settings.R' 'docx_styles.R'\n'docx_utils_funs.R' 'empty_content.R' 'formatting_properties.R'\n'fortify_docx.R' 'fortify_pptx.R' 'knitr_utils.R' 'officer.R'\n'ooxml.R' 'ooxml_block_objects.R' 'ooxml_run_objects.R'\n'openxml_content_type.R' 'openxml_document.R' 'pack_folder.R'\n'ph_location.R' 'post-proc.R' 'ppt_class_dir_collection.R'\n'ppt_classes.R' 'ppt_notes.R' 'ppt_ph_dedupe_layout.R'\n'ppt_ph_manipulate.R' 'ppt_ph_rename_layout.R'\n'ppt_ph_with_methods.R' 'pptx_informations.R'\n'pptx_layout_helper.R' 'pptx_matrix.R' 'utils.R'\n'pptx_slide_manip.R' 'read_docx.R' 'docx_write.R'\n'read_docx_styles.R' 'read_pptx.R' 'read_xlsx.R'\n'relationship.R' 'rtf.R' 'shape_properties.R' 'shorcuts.R'\n'docx_append_context.R' 'utils-xml.R' 'deprecated.R' 'zzz.R'",
+        "Config/roxygen2/version": "8.0.0",
+        "NeedsCompilation": "no",
+        "Packaged": "2026-05-15 12:39:25 UTC; davidgohel",
+        "Author": "David Gohel [aut, cre],\n  Stefan Moog [aut],\n  Mark Heckmann [aut] (ORCID: <https://orcid.org/0000-0002-0736-7417>),\n  ArData [cph],\n  Frank Hangler [ctb] (function body_replace_all_text),\n  Liz Sander [ctb] (several documentation fixes),\n  Anton Victorson [ctb] (fixes xml structures),\n  Jon Calder [ctb] (update vignettes),\n  John Harrold [ctb] (function annotate_base),\n  John Muschelli [ctb] (google doc compatibility),\n  Bill Denney [ctb] (ORCID: <https://orcid.org/0000-0002-5759-428X>,\n    function as.matrix.rpptx),\n  Nikolai Beck [ctb] (set speaker notes for .pptx documents),\n  Greg Leleu [ctb] (fields functionality in ppt),\n  Majid Eismann [ctb],\n  Wahiduzzaman Khan [ctb] (vectorization of remove_slide),\n  Hongyuan Jia [ctb] (ORCID: <https://orcid.org/0000-0002-0075-8183>),\n  Michael Stackhouse [ctb]",
+        "Maintainer": "David Gohel <david.gohel@ardata.fr>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-05-15 14:10:02 UTC",
+        "Built": "R 4.5.2; ; 2026-05-15 18:16:16 UTC; unix"
       }
     },
     "openssl": {
@@ -2469,6 +3086,35 @@
         "RemoteSha": "1.11.1"
       }
     },
+    "pkgbuild": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "pkgbuild",
+        "Title": "Find Tools Needed to Build R Packages",
+        "Version": "1.4.8",
+        "Authors@R": "c(\n    person(\"Hadley\", \"Wickham\", role = \"aut\"),\n    person(\"Jim\", \"Hester\", role = \"aut\"),\n    person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = c(\"aut\", \"cre\")),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"),\n           comment = c(ROR = \"03wc8by49\"))\n  )",
+        "Description": "Provides functions used to build R packages. Locates\n    compilers needed to build R packages on various platforms and ensures\n    the PATH is configured appropriately so R can use them.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://github.com/r-lib/pkgbuild, https://pkgbuild.r-lib.org",
+        "BugReports": "https://github.com/r-lib/pkgbuild/issues",
+        "Depends": "R (>= 3.5)",
+        "Imports": "callr (>= 3.2.0), cli (>= 3.4.0), desc, processx, R6",
+        "Suggests": "covr, cpp11, knitr, Rcpp, rmarkdown, testthat (>= 3.2.0),\nwithr (>= 2.3.0)",
+        "Config/Needs/website": "tidyverse/tidytemplate",
+        "Config/testthat/edition": "3",
+        "Config/usethis/last-upkeep": "2025-04-30",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.2",
+        "NeedsCompilation": "no",
+        "Packaged": "2025-05-26 10:36:48 UTC; gaborcsardi",
+        "Author": "Hadley Wickham [aut],\n  Jim Hester [aut],\n  Gábor Csárdi [aut, cre],\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
+        "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2025-05-26 14:10:06 UTC",
+        "Built": "R 4.5.0; ; 2025-05-26 15:14:03 UTC; unix"
+      }
+    },
     "pkgconfig": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -2545,6 +3191,35 @@
         "Archs": "png.so.dSYM"
       }
     },
+    "posterior": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "posterior",
+        "Title": "Tools for Working with Posterior Distributions",
+        "Version": "1.7.0",
+        "Date": "2026-04-01",
+        "Authors@R": "c(person(\"Paul-Christian\", \"Bürkner\", email = \"paul.buerkner@gmail.com\", role = c(\"aut\", \"cre\")),\n             person(\"Jonah\", \"Gabry\", email = \"jgabry@gmail.com\", role = c(\"aut\")),\n             person(\"Matthew\", \"Kay\", email = \"mjskay@northwestern.edu\", role = c(\"aut\")),\n             person(\"Aki\", \"Vehtari\", email = \"Aki.Vehtari@aalto.fi\", role = c(\"aut\")),\n             person(\"Måns\", \"Magnusson\", role = c(\"ctb\")),\n             person(\"Rok\", \"Češnovar\", role = c(\"ctb\")),\n             person(\"Ben\", \"Lambert\", role = c(\"ctb\")),\n             person(\"Ozan\", \"Adıgüzel\", role = c(\"ctb\")), \n             person(\"Jacob\", \"Socolar\", role = c(\"ctb\")),\n             person(\"Noa\", \"Kallioinen\", role = c(\"ctb\")),\n             person(\"Teemu\", \"Säilynoja\", role = c(\"ctb\")))",
+        "Description": "Provides useful tools for both users and developers of packages \n  for fitting Bayesian models or working with output from Bayesian models.\n  The primary goals of the package are to: \n  (a) Efficiently convert between many different useful formats of\n  draws (samples) from posterior or prior distributions.\n  (b) Provide consistent methods for operations commonly performed on draws, \n  for example, subsetting, binding, or mutating draws.\n  (c) Provide various summaries of draws in convenient formats.\n  (d) Provide lightweight implementations of state of the art posterior \n  inference diagnostics. References: Vehtari et al. (2021) \n  <doi:10.1214/20-BA1221>.",
+        "Depends": "R (>= 3.2.0)",
+        "Imports": "methods, abind, checkmate, rlang (>= 1.0.6), stats, tibble (>=\n3.1.0), vctrs (>= 0.5.0), tensorA, pillar, distributional,\nparallel, matrixStats",
+        "Suggests": "testthat (>= 2.1.0), caret (>= 6.0-84), gbm (>= 2.1.8),\nrandomForest (>= 4.6.14), e1071 (>= 1.7-3), dplyr, tidyr,\nknitr, ggplot2, ggdist, rmarkdown",
+        "Config/Needs/website": "stan-dev/pkgdown-config",
+        "License": "BSD_3_clause + file LICENSE",
+        "Encoding": "UTF-8",
+        "URL": "https://mc-stan.org/posterior/, https://discourse.mc-stan.org/",
+        "BugReports": "https://github.com/stan-dev/posterior/issues",
+        "RoxygenNote": "7.3.3",
+        "VignetteBuilder": "knitr",
+        "NeedsCompilation": "no",
+        "Packaged": "2026-04-01 11:52:27 UTC; wa.bocktif1",
+        "Author": "Paul-Christian Bürkner [aut, cre],\n  Jonah Gabry [aut],\n  Matthew Kay [aut],\n  Aki Vehtari [aut],\n  Måns Magnusson [ctb],\n  Rok Češnovar [ctb],\n  Ben Lambert [ctb],\n  Ozan Adıgüzel [ctb],\n  Jacob Socolar [ctb],\n  Noa Kallioinen [ctb],\n  Teemu Säilynoja [ctb]",
+        "Maintainer": "Paul-Christian Bürkner <paul.buerkner@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-04-01 13:00:02 UTC",
+        "Built": "R 4.5.2; ; 2026-04-01 17:18:39 UTC; unix"
+      }
+    },
     "prettyunits": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -2568,6 +3243,35 @@
         "Repository": "CRAN",
         "Date/Publication": "2023-09-24 21:10:02 UTC",
         "Built": "R 4.3.1; ; 2023-09-24 22:29:48 UTC; unix"
+      }
+    },
+    "processx": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "processx",
+        "Title": "Execute and Control System Processes",
+        "Version": "3.9.0",
+        "Authors@R": "c(\n    person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = c(\"aut\", \"cre\", \"cph\"),\n           comment = c(ORCID = \"0000-0001-7098-9676\")),\n    person(\"Winston\", \"Chang\", role = \"aut\"),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"),\n           comment = c(ROR = \"03wc8by49\")),\n    person(\"Ascent Digital Services\", role = c(\"cph\", \"fnd\"))\n  )",
+        "Description": "Tools to run system processes in the background.  It can\n    check if a background process is running; wait on a background process\n    to finish; get the exit status of finished processes; kill background\n    processes. It can read the standard output and error of the processes,\n    using non-blocking connections. 'processx' can poll a process for\n    standard output or error, with a timeout. It can also poll several\n    processes at once.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://processx.r-lib.org, https://github.com/r-lib/processx",
+        "BugReports": "https://github.com/r-lib/processx/issues",
+        "Depends": "R (>= 3.4.0)",
+        "Imports": "ps (>= 1.9.3), R6, utils",
+        "Suggests": "callr (>= 3.7.3), cli (>= 3.3.0), codetools, covr, curl,\ndebugme, parallel, rlang (>= 1.0.2), testthat (>= 3.0.0),\nwebfakes, withr",
+        "Config/Needs/website": "tidyverse/tidytemplate",
+        "Config/testthat/edition": "3",
+        "Config/usethis/last-upkeep": "2025-04-25",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.3",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-04-22 10:56:15 UTC; gaborcsardi",
+        "Author": "Gábor Csárdi [aut, cre, cph] (ORCID:\n    <https://orcid.org/0000-0001-7098-9676>),\n  Winston Chang [aut],\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>),\n  Ascent Digital Services [cph, fnd]",
+        "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-04-22 12:00:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-04-22 14:39:01 UTC; unix"
       }
     },
     "progress": {
@@ -2663,6 +3367,39 @@
         "RemoteSha": "1.5.0"
       }
     },
+    "prophet": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "prophet",
+        "Title": "Automatic Forecasting Procedure",
+        "Version": "1.1.7",
+        "Date": "2026-01-22",
+        "Authors@R": "c(\n  person(\"Cuong\", \"Duong\", email = \"cuong.duong242@gmail.com\", role = c(\"cre\", \"aut\")),\n  person(\"Sean\", \"Taylor\", email = \"sjtz@pm.me\", role = \"aut\"),\n  person(\"Ben\", \"Letham\", email = \"bletham@fb.com\", role = \"aut\")\n  )",
+        "Description": "Implements a procedure for forecasting time series data based on\n    an additive model where non-linear trends are fit with yearly, weekly, and\n    daily seasonality, plus holiday effects. It works best with time series\n    that have strong seasonal effects and several seasons of historical data.\n    Prophet is robust to missing data and shifts in the trend, and typically\n    handles outliers well.",
+        "URL": "https://github.com/facebook/prophet",
+        "BugReports": "https://github.com/facebook/prophet/issues",
+        "Depends": "R (>= 3.4.0), Rcpp (>= 0.12.0), rlang (>= 0.3.0.1)",
+        "Imports": "dplyr (>= 0.7.7), dygraphs (>= 1.1.1.4), extraDistr, ggplot2,\ngrid, lubridate, methods, RcppParallel (>= 5.0.1), rstan (>=\n2.18.1), rstantools (>= 2.0.0), scales, StanHeaders, stats,\ntidyr (>= 0.6.1), xts",
+        "Suggests": "cmdstanr, posterior, knitr, testthat, readr, rmarkdown",
+        "Additional_repositories": "https://stan-dev.r-universe.dev",
+        "SystemRequirements": "GNU make, C++17",
+        "Biarch": "true",
+        "License": "MIT + file LICENSE",
+        "LinkingTo": "BH (>= 1.66.0), Rcpp (>= 0.12.0), RcppParallel (>= 5.0.1),\nRcppEigen (>= 0.3.3.3.0), rstan (>= 2.18.1), StanHeaders (>=\n2.18.0)",
+        "VignetteBuilder": "knitr",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.2.0",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-01-22 01:40:13 UTC; runner",
+        "Author": "Cuong Duong [cre, aut],\n  Sean Taylor [aut],\n  Ben Letham [aut]",
+        "Maintainer": "Cuong Duong <cuong.duong242@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-01-22 08:20:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-01-22 08:41:52 UTC; unix",
+        "Archs": "prophet.so.dSYM"
+      }
+    },
     "proxy": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -2691,6 +3428,36 @@
         "RemoteRef": "proxy",
         "RemoteRepos": "https://cran.rstudio.com",
         "RemoteSha": "0.4-29"
+      }
+    },
+    "ps": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "ps",
+        "Title": "List, Query, Manipulate System Processes",
+        "Version": "1.9.3",
+        "Authors@R": "c(\n    person(\"Jay\", \"Loden\", role = \"aut\"),\n    person(\"Dave\", \"Daeschler\", role = \"aut\"),\n    person(\"Giampaolo\", \"Rodola'\", role = \"aut\"),\n    person(\"Gábor\", \"Csárdi\", , \"csardi.gabor@gmail.com\", role = c(\"aut\", \"cre\")),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"),\n           comment = c(ROR = \"03wc8by49\"))\n  )",
+        "Description": "List, query and manipulate all system processes, on\n    'Windows', 'Linux' and 'macOS'.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://github.com/r-lib/ps, https://ps.r-lib.org/",
+        "BugReports": "https://github.com/r-lib/ps/issues",
+        "Depends": "R (>= 3.4)",
+        "Imports": "utils",
+        "Suggests": "callr, covr, curl, pillar, pingr, processx (>= 3.1.0), R6,\nrlang, testthat (>= 3.0.0), webfakes, withr",
+        "Biarch": "true",
+        "Config/Needs/website": "tidyverse/tidytemplate",
+        "Config/testthat/edition": "3",
+        "Config/usethis/last-upkeep": "2025-04-28",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.3",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-04-20 12:53:07 UTC; gaborcsardi",
+        "Author": "Jay Loden [aut],\n  Dave Daeschler [aut],\n  Giampaolo Rodola' [aut],\n  Gábor Csárdi [aut, cre],\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
+        "Maintainer": "Gábor Csárdi <csardi.gabor@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-04-20 13:40:03 UTC",
+        "Built": "R 4.5.0; aarch64-apple-darwin20; 2026-04-20 18:40:27 UTC; unix"
       }
     },
     "purrr": {
@@ -2747,6 +3514,39 @@
         "Date/Publication": "2019-11-20 08:20:02 UTC",
         "Built": "R 4.3.0; aarch64-apple-darwin20; 2023-04-11 04:33:08 UTC; unix",
         "Archs": "quadprog.so.dSYM"
+      }
+    },
+    "ragg": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Type": "Package",
+        "Package": "ragg",
+        "Title": "Graphic Devices Based on AGG",
+        "Version": "1.5.2",
+        "Authors@R": "c(\n    person(\"Thomas Lin\", \"Pedersen\", , \"thomas.pedersen@posit.co\", role = c(\"cre\", \"aut\"),\n           comment = c(ORCID = \"0000-0002-5147-4711\")),\n    person(\"Maxim\", \"Shemanarev\", role = c(\"aut\", \"cph\"),\n           comment = \"Author of AGG\"),\n    person(\"Tony\", \"Juricic\", , \"tonygeek@yahoo.com\", role = c(\"ctb\", \"cph\"),\n           comment = \"Contributor to AGG\"),\n    person(\"Milan\", \"Marusinec\", , \"milan@marusinec.sk\", role = c(\"ctb\", \"cph\"),\n           comment = \"Contributor to AGG\"),\n    person(\"Spencer\", \"Garrett\", role = \"ctb\",\n           comment = \"Contributor to AGG\"),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"),\n           comment = c(ROR = \"03wc8by49\"))\n  )",
+        "Maintainer": "Thomas Lin Pedersen <thomas.pedersen@posit.co>",
+        "Description": "Anti-Grain Geometry (AGG) is a high-quality and\n    high-performance 2D drawing library. The 'ragg' package provides a set\n    of graphic devices based on AGG to use as alternative to the raster\n    devices provided through the 'grDevices' package.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://ragg.r-lib.org, https://github.com/r-lib/ragg",
+        "BugReports": "https://github.com/r-lib/ragg/issues",
+        "Imports": "systemfonts (>= 1.0.3), textshaping (>= 0.3.0)",
+        "Suggests": "covr, graphics, grid, testthat (>= 3.0.0)",
+        "LinkingTo": "systemfonts, textshaping",
+        "Config/build/compilation-database": "true",
+        "Config/Needs/website": "ggplot2, devoid, magick, bench, tidyr, ggridges,\nhexbin, sessioninfo, pkgdown, tidyverse/tidytemplate",
+        "Config/testthat/edition": "3",
+        "Config/usethis/last-upkeep": "2025-04-25",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.3",
+        "SystemRequirements": "freetype2, libpng, libtiff, libjpeg, libwebp,\nlibwebpmux",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-03-16 07:50:17 UTC; thomas",
+        "Author": "Thomas Lin Pedersen [cre, aut] (ORCID:\n    <https://orcid.org/0000-0002-5147-4711>),\n  Maxim Shemanarev [aut, cph] (Author of AGG),\n  Tony Juricic [ctb, cph] (Contributor to AGG),\n  Milan Marusinec [ctb, cph] (Contributor to AGG),\n  Spencer Garrett [ctb] (Contributor to AGG),\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-03-23 08:50:08 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-03-23 09:05:47 UTC; unix",
+        "Archs": "ragg.so.dSYM"
       }
     },
     "rappdirs": {
@@ -2926,6 +3726,72 @@
         "Repository": "CRAN",
         "Date/Publication": "2026-03-26 16:30:02 UTC",
         "Built": "R 4.5.2; ; 2026-03-26 17:17:50 UTC; unix"
+      }
+    },
+    "rstan": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "rstan",
+        "Type": "Package",
+        "Title": "R Interface to Stan",
+        "Version": "2.32.7",
+        "Authors@R": "c(person(\"Jiqiang\", \"Guo\", email = \"guojq28@gmail.com\", role = \"aut\"),\n             person(\"Jonah\", \"Gabry\", email = \"jsg2201@columbia.edu\", role = \"aut\"),\n             person(\"Ben\", \"Goodrich\", email = \"benjamin.goodrich@columbia.edu\", role = c(\"cre\", \"aut\")),\n             person(\"Andrew\", \"Johnson\", email = \"andrew.johnson@arjohnsonau.com\", role = \"aut\"),\n             person(\"Sebastian\", \"Weber\", email = \"sdw.post@waebers.de\", role = \"aut\"),\n             person(\"Hamada S.\", \"Badr\", role = c(\"aut\"),\n                    email = \"badr@jhu.edu\",\n                    comment = c(ORCID = \"0000-0002-9808-2344\")),\n             person(\"Daniel\", \"Lee\", role = \"ctb\"),\n             person(\"Krzysztof\", \"Sakrejda\", role = \"ctb\"),\n             person(\"Modrak\", \"Martin\", role = \"ctb\"),\n             person(\"Trustees of\", \"Columbia University\", role = \"cph\"),\n             person(\"Oleg\", \"Sklyar\", role = \"cph\", comment = \"R/cxxfunplus.R\"),\n             person(\"The R\", \"Core Team\", role = \"cph\", comment = \"R/pairs.R, R/dynGet.R\"),\n             person(\"Jens\", \"Oehlschlaegel-Akiyoshi\", role = \"cph\", comment = \"R/pairs.R\"),\n             person(\"John\", \"Maddock\", role = \"cph\", comment = \"gamma.hpp\"),\n             person(\"Paul\", \"Bristow\", role = \"cph\", comment = \"gamma.hpp\"),\n             person(\"Nikhar\", \"Agrawal\", role = \"cph\", comment = \"gamma.hpp\"),\n             person(\"Christopher\", \"Kormanyos\", role = \"cph\", comment = \"gamma.hpp\"),\n             person(\"Bronder\", \"Steve\", role = \"ctb\"))",
+        "Description": "User-facing R functions are provided to parse, compile, test,\n    estimate, and analyze Stan models by accessing the header-only Stan library\n    provided by the 'StanHeaders' package. The Stan project develops a probabilistic\n    programming language that implements full Bayesian statistical inference\n    via Markov Chain Monte Carlo, rough Bayesian inference via 'variational'\n    approximation, and (optionally penalized) maximum likelihood estimation via\n    optimization. In all three cases, automatic differentiation is used to quickly\n    and accurately evaluate gradients without burdening the user with the need to\n    derive the partial derivatives.",
+        "License": "GPL (>= 3)",
+        "NeedsCompilation": "yes",
+        "Imports": "methods, stats4, inline (>= 0.3.19), gridExtra (>= 2.3), Rcpp\n(>= 1.0.7), RcppParallel (>= 5.1.4), loo (>= 2.4.1), pkgbuild\n(>= 1.2.0), QuickJSR, ggplot2 (>= 3.3.5)",
+        "Depends": "R (>= 3.4.0), StanHeaders (>= 2.32.0)",
+        "LinkingTo": "Rcpp (>= 1.0.7), RcppEigen (>= 0.3.4.0.0), BH (>= 1.75.0-0),\nStanHeaders (>= 2.32.0), RcppParallel (>= 5.1.4)",
+        "Suggests": "testthat (>= 3.0.4), parallel, KernSmooth, shinystan,\nbayesplot, rmarkdown, rstantools, rstudioapi, Matrix, knitr,\ncoda, V8",
+        "URL": "https://mc-stan.org/rstan/, https://discourse.mc-stan.org",
+        "BugReports": "https://github.com/stan-dev/rstan/issues/",
+        "VignetteBuilder": "knitr",
+        "SystemRequirements": "GNU make, pandoc",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.1.2",
+        "Config/testthat/edition": "3",
+        "Packaged": "2025-03-10 04:53:43 UTC; ben",
+        "Author": "Jiqiang Guo [aut],\n  Jonah Gabry [aut],\n  Ben Goodrich [cre, aut],\n  Andrew Johnson [aut],\n  Sebastian Weber [aut],\n  Hamada S. Badr [aut] (<https://orcid.org/0000-0002-9808-2344>),\n  Daniel Lee [ctb],\n  Krzysztof Sakrejda [ctb],\n  Modrak Martin [ctb],\n  Trustees of Columbia University [cph],\n  Oleg Sklyar [cph] (R/cxxfunplus.R),\n  The R Core Team [cph] (R/pairs.R, R/dynGet.R),\n  Jens Oehlschlaegel-Akiyoshi [cph] (R/pairs.R),\n  John Maddock [cph] (gamma.hpp),\n  Paul Bristow [cph] (gamma.hpp),\n  Nikhar Agrawal [cph] (gamma.hpp),\n  Christopher Kormanyos [cph] (gamma.hpp),\n  Bronder Steve [ctb]",
+        "Maintainer": "Ben Goodrich <benjamin.goodrich@columbia.edu>",
+        "Repository": "CRAN",
+        "Date/Publication": "2025-03-10 08:50:02 UTC",
+        "Built": "R 4.4.1; aarch64-apple-darwin20; 2025-03-10 10:04:17 UTC; unix",
+        "Archs": "rstan.so.dSYM"
+      }
+    },
+    "rstantools": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "rstantools",
+        "Type": "Package",
+        "Title": "Tools for Developing R Packages Interfacing with 'Stan'",
+        "Version": "2.6.0",
+        "Date": "2026-01-08",
+        "Authors@R": "\n    c(person(given = \"Jonah\",\n             family = \"Gabry\",\n             role = c(\"aut\", \"cre\"),\n             email = \"jgabry@gmail.com\"),\n      person(given = \"Ben\",\n             family = \"Goodrich\",\n             role = \"aut\",\n             email = \"benjamin.goodrich@columbia.edu\"),\n      person(given = \"Martin\",\n             family = \"Lysy\",\n             role = \"aut\",\n             email = \"mlysy@uwaterloo.ca\"),\n      person(given = \"Andrew\",\n             family = \"Johnson\",\n             role = \"aut\"),\n      person(given = \"Hamada S.\",\n             family = \"Badr\",\n             role = \"ctb\"),\n      person(given = \"Marco\",\n             family = \"Colombo\",\n             role = \"ctb\"),\n      person(given = \"Stefan\",\n             family = \"Siegert\",\n             role = \"ctb\"),\n      person(given = \"Visruth\", \n             family = \"Srimath Kandali\", \n             role = \"ctb\"),       \n      person(given = \"Trustees of\",\n             family = \"Columbia University\",\n             role = \"cph\"))",
+        "Description": "Provides various tools for developers of R packages interfacing\n    with 'Stan' <https://mc-stan.org>, including functions to set up the required\n    package structure, S3 generics and default methods to unify function naming\n    across 'Stan'-based R packages, and vignettes with recommendations for\n    developers.",
+        "License": "GPL (>= 3)",
+        "URL": "https://mc-stan.org/rstantools/, https://discourse.mc-stan.org/",
+        "BugReports": "https://github.com/stan-dev/rstantools/issues",
+        "Encoding": "UTF-8",
+        "SystemRequirements": "pandoc",
+        "Imports": "desc, stats, utils, Rcpp (>= 0.12.16), RcppParallel (>= 5.0.1)",
+        "Suggests": "rstan (>= 2.17.2), usethis (>= 1.5.1), testthat (>= 2.0.0),\nknitr, pkgbuild, pkgload, roxygen2 (>= 6.0.1), rmarkdown,\nrstudioapi",
+        "RoxygenNote": "7.3.3",
+        "VignetteBuilder": "knitr",
+        "NeedsCompilation": "no",
+        "Packaged": "2026-01-08 21:17:49 UTC; jgabry",
+        "Author": "Jonah Gabry [aut, cre],\n  Ben Goodrich [aut],\n  Martin Lysy [aut],\n  Andrew Johnson [aut],\n  Hamada S. Badr [ctb],\n  Marco Colombo [ctb],\n  Stefan Siegert [ctb],\n  Visruth Srimath Kandali [ctb],\n  Trustees of Columbia University [cph]",
+        "Maintainer": "Jonah Gabry <jgabry@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-01-10 11:30:02 UTC",
+        "Built": "R 4.5.2; ; 2026-01-10 11:51:08 UTC; unix",
+        "RemoteType": "standard",
+        "RemotePkgRef": "rstantools",
+        "RemoteRef": "rstantools",
+        "RemoteRepos": "https://cran.rstudio.com",
+        "RemoteSha": "2.6.0"
       }
     },
     "rstudioapi": {
@@ -3394,6 +4260,62 @@
         "Archs": "sys.so.dSYM"
       }
     },
+    "systemfonts": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Type": "Package",
+        "Package": "systemfonts",
+        "Title": "System Native Font Finding",
+        "Version": "1.3.2",
+        "Authors@R": "c(\n    person(\"Thomas Lin\", \"Pedersen\", , \"thomas.pedersen@posit.co\", role = c(\"aut\", \"cre\"),\n           comment = c(ORCID = \"0000-0002-5147-4711\")),\n    person(\"Jeroen\", \"Ooms\", , \"jeroen@berkeley.edu\", role = \"aut\",\n           comment = c(ORCID = \"0000-0002-4035-0289\")),\n    person(\"Devon\", \"Govett\", role = \"aut\",\n           comment = \"Author of font-manager\"),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"),\n           comment = c(ROR = \"03wc8by49\"))\n  )",
+        "Description": "Provides system native access to the font catalogue. As font\n    handling varies between systems it is difficult to correctly locate\n    installed fonts across different operating systems. The 'systemfonts'\n    package provides bindings to the native libraries on Windows, macOS\n    and Linux for finding font files that can then be used further by e.g.\n    graphic devices. The main use is intended to be from compiled code but\n    'systemfonts' also provides access from R.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://github.com/r-lib/systemfonts,\nhttps://systemfonts.r-lib.org",
+        "BugReports": "https://github.com/r-lib/systemfonts/issues",
+        "Depends": "R (>= 3.2.0)",
+        "Imports": "base64enc, grid, jsonlite, lifecycle, tools, utils",
+        "Suggests": "covr, farver, ggplot2, graphics, knitr, ragg, rmarkdown,\nsvglite, testthat (>= 2.1.0)",
+        "LinkingTo": "cpp11 (>= 0.2.1)",
+        "VignetteBuilder": "knitr",
+        "Config/build/compilation-database": "true",
+        "Config/Needs/website": "tidyverse/tidytemplate",
+        "Config/usethis/last-upkeep": "2025-04-23",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.2",
+        "SystemRequirements": "fontconfig, freetype2",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-03-05 12:24:52 UTC; thomas",
+        "Author": "Thomas Lin Pedersen [aut, cre] (ORCID:\n    <https://orcid.org/0000-0002-5147-4711>),\n  Jeroen Ooms [aut] (ORCID: <https://orcid.org/0000-0002-4035-0289>),\n  Devon Govett [aut] (Author of font-manager),\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
+        "Maintainer": "Thomas Lin Pedersen <thomas.pedersen@posit.co>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-03-05 13:10:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-03-05 13:44:23 UTC; unix",
+        "Archs": "systemfonts.so.dSYM"
+      }
+    },
+    "tensorA": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "tensorA",
+        "Version": "0.36.2.1",
+        "Date": "2020-11-13",
+        "Title": "Advanced Tensor Arithmetic with Named Indices",
+        "Author": "K. Gerald van den Boogaart <boogaart@uni-greifswald.de>",
+        "Maintainer": "K. Gerald van den Boogaart <boogaart@math.tu-freiberg.de>",
+        "Depends": "R (>= 2.2.0), stats",
+        "Description": "Provides convenience functions for advanced\n        linear algebra with tensors and computation with data sets of\n        tensors on a higher level abstraction. It includes Einstein and\n        Riemann summing conventions, dragging, co- and contravariate\n        indices, parallel computations on sequences of tensors.",
+        "License": "GPL (>= 2)",
+        "URL": "http://www.stat.boogaart.de/tensorA/",
+        "NeedsCompilation": "yes",
+        "Packaged": "2023-12-13 17:01:17 UTC; hornik",
+        "Repository": "CRAN",
+        "Date/Publication": "2023-12-13 17:28:05 UTC",
+        "Built": "R 4.3.1; aarch64-apple-darwin20; 2023-12-13 17:59:38 UTC; unix",
+        "Archs": "tensorA.so.dSYM"
+      }
+    },
     "terra": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -3424,6 +4346,39 @@
         "Date/Publication": "2026-05-10 05:10:02 UTC",
         "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-05-10 08:06:59 UTC; unix",
         "Archs": "terra.so.dSYM"
+      }
+    },
+    "textshaping": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "textshaping",
+        "Title": "Bindings to the 'HarfBuzz' and 'Fribidi' Libraries for Text\nShaping",
+        "Version": "1.0.5",
+        "Authors@R": "c(\n    person(\"Thomas Lin\", \"Pedersen\", , \"thomas.pedersen@posit.co\", role = c(\"cre\", \"aut\"),\n           comment = c(ORCID = \"0000-0002-5147-4711\")),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\"),\n           comment = c(ROR = \"03wc8by49\"))\n  )",
+        "Description": "Provides access to the text shaping functionality in the\n    'HarfBuzz' library and the bidirectional algorithm in the 'Fribidi'\n    library. 'textshaping' is a low-level utility package mainly for\n    graphic devices that expands upon the font tool-set provided by the\n    'systemfonts' package.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://github.com/r-lib/textshaping",
+        "BugReports": "https://github.com/r-lib/textshaping/issues",
+        "Depends": "R (>= 3.2.0)",
+        "Imports": "lifecycle, stats, stringi, systemfonts (>= 1.3.0), utils",
+        "Suggests": "covr, grDevices, grid, knitr, rmarkdown, testthat (>= 3.0.0)",
+        "LinkingTo": "cpp11 (>= 0.2.1), systemfonts (>= 1.0.0)",
+        "VignetteBuilder": "knitr",
+        "Config/build/compilation-database": "true",
+        "Config/testthat/edition": "3",
+        "Config/usethis/last-upkeep": "2025-04-23",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.2",
+        "SystemRequirements": "freetype2, harfbuzz, fribidi",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-03-06 09:57:58 UTC; thomas",
+        "Author": "Thomas Lin Pedersen [cre, aut] (ORCID:\n    <https://orcid.org/0000-0002-5147-4711>),\n  Posit Software, PBC [cph, fnd] (ROR: <https://ror.org/03wc8by49>)",
+        "Maintainer": "Thomas Lin Pedersen <thomas.pedersen@posit.co>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-03-06 10:40:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-03-06 14:22:34 UTC; unix",
+        "Archs": "textshaping.so.dSYM"
       }
     },
     "tibble": {
@@ -3749,6 +4704,29 @@
         "Archs": "utf8.so.dSYM"
       }
     },
+    "uuid": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "uuid",
+        "Version": "1.2-2",
+        "Title": "Tools for Generating and Handling of UUIDs",
+        "Author": "Simon Urbanek [aut, cre, cph] (https://urbanek.org, ORCID:\n    <https://orcid.org/0000-0003-2297-1732>),\n  Theodore Ts'o [aut, cph] (libuuid)",
+        "Maintainer": "Simon Urbanek <Simon.Urbanek@r-project.org>",
+        "Authors@R": "c(person(\"Simon\", \"Urbanek\", role=c(\"aut\",\"cre\",\"cph\"), email=\"Simon.Urbanek@r-project.org\", comment=c(\"https://urbanek.org\", ORCID=\"0000-0003-2297-1732\")), person(\"Theodore\",\"Ts'o\", email=\"tytso@thunk.org\", role=c(\"aut\",\"cph\"), comment=\"libuuid\"))",
+        "Depends": "R (>= 2.9.0)",
+        "Description": "Tools for generating and handling of UUIDs (Universally Unique Identifiers).",
+        "License": "MIT + file LICENSE",
+        "URL": "https://www.rforge.net/uuid",
+        "BugReports": "https://github.com/s-u/uuid/issues",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-01-23 00:09:28 UTC; rforge",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-01-23 06:40:09 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-01-23 08:06:03 UTC; unix",
+        "Archs": "uuid.so.dSYM"
+      }
+    },
     "vctrs": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -3933,6 +4911,38 @@
         "Archs": "xfun.so.dSYM"
       }
     },
+    "xml2": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "xml2",
+        "Title": "Parse XML",
+        "Version": "1.5.2",
+        "Authors@R": "c(\n    person(\"Hadley\", \"Wickham\", role = \"aut\"),\n    person(\"Jim\", \"Hester\", role = \"aut\"),\n    person(\"Jeroen\", \"Ooms\", email = \"jeroenooms@gmail.com\", role = c(\"aut\", \"cre\")),\n    person(\"Posit Software, PBC\", role = c(\"cph\", \"fnd\")),\n    person(\"R Foundation\", role = \"ctb\",\n           comment = \"Copy of R-project homepage cached as example\")\n  )",
+        "Description": "Bindings to 'libxml2' for working with XML data using a simple, \n    consistent interface based on 'XPath' expressions. Also supports XML schema\n    validation; for 'XSLT' transformations see the 'xslt' package.",
+        "License": "MIT + file LICENSE",
+        "URL": "https://xml2.r-lib.org, https://r-lib.r-universe.dev/xml2",
+        "BugReports": "https://github.com/r-lib/xml2/issues",
+        "Depends": "R (>= 3.6.0)",
+        "Imports": "cli, methods, rlang (>= 1.1.0)",
+        "Suggests": "covr, curl, httr, knitr, mockery, rmarkdown, testthat (>=\n3.2.0), xslt",
+        "VignetteBuilder": "knitr",
+        "Config/Needs/website": "tidyverse/tidytemplate",
+        "Encoding": "UTF-8",
+        "RoxygenNote": "7.3.3",
+        "SystemRequirements": "libxml2: libxml2-dev (deb), libxml2-devel (rpm)",
+        "Collate": "'S4.R' 'as_list.R' 'xml_parse.R' 'as_xml_document.R'\n'classes.R' 'format.R' 'import-standalone-obj-type.R'\n'import-standalone-purrr.R' 'import-standalone-types-check.R'\n'init.R' 'nodeset_apply.R' 'paths.R' 'utils.R' 'xml2-package.R'\n'xml_attr.R' 'xml_children.R' 'xml_document.R' 'xml_find.R'\n'xml_missing.R' 'xml_modify.R' 'xml_name.R' 'xml_namespaces.R'\n'xml_node.R' 'xml_nodeset.R' 'xml_path.R' 'xml_schema.R'\n'xml_serialize.R' 'xml_structure.R' 'xml_text.R' 'xml_type.R'\n'xml_url.R' 'xml_write.R' 'zzz.R'",
+        "Config/testthat/edition": "3",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-01-17 13:03:05 UTC; jeroen",
+        "Author": "Hadley Wickham [aut],\n  Jim Hester [aut],\n  Jeroen Ooms [aut, cre],\n  Posit Software, PBC [cph, fnd],\n  R Foundation [ctb] (Copy of R-project homepage cached as example)",
+        "Maintainer": "Jeroen Ooms <jeroenooms@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-01-17 16:10:02 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-01-17 16:23:11 UTC; unix",
+        "Archs": "xml2.so.dSYM"
+      }
+    },
     "xtable": {
       "Source": "CRAN",
       "Repository": "https://cloud.r-project.org",
@@ -3956,6 +4966,35 @@
         "Author": "David B. Dahl [aut],\n  David Scott [aut, cre],\n  Charles Roosen [aut],\n  Arni Magnusson [aut],\n  Jonathan Swinton [aut],\n  Ajay Shah [ctb],\n  Arne Henningsen [ctb],\n  Benno Puetz [ctb],\n  Bernhard Pfaff [ctb],\n  Claudio Agostinelli [ctb],\n  Claudius Loehnert [ctb],\n  David Mitchell [ctb],\n  David Whiting [ctb],\n  Fernando da Rosa [ctb],\n  Guido Gay [ctb],\n  Guido Schulz [ctb],\n  Ian Fellows [ctb],\n  Jeff Laake [ctb],\n  John Walker [ctb],\n  Jun Yan [ctb],\n  Liviu Andronic [ctb],\n  Markus Loecher [ctb],\n  Martin Gubri [ctb],\n  Matthieu Stigler [ctb],\n  Robert Castelo [ctb],\n  Seth Falcon [ctb],\n  Stefan Edwards [ctb],\n  Sven Garbade [ctb],\n  Uwe Ligges [ctb]",
         "Date/Publication": "2026-02-22 11:20:02 UTC",
         "Built": "R 4.5.2; ; 2026-02-22 13:16:04 UTC; unix"
+      }
+    },
+    "xts": {
+      "Source": "CRAN",
+      "Repository": "https://cloud.r-project.org",
+      "description": {
+        "Package": "xts",
+        "Type": "Package",
+        "Title": "eXtensible Time Series",
+        "Version": "0.14.2",
+        "Authors@R": "c(\n  person(given=c(\"Jeffrey\",\"A.\"), family=\"Ryan\", role=c(\"aut\",\"cph\")),\n  person(given=c(\"Joshua\",\"M.\"), family=\"Ulrich\", role=c(\"cre\",\"aut\"), email=\"josh.m.ulrich@gmail.com\"),\n  person(given=\"Ross\", family=\"Bennett\", role=\"ctb\"),\n  person(given=\"Corwin\", family=\"Joy\", role=\"ctb\")\n  )",
+        "Depends": "R (>= 3.6.0), zoo (>= 1.7-12)",
+        "Imports": "methods",
+        "LinkingTo": "zoo",
+        "Suggests": "timeSeries, timeDate, tseries, chron, tinytest",
+        "LazyLoad": "yes",
+        "Description": "Provide for uniform handling of R's different time-based data classes by extending zoo, maximizing native format information preservation and allowing for user level customization and extension, while simplifying cross-class interoperability.",
+        "License": "GPL (>= 2)",
+        "URL": "https://joshuaulrich.github.io/xts/,\nhttps://github.com/joshuaulrich/xts",
+        "BugReports": "https://github.com/joshuaulrich/xts/issues",
+        "Encoding": "UTF-8",
+        "NeedsCompilation": "yes",
+        "Packaged": "2026-02-27 23:01:11 UTC; josh",
+        "Author": "Jeffrey A. Ryan [aut, cph],\n  Joshua M. Ulrich [cre, aut],\n  Ross Bennett [ctb],\n  Corwin Joy [ctb]",
+        "Maintainer": "Joshua M. Ulrich <josh.m.ulrich@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2026-02-28 06:10:03 UTC",
+        "Built": "R 4.5.2; aarch64-apple-darwin20; 2026-02-28 07:14:51 UTC; unix",
+        "Archs": "xts.so.dSYM"
       }
     },
     "yaml": {
@@ -4055,13 +5094,16 @@
       "checksum": "87f9d4ec0ffedff42d9aa1a7e04c6c96"
     },
     "app.R": {
-      "checksum": "b68fbc7e2954e68df386eeba128b3c8f"
+      "checksum": "04646c8efc50fa18979ff4ae30e8fa89"
     },
     "DESCRIPTION": {
-      "checksum": "4fc428a0080fe2ab84a68ab8ee3cec88"
+      "checksum": "586edd0fae5b3579f783d1aaaf6b92e3"
     },
     "MG2_0.1.6.tar.gz": {
       "checksum": "f5cdf362889454e22db609b4574627c8"
+    },
+    "MG2_0.1.7.tar.gz": {
+      "checksum": "b486ec60968042080f1d1185dd5c5278"
     }
   },
   "users": null
