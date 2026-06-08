@@ -6,7 +6,7 @@
 epidemiological analysis of routine health data from DHIS2 systems. Functions are also
 usable in standalone R scripts.
 
-**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.4
+**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.7
 **Reference:** [R Packages (2e)](https://r-pkgs.org)
 
 ---
@@ -143,31 +143,52 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 2N)
 
 ---
 
-## Current State (as of 2026-05-16)
+## Current State (as of 2026-06-08)
 
-**Version:** 0.1.4 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 2 NOTEs
+**Version:** 0.1.7 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
-download + combine) → DQA (incl. Consistency) → Reporting → Outliers → Evaluation →
-AI Assistant
+download + combine) → DQA (incl. Consistency + Reporting Map) → Reporting → Outliers →
+Evaluation → Burden Estimate (dev) → AI Assistant (dev)
 
 **Map tab:** widget file exists (`map_widget.R`), not yet integrated.
 
-**Remaining NOTEs (Phase D — deferred):**
-- Shiny packages in `Imports` without `@importFrom`
+**Remaining NOTE (Phase D — deferred):**
 - Bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::` qualification
 
-**Next planned phases:**
-- Phase B: Tests (~95 tests, no live DHIS2 server needed)
-- Phase C: Demo data (`data/mg2_demo.rda`) + vignettes
-- Phase D: `cat()` → `message()` sweep; `@importFrom` polish; CRAN submission prep
-- Phase 7: Map module integration
+**Demo data:**
+- `mg2_demo_*` — Sierra Leone malaria (5 elements, 72 months synthetic, yearmonth correct)
+- `mg2_pdrlao_*` — PDR Lao malaria (82 elements, ~57 months, Aug 2021–May 2026)
+- `mg2_demo_setup()` / `mg2_pdrlao_setup()` — write demo files to disk
+- Login tab has two demo buttons (Sierra Leone / PDR Lao) using `actionButton` not `shinyFiles`
 
-**FST note:** Processed datasets (`.fst`) are supported — `read_file()` restores
-`yearmonth`/`yearweek` class and rebuilds tsibble on load. Metadata files stay `.rds`
-(mixed object types: sf, nested lists — FST cannot handle them; also LZ4 compresses
-string-heavy DHIS2 data worse than gzip).
+**Deployments:**
+- GitHub releases: automated via `.github/workflows/release.yml` (push `git tag vX.Y.Z`)
+- shinyapps.io: `rsconnect::deployApp(appDir="deploy", appName="MG2-MagicGlasses2")`
+- Connect Cloud: republish via connectcloud.posit.co (installs MG2 from `../` local clone)
+- Both deployments use `MG2_DEMO_MODE=1` env var; demo buttons replace shinyFiles picker
+
+**FST → RDS switch (2026-06-07):**
+`mg2_data_ext()` now always returns `"rds"`. FST had persistent yearmonth class-stripping
+bugs across data.table/vctrs boundaries that were impossible to fix reliably. New files
+save as uncompressed RDS (`compress=FALSE`). `read_file()` still reads legacy FST files
+with days-to-months conversion. Do NOT revert to FST without solving the vctrs dispatch
+issue where `data.table::set()` converts yearmonth months back to days internally.
+
+**yearmonth encoding (critical):**
+- Correct encoding: months-since-epoch, ~360-840 for 2000-2040
+- Legacy FST/old RDS: days-since-epoch, ~10k-25k — detected by `median > 5000` in `read_file()`
+- `data_widget.r` restores yearmonth class after `setDT()` strips it
+- `dqa_functions.R` uses `.month_to_year()` helper that handles both encodings
+- Evaluation widget: `selectInput` stores integer month values ("660"), parsed via `yearmonth(as.integer(...))`
+
+**UX improvements (2026-06-08):**
+- Welcome page: getting-started prompt, full tab descriptions, dev tab callouts
+- Setup tab: "Browse Metadata" next-step button appears once directory is set
+- Metadata/Regions tabs: blue step-hint bars pointing to next tab
+- DQA/Reporting: empty-state banners when no data loaded
+- Demo modal: two-stage (setup → ready), OK navigates to Metadata tab
 
 ---
 
