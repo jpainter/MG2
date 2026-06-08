@@ -2794,14 +2794,21 @@ yearly_summary_table <- function(
     # For the last row: show its partial total; compute % change against the
     # same months in the prior year so the comparison is like-for-like.
     # Use as_tibble() to drop tsibble key grouping before summarising.
-    prior_partial_total <- data %>%
+
+    partial_label <- paste0(
+      month.abb[min(last_months)], "\u2013", month.abb[max(last_months)]
+    )
+
+    # Subset total for every year: sum only the months present in last_months.
+    # This gives the like-for-like denominator column alongside the % change.
+    yearly_subset <- data %>%
       tibble::as_tibble() %>%
-      dplyr::filter(
-        as.integer(format(.data[[idx_var]], "%Y"))  == last_year - 1,
-        as.integer(format(.data[[idx_var]], "%m")) %in% last_months
-      ) %>%
-      dplyr::summarise(Total = sum(.data[[value_col]], na.rm = TRUE)) %>%
-      dplyr::pull(Total)
+      dplyr::filter(as.integer(format(.data[[idx_var]], "%m")) %in% last_months) %>%
+      dplyr::group_by(Year = as.integer(format(.data[[idx_var]], "%Y"))) %>%
+      dplyr::summarise(`Subset Total` = sum(.data[[value_col]], na.rm = TRUE),
+                       .groups = "drop")
+
+    prior_partial_total <- yearly_subset$`Subset Total`[yearly_subset$Year == last_year - 1]
     prior_partial_total <- sum(prior_partial_total, na.rm = TRUE)  # collapse to scalar
 
     last_total <- yearly_full$Total[yearly_full$Year == last_year]
@@ -2809,12 +2816,11 @@ yearly_summary_table <- function(
       round((last_total - prior_partial_total) / prior_partial_total * 100, 1)
     else NA_real_
 
-    partial_label <- paste0(
-      month.abb[min(last_months)], "\u2013", month.abb[max(last_months)]
-    )
-
-    # Build yearly_data with full-year totals; override the last row's % change
+    # Build yearly_data: full-year totals + subset totals + % change.
+    # % change is full-year vs full-year for complete years; for the last (partial)
+    # year it compares the same months in both years.
     yearly_data <- yearly_full %>%
+      dplyr::left_join(yearly_subset, by = "Year") %>%
       dplyr::mutate(
         `Percent Change` = round((Total - dplyr::lag(Total)) / dplyr::lag(Total) * 100, 1)
       )
@@ -2828,8 +2834,7 @@ yearly_summary_table <- function(
                               paste0(Year, "\n(", partial_label, ")"),
                               as.character(Year))
       )
-    col_header <- paste0("% Change from Previous Year\n(last year: ", partial_label,
-                         " vs same months prior year)")
+    col_header <- "% Change"
   } else {
     yearly_data <- yearly_full %>%
       dplyr::mutate(
@@ -2853,16 +2858,34 @@ yearly_summary_table <- function(
       )
     )
 
-  ft <- yearly_data %>%
-    dplyr::select(Year, Total, `Formatted Change`) %>%
+  # For partial years: include Subset Total column between Total and % Change.
+  has_subset <- is_partial && "Subset Total" %in% colnames(yearly_data)
+
+  if (has_subset) {
+    ft_data <- yearly_data %>%
+      dplyr::select(Year, Total, `Subset Total`, `Formatted Change`)
+  } else {
+    ft_data <- yearly_data %>%
+      dplyr::select(Year, Total, `Formatted Change`)
+  }
+
+  ft <- ft_data %>%
     flextable::flextable() %>%
     flextable::set_header_labels(
-      Year              = "Year",
-      Total             = "Total",
+      Year               = "Year",
+      Total              = "Annual\nTotal",
+      `Subset Total`     = "Total",
       `Formatted Change` = col_header
     ) %>%
-    flextable::colformat_double(j = "Total", big.mark = ",", digits = 0) %>%
-    flextable::colformat_double(j = "Year",  big.mark = "",  digits = 0) %>%
+    flextable::colformat_double(j = "Total",        big.mark = ",", digits = 0) %>%
+    flextable::colformat_double(j = "Year",         big.mark = "",  digits = 0)
+
+  if (has_subset) {
+    ft <- ft %>%
+      flextable::colformat_double(j = "Subset Total", big.mark = ",", digits = 0)
+  }
+
+  ft <- ft %>%
     flextable::bg(
       i = which(yearly_data$`Change Direction` == "positive"),
       j = "Formatted Change", bg = positive_color
@@ -2883,12 +2906,36 @@ yearly_summary_table <- function(
     flextable::bg(part = "header", bg = "#2c3e50") %>%
     flextable::color(part = "header", color = "white") %>%
     flextable::bold(part = "header") %>%
-    flextable::align(j = c("Total", "Formatted Change"), align = "center", part = "body") %>%
+    flextable::align(
+      j     = if (has_subset) c("Total", "Subset Total", "Formatted Change")
+              else c("Total", "Formatted Change"),
+      align = "center", part = "body"
+    ) %>%
     flextable::align(j = "Year", align = "left", part = "body") %>%
     flextable::fontsize(part = "body", size = 11) %>%
-    flextable::width(j = "Year",             width = 1) %>%
-    flextable::width(j = "Total",            width = 1.5) %>%
-    flextable::width(j = "Formatted Change", width = 2) %>%
+    flextable::width(j = "Year",            width = 1) %>%
+    flextable::width(j = "Total",           width = 1.3)
+
+  if (has_subset) {
+    ft <- ft %>%
+      flextable::width(j = "Subset Total",    width = 1.3) %>%
+      flextable::width(j = "Formatted Change", width = 1.2) %>%
+      # Spanner row spanning Subset Total + % Change, labelled with the month range
+      flextable::add_header_row(
+        top       = TRUE,
+        values    = c("", "", partial_label),
+        colwidths = c(1L, 1L, 2L)
+      ) %>%
+      flextable::align(i = 1, align = "center", part = "header") %>%
+      flextable::bg(i = 1, bg = "#3d5166", part = "header") %>%
+      flextable::color(i = 1, color = "white", part = "header") %>%
+      flextable::bold(i = 1, part = "header")
+  } else {
+    ft <- ft %>%
+      flextable::width(j = "Formatted Change", width = 2)
+  }
+
+  ft <- ft %>%
     flextable::border_outer(
       border = officer::fp_border(color = "#2c3e50", width = 2)
     ) %>%
