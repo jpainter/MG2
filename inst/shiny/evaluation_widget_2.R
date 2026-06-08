@@ -195,8 +195,7 @@ evaluation_widget_ui = function(id) {
                     ),
 
                     fluidRow(
-                      div(style = "font-size: 1.3em;",
-                          tableOutput(ns("forecastResult")))
+                      uiOutput(ns("forecastResultUI"))
                     )
                   )
                 ),
@@ -1256,6 +1255,19 @@ evaluation_widget_server <- function(
       })
 
       # forecastResult table ####
+      output$forecastResultUI <- renderUI({
+        req(auto_model_values$done)
+        model_label <- input$selected_model %||% ""
+        tagList(
+          tags$p(
+            style = "font-weight:bold; margin-bottom:4px;",
+            paste0("Best fitting model: ", model_label)
+          ),
+          div(style = "font-size: 1.3em;",
+              tableOutput(NS(id, "forecastResult")))
+        )
+      })
+
       output$forecastResult <- renderTable({
         req(auto_model_values$done)
         req(auto_model())
