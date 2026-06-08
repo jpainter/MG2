@@ -62,6 +62,7 @@ evaluation_widget_ui = function(id) {
                   div(
                     style = "padding: 6px 2px;",
 
+                    # ── Primary: auto-model flow ──────────────────────────────
                     selectizeInput(
                       ns("evaluation_month"),
                       label = "Evaluation Start",
@@ -75,33 +76,41 @@ evaluation_widget_ui = function(id) {
                       selected = 12, width = "100%"
                     ),
 
+                    checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
+
                     actionButton(ns("forecast"), "Calculate Percent Change",
                                  width = "100%", class = "btn-primary btn-sm",
-                                 style = "margin-bottom:6px;"),
+                                 style = "margin-top:4px; margin-bottom:2px;"),
+                    tags$p(style = "font-size:0.78em; color:#666; margin:0 0 6px 0;",
+                           "Runs all models and auto-selects the best fit."),
 
                     selectInput(
                       ns("selected_model"),
-                      label = "Model:",
+                      label = "Displayed model (auto-selected; change to compare):",
                       choices = character(0), selected = NULL, width = "100%"
                     ),
 
-                    hr(style = "margin: 6px 0;"),
+                    checkboxInput(ns("transform"),   'Log transform count data',         TRUE),
+                    checkboxInput(ns("forecast_ci"), 'Prediction interval',              TRUE),
+
+                    # ── Advanced: manual model overlays ───────────────────────
+                    hr(style = "margin: 10px 0 4px 0;"),
+                    tags$p(style = "font-size:0.8em; font-weight:bold; color:#555; margin:0 0 4px 0;",
+                           "Manual model overlays (advanced)"),
+
+                    checkboxInput(ns("pre_evaluation"), 'Pre-intervention model fit',    FALSE),
+                    checkboxInput(ns("evaluation"),     'Post-intervention evaluation',  FALSE),
 
                     selectInput(
                       ns("model"),
-                      label = "Time-series model:",
+                      label = "Overlay model:",
                       choices = c('TSLM (trend)', 'TSLM (trend+season)', 'ETS', 'ARIMA'),
                       selected = 'ETS', width = "100%"
                     ),
 
-                    checkboxInput(ns("pre_evaluation"),  'Pre-intervention model fit',     FALSE),
-                    checkboxInput(ns("evaluation"),      'Post-intervention evaluation',   FALSE),
-                    checkboxInput(ns("transform"),       'Log transform count data',       TRUE),
-                    checkboxInput(ns("smooth"),          'Show smoothed trend line (loess)', FALSE),
-                    checkboxInput(ns("scale"),           'Scale values (x-mean)/sd + 1',   FALSE),
-                    checkboxInput(ns('components'),      'Visualize trend',                FALSE),
-                    checkboxInput(ns("forecast_ci"),     'Prediction interval',            TRUE),
-                    checkboxInput(ns("ensemble"),        'Use ensemble models',            TRUE),
+                    checkboxInput(ns("smooth"),      'Show smoothed trend line (loess)', FALSE),
+                    checkboxInput(ns("scale"),       'Scale values (x-mean)/sd + 1',    FALSE),
+                    checkboxInput(ns('components'),  'Visualize trend',                  FALSE),
 
                     textInput(ns('model.formula'), 'Model Formula',
                               value = "total ~ error() + trend() + season()"),
