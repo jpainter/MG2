@@ -1025,9 +1025,12 @@ evaluation_widget_server <- function(
       }
 
       # When underlying data changes (region, reporting filter, outlier filter,
-      # agg level, split), erase any predictions so stale forecasts are not shown.
+      # agg level, split), erase predictions AND invalidate validation so the
+      # stale model selection (fitted on old data) is not shown as current.
       observeEvent(mable_Data(), ignoreNULL = TRUE, ignoreInit = TRUE, {
         clear_predictions()
+        auto_model_values$validation_done <- FALSE
+        dropdown_initialized(FALSE)
       })
 
       # When model/validation parameters change, also erase predictions and
