@@ -54,6 +54,7 @@ Suggests:
     flextable,
     forecast,
     fst,
+    qs,
     furrr,
     future,
     ggplot2,
