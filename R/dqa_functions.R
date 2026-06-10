@@ -673,65 +673,32 @@ yearly.outlier.summary_plot <- function(data, text_size = 18, label_size = 6) {
 }
 
 
-# MASE ------------------------------------------------------------------------
+# WAPE ------------------------------------------------------------------------
 
-#' Absolute Error Helper
+#' Compute WAPE for a Single Year
 #' @noRd
-abs_ae <- function(actual, predicted) abs(actual - predicted)
+wape_year <- function(dqa_data, .year) {
+  dt <- data.table::setDT(tibble::as_tibble(dqa_data))[
+    .month_to_year(Month) <= .year & !is.na(original) & !is.na(expected)
+  ]
 
-#' Mean Absolute Scaled Error
-#' @noRd
-mase <- function(actual, predicted, step_size = 1) {
-  if (all(is.na(predicted))) return(NA_real_)
-  n           <- length(actual)
-  naive_start <- step_size + 1
-  naive_end   <- n - step_size
-  sum_errors  <- sum(abs_ae(actual, predicted), na.rm = TRUE)
-  naive_errors <- sum(abs_ae(actual[naive_start:n], actual[1:naive_end]),
-                      na.rm = TRUE)
-  sum_errors / (n * naive_errors / naive_end)
-}
+  n_facilities <- dt[, data.table::uniqueN(orgUnit)]
 
-#' Compute MASE for a Single Year
-#' @noRd
-mase_year <- function(dqa_data, .year) {
-  d_all <- data.table::setDT(tibble::as_tibble(dqa_data))[
-    .month_to_year(Month) <= .year,
-    .(
-      expected = sum(expected, na.rm = TRUE),
-      original = sum(original, na.rm = TRUE)
-    ),
-    by = c("orgUnit", "orgUnitName", "Month")
-  ] |>
-    tibble::as_tibble() |>
-    dplyr::group_by(orgUnit, orgUnitName)
-
-  d.mase <- data.table::setDT(d_all)[,
-    .(
-      MASE           = mase(actual = original, predicted = expected),
-      n              = sum(!is.na(original)),
-      total_expected = sum(expected, na.rm = TRUE)
-    ),
-    by = c("orgUnit", "orgUnitName")
-  ] |>
-    tibble::as_tibble()
-
-  mean.mase <- weighted.mean(
-    d.mase$MASE[d.mase$MASE < Inf],
-    w  = d.mase$total_expected[d.mase$MASE < Inf],
-    na.rm = TRUE
-  )
+  # WAPE = sum(|original - expected|) / sum(original), expressed as a fraction
+  wape_val <- dt[, sum(abs(original - expected), na.rm = TRUE) /
+                     sum(original, na.rm = TRUE)]
+  if (!is.finite(wape_val)) wape_val <- NA_real_
 
   tibble::tibble(
-    Year        = .year,
-    Facilities  = nrow(d.mase),
-    Mean_MASE   = mean.mase,
-    label       = scales::percent(mean.mase, 0.1)
+    Year       = .year,
+    Facilities = n_facilities,
+    Mean_MASE  = wape_val,          # keep column name for plot compatibility
+    label      = scales::percent(wape_val, 0.1)
   )
 }
 
 
-#' Compute MASE Across All Years in DQA Data
+#' Compute WAPE Across All Years in DQA Data
 #'
 #' Requires an `expected` column (from seasonal cleaning). Returns `NULL`
 #' with a message when the column is absent.
@@ -742,17 +709,17 @@ mase_year <- function(dqa_data, .year) {
 #' @export
 dqa_mase <- function(dqa_data) {
   if (!"expected" %in% names(dqa_data)) {
-    message("dqa_mase: 'expected' column not found - MASE plot requires seasonal cleaning first.")
+    message("dqa_mase: 'expected' column not found - WAPE plot requires seasonal cleaning first.")
     return(NULL)
   }
   years <- dqa_years(dqa_data)$Year
-  result <- purrr::map_df(years, ~ mase_year(dqa_data, .x))
+  result <- purrr::map_df(years, ~ wape_year(dqa_data, .x))
   result[1:2, 3:ncol(result)] <- NA
   return(result)
 }
 
 
-#' Plot MASE Summary
+#' Plot WAPE Summary (Minimum Detectable Change)
 #'
 #' @param data Output of [dqa_mase()].
 #'
@@ -763,15 +730,17 @@ dqa_mase_plot <- function(data) {
     return(
       ggplot2::ggplot() +
         ggplot2::annotate("text", x = 0.5, y = 0.5,
-                          label = "MASE requires seasonal cleaning (expected column not available)",
+                          label = "WAPE requires seasonal cleaning (expected column not available)",
                           size = 5) +
         ggplot2::theme_void()
     )
   }
-  mase_txt <- paste(
-    "Estimated as 2x the mean absolute scaled error (MASE) of the previous values\n",
-    "- The smaller this value, the more accurate the data is\n",
-    "- Year to year change less than this is likely due to random variation"
+  wape_txt <- paste(
+    "Weighted Absolute Percentage Error (WAPE) across ALL facilities —",
+    "sum(|actual \u2212 expected|) / sum(actual)\n",
+    "- The smaller this value, the more predictable the data trend\n",
+    "- Year-to-year changes smaller than this value may reflect data variability rather than a real change\n",
+    "- Note: selecting champion facilities in the Evaluation tab may show lower error than seen here"
   )
 
   ggplot2::ggplot(
@@ -788,8 +757,8 @@ dqa_mase_plot <- function(data) {
       x        = "Year",
       y        = "Percent",
       title    = "Minimum Detectable Change for Program Evaluation",
-      subtitle = mase_txt,
-      caption  = "NOTE: MASE calculated beginning with 3rd year of data"
+      subtitle = wape_txt,
+      caption  = "NOTE: WAPE calculated beginning with 3rd year of data"
     ) +
     ggplot2::theme_minimal(base_size = 18)
 }
