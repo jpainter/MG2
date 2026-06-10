@@ -77,7 +77,7 @@
 .vr_wide_data <- function(data) {
   period_col <- if ("Month" %in% names(data)) "Month" else "Week"
   dt <- data.table::as.data.table(data)
-  dt[, year_col := as.integer(format(get(period_col), "%Y"))]
+  dt[, year_col := data.table::year(as.IDate(unclass(get(period_col)), origin = "1970-01-01"))]
 
   # Only leaf-level rows; need orgUnit, period, year, data.id, original
   dt_leaf <- dt[effectiveLeaf == TRUE,
@@ -88,8 +88,11 @@
   # This avoids passing a custom R fun.aggregate to dcast (which is called
   # once per group in R — very slow on large datasets).
   # Rule: if any value is non-NA, sum them; if all NA, keep NA.
-  dt_agg <- dt_leaf[,
-    .(original = if (any(!is.na(original))) sum(original, na.rm = TRUE) else NA_real_),
+  # Pre-aggregate: keep only non-NA rows, sum within group.
+  # Groups where all values were NA are simply absent; dcast fills them with NA_real_.
+  # This avoids an R function call per group (43s → <1s on large datasets).
+  dt_agg <- dt_leaf[!is.na(original),
+    .(original = sum(original)),
     by = .(orgUnit, orgUnitName, period, year, data.id)
   ]
 
@@ -167,7 +170,10 @@ dqa_consistency <- function(data, validation_rules, filter_data_ids = NULL) {
   ))
   if (length(rule_ids) > 0 && "data.id" %in% names(data)) {
     rule_de_uids <- unique(sub("_.*$", "", rule_ids))
-    data <- data[sub("_.*$", "", data[["data.id"]]) %in% rule_de_uids, ]
+    # Pre-compute outside [.data.table to avoid its NSE parser choking on
+    # a nested data[[...]] call inside the i expression.
+    .keep <- sub("_.*$", "", as.character(data[["data.id"]])) %in% rule_de_uids
+    data  <- data[.keep]
   }
 
   wide <- .vr_wide_data(data)

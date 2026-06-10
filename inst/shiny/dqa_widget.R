@@ -52,7 +52,7 @@ dqa_widget_ui = function(id) {
                 id = ns("dqa_reporting_subtab"),
                 bslib::nav_panel(
                   "Chart",
-                  chartModuleUI(ns("dqaReportingOutput"), height = "420px", overlay = TRUE)
+                  chartModuleUI(ns("dqaReportingOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
                 ),
                 bslib::nav_panel(
                   "Map",
@@ -67,7 +67,7 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "Outliers",
-              chartModuleUI(ns("dqaNoErrorsOutput"), height = "420px", overlay = TRUE)
+              chartModuleUI(ns("dqaNoErrorsOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
             ),
 
             bslib::nav_panel(
@@ -77,7 +77,7 @@ dqa_widget_ui = function(id) {
                   "Chart",
                   br(),
                   uiOutput(ns("consistency_status")),
-                  chartModuleUI(ns("dqaConsistencyChart"), height = "420px", overlay = TRUE)
+                  chartModuleUI(ns("dqaConsistencyChart"), height = "calc(70vh - 50px)", overlay = TRUE)
                 ),
                 bslib::nav_panel(
                   "Summary Table",
@@ -101,7 +101,7 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "MASE",
-              chartModuleUI(ns("dqaMaseOutput"), height = "420px", overlay = TRUE)
+              chartModuleUI(ns("dqaMaseOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
             )
           )
         )

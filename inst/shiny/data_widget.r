@@ -74,9 +74,19 @@ data_widget_ui = function(id) {
 
       tags$p(
         tags$span("1.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
-        tags$strong("Select a formula file"), " — an Excel file that groups DHIS2 data elements
-        by subject (e.g. malaria cases = confirmed + suspected). Use the right panel to review
-        or build a formula, then save."
+        tags$strong("Select or create a formula file"), " — a formula groups DHIS2 data elements
+        by subject (e.g. malaria cases = confirmed + suspected)."
+      ),
+      tags$p(
+        style = "margin-left: 16px; margin-top: -4px;",
+        icon("folder-open", style = "color:#888; margin-right:4px; font-size:0.9em;"),
+        tags$em("Have a file?"), " Select it from the Formula Files list above.",
+        tags$br(),
+        icon("plus", style = "color:#888; margin-right:4px; font-size:0.9em;"),
+        tags$em("Starting fresh?"), " Type a new name in ",
+        tags$strong("Select/Add Formula"), ", then use the ",
+        tags$strong("Select"), " tab on the right to search for and add data elements.
+        Click ", tags$strong("Save Changes"), " when done."
       ),
 
       tags$p(
