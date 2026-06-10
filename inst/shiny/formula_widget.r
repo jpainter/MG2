@@ -61,6 +61,11 @@ formula_widget_ui <- function(id) {
                     ns("collapse_to_element"),
                     "One row per data element (collapse categories)",
                     value = TRUE
+                  ),
+                  checkboxInput(
+                    ns("show_row_counts"),
+                    "Show row counts (slow for large datasets)",
+                    value = FALSE
                   )
                 ),
                 uiOutput(ns("secondary_note_badge")),
@@ -174,8 +179,10 @@ formula_widget_server <- function(
         data_Widget_output$data1()
       })
 
-      # Counts per data column value (element_category) in the current dataset
+      # Counts per data column value (element_category) in the current dataset.
+      # Only computed when the user opts in — can be slow on large datasets.
       element_row_counts = reactive({
+        if (!isTRUE(input$show_row_counts)) return(NULL)
         d <- tryCatch(data1(), error = function(e) NULL)
         if (is.null(d) || nrow(d) == 0 || !"data" %in% names(d)) return(NULL)
         dt <- data.table::as.data.table(d)
@@ -183,8 +190,10 @@ formula_widget_server <- function(
         tibble::tibble(data_name = counts$data, n_rows = counts$N)
       })
 
-      # Total rows per dataElement.id (summed across all categories) for collapsed view
+      # Total rows per dataElement.id (summed across all categories) for collapsed view.
+      # Only computed when the user opts in — can be slow on large datasets.
       element_id_totals = reactive({
+        if (!isTRUE(input$show_row_counts)) return(NULL)
         d <- tryCatch(data1(), error = function(e) NULL)
         if (is.null(d) || nrow(d) == 0 || !"data.id" %in% names(d)) return(NULL)
         dt <- data.table::as.data.table(d)
