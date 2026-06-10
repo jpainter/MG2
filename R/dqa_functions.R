@@ -84,12 +84,20 @@
     .(orgUnit, orgUnitName, period = get(period_col), year = year_col,
       data.id, original)]
 
-  # Cast wide: one column per data.id
+  # Pre-aggregate to one row per orgUnit+period+data.id before pivoting.
+  # This avoids passing a custom R fun.aggregate to dcast (which is called
+  # once per group in R — very slow on large datasets).
+  # Rule: if any value is non-NA, sum them; if all NA, keep NA.
+  dt_agg <- dt_leaf[,
+    .(original = if (any(!is.na(original))) sum(original, na.rm = TRUE) else NA_real_),
+    by = .(orgUnit, orgUnitName, period, year, data.id)
+  ]
+
+  # Simple dcast — one value per cell, no aggregation function needed
   wide <- data.table::dcast(
-    dt_leaf,
+    dt_agg,
     orgUnit + orgUnitName + period + year ~ data.id,
     value.var = "original",
-    fun.aggregate = function(x) if (all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE),
     fill = NA_real_
   )
 
@@ -149,6 +157,17 @@ dqa_consistency <- function(data, validation_rules, filter_data_ids = NULL) {
       grepl(uid_pattern, validation_rules$rightSide_expression_raw, fixed = FALSE),
     ]
     if (nrow(validation_rules) == 0) return(NULL)
+  }
+
+  # Filter data to only the data.id values referenced by the remaining rules
+  # before the wide pivot — avoids pivoting thousands of irrelevant columns.
+  rule_ids <- unique(c(
+    unlist(lapply(validation_rules$leftSide_expression_raw,  .extract_vr_uid_pairs)),
+    unlist(lapply(validation_rules$rightSide_expression_raw, .extract_vr_uid_pairs))
+  ))
+  if (length(rule_ids) > 0 && "data.id" %in% names(data)) {
+    rule_de_uids <- unique(sub("_.*$", "", rule_ids))
+    data <- data[sub("_.*$", "", data[["data.id"]]) %in% rule_de_uids, ]
   }
 
   wide <- .vr_wide_data(data)
