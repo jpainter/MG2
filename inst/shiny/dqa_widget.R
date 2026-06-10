@@ -456,8 +456,8 @@ dqa_widget_server <- function(
 
       plotDqaMASE = reactive({
         cat('\n*  dqa_widget plotDqaMASE')
-        withProgress(message = "DQA: computing MASE stability...", value = NULL, {
-          dqa_data() %>% dqa_mase %>% dqa_mase_plot
+        withProgress(message = "DQA: computing SWAPE stability...", value = NULL, {
+          dqa_data() %>% dqa_swape %>% dqa_swape_plot
         })
       })
 

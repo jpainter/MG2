@@ -673,32 +673,35 @@ yearly.outlier.summary_plot <- function(data, text_size = 18, label_size = 6) {
 }
 
 
-# WAPE ------------------------------------------------------------------------
+# SWAPE -----------------------------------------------------------------------
 
-#' Compute WAPE for a Single Year
+#' Compute SWAPE for a Single Year
 #' @noRd
-wape_year <- function(dqa_data, .year) {
+swape_year <- function(dqa_data, .year) {
   dt <- data.table::setDT(tibble::as_tibble(dqa_data))[
     .month_to_year(Month) <= .year & !is.na(original) & !is.na(expected)
   ]
 
   n_facilities <- dt[, data.table::uniqueN(orgUnit)]
 
-  # WAPE = sum(|original - expected|) / sum(original), expressed as a fraction
-  wape_val <- dt[, sum(abs(original - expected), na.rm = TRUE) /
-                     sum(original, na.rm = TRUE)]
-  if (!is.finite(wape_val)) wape_val <- NA_real_
+  # SWAPE = 200 * sum(|actual - expected|) / (sum(actual) + sum(expected))
+  # Same formula as model_metrics(); result is 0-200 scale expressed as fraction
+  denom <- dt[, sum(original, na.rm = TRUE) + sum(expected, na.rm = TRUE)]
+  swape_val <- if (denom > 0) {
+    dt[, 2 * sum(abs(original - expected), na.rm = TRUE) / denom]
+  } else NA_real_
+  if (!is.finite(swape_val)) swape_val <- NA_real_
 
   tibble::tibble(
     Year       = .year,
     Facilities = n_facilities,
-    Mean_MASE  = wape_val,          # keep column name for plot compatibility
-    label      = scales::percent(wape_val, 0.1)
+    Mean_MASE  = swape_val,          # keep column name for plot compatibility
+    label      = scales::percent(swape_val, 0.1)
   )
 }
 
 
-#' Compute WAPE Across All Years in DQA Data
+#' Compute SWAPE Across All Years in DQA Data
 #'
 #' Requires an `expected` column (from seasonal cleaning). Returns `NULL`
 #' with a message when the column is absent.
@@ -707,37 +710,41 @@ wape_year <- function(dqa_data, .year) {
 #'
 #' @return A tibble with one row per year, or `NULL` if `expected` is absent.
 #' @export
-dqa_mase <- function(dqa_data) {
+dqa_swape <- function(dqa_data) {
   if (!"expected" %in% names(dqa_data)) {
-    message("dqa_mase: 'expected' column not found - WAPE plot requires seasonal cleaning first.")
+    message("dqa_swape: 'expected' column not found - SWAPE plot requires seasonal cleaning first.")
     return(NULL)
   }
   years <- dqa_years(dqa_data)$Year
-  result <- purrr::map_df(years, ~ wape_year(dqa_data, .x))
+  result <- purrr::map_df(years, ~ swape_year(dqa_data, .x))
   result[1:2, 3:ncol(result)] <- NA
   return(result)
 }
 
+#' @rdname dqa_swape
+#' @export
+dqa_mase <- dqa_swape   # backwards-compatible alias
 
-#' Plot WAPE Summary (Minimum Detectable Change)
+
+#' Plot SWAPE Summary (Minimum Detectable Change)
 #'
-#' @param data Output of [dqa_mase()].
+#' @param data Output of [dqa_swape()].
 #'
 #' @return A ggplot object.
 #' @export
-dqa_mase_plot <- function(data) {
+dqa_swape_plot <- function(data) {
   if (is.null(data)) {
     return(
       ggplot2::ggplot() +
         ggplot2::annotate("text", x = 0.5, y = 0.5,
-                          label = "WAPE requires seasonal cleaning (expected column not available)",
+                          label = "SWAPE requires seasonal cleaning (expected column not available)",
                           size = 5) +
         ggplot2::theme_void()
     )
   }
-  wape_txt <- paste(
-    "Weighted Absolute Percentage Error (WAPE) across ALL facilities —",
-    "sum(|actual \u2212 expected|) / sum(actual)\n",
+  swape_txt <- paste(
+    "Symmetric Weighted Absolute Percentage Error (SWAPE) across ALL facilities —",
+    "200 \u00d7 sum(|actual \u2212 expected|) / (sum(actual) + sum(expected))\n",
     "- The smaller this value, the more predictable the data trend\n",
     "- Year-to-year changes smaller than this value may reflect data variability rather than a real change\n",
     "- Note: selecting champion facilities in the Evaluation tab may show lower error than seen here"
@@ -757,8 +764,12 @@ dqa_mase_plot <- function(data) {
       x        = "Year",
       y        = "Percent",
       title    = "Minimum Detectable Change for Program Evaluation",
-      subtitle = wape_txt,
-      caption  = "NOTE: WAPE calculated beginning with 3rd year of data"
+      subtitle = swape_txt,
+      caption  = "NOTE: SWAPE calculated beginning with 3rd year of data"
     ) +
     ggplot2::theme_minimal(base_size = 18)
 }
+
+#' @rdname dqa_swape_plot
+#' @export
+dqa_mase_plot <- dqa_swape_plot   # backwards-compatible alias
