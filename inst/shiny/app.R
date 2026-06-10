@@ -69,18 +69,6 @@ options(dplyr.summarise.inform = FALSE)
 options(future.globals.maxSize = 30 * 1024^3)
 future::plan(future::multisession, workers = 1L)
 
-# UI helper: small next-step hint bar at the bottom of a tab
-.mg2_step_hint <- function(text) {
-  div(
-    style = paste0(
-      "margin-top:24px; padding:8px 16px; background:#f0f4ff;",
-      " border-left:4px solid #4a90d9; border-radius:3px; color:#555; font-size:13px;"
-    ),
-    icon("circle-info", style = "color:#4a90d9; margin-right:6px;"),
-    text
-  )
-}
-
 # Source Shiny modules ------------------------------------------------------
 # Each file defines a *_ui() and *_server() function for one app tab/panel.
 
@@ -193,8 +181,7 @@ ui <- bslib::page_navbar(
 
   bslib::nav_panel(
     "Metadata",
-    metadata_widget_ui("metadata1"),
-    .mg2_step_hint("→ Next: go to Regions — choose to analyse data nationally or sub-nationally — then go to Data to select and load a dataset.")
+    metadata_widget_ui("metadata1")
   ),
 
   bslib::nav_panel(

@@ -1,6 +1,27 @@
 # Utility functions for MG2 package
 # General-purpose helpers used throughout the package and Shiny app.
 
+# Shiny UI helpers ---------------------------------------------------------
+
+#' Step hint bar for Shiny tab navigation
+#'
+#' Renders a small blue hint bar pointing users to the next step.
+#' Used at the top of tab UI functions to guide new users.
+#'
+#' @param text Character. The hint text to display.
+#' @return A `div` tag.
+#' @keywords internal
+.mg2_step_hint <- function(text) {
+  shiny::div(
+    style = paste0(
+      "margin-top:24px; padding:8px 16px; background:#f0f4ff;",
+      " border-left:4px solid #4a90d9; border-radius:3px; color:#555; font-size:13px;"
+    ),
+    shiny::icon("circle-info", style = "color:#4a90d9; margin-right:6px;"),
+    text
+  )
+}
+
 # Date conversion ----------------------------------------------------------
 
 #' Convert a Date String to yearmonth
