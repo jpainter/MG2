@@ -62,7 +62,47 @@ data_widget_ui = function(id) {
 
     actionButton(ns("rescan"), "Rescan dataset (optional)", class = "btn-warning btn-sm"),
 
-    br()
+    br(),
+
+    tags$hr(style = "margin-top: 18px; margin-bottom: 12px;"),
+
+    div(
+      style = "font-size: 12px; color: #555; line-height: 1.6;",
+
+      tags$p(tags$strong("How this tab works:"),
+             style = "margin-bottom: 8px; color: #333; font-size: 13px;"),
+
+      tags$p(
+        tags$span("1.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
+        tags$strong("Select a formula file"), " — an Excel file that groups DHIS2 data elements
+        by subject (e.g. malaria cases = confirmed + suspected). Use the right panel to review
+        or build a formula, then save."
+      ),
+
+      tags$p(
+        tags$span("2.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
+        "Go to ", tags$strong("Data → Download"), " to fetch data from DHIS2 for your selected
+        formula, org units, and time period. Downloaded files appear in the",
+        tags$em("Data previously downloaded"), " list above."
+      ),
+
+      tags$p(
+        tags$span("3.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
+        "Select a downloaded dataset above to load it — then proceed to",
+        tags$strong("DQA, Reporting,"), " and ", tags$strong("Outliers"), " for analysis."
+      ),
+
+      tags$hr(style = "margin: 10px 0;"),
+
+      tags$p(
+        icon("layer-group", style = "color:#4a90d9; margin-right:5px;"),
+        tags$strong("Combine tab:"),
+        " Build derived datasets by merging or ratioing two existing downloaded files
+        (e.g. test positivity rate = positives ÷ tests performed).",
+        style = "margin-bottom: 0;"
+      )
+    )
+
   )
   # ) # end fillColl
 } # ui
@@ -294,8 +334,8 @@ data_widget_server <- function(
         formula = input$formula # paste0( input$formula , "_" )
         cat('\n* rds_data_file formula: ', input$formula, '\n')
 
-        file.type = 'rds|fst'
-        file.keywords = 'rds|fst'
+        file.type = 'rds|fst|qs2'
+        file.keywords = 'rds|fst|qs2'
 
         data.files = dir.files[
           grepl(file.type, dir.files, ignore.case = T) &
