@@ -66,7 +66,10 @@ suppressPackageStartupMessages(library(dplyr))
 
 # Options -------------------------------------------------------------------
 options(dplyr.summarise.inform = FALSE)
-options(future.globals.maxSize = 30 * 1024^3)
+# No size limit: fable's future_mapply checks globals even under plan(sequential),
+# and the fitting closure captures the Shiny reactive env. No data is actually
+# transferred (sequential plan), so the check is a false positive.
+options(future.globals.maxSize = Inf)
 future::plan(future::multisession, workers = 1L)
 
 # Source Shiny modules ------------------------------------------------------
