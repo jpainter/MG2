@@ -316,7 +316,10 @@ mostFrequentReportingOUs <- function(
   }
   .t0_mr <- proc.time()["elapsed"]
 
-  dt_rep[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = period]
+  # data.table::year(as.IDate()) uses pure C integer arithmetic — avoids tsibble's
+  # format.yearmonth() string-formatting dispatch, which is ~5-10x slower on large vectors.
+  dt_rep[, year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
+         .SDcols = period]
 
   # distinct (year, orgUnit, period) tuples → count reported periods per org/year
   mr = dt_rep[, .(report_periods = .N), by = .(year, orgUnit)]
@@ -331,7 +334,7 @@ mostFrequentReportingOUs <- function(
     dt
   ppy = unique(dt_periods[, period, with = FALSE])
   setnames(ppy, period, 'period_val')
-  ppy[, year := as.integer(format(period_val, "%Y"))]
+  ppy[, year := data.table::year(as.IDate(unclass(period_val), origin = "1970-01-01"))]
   periods_per_year = ppy[, .(max = .N), by = year]
   # max_years from selected-element denominator so count.any doesn't extend window
   max_years = uniqueN(periods_per_year$year)
@@ -2763,6 +2766,13 @@ yearly_summary_table <- function(
   positive_color = "#e74c3c",
   negative_color = "#27ae60"
 ) {
+  if (!requireNamespace("flextable", quietly = TRUE) ||
+      !requireNamespace("officer",   quietly = TRUE)) {
+    stop(
+      "Packages 'flextable' and 'officer' are required for yearly_summary_table(). ",
+      "Install them with: install.packages(c('flextable', 'officer'))"
+    )
+  }
   if (!inherits(data, "tbl_ts")) stop("Data must be a tsibble object")
   if (!all(c(date_col, value_col) %in% colnames(data))) {
     stop("Specified columns not found in data")
@@ -3127,65 +3137,75 @@ tsmodels = function(
 
   if (!is.null(covariate)) covariate = rlang::sym(covariate)
 
+  # Prophet models require fable.prophet (heavy rstan dependency — optional).
+  # Use rlang::quos + !!! splicing to include them only when the package is present.
+  .has_prophet <- requireNamespace("fable.prophet", quietly = TRUE)
+  if (msg && !.has_prophet)
+    cat("\n - tsmodels: fable.prophet not installed; prophet models skipped")
+
   if (msg) cat("\n - tsmodels: Preparing primary models")
   tictoc::tic()
   tictoc::tic()
 
   if (is.na(type)) {
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(var),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var),
-        t  = fable::TSLM(var),
-        p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative")),
-        .safely = TRUE
-      )
+    .specs <- rlang::quos(
+      a  = fable::ARIMA(var),
+      e  = fable::ETS(var),
+      n  = fable::NNETAR(var),
+      t  = fable::TSLM(var)
+    )
+    if (.has_prophet) .specs <- c(.specs, rlang::quos(
+      p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
+      p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative"))
+    ))
+    primary_models = train_data %>% fabletools::model(!!!.specs, .safely = TRUE)
   }
 
   if (!is.na(type) && type == "transform") {
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(log(var + 1)),
-        e  = fable::ETS(log(var + 1)),
-        n  = fable::NNETAR(log(var + 1)),
-        t  = fable::TSLM(log(var) ~ trend() + season()),
-        p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      )
+    .specs <- rlang::quos(
+      a  = fable::ARIMA(log(var + 1)),
+      e  = fable::ETS(log(var + 1)),
+      n  = fable::NNETAR(log(var + 1)),
+      t  = fable::TSLM(log(var) ~ trend() + season())
+    )
+    if (.has_prophet) .specs <- c(.specs, rlang::quos(
+      p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
+      p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative"))
+    ))
+    primary_models = train_data %>% fabletools::model(!!!.specs, .safely = TRUE)
   }
 
   if (!is.na(type) && type == "covariate") {
     if (.set.seed) set.seed(1432)
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(var ~ log(!!covariate)),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var ~ !!covariate),
-        t  = fable::TSLM(var ~ trend() + season() + !!covariate),
-        p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      )
+    .specs <- rlang::quos(
+      a  = fable::ARIMA(var ~ log(!!covariate)),
+      e  = fable::ETS(var),
+      n  = fable::NNETAR(var ~ !!covariate),
+      t  = fable::TSLM(var ~ trend() + season() + !!covariate)
+    )
+    if (.has_prophet) .specs <- c(.specs, rlang::quos(
+      p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
+      p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative"))
+    ))
+    primary_models = train_data %>% fabletools::model(!!!.specs, .safely = TRUE)
   }
 
   if (!is.na(type) && type == "transform and covariate") {
-    primary_models = train_data %>%
-      fabletools::model(
-        a  = fable::ARIMA(log(var) ~ log(!!covariate)),
-        e  = fable::ETS(log(var)),
-        n  = fable::NNETAR(log(var) ~ !!covariate),
-        t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
-        p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      )
+    .specs <- rlang::quos(
+      a  = fable::ARIMA(log(var) ~ log(!!covariate)),
+      e  = fable::ETS(log(var)),
+      n  = fable::NNETAR(log(var) ~ !!covariate),
+      t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate)
+    )
+    if (.has_prophet) .specs <- c(.specs, rlang::quos(
+      p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
+      p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
+      p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative"))
+    ))
+    primary_models = train_data %>% fabletools::model(!!!.specs, .safely = TRUE)
   }
 
   # When base_models is specified, drop unneeded model columns before forecasting.

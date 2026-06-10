@@ -131,9 +131,6 @@ read_file <- function(filename) {
   ext <- tools::file_ext(filename)
 
   if (tolower(ext) == "qs") {
-    if (!requireNamespace("qs2", quietly = TRUE)) {
-      stop("Package 'qs2' is required to read .qs files. Install with: install.packages('qs2')")
-    }
     return(qs2::qs_read(filename))
   }
 
@@ -155,15 +152,16 @@ read_file <- function(filename) {
     if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth")) {
       m_vals <- as.numeric(df[["Month"]])
       if (median(m_vals, na.rm = TRUE) <= 5000) {
-        df[["Month"]] <- structure(m_vals, class = c("yearmonth", "vctrs_vctr"))
+        # Months-since-epoch encoding (old tsibble/FST): convert to days-since-epoch.
+        # e.g. Jan 2019 stored as 588 months → needs to become 17897 days.
+        yr   <- 1970L + as.integer(m_vals) %/% 12L
+        mo   <- as.integer(m_vals) %% 12L + 1L
+        days <- as.double(as.Date(paste0(yr, "-", sprintf("%02d", mo), "-01")) -
+                            as.Date("1970-01-01"))
+        df[["Month"]] <- structure(days, class = c("yearmonth", "vctrs_vctr"))
       } else {
-        # Days-since-epoch encoding (legacy FST): convert to months-since-epoch.
-        # Done here on a plain data.frame — avoids data.table/vctrs dispatch issues.
-        dates      <- as.Date(as.integer(m_vals), origin = "1970-01-01")
-        yr         <- as.integer(format(dates, "%Y"))
-        mo         <- as.integer(format(dates, "%m"))
-        months_dbl <- as.double((yr - 1970L) * 12L + (mo - 1L))
-        df[["Month"]] <- structure(months_dbl, class = c("yearmonth", "vctrs_vctr"))
+        # Days-since-epoch encoding (current): values are correct, just restore class.
+        df[["Month"]] <- structure(m_vals, class = c("yearmonth", "vctrs_vctr"))
       }
     }
     if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek")) {
@@ -205,9 +203,7 @@ read_file <- function(filename) {
 #'
 #' @return `"qs2"` or `"rds"`.
 #' @export
-mg2_data_ext <- function() {
-  if (requireNamespace("qs2", quietly = TRUE)) "qs" else "rds"
-}
+mg2_data_ext <- function() "qs"
 
 
 #' Save a Data Frame to Disk
@@ -229,9 +225,6 @@ save_file <- function(x, filename, compress = 100) {
   ext <- tolower(tools::file_ext(filename))
 
   if (ext == "qs") {
-    if (!requireNamespace("qs2", quietly = TRUE)) {
-      stop("Package 'qs2' required to write .qs files. Install with: install.packages('qs2')")
-    }
     qs2::qs_save(x, filename)
     return(invisible(filename))
   }

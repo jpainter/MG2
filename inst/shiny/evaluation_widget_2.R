@@ -90,6 +90,20 @@ evaluation_widget_ui = function(id) {
                       choices = character(0), selected = NULL, width = "100%"
                     ),
 
+                    if (!requireNamespace("fable.prophet", quietly = TRUE))
+                      div(
+                        style = "font-size:0.8em; color:#888; margin: -6px 0 8px 0;",
+                        icon("circle-info", style = "color:#aaa; margin-right:4px;"),
+                        "Prophet models unavailable.",
+                        tags$a(
+                          "Install prophet",
+                          href     = "https://facebook.github.io/prophet/",
+                          target   = "_blank",
+                          style    = "color:#4a90d9;"
+                        ),
+                        "to enable P1/P4/P8 models."
+                      ),
+
                     checkboxInput(ns("transform"),   'Log transform count data',         TRUE),
                     checkboxInput(ns("forecast_ci"), 'Prediction interval',              TRUE),
 
@@ -1372,11 +1386,21 @@ evaluation_widget_server <- function(
 
         cat('\n* evaluation_widget annualTable():')
 
+        if (!requireNamespace("flextable", quietly = TRUE) ||
+            !requireNamespace("officer",   quietly = TRUE)) {
+          return(div(
+            style = "padding:12px; background:#fff8e1; border-left:4px solid #f9a825;
+                     border-radius:3px; color:#555; font-size:13px; margin-top:8px;",
+            icon("triangle-exclamation", style = "color:#f9a825; margin-right:6px;"),
+            "Annual summary table requires the ",
+            tags$strong("flextable"), " and ", tags$strong("officer"), " packages. ",
+            "Install them with: ",
+            tags$code("install.packages(c('flextable', 'officer'))")
+          ))
+        }
+
         mable_Data = mable_Data()
-
-        # cat("\n - yearly_summary_table " )
         ft = yearly_summary_table(data = mable_Data)
-
         cat("\n - class(ft):", class(ft))
         ft %>% htmltools_value()
       })
@@ -1466,7 +1490,7 @@ evaluation_widget_server <- function(
             hjust    = -0.05, vjust = 1.1,
             size     = 3,
             alpha    = 0.85,
-            label.size = 0.3
+            linewidth  = 0.3
           )
         }
 
@@ -2427,7 +2451,7 @@ evaluation_widget_server <- function(
           cat('\n - pre_eval_date:', pre_eval_date)
 
           g = g +
-            fabletools::autolayer(
+            ggtime::autolayer(
               tsPreForecast(),
               level = ifelse(input$forecast_ci, 89, FALSE),
               color = 'steelblue',
@@ -2472,7 +2496,7 @@ evaluation_widget_server <- function(
           cat('\n - evaluation line.  ', 'pi_levels:', pi_levels())
 
           g = g +
-            fabletools::autolayer(
+            ggtime::autolayer(
               tsForecast(),
               color = 'darkorange',
               level = ifelse(input$forecast_ci, 89, FALSE),
@@ -2526,7 +2550,7 @@ evaluation_widget_server <- function(
           if (!is.null(sel_predicted) && nrow(sel_predicted) > 0 && !is.null(test.forecasts)) {
             g = g +
               # Post-intervention evaluation forecast (strip samples list-col before autolayer)
-              fabletools::autolayer(
+              ggtime::autolayer(
                 sel_predicted %>% dplyr::select(-dplyr::any_of("samples")),
                 color    = 'darkorange',
                 level    = ifelse(input$forecast_ci, 80, FALSE),
@@ -2536,7 +2560,7 @@ evaluation_widget_server <- function(
               ) +
               # Test-period forecast for the selected model (pre-intervention validation)
               # Only shown when "Pre-intervention model fit" checkbox is checked.
-              if (input$pre_evaluation) fabletools::autolayer(
+              if (input$pre_evaluation) ggtime::autolayer(
                 test.forecasts %>%
                   dplyr::filter(.model == sel_model_name) %>%
                   dplyr::select(-dplyr::any_of("samples")),
@@ -2561,7 +2585,7 @@ evaluation_widget_server <- function(
                   hjust        = -0.05, vjust = -0.05,
                   size         = 3.5,
                   alpha        = 0.85,
-                  label.size   = 0.3
+                  linewidth    = 0.3
                 )
               }
             } else {
@@ -2582,7 +2606,7 @@ evaluation_widget_server <- function(
                   hjust      = -0.05, vjust = -0.1,
                   size       = 4,
                   alpha      = 0.85,
-                  label.size = 0.3
+                  linewidth  = 0.3
                 )
               }
             }

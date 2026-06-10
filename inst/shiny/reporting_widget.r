@@ -1093,7 +1093,9 @@ reporting_widget_server <- function(
         # Add year in-place on d()'s cached data.table — avoids a ~530ms full copy.
         # The year column persists in the cache across calls, which is safe and saves
         # recomputation when both orgunit.reports and orgunit.monthly.reports run.
-        if (!'year' %in% names(data)) data[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = .period]
+        if (!'year' %in% names(data)) data[,
+          year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
+          .SDcols = .period]
         o.r. = data
 
         # Use integer key for period to bypass vctrs dispatch in unique() —
@@ -1147,7 +1149,9 @@ reporting_widget_server <- function(
         }
 
         # Add year in-place — avoids ~530ms copy (same pattern as orgunit.reports).
-        if (!'year' %in% names(data)) data[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = .period]
+        if (!'year' %in% names(data)) data[,
+          year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
+          .SDcols = .period]
         o.m.r = data
         # %>%
         # mutate( year = factor( year ) )
@@ -1409,8 +1413,18 @@ reporting_widget_server <- function(
           #      paste( selected_data_categories$elements , collapse = ", " )
           #      )
 
+          # Pre-filter to selected elements before passing to mostFrequentReportingOUs.
+          # Reduces date-window scan from ~34M rows (all elements) to ~3M (selected),
+          # saving ~10-12 sec. The function's internal %chin% filter becomes a no-op.
+          # "any_data" rule intentionally uses all elements, so skip pre-filter then.
+          .d_rous <- if (input$reporting_rule != "any_data" &&
+                         length(selected_data_categories$elements) > 0)
+            d()[get("data") %chin% selected_data_categories$elements]
+          else
+            d()
+
           sf = mostFrequentReportingOUs(
-            d = d(),
+            d = .d_rous,
             endingMonth = endingMonth_debounced(),
             startingMonth = startingMonth_debounced(),
             missing_reports = as.integer(input$missing_reports),
@@ -1706,9 +1720,17 @@ reporting_widget_server <- function(
           paste(selected_data_categories$elements, collapse = ", ")
         )
 
+        # Pre-filter to selected elements before cleanedData — reduces input from
+        # ~34M rows (all elements) to ~3M rows (selected elements only), saving ~4 sec.
+        # cleanedData only does per-row operations (effectiveLeaf, dataCol, NA_ filter)
+        # so pre-filtering is safe and produces identical output.
         .t0_sd <- proc.time()["elapsed"]
+        .d1_input <- if (length(selected_data_categories$elements) > 0)
+          as.data.table(data1())[get("data") %chin% selected_data_categories$elements]
+        else
+          data1()
         .cleanedData = cleanedData(
-          data1(),
+          .d1_input,
           .effectiveLeaf = TRUE,
           source = input$source,
           error = NULL,

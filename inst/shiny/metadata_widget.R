@@ -11,8 +11,7 @@ metadata_widget_ui <- function(id) {
 
       tags$head(tags$style(".button{width: 50%;}")),
 
-      # add_busy_spinner(spin = "fading-circle",
-      #                position = "top-right") ,
+      .mg2_step_hint("→ Next: go to Regions — choose to analyse data nationally or sub-nationally — then go to Data to select and load a dataset."),
 
       tabsetPanel(
         type = "tabs",

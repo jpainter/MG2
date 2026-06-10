@@ -81,7 +81,7 @@ cleaning_widget_ui = function(id) {
             "Summary",
             br(),
             textOutput(ns("outlierSummaryText")),
-            tableOutput(ns("outlier.summary.table")),
+            DT::dataTableOutput(ns("outlier.summary.table")),
             tags$p(style = "font-size:0.9em; color:#555; margin-top:4px;",
                    htmltools::HTML("For outlier procedure details see the <b>About</b> tab.")),
             hr(style = "margin: 6px 0;"),
@@ -885,7 +885,7 @@ cleaning_widget_server <- function(
         req(outlier.dataset())
         req(levelNames())
 
-        d_full = as.data.table(outlier.dataset())
+        d_full = outlier.dataset()
 
         flag_cols = intersect(
           c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3"),
@@ -1146,25 +1146,8 @@ cleaning_widget_server <- function(
         req(input$endingMonth)
         req(period())
 
-        d = selected_data()
-
         cat('\n* cleaning_widget outlier.dataset():')
-        # if ( is.null( outlierData$df_data ) ){
-        #   cat( '\n - is.null( outlierData$df_data )' )
-        #   outlierData$df_data  = data1()
-        # }
 
-        # d = outlierData$df_data
-
-        # filter date
-        # d = d %>%
-        #   filter(
-        #     Month >= yearmonth( input$startingMonth ) ,
-        #     Month <= yearmonth(input$endingMonth )
-        #     )
-        # d. = as.data.table( outlierData$df_data )
-
-        # d. = as.data.table( data1() )
         d. = as.data.table(selected_data())
 
         if (input$reporting != "All") {
@@ -1188,29 +1171,18 @@ cleaning_widget_server <- function(
         # saveRDS( d. , "d..rds" )
 
         if (period() %in% 'Month') {
-          # d = d.[ which(
-          #   Month >= yearmonth( input$startingMonth ) & Month <= yearmonth(input$endingMonth ) ) ,] %>%
-          #   as_tibble
-
-          d = d. %>%
-            filter(
-              Month >= yearmonth(input$startingMonth) &
-                Month <= yearmonth(input$endingMonth)
-            ) %>%
-            as_tibble
-
+          # Use unclass() to compare as plain integers — avoids vctrs dispatch on
+          # yearmonth, which is ~5-10x slower for large vectors.
+          .sm_int <- unclass(yearmonth(input$startingMonth))
+          .em_int <- unclass(yearmonth(input$endingMonth))
+          d <- d.[unclass(Month) >= .sm_int & unclass(Month) <= .em_int]
           cat('\n - period is month')
         }
 
         if (period() %in% 'Week') {
-          d = d.[
-            which(
-              Week >= yearweek(input$startingMonth) &
-                Week <= yearweek(input$endingMonth)
-            ),
-          ] %>%
-            as_tibble
-
+          .sw_int <- unclass(yearweek(input$startingMonth))
+          .ew_int <- unclass(yearweek(input$endingMonth))
+          d <- d.[unclass(Week) >= .sw_int & unclass(Week) <= .ew_int]
           cat('\n - period is week')
         }
 
@@ -1244,11 +1216,11 @@ cleaning_widget_server <- function(
           d = setDT(d)[base::get(levelNames()[5]) %in% sr$level5, , ]
         }
 
-        # filter dataElement
+        # filter dataElement — stay as data.table; callers use it directly
         if (!is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
-          d = setDT(d)[data %in% selected_data_cats$elements, ] %>% as_tibble()
+          d = setDT(d)[data %chin% selected_data_cats$elements]
         } else {
-          d = d %>% as_tibble()
+          d = setDT(d)
         }
 
         cat('\n - done')
@@ -1306,7 +1278,27 @@ cleaning_widget_server <- function(
         return(os)
       })
 
-      output$outlier.summary.table = renderTable(outlier.summary.table())
+      output$outlier.summary.table = DT::renderDataTable({
+        dt <- outlier.summary.table()
+        req(nrow(dt) > 0)
+        DT::datatable(
+          dt,
+          rownames = FALSE,
+          options = list(
+            dom       = 't',
+            paging    = FALSE,
+            ordering  = FALSE,
+            autoWidth = FALSE,
+            rowCallback = DT::JS(
+              "function(row, data) {",
+              "  if (data[0] === 'No Error Flags') {",
+              "    $(row).css({'background-color': '#f0f9f0', 'font-weight': 'bold'});",
+              "  }",
+              "}"
+            )
+          )
+        )
+      })
 
       # Outlier cleaning chart ####
       output$outlier_cleaning_chart <- plotly::renderPlotly({
@@ -1322,7 +1314,7 @@ cleaning_widget_server <- function(
         }
 
         period_col <- if ("Month" %in% names(d)) "Month" else "Week"
-        dt <- data.table::as.data.table(d)
+        dt <- d  # outlier.dataset() already returns data.table
         dt[, t := as.Date(get(period_col))]
 
         # Build cumulative cleaning levels

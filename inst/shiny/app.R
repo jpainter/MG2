@@ -195,8 +195,8 @@ ui <- bslib::page_navbar(
     bslib::nav_panel(
       "Formula",
       fluidRow(
-        column(5, data_widget_ui("data1")),
-        column(7, formula_widget_ui("formula1"))
+        column(4, data_widget_ui("data1")),
+        column(8, formula_widget_ui("formula1"))
       )
     ),
     bslib::nav_panel("Download", data_request_widget_ui("data_request1")),

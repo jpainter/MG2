@@ -549,6 +549,29 @@ data_widget_server <- function(
 
           removeModal()
 
+          # Auto-convert legacy .rds files to .qs on first load.
+          # Saves a .qs copy alongside the .rds; the .rds is kept as backup.
+          # On the next session the .qs will appear in the dataset list and
+          # load ~10x faster with ~10x less disk space.
+          if (tolower(tools::file_ext(file)) == "rds") {
+            qs_file <- sub("\\.rds$", ".qs", file, ignore.case = TRUE)
+            if (!file.exists(qs_file)) {
+              tryCatch({
+                MG2:::save_file(d, qs_file)
+                showNotification(
+                  paste0("Saved as ", basename(qs_file),
+                         " for faster future loading. ",
+                         "You can delete the .rds file."),
+                  type     = "message",
+                  duration = 8
+                )
+                cat('\n - auto-converted to .qs:', qs_file)
+              }, error = function(e) {
+                cat('\n - auto-convert to .qs failed:', conditionMessage(e))
+              })
+            }
+          }
+
           cat('\n - done: dataset has', nrow(d), 'rows')
           .dw_cache <<- list(path = file, data = d, sc = sc)
 
@@ -697,10 +720,28 @@ data_widget_server <- function(
         # Month encoding is now fixed upstream in read_file() for FST files.
         # For RDS files, yearmonth class is preserved by saveRDS/readRDS.
         # setDT() can silently drop the S3 class; restore it if missing.
-        if ("Month" %in% names(d1) && !inherits(d1[["Month"]], "yearmonth")) {
+        if ("Month" %in% names(d1)) {
           m_raw <- c(unclass(d1[["Month"]]))
-          data.table::set(d1, j = "Month",
-                          value = structure(m_raw, class = c("yearmonth", "vctrs_vctr")))
+          if (length(m_raw) > 0) {
+            med <- median(m_raw, na.rm = TRUE)
+            needs_fix <- !inherits(d1[["Month"]], "yearmonth") || med <= 5000
+            if (needs_fix) {
+              if (med <= 5000) {
+                # Months-since-epoch (old encoding, e.g. from qs/fst with wrong values):
+                # convert to days-since-epoch so tsibble formats dates correctly.
+                yr   <- 1970L + as.integer(m_raw) %/% 12L
+                mo   <- as.integer(m_raw) %% 12L + 1L
+                days <- as.double(as.Date(paste0(yr, "-", sprintf("%02d", mo), "-01")) -
+                                    as.Date("1970-01-01"))
+                data.table::set(d1, j = "Month",
+                                value = structure(days, class = c("yearmonth", "vctrs_vctr")))
+              } else {
+                # Days-since-epoch, class just needs restoring.
+                data.table::set(d1, j = "Month",
+                                value = structure(m_raw, class = c("yearmonth", "vctrs_vctr")))
+              }
+            }
+          }
         }
 
         cat("\n - end d1  class/cols:\n -- ", class(d1), "\n")
