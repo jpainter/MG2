@@ -90,10 +90,10 @@ Week_Year <- function(x) {
 
 # File I/O ------------------------------------------------------------------
 
-#' Read an RDS, QS, or FST File
+#' Read an RDS, QS2, or FST File
 #'
-#' Reads a data file in `.rds`, `.qs`, or `.fst` format, selecting the
-#' appropriate reader based on the file extension. `.qs` is the preferred
+#' Reads a data file in `.rds`, `.qs2`, or `.fst` format, selecting the
+#' appropriate reader based on the file extension. `.qs2` is the preferred
 #' format: fast I/O with ZSTD compression and full R object preservation
 #' (no class-stripping). `.fst` is supported for legacy files.
 #'
@@ -104,16 +104,16 @@ Week_Year <- function(x) {
 #'
 #' @examples
 #' \dontrun{
-#'   df <- read_file("data/malaria_2023-01-15.qs")
+#'   df <- read_file("data/malaria_2023-01-15.qs2")
 #' }
 read_file <- function(filename) {
   ext <- tools::file_ext(filename)
 
-  if (tolower(ext) == "qs") {
-    if (!requireNamespace("qs", quietly = TRUE)) {
-      stop("Package 'qs' is required to read .qs files. Install with: install.packages('qs')")
+  if (tolower(ext) == "qs2") {
+    if (!requireNamespace("qs2", quietly = TRUE)) {
+      stop("Package 'qs2' is required to read .qs2 files. Install with: install.packages('qs2')")
     }
-    return(qs::qread(filename))
+    return(qs2::qs_read(filename))
   }
 
   if (tolower(ext) == "fst") {
@@ -171,47 +171,47 @@ read_file <- function(filename) {
   }
 
   stop(
-    "Unsupported file extension: '", ext, "'. Supported: .qs, .rds, .fst."
+    "Unsupported file extension: '", ext, "'. Supported: .qs2, .rds, .fst."
   )
 }
 
 
 #' Return the Preferred Data File Extension
 #'
-#' Returns `"qs"` when the `qs` package is installed (fast I/O, compressed,
-#' full R object preservation), otherwise `"rds"`. Use this to build filenames
-#' for [save_file()].
+#' Returns `"qs2"` when the `qs2` package is installed (fast I/O, ZSTD
+#' compressed, full R object preservation), otherwise `"rds"`. Use this to
+#' build filenames for [save_file()].
 #'
-#' @return `"qs"` or `"rds"`.
+#' @return `"qs2"` or `"rds"`.
 #' @export
 mg2_data_ext <- function() {
-  if (requireNamespace("qs", quietly = TRUE)) "qs" else "rds"
+  if (requireNamespace("qs2", quietly = TRUE)) "qs2" else "rds"
 }
 
 
 #' Save a Data Frame to Disk
 #'
-#' Writes a data frame to a `.qs`, `.rds`, or `.fst` file based on the file
-#' extension in `filename`. `.qs` is the preferred format: ZSTD-compressed,
+#' Writes a data frame to a `.qs2`, `.rds`, or `.fst` file based on the file
+#' extension in `filename`. `.qs2` is the preferred format: ZSTD-compressed,
 #' fast, and preserves all R object classes (including `yearmonth`) without
 #' any post-read restoration. `.rds` and legacy `.fst` are also supported.
 #'
 #' @param x A data frame or data.table.
-#' @param filename Character. Destination path. Extension must be `".qs"`,
+#' @param filename Character. Destination path. Extension must be `".qs2"`,
 #'   `".rds"`, or `".fst"`.
 #' @param compress Integer (0-100). Compression level for `.fst` files (default
-#'   `100`). Ignored for `.qs` and `.rds`.
+#'   `100`). Ignored for `.qs2` and `.rds`.
 #'
 #' @return `filename`, invisibly.
 #' @export
 save_file <- function(x, filename, compress = 100) {
   ext <- tolower(tools::file_ext(filename))
 
-  if (ext == "qs") {
-    if (!requireNamespace("qs", quietly = TRUE)) {
-      stop("Package 'qs' required to write .qs files. Install with: install.packages('qs')")
+  if (ext == "qs2") {
+    if (!requireNamespace("qs2", quietly = TRUE)) {
+      stop("Package 'qs2' required to write .qs2 files. Install with: install.packages('qs2')")
     }
-    qs::qsave(x, filename)
+    qs2::qs_save(x, filename)
     return(invisible(filename))
   }
 
