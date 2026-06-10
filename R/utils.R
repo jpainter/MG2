@@ -113,8 +113,8 @@ Week_Year <- function(x) {
 
 #' Read an RDS, QS2, or FST File
 #'
-#' Reads a data file in `.rds`, `.qs2`, or `.fst` format, selecting the
-#' appropriate reader based on the file extension. `.qs2` is the preferred
+#' Reads a data file in `.rds`, `.qs`, or `.fst` format, selecting the
+#' appropriate reader based on the file extension. `.qs` is the preferred
 #' format: fast I/O with ZSTD compression and full R object preservation
 #' (no class-stripping). `.fst` is supported for legacy files.
 #'
@@ -125,14 +125,14 @@ Week_Year <- function(x) {
 #'
 #' @examples
 #' \dontrun{
-#'   df <- read_file("data/malaria_2023-01-15.qs2")
+#'   df <- read_file("data/malaria_2023-01-15.qs")
 #' }
 read_file <- function(filename) {
   ext <- tools::file_ext(filename)
 
-  if (tolower(ext) == "qs2") {
+  if (tolower(ext) == "qs") {
     if (!requireNamespace("qs2", quietly = TRUE)) {
-      stop("Package 'qs2' is required to read .qs2 files. Install with: install.packages('qs2')")
+      stop("Package 'qs2' is required to read .qs files. Install with: install.packages('qs2')")
     }
     return(qs2::qs_read(filename))
   }
@@ -192,7 +192,7 @@ read_file <- function(filename) {
   }
 
   stop(
-    "Unsupported file extension: '", ext, "'. Supported: .qs2, .rds, .fst."
+    "Unsupported file extension: '", ext, "'. Supported: .qs, .rds, .fst."
   )
 }
 
@@ -206,31 +206,31 @@ read_file <- function(filename) {
 #' @return `"qs2"` or `"rds"`.
 #' @export
 mg2_data_ext <- function() {
-  if (requireNamespace("qs2", quietly = TRUE)) "qs2" else "rds"
+  if (requireNamespace("qs2", quietly = TRUE)) "qs" else "rds"
 }
 
 
 #' Save a Data Frame to Disk
 #'
-#' Writes a data frame to a `.qs2`, `.rds`, or `.fst` file based on the file
-#' extension in `filename`. `.qs2` is the preferred format: ZSTD-compressed,
+#' Writes a data frame to a `.qs`, `.rds`, or `.fst` file based on the file
+#' extension in `filename`. `.qs` is the preferred format: ZSTD-compressed,
 #' fast, and preserves all R object classes (including `yearmonth`) without
 #' any post-read restoration. `.rds` and legacy `.fst` are also supported.
 #'
 #' @param x A data frame or data.table.
-#' @param filename Character. Destination path. Extension must be `".qs2"`,
+#' @param filename Character. Destination path. Extension must be `".qs"`,
 #'   `".rds"`, or `".fst"`.
 #' @param compress Integer (0-100). Compression level for `.fst` files (default
-#'   `100`). Ignored for `.qs2` and `.rds`.
+#'   `100`). Ignored for `.qs` and `.rds`.
 #'
 #' @return `filename`, invisibly.
 #' @export
 save_file <- function(x, filename, compress = 100) {
   ext <- tolower(tools::file_ext(filename))
 
-  if (ext == "qs2") {
+  if (ext == "qs") {
     if (!requireNamespace("qs2", quietly = TRUE)) {
-      stop("Package 'qs2' required to write .qs2 files. Install with: install.packages('qs2')")
+      stop("Package 'qs2' required to write .qs files. Install with: install.packages('qs2')")
     }
     qs2::qs_save(x, filename)
     return(invisible(filename))

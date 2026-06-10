@@ -334,8 +334,8 @@ data_widget_server <- function(
         formula = input$formula # paste0( input$formula , "_" )
         cat('\n* rds_data_file formula: ', input$formula, '\n')
 
-        file.type = 'rds|fst|qs2'
-        file.keywords = 'rds|fst|qs2'
+        file.type = 'rds|fst|qs'
+        file.keywords = 'rds|fst|qs'
 
         data.files = dir.files[
           grepl(file.type, dir.files, ignore.case = T) &
