@@ -182,7 +182,7 @@ reporting_widget_ui = function(id) {
               htmlOutput(ns("region_filter_status")),
 
               fluidRow(
-                style = "height:40vh;",
+                style = "height:55vh;",
 
                 column(
                   6,
@@ -192,7 +192,7 @@ reporting_widget_ui = function(id) {
                   ### Number of Facilties Reporting each Period (plot_reporting_by_month)
                   chartModuleUI(
                     ns('plot_reporting_by_month'),
-                    height  = "80%", overlay = TRUE,
+                    height  = "90%", overlay = TRUE,
                     click = "plot_click", dblclick = "plot_dblclick",
                     hover = "plot_hover", brush = "plot_brush"
                   )
@@ -209,7 +209,7 @@ reporting_widget_ui = function(id) {
 
                   chartModuleUI(
                     ns('plot_reports_in_a_year'),
-                    height  = "80%", overlay = TRUE,
+                    height  = "90%", overlay = TRUE,
                     click = "plot_click", dblclick = "plot_dblclick",
                     hover = "plot_hover", brush = "plot_brush"
                   )
