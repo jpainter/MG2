@@ -181,86 +181,76 @@ reporting_widget_ui = function(id) {
             fluidPage(
               htmlOutput(ns("region_filter_status")),
 
-              fluidRow(
-                style = "height:55vh;",
+              tabsetPanel(
+                type = "tabs",
 
-                column(
-                  6,
+                tabPanel(
+                  "Reports Received",
+                  style = "height:80vh; padding-top:10px;",
 
-                  # h5( 'Number of Facilties Reporting Each Period') ,
+                  fluidRow(
+                    style = "height:75vh;",
 
-                  ### Number of Facilties Reporting each Period (plot_reporting_by_month)
-                  chartModuleUI(
-                    ns('plot_reporting_by_month'),
-                    height  = "90%", overlay = TRUE,
-                    click = "plot_click", dblclick = "plot_dblclick",
-                    hover = "plot_hover", brush = "plot_brush"
+                    column(
+                      6,
+                      ### Number of Facilties Reporting each Period (plot_reporting_by_month)
+                      chartModuleUI(
+                        ns('plot_reporting_by_month'),
+                        height  = "90%", overlay = TRUE,
+                        click = "plot_click", dblclick = "plot_dblclick",
+                        hover = "plot_hover", brush = "plot_brush"
+                      )
+                    ),
+
+                    column(
+                      6,
+                      ### Histogram of Annual Number of Months Reported (plot_reports_in_a_year)
+                      chartModuleUI(
+                        ns('plot_reports_in_a_year'),
+                        height  = "90%", overlay = TRUE,
+                        click = "plot_click", dblclick = "plot_dblclick",
+                        hover = "plot_hover", brush = "plot_brush"
+                      )
+                    )
                   )
                 ),
 
-                column(
-                  6,
-                  # htmlOutput("x_value") ,
+                tabPanel(
+                  "Total Value Reported",
+                  style = "height:80vh; padding-top:10px;",
 
-                  # h5( 'Histogram of Periods Reported Each Year') ,
+                  fluidRow(
+                    column(
+                      3,
+                      selectInput(
+                        ns("series_by"),
+                        label = "Color series by:",
+                        choices = c("None", "Dataset", "Category"),
+                        selected = "None"
+                      )
+                    ),
+                    column(
+                      3,
+                      selectInput(
+                        ns("facet_by"),
+                        label = "Facet chart by:",
+                        choices = c("Champion/Non-Champion", "All Facilities"),
+                        selected = "Champion/Non-Champion"
+                      )
+                    )
+                  ),
 
-                  ### Histogram of Annual Number of Months Reported (plot_reports_in_a_year)
-                  # miniContentPanel(
+                  fluidRow(
+                    style = "height:65vh;",
 
-                  chartModuleUI(
-                    ns('plot_reports_in_a_year'),
-                    height  = "90%", overlay = TRUE,
-                    click = "plot_click", dblclick = "plot_dblclick",
-                    hover = "plot_hover", brush = "plot_brush"
-                  )
-
-                  # , scrollable = TRUE
-                )
-                # )
-
-                # , h6( 'Red indicates the facilities that reported each month (*Champions*)' )
-              ),
-
-              # h5( "Data Values: On Right, from facilities that reported each month (*Champions*); on left, from all others")  ,
-
-              # fluidRow( style = "height:10vh;",
-              #
-              #           column(6, h5( "Data Values from Inconsistenly Reporting Facilities" ) ) ,
-              #
-              #           column(6, h5( "Data Values from *Champion* Facilities" ) )
-              #
-              # ) ,
-
-              fluidRow(
-                column(
-                  3,
-                  selectInput(
-                    ns("series_by"),
-                    label = "Color series by:",
-                    choices = c("None", "Dataset", "Category"),
-                    selected = "None"
-                  )
-                ),
-                column(
-                  3,
-                  selectInput(
-                    ns("facet_by"),
-                    label = "Facet chart by:",
-                    choices = c("Champion/Non-Champion", "All Facilities"),
-                    selected = "Champion/Non-Champion"
-                  )
-                )
-              ),
-
-              fluidRow(
-                style = "height:40vh;",
-
-                column(
-                  12,
-                  chartModuleUI(
-                    ns('plot_values'),
-                    height  = "80%", overlay = TRUE,
-                    hover = "plot_hover", brush = "plot_brush"
+                    column(
+                      12,
+                      chartModuleUI(
+                        ns('plot_values'),
+                        height  = "90%", overlay = TRUE,
+                        hover = "plot_hover", brush = "plot_brush"
+                      )
+                    )
                   )
                 )
               )
