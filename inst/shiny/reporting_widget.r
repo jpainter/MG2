@@ -1572,7 +1572,8 @@ reporting_widget_server <- function(
             ylim(0, NA) +
             scale_color_manual(
               values = c('All' = 'black', 'Champion' = 'brown')
-            )
+            ) +
+            labs(color = "Facilities")
 
           if (!is.null(reportingSelectedOUs())) {
             cat('\n - g + selected facilities ')
