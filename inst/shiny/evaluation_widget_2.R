@@ -2716,6 +2716,32 @@ evaluation_widget_server <- function(
         cat('\n*  evaluation_widget plotOutput')
         cat('\n - input$components:', input$components)
 
+        # Empty-state: champion/non-champion selected but no matching facilities
+        if (!is.null(input$reporting) && input$reporting != "All" &&
+            is.null(mable_Data())) {
+          label <- tolower(input$reporting)
+          return(
+            ggplot2::ggplot() +
+              ggplot2::annotate(
+                "label", x = 0.5, y = 0.6,
+                label = paste0("No ", label, " facilities found."),
+                size = 6, fontface = "bold", fill = "#fff3cd", colour = "#856404",
+                label.size = 0.5
+              ) +
+              ggplot2::annotate(
+                "text", x = 0.5, y = 0.4,
+                label = paste0(
+                  "Select \"All\" from the facility filter above,\n",
+                  "or go to the Reporting page to adjust the champion criteria."
+                ),
+                size = 4, colour = "#555"
+              ) +
+              ggplot2::scale_x_continuous(breaks = NULL, name = NULL, limits = c(0, 1)) +
+              ggplot2::scale_y_continuous(breaks = NULL, name = NULL, limits = c(0, 1)) +
+              ggplot2::theme_void()
+          )
+        }
+
         if (input$components) {
           cat('\n - components')
           g = plotComponents()
