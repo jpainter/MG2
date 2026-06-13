@@ -290,7 +290,22 @@ cleaning_widget_server <- function(
           error = function(e) NULL
         )
 
-        if (is.null(champion_ous) || length(champion_ous) == 0) {
+        if (is.null(champion_ous)) {
+          # Reporting tab not yet visited — champion criteria not calculated
+          div(
+            style = paste0(
+              "background:#fff3cd; padding:8px 12px;",
+              " border-left:4px solid #ffc107; margin:8px 0 2px 0; border-radius:3px;"
+            ),
+            tags$strong(style = "color:#856404;", "Champion facilities not yet defined."),
+            tags$p(
+              style = "margin:4px 0 0 0; color:#6b5200; font-size:0.85em;",
+              "Visit the ", tags$strong("Reporting"), " page first to calculate champion facilities.",
+              " Showing all facilities until then."
+            )
+          )
+        } else if (length(champion_ous) == 0) {
+          # Reporting visited but zero champions found
           div(
             style = paste0(
               "background:#fff3cd; padding:8px 12px;",
@@ -300,7 +315,8 @@ cleaning_widget_server <- function(
             tags$p(
               style = "margin:4px 0 0 0; color:#6b5200; font-size:0.85em;",
               "Showing all facilities. Go to the ",
-              tags$strong("Reporting"), " page to adjust the champion criteria."
+              tags$strong("Reporting"), " page to adjust the champion criteria",
+              " (try relaxing the reporting rule or allowing more missing reports)."
             )
           )
         }
