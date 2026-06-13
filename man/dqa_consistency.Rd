@@ -21,6 +21,6 @@ A tibble with columns \code{rule_id}, \code{rule_name}, \code{year}, \code{n_eva
 \code{n_passed}, \code{n_failed}, \code{incomplete} (TRUE if required elements not in data).
 }
 \description{
-For each rule × facility × period, determines whether the rule passed,
+For each rule x facility x period, determines whether the rule passed,
 failed, or could not be evaluated (missing data elements).
 }

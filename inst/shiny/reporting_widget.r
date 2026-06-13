@@ -14,40 +14,46 @@ reporting_widget_ui = function(id) {
         tabsetPanel(
           type = "tabs",
           selected = "Data Elements",
+
           tabPanel(
-            "Display",
+            "Data Elements",
 
-            inputPanel(
-              selectInput(
-                ns("source"),
-                label = "Original/Cleaned",
-                choices = c('Original', 'Cleaned'),
-                selected = 'Original'
-              ),
-
-              selectInput(
-                ns("split"),
-                label = "Split Data By:",
-                choices = "None",
-                selected = "None"
-              )
+            p(
+              style = "font-size:0.85em; color:#444; margin-top:6px; margin-bottom:2px;",
+              "Checked elements count as reporting. ",
+              tags$em("See About for details.")
             ),
 
-            h5('Filter display dates'),
-
-            inputPanel(
-              selectizeInput(
-                ns("startDisplayMonth"),
-                label = "begining",
-                choices = NULL,
-                selected = NULL
+            radioButtons(
+              ns("reporting_rule"),
+              label = "Count a facility as reporting when:",
+              choices = c(
+                "All selected elements — every category present"   = "all_categories",
+                "All selected elements — at least one category"    = "all_elements",
+                "Any selected element present"                     = "any_selected",
+                "Any data element present (including unchecked)"   = "any_data"
               ),
+              selected = "any_selected"
+            ),
 
-              selectizeInput(
-                ns("endDisplayMonth"),
-                label = "ending",
+            uiOutput(ns("reporting_rule_hint")),
+
+            div(
+              style = "display:flex; align-items:center; gap:6px; margin-bottom:2px;",
+              actionButton(ns('update_data_categories'), label = "Update",
+                           class = "btn-info btn-sm"),
+              checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
+              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = FALSE)
+            ),
+
+            div(
+              style = "max-height: calc(100vh - 580px); min-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              checkboxGroupInput(
+                ns("data_categories"),
+                label = NULL,
                 choices = NULL,
-                selected = NULL
+                selected = 1,
+                width = "100%"
               )
             )
           ),
@@ -126,47 +132,43 @@ reporting_widget_ui = function(id) {
           ),
 
           tabPanel(
-            "Data Elements",
+            "Display",
 
-            p(
-              style = "font-size:0.85em; color:#444; margin-top:6px; margin-bottom:2px;",
-              "Checked elements count as reporting. ",
-              tags$em("See About for details.")
-            ),
-
-            radioButtons(
-              ns("reporting_rule"),
-              label = "Count a facility as reporting when:",
-              choices = c(
-                "All selected elements — every category present"   = "all_categories",
-                "All selected elements — at least one category"    = "all_elements",
-                "Any selected element present"                     = "any_selected",
-                "Any data element present (including unchecked)"   = "any_data"
+            inputPanel(
+              selectInput(
+                ns("source"),
+                label = "Original/Cleaned",
+                choices = c('Original', 'Cleaned'),
+                selected = 'Original'
               ),
-              selected = "any_selected"
+
+              selectInput(
+                ns("split"),
+                label = "Split Data By:",
+                choices = "None",
+                selected = "None"
+              )
             ),
 
-            uiOutput(ns("reporting_rule_hint")),
+            h5('Filter display dates'),
 
-            div(
-              style = "display:flex; align-items:center; gap:6px; margin-bottom:2px;",
-              actionButton(ns('update_data_categories'), label = "Update",
-                           class = "btn-info btn-sm"),
-              checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
-              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = FALSE)
-            ),
-
-            div(
-              style = "max-height: calc(100vh - 580px); min-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
-              checkboxGroupInput(
-                ns("data_categories"),
-                label = NULL,
+            inputPanel(
+              selectizeInput(
+                ns("startDisplayMonth"),
+                label = "begining",
                 choices = NULL,
-                selected = 1,
-                width = "100%"
+                selected = NULL
+              ),
+
+              selectizeInput(
+                ns("endDisplayMonth"),
+                label = "ending",
+                choices = NULL,
+                selected = NULL
               )
             )
-          ) # end tabPanel
+          )
+
         ) # end tabset panel
       ), # end sidebar panel
 
@@ -180,87 +182,78 @@ reporting_widget_ui = function(id) {
 
             fluidPage(
               htmlOutput(ns("region_filter_status")),
+              uiOutput(ns("no_champion_alert")),
 
-              fluidRow(
-                style = "height:40vh;",
+              tabsetPanel(
+                type = "tabs",
 
-                column(
-                  6,
+                tabPanel(
+                  "Reports Received",
+                  style = "height:80vh; padding-top:10px;",
 
-                  # h5( 'Number of Facilties Reporting Each Period') ,
+                  fluidRow(
+                    style = "height:75vh;",
 
-                  ### Number of Facilties Reporting each Period (plot_reporting_by_month)
-                  chartModuleUI(
-                    ns('plot_reporting_by_month'),
-                    height  = "80%", overlay = TRUE,
-                    click = "plot_click", dblclick = "plot_dblclick",
-                    hover = "plot_hover", brush = "plot_brush"
+                    column(
+                      6,
+                      ### Number of Facilties Reporting each Period (plot_reporting_by_month)
+                      chartModuleUI(
+                        ns('plot_reporting_by_month'),
+                        height  = "90%", overlay = TRUE,
+                        click = "plot_click", dblclick = "plot_dblclick",
+                        hover = "plot_hover", brush = "plot_brush"
+                      )
+                    ),
+
+                    column(
+                      6,
+                      ### Histogram of Annual Number of Months Reported (plot_reports_in_a_year)
+                      chartModuleUI(
+                        ns('plot_reports_in_a_year'),
+                        height  = "90%", overlay = TRUE,
+                        click = "plot_click", dblclick = "plot_dblclick",
+                        hover = "plot_hover", brush = "plot_brush"
+                      )
+                    )
                   )
                 ),
 
-                column(
-                  6,
-                  # htmlOutput("x_value") ,
+                tabPanel(
+                  "Total Value Reported",
+                  style = "height:80vh; padding-top:10px;",
 
-                  # h5( 'Histogram of Periods Reported Each Year') ,
+                  fluidRow(
+                    column(
+                      3,
+                      selectInput(
+                        ns("series_by"),
+                        label = "Color series by:",
+                        choices = c("None", "Dataset", "Category"),
+                        selected = "None"
+                      )
+                    ),
+                    column(
+                      3,
+                      selectInput(
+                        ns("facet_by"),
+                        label = "Facet chart by:",
+                        choices = c("Champion/Non-Champion", "All Facilities"),
+                        selected = "Champion/Non-Champion"
+                      )
+                    )
+                  ),
 
-                  ### Histogram of Annual Number of Months Reported (plot_reports_in_a_year)
-                  # miniContentPanel(
+                  fluidRow(
+                    style = "height:65vh;",
 
-                  chartModuleUI(
-                    ns('plot_reports_in_a_year'),
-                    height  = "80%", overlay = TRUE,
-                    click = "plot_click", dblclick = "plot_dblclick",
-                    hover = "plot_hover", brush = "plot_brush"
-                  )
-
-                  # , scrollable = TRUE
-                )
-                # )
-
-                # , h6( 'Red indicates the facilities that reported each month (*Champions*)' )
-              ),
-
-              # h5( "Data Values: On Right, from facilities that reported each month (*Champions*); on left, from all others")  ,
-
-              # fluidRow( style = "height:10vh;",
-              #
-              #           column(6, h5( "Data Values from Inconsistenly Reporting Facilities" ) ) ,
-              #
-              #           column(6, h5( "Data Values from *Champion* Facilities" ) )
-              #
-              # ) ,
-
-              fluidRow(
-                column(
-                  3,
-                  selectInput(
-                    ns("series_by"),
-                    label = "Color series by:",
-                    choices = c("None", "Dataset", "Category"),
-                    selected = "None"
-                  )
-                ),
-                column(
-                  3,
-                  selectInput(
-                    ns("facet_by"),
-                    label = "Facet chart by:",
-                    choices = c("Champion/Non-Champion", "All Facilities"),
-                    selected = "Champion/Non-Champion"
-                  )
-                )
-              ),
-
-              fluidRow(
-                style = "height:40vh;",
-
-                column(
-                  12,
-                  chartModuleUI(
-                    ns('plot_values'),
-                    height  = "80%", overlay = TRUE,
-                    hover = "plot_hover", brush = "plot_brush"
+                    column(
+                      12,
+                      chartModuleUI(
+                        ns('plot_values'),
+                        height  = "90%", overlay = TRUE,
+                        hover = "plot_hover", brush = "plot_brush"
+                      )
+                    )
                   )
                 )
               )
@@ -607,6 +600,36 @@ reporting_widget_server <- function(
           tags$strong(style = "color:#1565C0; font-size:1.05em;",
                       paste("Region:", label))
         )
+      })
+
+      output$no_champion_alert <- renderUI({
+        req(input$mostReports)
+        sou <- reportingSelectedOUs()
+        if (!is.null(sou) && length(sou) == 0) {
+          div(
+            style = paste0(
+              "background:#fff3cd; padding:10px 14px;",
+              " border-left:4px solid #ffc107; margin:0 0 10px 0; border-radius:3px;"
+            ),
+            tags$strong(style = "color:#856404;", "No champion facilities found."),
+            tags$p(
+              style = "margin:4px 0 0 0; color:#6b5200; font-size:0.9em;",
+              "Try one of the following:"
+            ),
+            tags$ul(
+              style = "margin:2px 0 0 0; padding-left:18px; color:#6b5200; font-size:0.9em;",
+              tags$li(
+                tags$strong("Data Elements tab:"),
+                " Relax the rule for counting a facility as reporting",
+                " (e.g. switch from \"All selected elements\" to \"Any selected element\")."
+              ),
+              tags$li(
+                tags$strong("Reporting Consistency tab:"),
+                " Widen the date range or increase the number of missing reports allowed per year."
+              )
+            )
+          )
+        }
       })
 
       # Internal helpers
@@ -1093,7 +1116,9 @@ reporting_widget_server <- function(
         # Add year in-place on d()'s cached data.table — avoids a ~530ms full copy.
         # The year column persists in the cache across calls, which is safe and saves
         # recomputation when both orgunit.reports and orgunit.monthly.reports run.
-        if (!'year' %in% names(data)) data[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = .period]
+        if (!'year' %in% names(data)) data[,
+          year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
+          .SDcols = .period]
         o.r. = data
 
         # Use integer key for period to bypass vctrs dispatch in unique() —
@@ -1147,7 +1172,9 @@ reporting_widget_server <- function(
         }
 
         # Add year in-place — avoids ~530ms copy (same pattern as orgunit.reports).
-        if (!'year' %in% names(data)) data[, year := as.integer(format(.SD[[1L]], "%Y")), .SDcols = .period]
+        if (!'year' %in% names(data)) data[,
+          year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
+          .SDcols = .period]
         o.m.r = data
         # %>%
         # mutate( year = factor( year ) )
@@ -1409,8 +1436,18 @@ reporting_widget_server <- function(
           #      paste( selected_data_categories$elements , collapse = ", " )
           #      )
 
+          # Pre-filter to selected elements before passing to mostFrequentReportingOUs.
+          # Reduces date-window scan from ~34M rows (all elements) to ~3M (selected),
+          # saving ~10-12 sec. The function's internal %chin% filter becomes a no-op.
+          # "any_data" rule intentionally uses all elements, so skip pre-filter then.
+          .d_rous <- if (input$reporting_rule != "any_data" &&
+                         length(selected_data_categories$elements) > 0)
+            d()[get("data") %chin% selected_data_categories$elements]
+          else
+            d()
+
           sf = mostFrequentReportingOUs(
-            d = d(),
+            d = .d_rous,
             endingMonth = endingMonth_debounced(),
             startingMonth = startingMonth_debounced(),
             missing_reports = as.integer(input$missing_reports),
@@ -1535,7 +1572,8 @@ reporting_widget_server <- function(
             ylim(0, NA) +
             scale_color_manual(
               values = c('All' = 'black', 'Champion' = 'brown')
-            )
+            ) +
+            labs(color = "Facilities")
 
           if (!is.null(reportingSelectedOUs())) {
             cat('\n - g + selected facilities ')
@@ -1706,9 +1744,17 @@ reporting_widget_server <- function(
           paste(selected_data_categories$elements, collapse = ", ")
         )
 
+        # Pre-filter to selected elements before cleanedData — reduces input from
+        # ~34M rows (all elements) to ~3M rows (selected elements only), saving ~4 sec.
+        # cleanedData only does per-row operations (effectiveLeaf, dataCol, NA_ filter)
+        # so pre-filtering is safe and produces identical output.
         .t0_sd <- proc.time()["elapsed"]
+        .d1_input <- if (length(selected_data_categories$elements) > 0)
+          as.data.table(data1())[get("data") %chin% selected_data_categories$elements]
+        else
+          data1()
         .cleanedData = cleanedData(
-          data1(),
+          .d1_input,
           .effectiveLeaf = TRUE,
           source = input$source,
           error = NULL,
@@ -2336,15 +2382,15 @@ reporting_widget_server <- function(
           )
 
         cat("\n - join avgvalues:")
+        uq_breaks <- unique(quartileValues)
         champion_facilities = champion_facilities %>%
           # filter( id %in% "a08881Oz98k" ) %>%
           left_join(avgValues, by = c("id" = "orgUnit")) %>%
           mutate(
-            medianValueRange = cut(
-              medianValue,
-              breaks = unique(quartileValues),
-              ordered_result = TRUE
-            ),
+            medianValueRange = if (length(uq_breaks) >= 2)
+              cut(medianValue, breaks = uq_breaks, ordered_result = TRUE)
+            else
+              factor(rep("All", dplyr::n())),
             medianValueRangeSize = medianValueRange %>% as.numeric()
           )
 

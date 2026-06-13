@@ -78,6 +78,13 @@ evaluation_widget_ui = function(id) {
 
                     checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
 
+                    sliderInput(
+                      ns("replicates"),
+                      label = "Forecasting replicates (faster \u2194 more accurate):",
+                      min = 100, max = 2000, value = 500, step = 100,
+                      width = "100%"
+                    ),
+
                     actionButton(ns("forecast"), "Calculate Percent Change",
                                  width = "100%", class = "btn-primary btn-sm",
                                  style = "margin-top:4px; margin-bottom:2px;"),
@@ -90,6 +97,20 @@ evaluation_widget_ui = function(id) {
                       choices = character(0), selected = NULL, width = "100%"
                     ),
 
+                    if (!requireNamespace("fable.prophet", quietly = TRUE))
+                      div(
+                        style = "font-size:0.8em; color:#888; margin: -6px 0 8px 0;",
+                        icon("circle-info", style = "color:#aaa; margin-right:4px;"),
+                        "Prophet models unavailable.",
+                        tags$a(
+                          "Install prophet",
+                          href     = "https://facebook.github.io/prophet/",
+                          target   = "_blank",
+                          style    = "color:#4a90d9;"
+                        ),
+                        "to enable P1/P4/P8 models."
+                      ),
+
                     checkboxInput(ns("transform"),   'Log transform count data',         TRUE),
                     checkboxInput(ns("forecast_ci"), 'Prediction interval',              TRUE),
 
@@ -101,27 +122,22 @@ evaluation_widget_ui = function(id) {
                     checkboxInput(ns("pre_evaluation"), 'Pre-intervention model fit',    FALSE),
                     checkboxInput(ns("evaluation"),     'Post-intervention evaluation',  FALSE),
 
-                    selectInput(
-                      ns("model"),
-                      label = "Overlay model:",
-                      choices = c('TSLM (trend)', 'TSLM (trend+season)', 'ETS', 'ARIMA'),
-                      selected = 'ETS', width = "100%"
+                    # Hidden inputs kept for server-side compatibility
+                    shinyjs::hidden(
+                      selectInput(
+                        ns("model"),
+                        label = "Overlay model:",
+                        choices = c('TSLM (trend)', 'TSLM (trend+season)', 'ETS', 'ARIMA'),
+                        selected = 'ETS', width = "100%"
+                      ),
+                      checkboxInput(ns("smooth"),     'Show smoothed trend line (loess)', FALSE),
+                      checkboxInput(ns("scale"),      'Scale values (x-mean)/sd + 1',    FALSE),
+                      checkboxInput(ns('components'), 'Visualize trend',                  FALSE)
                     ),
-
-                    checkboxInput(ns("smooth"),      'Show smoothed trend line (loess)', FALSE),
-                    checkboxInput(ns("scale"),       'Scale values (x-mean)/sd + 1',    FALSE),
-                    checkboxInput(ns('components'),  'Visualize trend',                  FALSE),
 
                     textInput(ns('model.formula'), 'Model Formula',
                               value = "total ~ error() + trend() + season()"),
-                    textInput(ns('covariates'), 'Model covariates', value = NULL),
-
-                    selectInput(
-                      ns("replicates"),
-                      label = "Forecasting replicates:",
-                      choices = c(100, 500, 1000, 5000),
-                      selected = 1, width = "100%"
-                    )
+                    textInput(ns('covariates'), 'Model covariates', value = NULL)
                   )
                 ),
 
@@ -1026,7 +1042,8 @@ evaluation_widget_server <- function(
         endEvalMonth_val     = NULL,
         startMonth_val       = NULL,
         split_col_val        = NULL,   # NULL = no stratification
-        grouped_actual       = NULL    # post-intervention data per region (Phase 2 output)
+        grouped_actual       = NULL,   # post-intervention data per region (Phase 2 output)
+        best_fit_model       = NULL    # model name auto-selected by lowest SWAPE (uppercase)
       )
 
       # Tracks whether the model dropdown has been populated for the current validation run.
@@ -1372,11 +1389,21 @@ evaluation_widget_server <- function(
 
         cat('\n* evaluation_widget annualTable():')
 
+        if (!requireNamespace("flextable", quietly = TRUE) ||
+            !requireNamespace("officer",   quietly = TRUE)) {
+          return(div(
+            style = "padding:12px; background:#fff8e1; border-left:4px solid #f9a825;
+                     border-radius:3px; color:#555; font-size:13px; margin-top:8px;",
+            icon("triangle-exclamation", style = "color:#f9a825; margin-right:6px;"),
+            "Annual summary table requires the ",
+            tags$strong("flextable"), " and ", tags$strong("officer"), " packages. ",
+            "Install them with: ",
+            tags$code("install.packages(c('flextable', 'officer'))")
+          ))
+        }
+
         mable_Data = mable_Data()
-
-        # cat("\n - yearly_summary_table " )
         ft = yearly_summary_table(data = mable_Data)
-
         cat("\n - class(ft):", class(ft))
         ft %>% htmltools_value()
       })
@@ -1447,8 +1474,29 @@ evaluation_widget_server <- function(
           error = function(e) NULL
         )
 
+        # Compute probability text from the full WPE sample distribution
+        prob_caption <- tryCatch({
+          diff_data <- MG2::forecast_diff(actual = act, predicted = pred, .var = 'total')
+          if (!is.null(diff_data) && nrow(diff_data) > 0) {
+            wpe_vals <- diff_data$WPE
+            med <- stats::median(wpe_vals)
+            if (med < 0) {
+              prob <- mean(wpe_vals < 0) * 100
+              paste0("Probability of decrease: ", round(prob, 1), "%")
+            } else {
+              prob <- mean(wpe_vals > 0) * 100
+              paste0("Probability of increase: ", round(prob, 1), "%")
+            }
+          } else {
+            NULL
+          }
+        }, error = function(e) NULL)
+
+        caption_text <- paste0(region_caption_text(), " | Blue bar = median",
+                               if (!is.null(prob_caption)) paste0(" | ", prob_caption) else "")
+
         h <- diffHistogram(actual = act, predicted = pred, .var = 'total') +
-          labs(caption = paste0(region_caption_text(), " | Blue bar = median"))
+          labs(caption = caption_text)
 
         # Upper-left annotation: model name and WPE summary statistics
         if (!is.null(stats) && nrow(stats) > 0) {
@@ -1466,7 +1514,7 @@ evaluation_widget_server <- function(
             hjust    = -0.05, vjust = 1.1,
             size     = 3,
             alpha    = 0.85,
-            label.size = 0.3
+            linewidth  = 0.3
           )
         }
 
@@ -1494,6 +1542,7 @@ evaluation_widget_server <- function(
             choices  = models,
             selected = models[1]
           )
+          auto_model_values$best_fit_model <- models[1]
           dropdown_initialized(TRUE)
           # Increment trigger so Phase 2 fires even if best model name is unchanged
           # from the previous run (observeEvent(input$selected_model) won't fire
@@ -2393,7 +2442,8 @@ evaluation_widget_server <- function(
         # if ( .period %in% 'Week') g = g + scale_x_yearweek("", date_breaks = "1 year" )
 
         g = g +
-          scale_y_continuous(label = comma, limits = .limits) +
+          scale_y_continuous(label = comma) +
+          (if (!isTRUE(input$scale)) coord_cartesian(ylim = c(0, NA)) else NULL) +
           scale_color_discrete(drop = TRUE) +
           labs(
             y = "",
@@ -2427,7 +2477,7 @@ evaluation_widget_server <- function(
           cat('\n - pre_eval_date:', pre_eval_date)
 
           g = g +
-            fabletools::autolayer(
+            ggtime::autolayer(
               tsPreForecast(),
               level = ifelse(input$forecast_ci, 89, FALSE),
               color = 'steelblue',
@@ -2472,7 +2522,7 @@ evaluation_widget_server <- function(
           cat('\n - evaluation line.  ', 'pi_levels:', pi_levels())
 
           g = g +
-            fabletools::autolayer(
+            ggtime::autolayer(
               tsForecast(),
               color = 'darkorange',
               level = ifelse(input$forecast_ci, 89, FALSE),
@@ -2526,7 +2576,7 @@ evaluation_widget_server <- function(
           if (!is.null(sel_predicted) && nrow(sel_predicted) > 0 && !is.null(test.forecasts)) {
             g = g +
               # Post-intervention evaluation forecast (strip samples list-col before autolayer)
-              fabletools::autolayer(
+              ggtime::autolayer(
                 sel_predicted %>% dplyr::select(-dplyr::any_of("samples")),
                 color    = 'darkorange',
                 level    = ifelse(input$forecast_ci, 80, FALSE),
@@ -2536,7 +2586,7 @@ evaluation_widget_server <- function(
               ) +
               # Test-period forecast for the selected model (pre-intervention validation)
               # Only shown when "Pre-intervention model fit" checkbox is checked.
-              if (input$pre_evaluation) fabletools::autolayer(
+              if (input$pre_evaluation) ggtime::autolayer(
                 test.forecasts %>%
                   dplyr::filter(.model == sel_model_name) %>%
                   dplyr::select(-dplyr::any_of("samples")),
@@ -2561,7 +2611,7 @@ evaluation_widget_server <- function(
                   hjust        = -0.05, vjust = -0.05,
                   size         = 3.5,
                   alpha        = 0.85,
-                  label.size   = 0.3
+                  linewidth    = 0.3
                 )
               }
             } else {
@@ -2582,12 +2632,36 @@ evaluation_widget_server <- function(
                   hjust      = -0.05, vjust = -0.1,
                   size       = 4,
                   alpha      = 0.85,
-                  label.size = 0.3
+                  linewidth  = 0.3
                 )
               }
             }
           } else {
             cat('\n - selected predicted or test.forecasts is NULL; skipping autolayer')
+          }
+
+          # Subtitle + legend label noting the selected model
+          sel      <- input$selected_model
+          best_fit <- auto_model_values$best_fit_model
+          if (!is.null(sel) && nchar(sel) > 0) {
+            is_best <- !is.null(best_fit) && identical(sel, best_fit)
+            subtitle_text <- if (is_best) {
+              paste0(
+                "Displayed: best-fit model (", sel,
+                ") \u2014 auto-selected by lowest SWAPE on validation period"
+              )
+            } else {
+              paste0(
+                "Displayed: ", sel,
+                " (manually selected)",
+                if (!is.null(best_fit)) paste0(" \u2014 best-fit model is ", best_fit) else ""
+              )
+            }
+            g <- g +
+              labs(
+                subtitle = subtitle_text,
+                fill = paste0("Model ", sel, " prediction interval")
+              )
           }
         }
 
@@ -2641,6 +2715,32 @@ evaluation_widget_server <- function(
         # req( input$components )
         cat('\n*  evaluation_widget plotOutput')
         cat('\n - input$components:', input$components)
+
+        # Empty-state: champion/non-champion selected but no matching facilities
+        if (!is.null(input$reporting) && input$reporting != "All" &&
+            is.null(mable_Data())) {
+          label <- tolower(input$reporting)
+          return(
+            ggplot2::ggplot() +
+              ggplot2::annotate(
+                "label", x = 0.5, y = 0.6,
+                label = paste0("No ", label, " facilities found."),
+                size = 6, fontface = "bold", fill = "#fff3cd", colour = "#856404",
+                label.size = 0.5
+              ) +
+              ggplot2::annotate(
+                "text", x = 0.5, y = 0.4,
+                label = paste0(
+                  "Select \"All\" from the facility filter above,\n",
+                  "or go to the Reporting page to adjust the champion criteria."
+                ),
+                size = 4, colour = "#555"
+              ) +
+              ggplot2::scale_x_continuous(breaks = NULL, name = NULL, limits = c(0, 1)) +
+              ggplot2::scale_y_continuous(breaks = NULL, name = NULL, limits = c(0, 1)) +
+              ggplot2::theme_void()
+          )
+        }
 
         if (input$components) {
           cat('\n - components')

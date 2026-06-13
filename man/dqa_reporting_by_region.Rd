@@ -23,7 +23,7 @@ dqa_reporting_by_region(
 }
 \value{
 A tibble with columns \code{Year}, \code{region_name}, \code{n_reporting},
-\code{n_total}, \code{pr} (proportion 0–1).
+\code{n_total}, \code{pr} (proportion 0-1).
 }
 \description{
 Calls \code{\link[=mostFrequentReportingOUs]{mostFrequentReportingOUs()}} for each calendar year and groups

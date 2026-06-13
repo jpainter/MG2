@@ -16,3 +16,7 @@ inst/shiny/*.rds
 
 # Large facility-level data cache — regenerated from Nigeria FST download.
 reports/Nigeria/kebbi_cache.rds
+
+# Working docs — video files and scripts are large/internal, not for the repo.
+docs/video/
+docs/video_script.md

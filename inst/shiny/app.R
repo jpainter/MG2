@@ -66,20 +66,11 @@ suppressPackageStartupMessages(library(dplyr))
 
 # Options -------------------------------------------------------------------
 options(dplyr.summarise.inform = FALSE)
-options(future.globals.maxSize = 30 * 1024^3)
+# No size limit: fable's future_mapply checks globals even under plan(sequential),
+# and the fitting closure captures the Shiny reactive env. No data is actually
+# transferred (sequential plan), so the check is a false positive.
+options(future.globals.maxSize = Inf)
 future::plan(future::multisession, workers = 1L)
-
-# UI helper: small next-step hint bar at the bottom of a tab
-.mg2_step_hint <- function(text) {
-  div(
-    style = paste0(
-      "margin-top:24px; padding:8px 16px; background:#f0f4ff;",
-      " border-left:4px solid #4a90d9; border-radius:3px; color:#555; font-size:13px;"
-    ),
-    icon("circle-info", style = "color:#4a90d9; margin-right:6px;"),
-    text
-  )
-}
 
 # Source Shiny modules ------------------------------------------------------
 # Each file defines a *_ui() and *_server() function for one app tab/panel.
@@ -193,8 +184,7 @@ ui <- bslib::page_navbar(
 
   bslib::nav_panel(
     "Metadata",
-    metadata_widget_ui("metadata1"),
-    .mg2_step_hint("→ Next: go to Regions — choose to analyse data nationally or sub-nationally — then go to Data to select and load a dataset.")
+    metadata_widget_ui("metadata1")
   ),
 
   bslib::nav_panel(
@@ -208,8 +198,8 @@ ui <- bslib::page_navbar(
     bslib::nav_panel(
       "Formula",
       fluidRow(
-        column(5, data_widget_ui("data1")),
-        column(7, formula_widget_ui("formula1"))
+        column(4, data_widget_ui("data1")),
+        column(8, formula_widget_ui("formula1"))
       )
     ),
     bslib::nav_panel("Download", data_request_widget_ui("data_request1")),

@@ -9,22 +9,18 @@ save_file(x, filename, compress = 100)
 \arguments{
 \item{x}{A data frame or data.table.}
 
-\item{filename}{Character. Destination path. Extension must be \code{".fst"} or
-\code{".rds"}.}
+\item{filename}{Character. Destination path. Extension must be \code{".qs"},
+\code{".rds"}, or \code{".fst"}.}
 
 \item{compress}{Integer (0-100). Compression level for \code{.fst} files (default
-\code{100}  -  best compression while still ~4x faster than RDS). Ignored for
-\code{.rds} files (which always use \code{compress = TRUE}).}
+\code{100}). Ignored for \code{.qs} and \code{.rds}.}
 }
 \value{
 \code{filename}, invisibly.
 }
 \description{
-Writes a data frame to an \code{.fst} or \code{.rds} file based on the file extension
-in \code{filename}. \code{.fst} is 5-10x faster than compressed \code{.rds} for large flat
-data frames and is preferred when the \code{fst} package is available.
-}
-\details{
-Existing \code{.rds} files are always readable by \code{\link[=read_file]{read_file()}} regardless of
-how they were written.
+Writes a data frame to a \code{.qs}, \code{.rds}, or \code{.fst} file based on the file
+extension in \code{filename}. \code{.qs} is the preferred format: ZSTD-compressed,
+fast, and preserves all R object classes (including \code{yearmonth}) without
+any post-read restoration. \code{.rds} and legacy \code{.fst} are also supported.
 }

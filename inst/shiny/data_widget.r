@@ -62,7 +62,57 @@ data_widget_ui = function(id) {
 
     actionButton(ns("rescan"), "Rescan dataset (optional)", class = "btn-warning btn-sm"),
 
-    br()
+    br(),
+
+    tags$hr(style = "margin-top: 18px; margin-bottom: 12px;"),
+
+    div(
+      style = "font-size: 12px; color: #555; line-height: 1.6;",
+
+      tags$p(tags$strong("How this tab works:"),
+             style = "margin-bottom: 8px; color: #333; font-size: 13px;"),
+
+      tags$p(
+        tags$span("1.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
+        tags$strong("Select or create a formula file"), " — a formula groups DHIS2 data elements
+        by subject (e.g. malaria cases = confirmed + suspected)."
+      ),
+      tags$p(
+        style = "margin-left: 16px; margin-top: -4px;",
+        icon("folder-open", style = "color:#888; margin-right:4px; font-size:0.9em;"),
+        tags$em("Have a file?"), " Select it from the Formula Files list above.",
+        tags$br(),
+        icon("plus", style = "color:#888; margin-right:4px; font-size:0.9em;"),
+        tags$em("Starting fresh?"), " Type a new name in ",
+        tags$strong("Select/Add Formula"), ", then use the ",
+        tags$strong("Select"), " tab on the right to search for and add data elements.
+        Click ", tags$strong("Save Changes"), " when done."
+      ),
+
+      tags$p(
+        tags$span("2.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
+        "Go to ", tags$strong("Data → Download"), " to fetch data from DHIS2 for your selected
+        formula, org units, and time period. Downloaded files appear in the",
+        tags$em("Data previously downloaded"), " list above."
+      ),
+
+      tags$p(
+        tags$span("3.", style = "font-weight:bold; color:#4a90d9; margin-right:5px;"),
+        "Select a downloaded dataset above to load it — then proceed to",
+        tags$strong("DQA, Reporting,"), " and ", tags$strong("Outliers"), " for analysis."
+      ),
+
+      tags$hr(style = "margin: 10px 0;"),
+
+      tags$p(
+        icon("layer-group", style = "color:#4a90d9; margin-right:5px;"),
+        tags$strong("Combine tab:"),
+        " Build derived datasets by merging or ratioing two existing downloaded files
+        (e.g. test positivity rate = positives ÷ tests performed).",
+        style = "margin-bottom: 0;"
+      )
+    )
+
   )
   # ) # end fillColl
 } # ui
@@ -294,8 +344,8 @@ data_widget_server <- function(
         formula = input$formula # paste0( input$formula , "_" )
         cat('\n* rds_data_file formula: ', input$formula, '\n')
 
-        file.type = 'rds|fst'
-        file.keywords = 'rds|fst'
+        file.type = 'rds|fst|qs'
+        file.keywords = 'rds|fst|qs'
 
         data.files = dir.files[
           grepl(file.type, dir.files, ignore.case = T) &
@@ -509,6 +559,29 @@ data_widget_server <- function(
 
           removeModal()
 
+          # Auto-convert legacy .rds files to .qs on first load.
+          # Saves a .qs copy alongside the .rds; the .rds is kept as backup.
+          # On the next session the .qs will appear in the dataset list and
+          # load ~10x faster with ~10x less disk space.
+          if (tolower(tools::file_ext(file)) == "rds") {
+            qs_file <- sub("\\.rds$", ".qs", file, ignore.case = TRUE)
+            if (!file.exists(qs_file)) {
+              tryCatch({
+                MG2:::save_file(d, qs_file)
+                showNotification(
+                  paste0("Saved as ", basename(qs_file),
+                         " for faster future loading. ",
+                         "You can delete the .rds file."),
+                  type     = "message",
+                  duration = 8
+                )
+                cat('\n - auto-converted to .qs:', qs_file)
+              }, error = function(e) {
+                cat('\n - auto-convert to .qs failed:', conditionMessage(e))
+              })
+            }
+          }
+
           cat('\n - done: dataset has', nrow(d), 'rows')
           .dw_cache <<- list(path = file, data = d, sc = sc)
 
@@ -657,10 +730,28 @@ data_widget_server <- function(
         # Month encoding is now fixed upstream in read_file() for FST files.
         # For RDS files, yearmonth class is preserved by saveRDS/readRDS.
         # setDT() can silently drop the S3 class; restore it if missing.
-        if ("Month" %in% names(d1) && !inherits(d1[["Month"]], "yearmonth")) {
+        if ("Month" %in% names(d1)) {
           m_raw <- c(unclass(d1[["Month"]]))
-          data.table::set(d1, j = "Month",
-                          value = structure(m_raw, class = c("yearmonth", "vctrs_vctr")))
+          if (length(m_raw) > 0) {
+            med <- median(m_raw, na.rm = TRUE)
+            needs_fix <- !inherits(d1[["Month"]], "yearmonth") || med <= 5000
+            if (needs_fix) {
+              if (med <= 5000) {
+                # Months-since-epoch (old encoding, e.g. from qs/fst with wrong values):
+                # convert to days-since-epoch so tsibble formats dates correctly.
+                yr   <- 1970L + as.integer(m_raw) %/% 12L
+                mo   <- as.integer(m_raw) %% 12L + 1L
+                days <- as.double(as.Date(paste0(yr, "-", sprintf("%02d", mo), "-01")) -
+                                    as.Date("1970-01-01"))
+                data.table::set(d1, j = "Month",
+                                value = structure(days, class = c("yearmonth", "vctrs_vctr")))
+              } else {
+                # Days-since-epoch, class just needs restoring.
+                data.table::set(d1, j = "Month",
+                                value = structure(m_raw, class = c("yearmonth", "vctrs_vctr")))
+              }
+            }
+          }
         }
 
         cat("\n - end d1  class/cols:\n -- ", class(d1), "\n")

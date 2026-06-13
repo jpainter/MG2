@@ -52,7 +52,7 @@ dqa_widget_ui = function(id) {
                 id = ns("dqa_reporting_subtab"),
                 bslib::nav_panel(
                   "Chart",
-                  chartModuleUI(ns("dqaReportingOutput"), height = "75vh", overlay = TRUE)
+                  chartModuleUI(ns("dqaReportingOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
                 ),
                 bslib::nav_panel(
                   "Map",
@@ -67,7 +67,7 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "Outliers",
-              chartModuleUI(ns("dqaNoErrorsOutput"), height = "75vh", overlay = TRUE)
+              chartModuleUI(ns("dqaNoErrorsOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
             ),
 
             bslib::nav_panel(
@@ -77,7 +77,7 @@ dqa_widget_ui = function(id) {
                   "Chart",
                   br(),
                   uiOutput(ns("consistency_status")),
-                  chartModuleUI(ns("dqaConsistencyChart"), height = "70vh", overlay = TRUE)
+                  chartModuleUI(ns("dqaConsistencyChart"), height = "calc(70vh - 50px)", overlay = TRUE)
                 ),
                 bslib::nav_panel(
                   "Summary Table",
@@ -101,7 +101,7 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "MASE",
-              chartModuleUI(ns("dqaMaseOutput"), height = "75vh", overlay = TRUE)
+              chartModuleUI(ns("dqaMaseOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
             )
           )
         )
@@ -456,8 +456,8 @@ dqa_widget_server <- function(
 
       plotDqaMASE = reactive({
         cat('\n*  dqa_widget plotDqaMASE')
-        withProgress(message = "DQA: computing MASE stability...", value = NULL, {
-          dqa_data() %>% dqa_mase %>% dqa_mase_plot
+        withProgress(message = "DQA: computing SWAPE stability...", value = NULL, {
+          dqa_data() %>% dqa_swape %>% dqa_swape_plot
         })
       })
 

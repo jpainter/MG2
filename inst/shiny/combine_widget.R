@@ -226,7 +226,7 @@ combine_widget_server <- function(id,
 
       # Filter to .rds/.fst files, excluding Update_ and Combinations_ files
       data.files <- dir.files[
-        grepl("\\.(rds|fst)$", dir.files, ignore.case = TRUE) &
+        grepl("\\.(rds|fst|qs)$", dir.files, ignore.case = TRUE) &
         !grepl("Update_",       dir.files, ignore.case = TRUE) &
         !grepl("^(Definition_|Combinations_)", dir.files, perl = TRUE)
       ]

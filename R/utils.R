@@ -1,6 +1,27 @@
 # Utility functions for MG2 package
 # General-purpose helpers used throughout the package and Shiny app.
 
+# Shiny UI helpers ---------------------------------------------------------
+
+#' Step hint bar for Shiny tab navigation
+#'
+#' Renders a small blue hint bar pointing users to the next step.
+#' Used at the top of tab UI functions to guide new users.
+#'
+#' @param text Character. The hint text to display.
+#' @return A `div` tag.
+#' @keywords internal
+.mg2_step_hint <- function(text) {
+  shiny::div(
+    style = paste0(
+      "margin-top:24px; padding:8px 16px; background:#f0f4ff;",
+      " border-left:4px solid #4a90d9; border-radius:3px; color:#555; font-size:13px;"
+    ),
+    shiny::icon("circle-info", style = "color:#4a90d9; margin-right:6px;"),
+    text
+  )
+}
+
 # Date conversion ----------------------------------------------------------
 
 #' Convert a Date String to yearmonth
@@ -90,11 +111,12 @@ Week_Year <- function(x) {
 
 # File I/O ------------------------------------------------------------------
 
-#' Read an RDS or FST File
+#' Read an RDS, QS2, or FST File
 #'
-#' Reads a data file in either `.rds` or `.fst` format, selecting the
-#' appropriate reader based on the file extension. The `.fst` format provides
-#' faster I/O for large datasets but requires the `fst` package.
+#' Reads a data file in `.rds`, `.qs`, or `.fst` format, selecting the
+#' appropriate reader based on the file extension. `.qs` is the preferred
+#' format: fast I/O with ZSTD compression and full R object preservation
+#' (no class-stripping). `.fst` is supported for legacy files.
 #'
 #' @param filename Character. Path to the file.
 #'
@@ -103,10 +125,14 @@ Week_Year <- function(x) {
 #'
 #' @examples
 #' \dontrun{
-#'   df <- read_file("data/malaria_2023-01-15.rds")
+#'   df <- read_file("data/malaria_2023-01-15.qs")
 #' }
 read_file <- function(filename) {
   ext <- tools::file_ext(filename)
+
+  if (tolower(ext) == "qs") {
+    return(qs2::qs_read(filename))
+  }
 
   if (tolower(ext) == "fst") {
     if (!requireNamespace("fst", quietly = TRUE)) {
@@ -126,15 +152,16 @@ read_file <- function(filename) {
     if ("Month" %in% names(df) && !inherits(df[["Month"]], "yearmonth")) {
       m_vals <- as.numeric(df[["Month"]])
       if (median(m_vals, na.rm = TRUE) <= 5000) {
-        df[["Month"]] <- structure(m_vals, class = c("yearmonth", "vctrs_vctr"))
+        # Months-since-epoch encoding (old tsibble/FST): convert to days-since-epoch.
+        # e.g. Jan 2019 stored as 588 months → needs to become 17897 days.
+        yr   <- 1970L + as.integer(m_vals) %/% 12L
+        mo   <- as.integer(m_vals) %% 12L + 1L
+        days <- as.double(as.Date(paste0(yr, "-", sprintf("%02d", mo), "-01")) -
+                            as.Date("1970-01-01"))
+        df[["Month"]] <- structure(days, class = c("yearmonth", "vctrs_vctr"))
       } else {
-        # Days-since-epoch encoding (legacy FST): convert to months-since-epoch.
-        # Done here on a plain data.frame — avoids data.table/vctrs dispatch issues.
-        dates      <- as.Date(as.integer(m_vals), origin = "1970-01-01")
-        yr         <- as.integer(format(dates, "%Y"))
-        mo         <- as.integer(format(dates, "%m"))
-        months_dbl <- as.double((yr - 1970L) * 12L + (mo - 1L))
-        df[["Month"]] <- structure(months_dbl, class = c("yearmonth", "vctrs_vctr"))
+        # Days-since-epoch encoding (current): values are correct, just restore class.
+        df[["Month"]] <- structure(m_vals, class = c("yearmonth", "vctrs_vctr"))
       }
     }
     if ("Week" %in% names(df) && !inherits(df[["Week"]], "yearweek")) {
@@ -163,41 +190,44 @@ read_file <- function(filename) {
   }
 
   stop(
-    "Unsupported file extension: '", ext, "'. Only .rds and .fst files are supported."
+    "Unsupported file extension: '", ext, "'. Supported: .qs, .rds, .fst."
   )
 }
 
 
 #' Return the Preferred Data File Extension
 #'
-#' Returns `"fst"` when the `fst` package is installed (faster I/O), otherwise
-#' `"rds"`. Use this to build filenames for [save_file()].
+#' Returns `"qs2"` when the `qs2` package is installed (fast I/O, ZSTD
+#' compressed, full R object preservation), otherwise `"rds"`. Use this to
+#' build filenames for [save_file()].
 #'
-#' @return `"fst"` or `"rds"`.
+#' @return `"qs2"` or `"rds"`.
 #' @export
-mg2_data_ext <- function() "rds"
+mg2_data_ext <- function() "qs"
 
 
 #' Save a Data Frame to Disk
 #'
-#' Writes a data frame to an `.fst` or `.rds` file based on the file extension
-#' in `filename`. `.fst` is 5-10x faster than compressed `.rds` for large flat
-#' data frames and is preferred when the `fst` package is available.
-#'
-#' Existing `.rds` files are always readable by [read_file()] regardless of
-#' how they were written.
+#' Writes a data frame to a `.qs`, `.rds`, or `.fst` file based on the file
+#' extension in `filename`. `.qs` is the preferred format: ZSTD-compressed,
+#' fast, and preserves all R object classes (including `yearmonth`) without
+#' any post-read restoration. `.rds` and legacy `.fst` are also supported.
 #'
 #' @param x A data frame or data.table.
-#' @param filename Character. Destination path. Extension must be `".fst"` or
-#'   `".rds"`.
+#' @param filename Character. Destination path. Extension must be `".qs"`,
+#'   `".rds"`, or `".fst"`.
 #' @param compress Integer (0-100). Compression level for `.fst` files (default
-#'   `100`  -  best compression while still ~4x faster than RDS). Ignored for
-#'   `.rds` files (which always use `compress = TRUE`).
+#'   `100`). Ignored for `.qs` and `.rds`.
 #'
 #' @return `filename`, invisibly.
 #' @export
 save_file <- function(x, filename, compress = 100) {
   ext <- tolower(tools::file_ext(filename))
+
+  if (ext == "qs") {
+    qs2::qs_save(x, filename)
+    return(invisible(filename))
+  }
 
   if (ext == "fst") {
     if (!requireNamespace("fst", quietly = TRUE)) {
@@ -212,7 +242,7 @@ save_file <- function(x, filename, compress = 100) {
     return(invisible(filename))
   }
 
-  stop("Unsupported file extension '", ext, "'. Use .fst or .rds.")
+  stop("Unsupported file extension '", ext, "'. Use .qs, .rds, or .fst.")
 }
 
 # Directory helpers ---------------------------------------------------------

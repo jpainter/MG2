@@ -57,14 +57,28 @@ cleaning_widget_ui = function(id) {
               label = "Ending with",
               choices = NULL,
               selected = NULL
+            )
+          ),
+
+          tabPanel(
+            "Facilities",
+
+            tags$p(
+              style = "font-size:0.85em; color:#555; margin: 6px 0 8px 0;",
+              "Filter outlier results to a subset of facilities based on reporting consistency.",
+              " Champion facilities are defined on the ",
+              tags$strong("Reporting"), " page."
             ),
 
             selectizeInput(
               ns("reporting"),
-              label = "Reporting frequency",
+              label = "Select facilities based on reporting:",
               choices = c("All", "Champion", "Non-champion"),
-              selected = "All"
-            )
+              selected = "All",
+              width = "100%"
+            ),
+
+            uiOutput(ns("no_champion_alert"))
           )
         )
       ),
@@ -81,7 +95,7 @@ cleaning_widget_ui = function(id) {
             "Summary",
             br(),
             textOutput(ns("outlierSummaryText")),
-            tableOutput(ns("outlier.summary.table")),
+            DT::dataTableOutput(ns("outlier.summary.table")),
             tags$p(style = "font-size:0.9em; color:#555; margin-top:4px;",
                    htmltools::HTML("For outlier procedure details see the <b>About</b> tab.")),
             hr(style = "margin: 6px 0;"),
@@ -264,6 +278,47 @@ cleaning_widget_server <- function(
           selected_data_cats$elements <- unique(unlist(map[input$dataElement], use.names = FALSE))
         } else {
           selected_data_cats$elements <- input$dataElement
+        }
+      })
+
+      output$no_champion_alert <- renderUI({
+        req(input$reporting)
+        if (input$reporting == "All") return(NULL)
+
+        champion_ous <- tryCatch(
+          reporting_widget_output$reportingSelectedOUs(),
+          error = function(e) NULL
+        )
+
+        if (is.null(champion_ous)) {
+          # Reporting tab not yet visited — champion criteria not calculated
+          div(
+            style = paste0(
+              "background:#fff3cd; padding:8px 12px;",
+              " border-left:4px solid #ffc107; margin:8px 0 2px 0; border-radius:3px;"
+            ),
+            tags$strong(style = "color:#856404;", "Champion facilities not yet defined."),
+            tags$p(
+              style = "margin:4px 0 0 0; color:#6b5200; font-size:0.85em;",
+              "Visit the ", tags$strong("Reporting"), " page first to calculate champion facilities.",
+              " Showing all facilities until then."
+            )
+          )
+        } else if (length(champion_ous) == 0) {
+          # Reporting visited but zero champions found
+          div(
+            style = paste0(
+              "background:#fff3cd; padding:8px 12px;",
+              " border-left:4px solid #ffc107; margin:8px 0 2px 0; border-radius:3px;"
+            ),
+            tags$strong(style = "color:#856404;", "No champion facilities found."),
+            tags$p(
+              style = "margin:4px 0 0 0; color:#6b5200; font-size:0.85em;",
+              "Showing all facilities. Go to the ",
+              tags$strong("Reporting"), " page to adjust the champion criteria",
+              " (try relaxing the reporting rule or allowing more missing reports)."
+            )
+          )
         }
       })
 
@@ -885,7 +940,7 @@ cleaning_widget_server <- function(
         req(outlier.dataset())
         req(levelNames())
 
-        d_full = as.data.table(outlier.dataset())
+        d_full = outlier.dataset()
 
         flag_cols = intersect(
           c("key_entry_error", "over_max", "mad15", "mad10", "seasonal5", "seasonal3"),
@@ -1146,25 +1201,8 @@ cleaning_widget_server <- function(
         req(input$endingMonth)
         req(period())
 
-        d = selected_data()
-
         cat('\n* cleaning_widget outlier.dataset():')
-        # if ( is.null( outlierData$df_data ) ){
-        #   cat( '\n - is.null( outlierData$df_data )' )
-        #   outlierData$df_data  = data1()
-        # }
 
-        # d = outlierData$df_data
-
-        # filter date
-        # d = d %>%
-        #   filter(
-        #     Month >= yearmonth( input$startingMonth ) ,
-        #     Month <= yearmonth(input$endingMonth )
-        #     )
-        # d. = as.data.table( outlierData$df_data )
-
-        # d. = as.data.table( data1() )
         d. = as.data.table(selected_data())
 
         if (input$reporting != "All") {
@@ -1188,29 +1226,18 @@ cleaning_widget_server <- function(
         # saveRDS( d. , "d..rds" )
 
         if (period() %in% 'Month') {
-          # d = d.[ which(
-          #   Month >= yearmonth( input$startingMonth ) & Month <= yearmonth(input$endingMonth ) ) ,] %>%
-          #   as_tibble
-
-          d = d. %>%
-            filter(
-              Month >= yearmonth(input$startingMonth) &
-                Month <= yearmonth(input$endingMonth)
-            ) %>%
-            as_tibble
-
+          # Use unclass() to compare as plain integers — avoids vctrs dispatch on
+          # yearmonth, which is ~5-10x slower for large vectors.
+          .sm_int <- unclass(yearmonth(input$startingMonth))
+          .em_int <- unclass(yearmonth(input$endingMonth))
+          d <- d.[unclass(Month) >= .sm_int & unclass(Month) <= .em_int]
           cat('\n - period is month')
         }
 
         if (period() %in% 'Week') {
-          d = d.[
-            which(
-              Week >= yearweek(input$startingMonth) &
-                Week <= yearweek(input$endingMonth)
-            ),
-          ] %>%
-            as_tibble
-
+          .sw_int <- unclass(yearweek(input$startingMonth))
+          .ew_int <- unclass(yearweek(input$endingMonth))
+          d <- d.[unclass(Week) >= .sw_int & unclass(Week) <= .ew_int]
           cat('\n - period is week')
         }
 
@@ -1244,11 +1271,11 @@ cleaning_widget_server <- function(
           d = setDT(d)[base::get(levelNames()[5]) %in% sr$level5, , ]
         }
 
-        # filter dataElement
+        # filter dataElement — stay as data.table; callers use it directly
         if (!is.null(selected_data_cats$elements) && length(selected_data_cats$elements) > 0) {
-          d = setDT(d)[data %in% selected_data_cats$elements, ] %>% as_tibble()
+          d = setDT(d)[data %chin% selected_data_cats$elements]
         } else {
-          d = d %>% as_tibble()
+          d = setDT(d)
         }
 
         cat('\n - done')
@@ -1306,7 +1333,27 @@ cleaning_widget_server <- function(
         return(os)
       })
 
-      output$outlier.summary.table = renderTable(outlier.summary.table())
+      output$outlier.summary.table = DT::renderDataTable({
+        dt <- outlier.summary.table()
+        req(nrow(dt) > 0)
+        DT::datatable(
+          dt,
+          rownames = FALSE,
+          options = list(
+            dom       = 't',
+            paging    = FALSE,
+            ordering  = FALSE,
+            autoWidth = FALSE,
+            rowCallback = DT::JS(
+              "function(row, data) {",
+              "  if (data[0] === 'No Error Flags') {",
+              "    $(row).css({'background-color': '#f0f9f0', 'font-weight': 'bold'});",
+              "  }",
+              "}"
+            )
+          )
+        )
+      })
 
       # Outlier cleaning chart ####
       output$outlier_cleaning_chart <- plotly::renderPlotly({
@@ -1322,7 +1369,7 @@ cleaning_widget_server <- function(
         }
 
         period_col <- if ("Month" %in% names(d)) "Month" else "Week"
-        dt <- data.table::as.data.table(d)
+        dt <- d  # outlier.dataset() already returns data.table
         dt[, t := as.Date(get(period_col))]
 
         # Build cumulative cleaning levels
