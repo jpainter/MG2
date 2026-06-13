@@ -7,14 +7,14 @@
 #' Extract data.id values referenced in a raw rule expression
 #'
 #' Handles two formats:
-#'   \code{#\{de.coc\}} — standard DHIS2 format; returns \code{"de_coc"}
-#'   \code{#\{de\}}     — bare UID (data without COC disaggregation); returns \code{"de"}
+#'   \code{#\{de.coc\}} -- standard DHIS2 format; returns \code{"de_coc"}
+#'   \code{#\{de\}}     -- bare UID (data without COC disaggregation); returns \code{"de"}
 #' @noRd
 .extract_vr_uid_pairs <- function(raw_expr) {
   if (is.null(raw_expr) || is.na(raw_expr) || !nzchar(raw_expr))
     return(character(0))
   uid11 <- "[A-Za-z][A-Za-z0-9]{10}"
-  # #{de.coc} — standard form
+  # #{de.coc} -- standard form
   m1 <- gregexpr(
     paste0("#\\{(", uid11, ")\\.(", uid11, ")\\}"),
     raw_expr, perl = TRUE
@@ -24,7 +24,7 @@
     gsub(paste0("#\\{(", uid11, ")\\.(", uid11, ")\\}"),
          "\\1_\\2", matches1, perl = TRUE)
   else character(0)
-  # #{de} — bare UID (aggregated data, no COC)
+  # #{de} -- bare UID (aggregated data, no COC)
   m2 <- gregexpr(paste0("#\\{(", uid11, ")\\}"), raw_expr, perl = TRUE)
   matches2 <- regmatches(raw_expr, m2)[[1]]
   bare <- matches2[!grepl("\\.", matches2, fixed = TRUE)]
@@ -42,12 +42,12 @@
 .vr_expr_to_r <- function(raw_expr) {
   if (is.null(raw_expr) || is.na(raw_expr)) return(as.character(raw_expr))
   uid11  <- "[A-Za-z][A-Za-z0-9]{10}"
-  # #{de.coc} first (more specific) → val_de_coc
+  # #{de.coc} first (more specific) -> val_de_coc
   result <- gsub(
     paste0("#\\{(", uid11, ")\\.(", uid11, ")\\}"),
     "val_\\1_\\2", raw_expr, perl = TRUE
   )
-  # Then bare #{de} → val_de
+  # Then bare #{de} -> val_de
   result <- gsub(
     paste0("#\\{(", uid11, ")\\}"),
     "val_\\1", result, perl = TRUE
@@ -86,17 +86,17 @@
 
   # Pre-aggregate to one row per orgUnit+period+data.id before pivoting.
   # This avoids passing a custom R fun.aggregate to dcast (which is called
-  # once per group in R — very slow on large datasets).
+  # once per group in R -- very slow on large datasets).
   # Rule: if any value is non-NA, sum them; if all NA, keep NA.
   # Pre-aggregate: keep only non-NA rows, sum within group.
   # Groups where all values were NA are simply absent; dcast fills them with NA_real_.
-  # This avoids an R function call per group (43s → <1s on large datasets).
+  # This avoids an R function call per group (43s -> <1s on large datasets).
   dt_agg <- dt_leaf[!is.na(original),
     .(original = sum(original)),
     by = .(orgUnit, orgUnitName, period, year, data.id)
   ]
 
-  # Simple dcast — one value per cell, no aggregation function needed
+  # Simple dcast -- one value per cell, no aggregation function needed
   wide <- data.table::dcast(
     dt_agg,
     orgUnit + orgUnitName + period + year ~ data.id,
@@ -128,7 +128,7 @@
 
 #' Evaluate All Validation Rules Against Data
 #'
-#' For each rule × facility × period, determines whether the rule passed,
+#' For each rule x facility x period, determines whether the rule passed,
 #' failed, or could not be evaluated (missing data elements).
 #'
 #' @param data Processed dataset (output of `data_1()`).
@@ -146,7 +146,7 @@ dqa_consistency <- function(data, validation_rules, filter_data_ids = NULL) {
   if (is.null(validation_rules) || nrow(validation_rules) == 0) return(NULL)
   if (!"data.id" %in% names(data))               return(NULL)
 
-  # Require translated expression columns — absent when validation rules come
+  # Require translated expression columns -- absent when validation rules come
   # directly from the raw API (not processed by fetch_validation_rules())
   if (!all(c("leftSide_expression_raw", "rightSide_expression_raw") %in%
            names(validation_rules)))              return(NULL)
@@ -163,7 +163,7 @@ dqa_consistency <- function(data, validation_rules, filter_data_ids = NULL) {
   }
 
   # Filter data to only the data.id values referenced by the remaining rules
-  # before the wide pivot — avoids pivoting thousands of irrelevant columns.
+  # before the wide pivot -- avoids pivoting thousands of irrelevant columns.
   rule_ids <- unique(c(
     unlist(lapply(validation_rules$leftSide_expression_raw,  .extract_vr_uid_pairs)),
     unlist(lapply(validation_rules$rightSide_expression_raw, .extract_vr_uid_pairs))
@@ -236,6 +236,8 @@ dqa_consistency_plot <- function(consistency_data, text_size = 18) {
       ggplot2::ggplot() +
         ggplot2::annotate("text", x = 0.5, y = 0.5, size = 5,
           label = "No validation rules could be evaluated.\nCheck that metadata has been fetched.") +
+        ggplot2::scale_x_continuous(breaks = NULL, name = NULL) +
+        ggplot2::scale_y_continuous(breaks = NULL, name = NULL) +
         ggplot2::theme_void()
     )
   }
@@ -258,6 +260,8 @@ dqa_consistency_plot <- function(consistency_data, text_size = 18) {
       ggplot2::ggplot() +
         ggplot2::annotate("text", x = 0.5, y = 0.5, size = 5,
           label = "No evaluatable rule-checks found.") +
+        ggplot2::scale_x_continuous(breaks = NULL, name = NULL) +
+        ggplot2::scale_y_continuous(breaks = NULL, name = NULL) +
         ggplot2::theme_void()
     )
   }
@@ -328,7 +332,7 @@ dqa_consistency_detail_rule <- function(data, validation_rules, rule_id,
   if (nrow(rule) == 0) return(tibble::tibble())
 
   # Extract the DE UIDs the rule references and filter data to just those
-  # elements before pivoting — avoids a full-dataset wide pivot
+  # elements before pivoting -- avoids a full-dataset wide pivot
   required_ids <- c(
     .extract_vr_uid_pairs(rule$leftSide_expression_raw[1]),
     .extract_vr_uid_pairs(rule$rightSide_expression_raw[1])
@@ -549,14 +553,14 @@ dqa_reporting_plot <- function(data, text_size = 18) {
 #' @param .progress Optional function `(i, n)` called after each year.
 #'
 #' @return A tibble with columns `Year`, `region_name`, `n_reporting`,
-#'   `n_total`, `pr` (proportion 0–1).
+#'   `n_total`, `pr` (proportion 0-1).
 #' @export
 dqa_reporting_by_region <- function(dqa_data, level_col,
                                     missing_reports = 0L,
                                     .progress = NULL) {
   if (!level_col %in% names(dqa_data)) return(NULL)
 
-  # region lookup: orgUnit → region name
+  # region lookup: orgUnit -> region name
   region_map <- dqa_data |>
     tibble::as_tibble() |>
     dplyr::distinct(orgUnit, region_name = .data[[level_col]])
@@ -632,6 +636,17 @@ dqa_outliers <- function(yearly.outlier.summary) {
 #' @return A ggplot object.
 #' @export
 yearly.outlier.summary_plot <- function(data, text_size = 18, label_size = 6) {
+  if (is.null(data) || nrow(data) == 0) {
+    return(
+      ggplot2::ggplot() +
+        ggplot2::annotate("text", x = 0.5, y = 0.5, size = 6,
+          label = "No outlier data available.\nRun outlier detection in the Outliers tab first.") +
+        ggplot2::scale_x_continuous(breaks = NULL, name = NULL) +
+        ggplot2::scale_y_continuous(breaks = NULL, name = NULL) +
+        ggplot2::theme_void()
+    )
+  }
+
   data <- data |>
     dplyr::select(year, dplyr::starts_with("percent") & !dplyr::ends_with("chr")) |>
     tidyr::pivot_longer(-year) |>
@@ -743,7 +758,7 @@ dqa_swape_plot <- function(data) {
     )
   }
   swape_txt <- paste(
-    "Symmetric Weighted Absolute Percentage Error (SWAPE) across ALL facilities —",
+    "Symmetric Weighted Absolute Percentage Error (SWAPE) across ALL facilities --",
     "200 \u00d7 sum(|actual \u2212 expected|) / (sum(actual) + sum(expected))\n",
     "- The smaller this value, the more predictable the data trend\n",
     "- Year-to-year changes smaller than this value may reflect data variability rather than a real change\n",

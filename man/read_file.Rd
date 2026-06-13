@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{read_file}
 \alias{read_file}
-\title{Read an RDS or FST File}
+\title{Read an RDS, QS2, or FST File}
 \usage{
 read_file(filename)
 }
@@ -13,12 +13,13 @@ read_file(filename)
 A data frame or tibble.
 }
 \description{
-Reads a data file in either \code{.rds} or \code{.fst} format, selecting the
-appropriate reader based on the file extension. The \code{.fst} format provides
-faster I/O for large datasets but requires the \code{fst} package.
+Reads a data file in \code{.rds}, \code{.qs}, or \code{.fst} format, selecting the
+appropriate reader based on the file extension. \code{.qs} is the preferred
+format: fast I/O with ZSTD compression and full R object preservation
+(no class-stripping). \code{.fst} is supported for legacy files.
 }
 \examples{
 \dontrun{
-  df <- read_file("data/malaria_2023-01-15.rds")
+  df <- read_file("data/malaria_2023-01-15.qs")
 }
 }

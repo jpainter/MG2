@@ -7,9 +7,10 @@
 mg2_data_ext()
 }
 \value{
-\code{"fst"} or \code{"rds"}.
+\code{"qs2"} or \code{"rds"}.
 }
 \description{
-Returns \code{"fst"} when the \code{fst} package is installed (faster I/O), otherwise
-\code{"rds"}. Use this to build filenames for \code{\link[=save_file]{save_file()}}.
+Returns \code{"qs2"} when the \code{qs2} package is installed (fast I/O, ZSTD
+compressed, full R object preservation), otherwise \code{"rds"}. Use this to
+build filenames for \code{\link[=save_file]{save_file()}}.
 }
