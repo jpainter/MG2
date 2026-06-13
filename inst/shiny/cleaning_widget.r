@@ -57,14 +57,28 @@ cleaning_widget_ui = function(id) {
               label = "Ending with",
               choices = NULL,
               selected = NULL
+            )
+          ),
+
+          tabPanel(
+            "Facilities",
+
+            tags$p(
+              style = "font-size:0.85em; color:#555; margin: 6px 0 8px 0;",
+              "Filter outlier results to a subset of facilities based on reporting consistency.",
+              " Champion facilities are defined on the ",
+              tags$strong("Reporting"), " page."
             ),
 
             selectizeInput(
               ns("reporting"),
-              label = "Reporting frequency",
+              label = "Select facilities based on reporting:",
               choices = c("All", "Champion", "Non-champion"),
-              selected = "All"
-            )
+              selected = "All",
+              width = "100%"
+            ),
+
+            uiOutput(ns("no_champion_alert"))
           )
         )
       ),
@@ -264,6 +278,31 @@ cleaning_widget_server <- function(
           selected_data_cats$elements <- unique(unlist(map[input$dataElement], use.names = FALSE))
         } else {
           selected_data_cats$elements <- input$dataElement
+        }
+      })
+
+      output$no_champion_alert <- renderUI({
+        req(input$reporting)
+        if (input$reporting == "All") return(NULL)
+
+        champion_ous <- tryCatch(
+          reporting_widget_output$reportingSelectedOUs(),
+          error = function(e) NULL
+        )
+
+        if (is.null(champion_ous) || length(champion_ous) == 0) {
+          div(
+            style = paste0(
+              "background:#fff3cd; padding:8px 12px;",
+              " border-left:4px solid #ffc107; margin:8px 0 2px 0; border-radius:3px;"
+            ),
+            tags$strong(style = "color:#856404;", "No champion facilities found."),
+            tags$p(
+              style = "margin:4px 0 0 0; color:#6b5200; font-size:0.85em;",
+              "Showing all facilities. Go to the ",
+              tags$strong("Reporting"), " page to adjust the champion criteria."
+            )
+          )
         }
       })
 
