@@ -5,6 +5,13 @@
 
 Sys.setenv(MG2_DEMO_MODE = "1")
 
+# qs2 is not in Connect Cloud's managed package list — install it first
+# so MG2 (which lists qs2 in Imports) can be installed successfully.
+if (!requireNamespace("qs2", quietly = TRUE)) {
+  message("Installing qs2...")
+  install.packages("qs2", repos = "https://cloud.r-project.org", quiet = TRUE)
+}
+
 # Install or upgrade MG2.
 # Connect Cloud clones the entire jpainter/MG2 repo, so the package
 # source is at ../ relative to this deploy/ directory — no download needed.
