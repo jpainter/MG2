@@ -130,11 +130,11 @@ evaluation_widget_ui = function(id) {
                               value = "total ~ error() + trend() + season()"),
                     textInput(ns('covariates'), 'Model covariates', value = NULL),
 
-                    selectInput(
+                    sliderInput(
                       ns("replicates"),
-                      label = "Forecasting replicates:",
-                      choices = c(100, 500, 1000, 5000),
-                      selected = 1, width = "100%"
+                      label = "Forecasting replicates (faster \u2194 more accurate):",
+                      min = 100, max = 2000, value = 500, step = 100,
+                      width = "100%"
                     )
                   )
                 ),
@@ -1040,7 +1040,8 @@ evaluation_widget_server <- function(
         endEvalMonth_val     = NULL,
         startMonth_val       = NULL,
         split_col_val        = NULL,   # NULL = no stratification
-        grouped_actual       = NULL    # post-intervention data per region (Phase 2 output)
+        grouped_actual       = NULL,   # post-intervention data per region (Phase 2 output)
+        best_fit_model       = NULL    # model name auto-selected by lowest SWAPE (uppercase)
       )
 
       # Tracks whether the model dropdown has been populated for the current validation run.
@@ -1471,8 +1472,29 @@ evaluation_widget_server <- function(
           error = function(e) NULL
         )
 
+        # Compute probability text from the full WPE sample distribution
+        prob_caption <- tryCatch({
+          diff_data <- MG2::forecast_diff(actual = act, predicted = pred, .var = 'total')
+          if (!is.null(diff_data) && nrow(diff_data) > 0) {
+            wpe_vals <- diff_data$WPE
+            med <- stats::median(wpe_vals)
+            if (med < 0) {
+              prob <- mean(wpe_vals < 0) * 100
+              paste0("Probability of decrease: ", round(prob, 1), "%")
+            } else {
+              prob <- mean(wpe_vals > 0) * 100
+              paste0("Probability of increase: ", round(prob, 1), "%")
+            }
+          } else {
+            NULL
+          }
+        }, error = function(e) NULL)
+
+        caption_text <- paste0(region_caption_text(), " | Blue bar = median",
+                               if (!is.null(prob_caption)) paste0(" | ", prob_caption) else "")
+
         h <- diffHistogram(actual = act, predicted = pred, .var = 'total') +
-          labs(caption = paste0(region_caption_text(), " | Blue bar = median"))
+          labs(caption = caption_text)
 
         # Upper-left annotation: model name and WPE summary statistics
         if (!is.null(stats) && nrow(stats) > 0) {
@@ -1518,6 +1540,7 @@ evaluation_widget_server <- function(
             choices  = models,
             selected = models[1]
           )
+          auto_model_values$best_fit_model <- models[1]
           dropdown_initialized(TRUE)
           # Increment trigger so Phase 2 fires even if best model name is unchanged
           # from the previous run (observeEvent(input$selected_model) won't fire
@@ -2417,7 +2440,8 @@ evaluation_widget_server <- function(
         # if ( .period %in% 'Week') g = g + scale_x_yearweek("", date_breaks = "1 year" )
 
         g = g +
-          scale_y_continuous(label = comma, limits = .limits) +
+          scale_y_continuous(label = comma) +
+          (if (!isTRUE(input$scale)) coord_cartesian(ylim = c(0, NA)) else NULL) +
           scale_color_discrete(drop = TRUE) +
           labs(
             y = "",
@@ -2612,6 +2636,30 @@ evaluation_widget_server <- function(
             }
           } else {
             cat('\n - selected predicted or test.forecasts is NULL; skipping autolayer')
+          }
+
+          # Subtitle + legend label noting the selected model
+          sel      <- input$selected_model
+          best_fit <- auto_model_values$best_fit_model
+          if (!is.null(sel) && nchar(sel) > 0) {
+            is_best <- !is.null(best_fit) && identical(sel, best_fit)
+            subtitle_text <- if (is_best) {
+              paste0(
+                "Displayed: best-fit model (", sel,
+                ") \u2014 auto-selected by lowest SWAPE on validation period"
+              )
+            } else {
+              paste0(
+                "Displayed: ", sel,
+                " (manually selected)",
+                if (!is.null(best_fit)) paste0(" \u2014 best-fit model is ", best_fit) else ""
+              )
+            }
+            g <- g +
+              labs(
+                subtitle = subtitle_text,
+                fill = paste0("Model ", sel, " prediction interval")
+              )
           }
         }
 
