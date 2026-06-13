@@ -14,40 +14,46 @@ reporting_widget_ui = function(id) {
         tabsetPanel(
           type = "tabs",
           selected = "Data Elements",
+
           tabPanel(
-            "Display",
+            "Data Elements",
 
-            inputPanel(
-              selectInput(
-                ns("source"),
-                label = "Original/Cleaned",
-                choices = c('Original', 'Cleaned'),
-                selected = 'Original'
-              ),
-
-              selectInput(
-                ns("split"),
-                label = "Split Data By:",
-                choices = "None",
-                selected = "None"
-              )
+            p(
+              style = "font-size:0.85em; color:#444; margin-top:6px; margin-bottom:2px;",
+              "Checked elements count as reporting. ",
+              tags$em("See About for details.")
             ),
 
-            h5('Filter display dates'),
-
-            inputPanel(
-              selectizeInput(
-                ns("startDisplayMonth"),
-                label = "begining",
-                choices = NULL,
-                selected = NULL
+            radioButtons(
+              ns("reporting_rule"),
+              label = "Count a facility as reporting when:",
+              choices = c(
+                "All selected elements — every category present"   = "all_categories",
+                "All selected elements — at least one category"    = "all_elements",
+                "Any selected element present"                     = "any_selected",
+                "Any data element present (including unchecked)"   = "any_data"
               ),
+              selected = "any_selected"
+            ),
 
-              selectizeInput(
-                ns("endDisplayMonth"),
-                label = "ending",
+            uiOutput(ns("reporting_rule_hint")),
+
+            div(
+              style = "display:flex; align-items:center; gap:6px; margin-bottom:2px;",
+              actionButton(ns('update_data_categories'), label = "Update",
+                           class = "btn-info btn-sm"),
+              checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
+              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = FALSE)
+            ),
+
+            div(
+              style = "max-height: calc(100vh - 580px); min-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
+              checkboxGroupInput(
+                ns("data_categories"),
+                label = NULL,
                 choices = NULL,
-                selected = NULL
+                selected = 1,
+                width = "100%"
               )
             )
           ),
@@ -126,47 +132,43 @@ reporting_widget_ui = function(id) {
           ),
 
           tabPanel(
-            "Data Elements",
+            "Display",
 
-            p(
-              style = "font-size:0.85em; color:#444; margin-top:6px; margin-bottom:2px;",
-              "Checked elements count as reporting. ",
-              tags$em("See About for details.")
-            ),
-
-            radioButtons(
-              ns("reporting_rule"),
-              label = "Count a facility as reporting when:",
-              choices = c(
-                "All selected elements — every category present"   = "all_categories",
-                "All selected elements — at least one category"    = "all_elements",
-                "Any selected element present"                     = "any_selected",
-                "Any data element present (including unchecked)"   = "any_data"
+            inputPanel(
+              selectInput(
+                ns("source"),
+                label = "Original/Cleaned",
+                choices = c('Original', 'Cleaned'),
+                selected = 'Original'
               ),
-              selected = "any_selected"
+
+              selectInput(
+                ns("split"),
+                label = "Split Data By:",
+                choices = "None",
+                selected = "None"
+              )
             ),
 
-            uiOutput(ns("reporting_rule_hint")),
+            h5('Filter display dates'),
 
-            div(
-              style = "display:flex; align-items:center; gap:6px; margin-bottom:2px;",
-              actionButton(ns('update_data_categories'), label = "Update",
-                           class = "btn-info btn-sm"),
-              checkboxInput(ns("collapse_reporting"), "One row per element", value = TRUE),
-              checkboxInput(ns("select_all_categories"), "Select / deselect all", value = FALSE)
-            ),
-
-            div(
-              style = "max-height: calc(100vh - 580px); min-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 4px; border-radius: 4px;",
-              checkboxGroupInput(
-                ns("data_categories"),
-                label = NULL,
+            inputPanel(
+              selectizeInput(
+                ns("startDisplayMonth"),
+                label = "begining",
                 choices = NULL,
-                selected = 1,
-                width = "100%"
+                selected = NULL
+              ),
+
+              selectizeInput(
+                ns("endDisplayMonth"),
+                label = "ending",
+                choices = NULL,
+                selected = NULL
               )
             )
-          ) # end tabPanel
+          )
+
         ) # end tabset panel
       ), # end sidebar panel
 
@@ -180,6 +182,7 @@ reporting_widget_ui = function(id) {
 
             fluidPage(
               htmlOutput(ns("region_filter_status")),
+              uiOutput(ns("no_champion_alert")),
 
               tabsetPanel(
                 type = "tabs",
@@ -597,6 +600,36 @@ reporting_widget_server <- function(
           tags$strong(style = "color:#1565C0; font-size:1.05em;",
                       paste("Region:", label))
         )
+      })
+
+      output$no_champion_alert <- renderUI({
+        req(input$mostReports)
+        sou <- reportingSelectedOUs()
+        if (!is.null(sou) && length(sou) == 0) {
+          div(
+            style = paste0(
+              "background:#fff3cd; padding:10px 14px;",
+              " border-left:4px solid #ffc107; margin:0 0 10px 0; border-radius:3px;"
+            ),
+            tags$strong(style = "color:#856404;", "No champion facilities found."),
+            tags$p(
+              style = "margin:4px 0 0 0; color:#6b5200; font-size:0.9em;",
+              "Try one of the following:"
+            ),
+            tags$ul(
+              style = "margin:2px 0 0 0; padding-left:18px; color:#6b5200; font-size:0.9em;",
+              tags$li(
+                tags$strong("Data Elements tab:"),
+                " Relax the rule for counting a facility as reporting",
+                " (e.g. switch from \"All selected elements\" to \"Any selected element\")."
+              ),
+              tags$li(
+                tags$strong("Reporting Consistency tab:"),
+                " Widen the date range or increase the number of missing reports allowed per year."
+              )
+            )
+          )
+        }
       })
 
       # Internal helpers
@@ -2348,15 +2381,15 @@ reporting_widget_server <- function(
           )
 
         cat("\n - join avgvalues:")
+        uq_breaks <- unique(quartileValues)
         champion_facilities = champion_facilities %>%
           # filter( id %in% "a08881Oz98k" ) %>%
           left_join(avgValues, by = c("id" = "orgUnit")) %>%
           mutate(
-            medianValueRange = cut(
-              medianValue,
-              breaks = unique(quartileValues),
-              ordered_result = TRUE
-            ),
+            medianValueRange = if (length(uq_breaks) >= 2)
+              cut(medianValue, breaks = uq_breaks, ordered_result = TRUE)
+            else
+              factor(rep("All", dplyr::n())),
             medianValueRangeSize = medianValueRange %>% as.numeric()
           )
 
