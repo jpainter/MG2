@@ -78,6 +78,13 @@ evaluation_widget_ui = function(id) {
 
                     checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
 
+                    sliderInput(
+                      ns("replicates"),
+                      label = "Forecasting replicates (faster \u2194 more accurate):",
+                      min = 100, max = 2000, value = 500, step = 100,
+                      width = "100%"
+                    ),
+
                     actionButton(ns("forecast"), "Calculate Percent Change",
                                  width = "100%", class = "btn-primary btn-sm",
                                  style = "margin-top:4px; margin-bottom:2px;"),
@@ -115,27 +122,22 @@ evaluation_widget_ui = function(id) {
                     checkboxInput(ns("pre_evaluation"), 'Pre-intervention model fit',    FALSE),
                     checkboxInput(ns("evaluation"),     'Post-intervention evaluation',  FALSE),
 
-                    selectInput(
-                      ns("model"),
-                      label = "Overlay model:",
-                      choices = c('TSLM (trend)', 'TSLM (trend+season)', 'ETS', 'ARIMA'),
-                      selected = 'ETS', width = "100%"
+                    # Hidden inputs kept for server-side compatibility
+                    shinyjs::hidden(
+                      selectInput(
+                        ns("model"),
+                        label = "Overlay model:",
+                        choices = c('TSLM (trend)', 'TSLM (trend+season)', 'ETS', 'ARIMA'),
+                        selected = 'ETS', width = "100%"
+                      ),
+                      checkboxInput(ns("smooth"),     'Show smoothed trend line (loess)', FALSE),
+                      checkboxInput(ns("scale"),      'Scale values (x-mean)/sd + 1',    FALSE),
+                      checkboxInput(ns('components'), 'Visualize trend',                  FALSE)
                     ),
-
-                    checkboxInput(ns("smooth"),      'Show smoothed trend line (loess)', FALSE),
-                    checkboxInput(ns("scale"),       'Scale values (x-mean)/sd + 1',    FALSE),
-                    checkboxInput(ns('components'),  'Visualize trend',                  FALSE),
 
                     textInput(ns('model.formula'), 'Model Formula',
                               value = "total ~ error() + trend() + season()"),
-                    textInput(ns('covariates'), 'Model covariates', value = NULL),
-
-                    sliderInput(
-                      ns("replicates"),
-                      label = "Forecasting replicates (faster \u2194 more accurate):",
-                      min = 100, max = 2000, value = 500, step = 100,
-                      width = "100%"
-                    )
+                    textInput(ns('covariates'), 'Model covariates', value = NULL)
                   )
                 ),
 
