@@ -166,7 +166,7 @@ Evaluation → Burden Estimate (dev) → AI Assistant (dev)
 **Deployments:**
 - GitHub releases: automated via `.github/workflows/release.yml` (push `git tag vX.Y.Z`)
 - shinyapps.io: `rsconnect::deployApp(appDir="deploy", appName="MG2-MagicGlasses2")`
-- Connect Cloud: republish via connectcloud.posit.co (installs MG2 from `../` local clone)
+- Connect Cloud: republish via https://connect.posit.cloud/magicglasses (installs MG2 from `../` local clone)
 - Both deployments use `MG2_DEMO_MODE=1` env var; demo buttons replace shinyFiles picker
 
 **FST → RDS switch (2026-06-07):**
