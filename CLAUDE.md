@@ -145,7 +145,7 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 2N)
 
 ## Current State (as of 2026-06-08)
 
-**Version:** 0.1.7 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
+**Version:** 0.1.9 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
