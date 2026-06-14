@@ -15,26 +15,43 @@ if (!requireNamespace("qs2", quietly = TRUE)) {
 }
 
 # Install or upgrade MG2.
-# Connect Cloud clones the entire jpainter/MG2 repo, so the package
-# source is at ../ relative to this deploy/ directory — no download needed.
-# shinyapps.io only bundles deploy/ contents, so fall back to the tarball.
-.pkg     <- paste0("MG", "2")
-.target  <- "0.1.9"
-.needs_install <- !nchar(system.file(package = .pkg)) ||
-  tryCatch(utils::packageVersion(.pkg) < .target, error = function(e) TRUE)
+# Connect Cloud clones the entire jpainter/MG2 repo, so the package source is
+# at ../ relative to this deploy/ directory.  Re-install whenever the repo HEAD
+# differs from the SHA recorded at the last install — no version bumps needed.
+.pkg      <- paste0("MG", "2")
+.local    <- tryCatch(normalizePath(".."), error = function(e) "")
+.has_src  <- nzchar(.local) && file.exists(file.path(.local, "DESCRIPTION"))
 
-if (.needs_install) {
-  local_src <- tryCatch(normalizePath(".."), error = function(e) "")
-  if (nzchar(local_src) && file.exists(file.path(local_src, "DESCRIPTION"))) {
-    message("Installing MG2 ", .target, " from local repo source...")
-    install.packages(local_src, repos = NULL, type = "source",
-                     INSTALL_opts = "--no-build-vignettes --no-manual",
-                     quiet = TRUE)
-  } else if (file.exists("MG2_0.1.7.tar.gz")) {
-    message("Installing MG2 ", .target, " from bundled tarball...")
-    install.packages("MG2_0.1.7.tar.gz", repos = NULL, type = "source",
-                     quiet = TRUE)
-  }
+# Current HEAD of the cloned repo (empty string if git unavailable).
+.head_sha <- if (.has_src) {
+  tryCatch(
+    system2("git", c("-C", .local, "rev-parse", "HEAD"),
+            stdout = TRUE, stderr = FALSE)[1L],
+    error = function(e) ""
+  )
+} else ""
+
+# SHA recorded from the previous install (persists in the package dir).
+.sha_file      <- file.path(path.expand("~"), ".mg2_deploy_sha")
+.installed_sha <- if (file.exists(.sha_file))
+  tryCatch(readLines(.sha_file, warn = FALSE)[1L], error = function(e) "")
+else ""
+
+.needs_install <-
+  !nzchar(system.file(package = .pkg)) ||          # not installed at all
+  (nzchar(.head_sha) && .head_sha != .installed_sha) || # code changed
+  (!nzchar(.head_sha) &&                           # git unavailable: fall back
+     tryCatch(utils::packageVersion(.pkg) < "0.2.0",
+              error = function(e) TRUE))
+
+if (.needs_install && .has_src) {
+  message("Installing MG2 from local repo source (SHA: ",
+          if (nzchar(.head_sha)) substr(.head_sha, 1, 7) else "unknown", ")...")
+  install.packages(.local, repos = NULL, type = "source",
+                   INSTALL_opts = "--no-build-vignettes --no-manual",
+                   quiet = TRUE)
+  if (nzchar(.head_sha))
+    writeLines(.head_sha, .sha_file)
 }
 
 library(.pkg, character.only = TRUE)

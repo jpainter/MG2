@@ -3156,6 +3156,13 @@ tsmodels = function(
     cat("\n - tsmodels: prophet skipped (only", n_train_months,
         "training months; need >= 24)")
 
+  # fabletools::model() detects any active future plan and tries to use
+  # future.apply for internal parallelism. On Connect Cloud, future.apply is
+  # not installed, causing an error even for base models. Since tsmodels() is
+  # already called inside a future() worker, nested parallelism adds no value —
+  # force sequential so fabletools runs single-threaded.
+  future::plan(future::sequential)
+
   if (msg) cat("\n - tsmodels: Fitting models")
   tictoc::tic()
   tictoc::tic()
