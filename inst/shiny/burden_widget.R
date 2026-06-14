@@ -29,6 +29,7 @@ burden_widget_ui <- function(id) {
 
         # ── Sidebar tabs: Data | Model ──────────────────────────────────
         tabsetPanel(
+          id = ns("burden_sidebar_tab"),
           type = "tabs",
 
           tabPanel(
@@ -148,19 +149,23 @@ burden_widget_ui <- function(id) {
           )
         ),
 
-        hr(),
+        conditionalPanel(
+          condition = sprintf("input['%s'] === 'Model'", ns("burden_sidebar_tab")),
 
-        actionButton(ns("run"), "Run Estimates",
-                     class = "btn-primary btn-block", style = "width:100%;"),
-        br(),
-        div(
-          style = paste0(
-            "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
-            " padding:6px; max-height:180px; overflow-y:auto;",
-            " font-size:0.78em; font-family:monospace;"
-          ),
-          verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
-        )
+          hr(),
+
+          actionButton(ns("run"), "Run Estimates",
+                       class = "btn-primary btn-block", style = "width:100%;"),
+          br(),
+          div(
+            style = paste0(
+              "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
+              " padding:6px; max-height:180px; overflow-y:auto;",
+              " font-size:0.78em; font-family:monospace;"
+            ),
+            verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
+          )
+        ),
       ),
 
       mainPanel(
