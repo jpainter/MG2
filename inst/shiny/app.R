@@ -71,6 +71,7 @@ options(dplyr.summarise.inform = FALSE)
 # transferred (sequential plan), so the check is a false positive.
 options(future.globals.maxSize = Inf)
 future::plan(future::multisession, workers = 1L)
+cat("\n=== MG2", as.character(utils::packageVersion("MG2")), "starting ===\n")
 
 # Source Shiny modules ------------------------------------------------------
 # Each file defines a *_ui() and *_server() function for one app tab/panel.
