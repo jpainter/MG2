@@ -5,13 +5,14 @@
 
 Sys.setenv(MG2_DEMO_MODE = "1")
 
-# qs2 is not in Connect Cloud's managed package list. Use Posit Package Manager
+# Packages not in Connect Cloud's managed list — install from Posit Package Manager
 # for pre-built Linux binaries (no compilation → installs in seconds).
-if (!requireNamespace("qs2", quietly = TRUE)) {
-  message("Installing qs2 from Posit Package Manager (pre-built binary)...")
-  install.packages("qs2",
-    repos = "https://packagemanager.posit.co/cran/__linux__/noble/latest",
-    quiet = TRUE)
+.ppm <- "https://packagemanager.posit.co/cran/__linux__/noble/latest"
+for (.p in c("qs2", "future.apply")) {
+  if (!requireNamespace(.p, quietly = TRUE)) {
+    message("Installing ", .p, " from Posit Package Manager (pre-built binary)...")
+    install.packages(.p, repos = .ppm, quiet = TRUE)
+  }
 }
 
 # Install or upgrade MG2.
