@@ -397,6 +397,7 @@ burden_c1 <- function(data, target_elements, region_col,
 
       # Facilities with any target data in the period  -  impute missing months
       facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
+      n_not_ts_reg <- 0L
 
       for (fac in facilities) {
         fac_hist <- dt_sub[orgUnit == fac]           # full history
@@ -416,6 +417,7 @@ burden_c1 <- function(data, target_elements, region_col,
         if (nrow(obs) < min_obs) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          n_not_ts_reg <- n_not_ts_reg + 1L
           # Still credit actual reported values so that C1 >= reported.
           # Missing months are not imputed (treated as 0 = conservative).
           actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
@@ -433,6 +435,7 @@ burden_c1 <- function(data, target_elements, region_col,
         if (is.null(fit)) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          n_not_ts_reg <- n_not_ts_reg + 1L
           actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
           fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
@@ -497,6 +500,8 @@ burden_c1 <- function(data, target_elements, region_col,
       sub_rows[[length(sub_rows) + 1L]] <- data.frame(
         method = "C1", region = reg, category = cat,
         estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        n_with_data = length(facilities),
+        n_not_ts    = n_not_ts_reg,
         stringsAsFactors = FALSE
       )
     }
@@ -584,9 +589,10 @@ burden_c2 <- function(data, target_elements, region_col,
     names(reg_samps) <- regions
 
     for (reg in regions) {
-      reg_facs   <- fac_univ[get(region_col) == reg]
-      facilities <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
-      fac_samps  <- rep(0, n_bootstrap)
+      reg_facs     <- fac_univ[get(region_col) == reg]
+      facilities   <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
+      fac_samps    <- rep(0, n_bootstrap)
+      n_not_ts_reg <- 0L
 
       for (fac in facilities) {
         # Full history: used for champion means and ARIMA/linear model fitting
@@ -661,6 +667,7 @@ burden_c2 <- function(data, target_elements, region_col,
         if (nrow(obs) < 3L) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          n_not_ts_reg <- n_not_ts_reg + 1L
           actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
           fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
@@ -671,6 +678,7 @@ burden_c2 <- function(data, target_elements, region_col,
         if (is.null(fit_lm)) {
           not_modeled[[length(not_modeled) + 1L]] <-
             data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          n_not_ts_reg <- n_not_ts_reg + 1L
           actual <- dt_sub_p[orgUnit == fac & get("data") == cat, value]
           fac_samps <- fac_samps + sum(actual, na.rm = TRUE)
           next
@@ -732,6 +740,8 @@ burden_c2 <- function(data, target_elements, region_col,
       sub_rows[[length(sub_rows) + 1L]] <- data.frame(
         method = "C2", region = reg, category = cat,
         estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        n_with_data = length(facilities),
+        n_not_ts    = n_not_ts_reg,
         stringsAsFactors = FALSE
       )
     }
@@ -745,6 +755,240 @@ burden_c2 <- function(data, target_elements, region_col,
     subnational = data.table::rbindlist(sub_rows, fill = TRUE),
     national    = data.table::rbindlist(nat_rows, fill = TRUE),
     not_modeled = if (length(not_modeled)) data.table::rbindlist(not_modeled) else NULL
+  )
+}
+
+# -- Method CA: Cascade (C2 -> C1 -> A fallback) -------------------------------
+
+#' Burden Method CA: Cascade (C2 -> C1 -> A)
+#'
+#' Fits `auto.arima` on each facility's full monthly series (same as C2),
+#' falls back to a linear model (same as C1), and when a facility cannot be
+#' modeled by either, draws from the regional champion distribution (Method A)
+#' instead of crediting actuals-only.  This makes CA a strictly higher or equal
+#' estimate than C2 for facilities with insufficient history.
+#'
+#' @param data data.table from `selectedData()`  -  the **full available history**.
+#' @param target_elements character; target `data` values.
+#' @param region_col character; region column name.
+#' @param period_start,period_end yearmonth; estimate period window (NULL = all data).
+#' @param min_months integer; minimum months of history for ARIMA (default 12).
+#' @param n_bootstrap integer; simulation draws.
+#' @return list with `$subnational`, `$national`, and `$not_modeled` (facilities
+#'   that used the A fallback).
+#' @export
+burden_ca <- function(data, target_elements, region_col,
+                      period_start = NULL, period_end = NULL,
+                      min_months = 12L, n_bootstrap = 1000L) {
+  if (!requireNamespace("forecast", quietly = TRUE)) {
+    message("Package 'forecast' required for CA ARIMA step; falling back to C1 with A fallback.")
+  }
+
+  dt <- data.table::as.data.table(data)
+  dt[, .month_int := lubridate::month(Month)]
+
+  # Facility universe from ALL elements
+  fac_univ <- .fac_universe(dt, region_col)
+  regions  <- sort(unique(fac_univ[[region_col]]))
+
+  dt_tgt <- dt[get("data") %in% target_elements]
+  if (nrow(dt_tgt) == 0L) return(NULL)
+
+  dt_period <- if (!is.null(period_start) || !is.null(period_end)) {
+    tmp <- dt_tgt
+    if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+    if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+    tmp
+  } else dt_tgt
+
+  # Champion monthly means use FULL history
+  champ_reg <- dt_tgt[Selected == "Champion" & !is.na(value),
+    .(champ_mean = mean(value, na.rm = TRUE)),
+    by = c(region_col, "data", ".month_int")
+  ]
+  champ_nat <- dt_tgt[Selected == "Champion" & !is.na(value),
+    .(champ_nat = mean(value, na.rm = TRUE)),
+    by = c("data", ".month_int")
+  ]
+
+  sub_rows <- nat_rows <- list()
+  a_fallback <- list()
+
+  for (cat in target_elements) {
+    dt_sub   <- dt_tgt[get("data") == cat]
+    dt_sub_p <- dt_period[get("data") == cat]
+    if (nrow(dt_sub_p) == 0L) next
+
+    reg_samps <- vector("list", length(regions))
+    names(reg_samps) <- regions
+
+    for (reg in regions) {
+      reg_facs     <- fac_univ[get(region_col) == reg]
+      facilities   <- unique(dt_sub_p[get(region_col) == reg, orgUnit])
+      fac_samps    <- rep(0, n_bootstrap)
+      n_not_ts_reg <- 0L
+
+      # Pre-compute regional champion distribution for A fallback
+      champ_ous_reg <- reg_facs[Selected == "Champion", orgUnit]
+      if (length(champ_ous_reg) > 0L) {
+        champ_period_totals_reg <- dt_sub_p[orgUnit %in% champ_ous_reg & !is.na(value),
+          .(total = sum(value, na.rm = TRUE)), by = "orgUnit"]
+        champ_tbl_reg <- merge(
+          data.table::data.table(orgUnit = champ_ous_reg),
+          champ_period_totals_reg, by = "orgUnit", all.x = TRUE)
+        champ_tbl_reg[is.na(total), total := 0L]
+        champ_dist_reg <- champ_tbl_reg$total
+      } else {
+        champ_dist_nat_tmp <- dt_sub_p[Selected == "Champion" & !is.na(value),
+          .(total = sum(value, na.rm = TRUE)), by = "orgUnit"]$total
+        champ_dist_reg <- if (length(champ_dist_nat_tmp) > 0L) champ_dist_nat_tmp else numeric(0)
+      }
+
+      for (fac in facilities) {
+        # Full history: used for champion means and ARIMA/linear model fitting
+        fac_hist <- dt_sub[orgUnit == fac]
+
+        fac_hist <- merge(fac_hist,
+          champ_reg[get(region_col) == reg & get("data") == cat,
+                    .(.month_int, champ_mean)],
+          by = ".month_int", all.x = TRUE)
+        fac_hist <- merge(fac_hist,
+          champ_nat[get("data") == cat, .(.month_int, champ_nat)],
+          by = ".month_int", all.x = TRUE)
+        fac_hist[is.na(champ_mean), champ_mean := champ_nat]
+        data.table::setorder(fac_hist, Month)
+
+        n_obs_hist <- sum(!is.na(fac_hist$value))
+        use_arima  <- n_obs_hist >= min_months &&
+                      requireNamespace("forecast", quietly = TRUE)
+
+        if (use_arima) {
+          # Fit on log1p scale to keep predictions non-negative after expm1()
+          ts_vals  <- stats::ts(log1p(fac_hist$value), frequency = 12)
+          xreg_all <- matrix(fac_hist$champ_mean, ncol = 1)
+          xreg_all[is.na(xreg_all)] <- 0
+
+          fit_arima <- tryCatch(
+            forecast::auto.arima(ts_vals, xreg = xreg_all,
+                                 seasonal = TRUE, stepwise = TRUE,
+                                 approximation = TRUE, allowdrift = FALSE),
+            error = function(e) NULL
+          )
+
+          if (!is.null(fit_arima)) {
+            fitted_all  <- tryCatch(as.numeric(fitted(fit_arima)), error = function(e) NULL)
+            sigma_arima <- sqrt(fit_arima$sigma2)
+
+            if (!is.null(fitted_all) && sigma_arima > 0) {
+              if (length(fitted_all) < nrow(fac_hist)) {
+                fitted_all <- c(rep(NA_real_, nrow(fac_hist) - length(fitted_all)),
+                                fitted_all)
+              }
+
+              fac_hist[, .fitted := fitted_all[seq_len(.N)]]
+
+              fac_period_rows <- if (!is.null(period_start) || !is.null(period_end)) {
+                tmp <- fac_hist
+                if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+                if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+                tmp
+              } else fac_hist
+
+              ann_samps <- rep(0, n_bootstrap)
+              for (i in seq_len(nrow(fac_period_rows))) {
+                if (!is.na(fac_period_rows$value[i])) {
+                  ann_samps <- ann_samps + fac_period_rows$value[i]
+                } else {
+                  fv <- fac_period_rows$.fitted[i]   # on log1p scale
+                  if (!is.na(fv) && is.finite(fv)) {
+                    drawn <- pmax(0, expm1(stats::rnorm(n_bootstrap, fv, sigma_arima)))
+                    ann_samps <- ann_samps + drawn
+                  }
+                }
+              }
+              fac_hist[, .fitted := NULL]
+              fac_samps <- fac_samps + ann_samps
+              next
+            }
+          }
+        }
+
+        # Fallback: C1 linear model on log1p scale
+        obs <- fac_hist[!is.na(value) & !is.na(champ_mean) & is.finite(champ_mean)]
+        if (nrow(obs) < 3L) {
+          # A fallback: draw from regional champion distribution
+          a_fallback[[length(a_fallback) + 1L]] <-
+            data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          n_not_ts_reg <- n_not_ts_reg + 1L
+          fac_samps <- fac_samps + .burden_resample_sum(champ_dist_reg, 1L, n_bootstrap)
+          next
+        }
+        fit_lm <- tryCatch(
+          stats::lm(log1p(value) ~ champ_mean, data = obs), error = function(e) NULL
+        )
+        if (is.null(fit_lm)) {
+          # A fallback: draw from regional champion distribution
+          a_fallback[[length(a_fallback) + 1L]] <-
+            data.frame(orgUnit = fac, category = cat, stringsAsFactors = FALSE)
+          n_not_ts_reg <- n_not_ts_reg + 1L
+          fac_samps <- fac_samps + .burden_resample_sum(champ_dist_reg, 1L, n_bootstrap)
+          next
+        }
+        a_coef <- stats::coef(fit_lm)[[1L]]
+        b_coef <- stats::coef(fit_lm)[[2L]]
+        sigma  <- stats::sigma(fit_lm)
+
+        fac_period_rows <- if (!is.null(period_start) || !is.null(period_end)) {
+          tmp <- fac_hist
+          if (!is.null(period_start)) tmp <- tmp[Month >= period_start]
+          if (!is.null(period_end))   tmp <- tmp[Month <= period_end]
+          tmp
+        } else fac_hist
+
+        ann_samps <- rep(0, n_bootstrap)
+        for (i in seq_len(nrow(fac_period_rows))) {
+          if (!is.na(fac_period_rows$value[i])) {
+            ann_samps <- ann_samps + fac_period_rows$value[i]
+          } else {
+            cm <- fac_period_rows$champ_mean[i]
+            if (!is.na(cm) && is.finite(cm)) {
+              log_pred <- a_coef + b_coef * cm
+              drawn    <- pmax(0, expm1(stats::rnorm(n_bootstrap, log_pred, sigma)))
+              ann_samps <- ann_samps + drawn
+            }
+          }
+        }
+        fac_samps <- fac_samps + ann_samps
+      }
+
+      # Non-champions with NO target data in the period -> champion-distribution fallback
+      no_data_facs <- reg_facs[!orgUnit %in% facilities]
+      nc_no_data   <- nrow(no_data_facs[Selected != "Champion"])
+
+      if (nc_no_data > 0L) {
+        fac_samps <- fac_samps + .burden_resample_sum(champ_dist_reg, nc_no_data, n_bootstrap)
+      }
+
+      reg_samps[[reg]] <- fac_samps
+      ci <- .burden_ci(fac_samps)
+      sub_rows[[length(sub_rows) + 1L]] <- data.frame(
+        method = "CA", region = reg, category = cat,
+        estimate = ci$estimate, lower = ci$lower, upper = ci$upper,
+        n_with_data = length(facilities),
+        n_not_ts    = n_not_ts_reg,
+        stringsAsFactors = FALSE
+      )
+    }
+
+    nr <- .national_from_regions(reg_samps, "CA", cat)
+    if (!is.null(nr)) nat_rows[[length(nat_rows) + 1L]] <- nr
+  }
+
+  if (length(sub_rows) == 0L) return(NULL)
+  list(
+    subnational = data.table::rbindlist(sub_rows, fill = TRUE),
+    national    = data.table::rbindlist(nat_rows, fill = TRUE),
+    not_modeled = if (length(a_fallback)) data.table::rbindlist(a_fallback) else NULL
   )
 }
 

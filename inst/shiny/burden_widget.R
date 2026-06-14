@@ -97,6 +97,7 @@ burden_widget_ui <- function(id) {
                 "B — Attendance-based"         = "B",
                 "C1 — Linear imputation"       = "C1",
                 "C2 — ARIMA imputation"        = "C2",
+                "CA — Cascade (C2→C1→A)"       = "CA",
                 "E — Adj. Corrected Incidence" = "E"
               ),
               selected = "A",
@@ -810,6 +811,7 @@ burden_widget_server <- function(
       B            = NULL,
       C1           = NULL,
       C2           = NULL,
+      CA           = NULL,
       E            = NULL,
       D            = NULL,
       reported     = NULL,
@@ -850,6 +852,7 @@ burden_widget_server <- function(
       # Clear previous results
       results$A  <- NULL; results$B  <- NULL
       results$C1 <- NULL; results$C2 <- NULL
+      results$CA <- NULL
       results$E  <- NULL; results$D  <- NULL
       results$reported <- NULL
 
@@ -1027,6 +1030,28 @@ burden_widget_server <- function(
         }
       }
 
+      if ("CA" %in% methods) {
+        add_log("Method CA: Cascade (C2 -> C1 -> A fallback)...")
+        res <- tryCatch(
+          burden_ca(
+            data            = d,
+            target_elements = tgt,
+            region_col      = region_col,
+            period_start    = sm_ym,
+            period_end      = em_ym,
+            n_bootstrap     = n_boot
+          ),
+          error = function(e) { add_log(paste("  Error:", e$message)); NULL }
+        )
+        results$CA <- add_category_totals(res)
+        if (!is.null(res)) {
+          nm <- if (!is.null(res$not_modeled)) nrow(res$not_modeled) else 0L
+          add_log(sprintf("  Done. %d facilities used A fallback.", nm))
+        } else {
+          add_log("  No results.")
+        }
+      }
+
       if ("E" %in% methods) {
         att  <- att_full
         test <- test_full
@@ -1059,7 +1084,7 @@ burden_widget_server <- function(
       # Population rate (applies to all completed methods)
       if (length(pop_full) > 0) {
         add_log("Adding population rates (per 100,000)...")
-        for (nm in c("A", "B", "C1", "C2", "E")) {
+        for (nm in c("A", "B", "C1", "C2", "CA", "E")) {
           if (!is.null(results[[nm]])) {
             results[[nm]] <- tryCatch(
               add_population_rate(results[[nm]], d, pop_full[1], region_col),
@@ -1073,7 +1098,8 @@ burden_widget_server <- function(
       if (isTRUE(input$run_d)) {
         res_list <- Filter(Negate(is.null),
                            list(A = results$A, B = results$B,
-                                C1 = results$C1, C2 = results$C2))
+                                C1 = results$C1, C2 = results$C2,
+                                CA = results$CA))
         if (length(res_list) == 0L) {
           add_log("Method D: no base estimates available, skipping.")
         } else {
@@ -1105,7 +1131,7 @@ burden_widget_server <- function(
       available <- names(Filter(Negate(is.null),
                                 list(A = results$A, B = results$B,
                                      C1 = results$C1, C2 = results$C2,
-                                     E = results$E)))
+                                     CA = results$CA, E = results$E)))
       # "Reported" is always available after a run — prepend it
       available <- c("Reported", available)
       updateSelectInput(session, "map_method",  choices = available)
@@ -1129,7 +1155,7 @@ burden_widget_server <- function(
 
     output$results_hint <- renderUI({
       all_null <- is.null(results$A) && is.null(results$B) &&
-                  is.null(results$C1) && is.null(results$C2)
+                  is.null(results$C1) && is.null(results$C2) && is.null(results$CA)
       if (all_null)
         div(style = "color:#888; font-style:italic; padding:10px;",
             "Select elements and years, choose methods, then press Run.")
@@ -1141,7 +1167,7 @@ burden_widget_server <- function(
       res_list <- Filter(Negate(is.null),
                          list(A = results$A, B = results$B,
                               C1 = results$C1, C2 = results$C2,
-                              E = results$E))
+                              CA = results$CA, E = results$E))
 
       # Method D: burden_d_adjust() returns a flat table with a `level` column.
       # Reshape into the list($subnational, $national) format so
@@ -1207,9 +1233,31 @@ burden_widget_server <- function(
         df <- merge(df, results$fac_counts, by.x = "Area", by.y = "region", all.x = TRUE)
         df[["Champ/Total"]][is.na(df[["Champ/Total"]])] <- "—"
       }
-      # Reorder: Area, [Group], Reported, Avg, Champ/Total, then method columns
+      # Diagnostic: % of facilities not modeled by time-series (C1/C2/CA only)
+      best_c <- if (!is.null(results$CA)) results$CA else
+                  if (!is.null(results$C2)) results$C2 else results$C1
+      if (!is.null(best_c) && !is.null(best_c$subnational) &&
+          "n_with_data" %in% names(best_c$subnational)) {
+        pct_tbl <- as.data.frame(best_c$subnational)
+        pct_tbl <- pct_tbl[!is.na(pct_tbl$region) & pct_tbl$region != "National", ]
+        pct_tbl <- pct_tbl[pct_tbl$category == "Total" | !("category" %in% names(pct_tbl)), ]
+        if (nrow(pct_tbl) > 0) {
+          pct_agg <- aggregate(
+            cbind(n_not_ts, n_with_data) ~ region,
+            data = pct_tbl[, c("region", "n_not_ts", "n_with_data")],
+            FUN  = sum, na.rm = TRUE
+          )
+          pct_agg$`% Not TS` <- paste0(
+            round(100 * pct_agg$n_not_ts / pmax(1L, pct_agg$n_with_data), 0), "%"
+          )
+          names(pct_agg)[names(pct_agg) == "region"] <- "Area"
+          df <- merge(df, pct_agg[, c("Area", "% Not TS")], by = "Area", all.x = TRUE)
+          df$`% Not TS`[is.na(df$`% Not TS`)] <- "—"
+        }
+      }
+      # Reorder: Area, [Group], Reported, Avg, Champ/Total, % Not TS, then method columns
       first_cols  <- intersect(c("Area", "Group"), names(df))
-      anchor_cols <- intersect(c("Reported", "Avg", "Champ/Total"), names(df))
+      anchor_cols <- intersect(c("Reported", "Avg", "Champ/Total", "% Not TS"), names(df))
       df <- df[, c(first_cols, anchor_cols,
                    setdiff(names(df), c(first_cols, anchor_cols))),
                drop = FALSE]
@@ -1300,7 +1348,7 @@ burden_widget_server <- function(
         res <- switch(method,
           A  = results$A, B = results$B,
           C1 = results$C1, C2 = results$C2,
-          E  = results$E
+          CA = results$CA, E  = results$E
         )
         req(!is.null(res), !is.null(res$subnational))
 
