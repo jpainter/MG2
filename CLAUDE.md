@@ -169,12 +169,12 @@ Evaluation → Burden Estimate (dev) → AI Assistant (dev)
 - Connect Cloud: republish via https://connect.posit.cloud/magicglasses (installs MG2 from `../` local clone)
 - Both deployments use `MG2_DEMO_MODE=1` env var; demo buttons replace shinyFiles picker
 
-**FST → RDS switch (2026-06-07):**
-`mg2_data_ext()` now always returns `"rds"`. FST had persistent yearmonth class-stripping
-bugs across data.table/vctrs boundaries that were impossible to fix reliably. New files
-save as uncompressed RDS (`compress=FALSE`). `read_file()` still reads legacy FST files
-with days-to-months conversion. Do NOT revert to FST without solving the vctrs dispatch
-issue where `data.table::set()` converts yearmonth months back to days internally.
+**File format (QS default, RDS fallback):**
+`mg2_data_ext()` returns `"qs"`. `save_file()` uses `qs2::qs_save()`; `read_file()` reads
+`.qs`, `.rds`, and legacy `.fst`. QS replaced RDS (2026-06-07) because FST had persistent
+yearmonth class-stripping bugs. QS uses ZSTD compression and preserves all R classes
+including `yearmonth` without post-read fixup. Do NOT revert to FST — the vctrs dispatch
+issue where `data.table::set()` converts yearmonth days back to months was never solved.
 
 **yearmonth encoding (critical):**
 - Internal storage: days-since-epoch (~18000-20000 for 2020-2025); `unclass(yearmonth("2024 Dec")) = 20058`
