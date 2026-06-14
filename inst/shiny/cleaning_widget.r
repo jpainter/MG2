@@ -93,13 +93,16 @@ cleaning_widget_ui = function(id) {
 
           tabPanel(
             "Summary",
-            br(),
-            textOutput(ns("outlierSummaryText")),
-            DT::dataTableOutput(ns("outlier.summary.table")),
-            tags$p(style = "font-size:0.9em; color:#555; margin-top:4px;",
-                   htmltools::HTML("For outlier procedure details see the <b>About</b> tab.")),
-            hr(style = "margin: 6px 0;"),
-            plotly::plotlyOutput(ns("outlier_cleaning_chart"), height = "calc(50vh - 80px)")
+            div(
+              style = "overflow-y: auto; max-height: calc(100vh - 130px);",
+              br(),
+              textOutput(ns("outlierSummaryText")),
+              DT::dataTableOutput(ns("outlier.summary.table")),
+              tags$p(style = "font-size:0.9em; color:#555; margin-top:4px;",
+                     htmltools::HTML("For outlier procedure details see the <b>About</b> tab.")),
+              hr(style = "margin: 6px 0;"),
+              plotly::plotlyOutput(ns("outlier_cleaning_chart"), height = "500px")
+            )
           ),
 
           tabPanel(
