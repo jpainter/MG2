@@ -19,7 +19,7 @@ if (!requireNamespace("qs2", quietly = TRUE)) {
 # source is at ../ relative to this deploy/ directory — no download needed.
 # shinyapps.io only bundles deploy/ contents, so fall back to the tarball.
 .pkg     <- paste0("MG", "2")
-.target  <- "0.1.7"
+.target  <- "0.1.8"
 .needs_install <- !nchar(system.file(package = .pkg)) ||
   tryCatch(utils::packageVersion(.pkg) < .target, error = function(e) TRUE)
 
