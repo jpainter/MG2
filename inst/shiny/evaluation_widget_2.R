@@ -1523,7 +1523,7 @@ evaluation_widget_server <- function(
             "label",
             x = Inf, y = Inf,
             label    = prob_caption,
-            hjust    = 1.05, vjust = 1.1,
+            hjust    = 1.05, vjust = 1.5,
             size     = 3.5,
             fontface = "bold",
             alpha    = 0.85,

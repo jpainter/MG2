@@ -3555,6 +3555,7 @@ diffHistogram = function(actual, predicted, xlimits = c(NA, NA), ...) {
     ggplot2::scale_x_continuous(limits = xlimits) +
     ggplot2::facet_grid(Intervention ~ .model, scales = "fixed") +
     ggplot2::labs(
+      title    = "WPE Posterior Distribution",
       subtitle = paste0(
         "Each observation represents estimated difference from an individual forecast (n=",
         n_forecasts, ")"
