@@ -10,7 +10,7 @@
 #'
 #' @param text Character. The hint text to display.
 #' @return A `div` tag.
-#' @keywords internal
+#' @export
 .mg2_step_hint <- function(text) {
   shiny::div(
     style = paste0(

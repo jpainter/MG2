@@ -16,4 +16,3 @@ A \code{div} tag.
 Renders a small blue hint bar pointing users to the next step.
 Used at the top of tab UI functions to guide new users.
 }
-\keyword{internal}
