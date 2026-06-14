@@ -41,7 +41,7 @@ else ""
   !nzchar(system.file(package = .pkg)) ||          # not installed at all
   (nzchar(.head_sha) && .head_sha != .installed_sha) || # code changed
   (!nzchar(.head_sha) &&                           # git unavailable: fall back
-     tryCatch(utils::packageVersion(.pkg) < "0.2.0",
+     tryCatch(utils::packageVersion(.pkg) < "0.1.8",
               error = function(e) TRUE))
 
 if (.needs_install && .has_src) {
