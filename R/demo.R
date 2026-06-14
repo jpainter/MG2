@@ -128,15 +128,19 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   }
 
   # -------------------------------------------------------------------------
-  # 4. Raw 12-month real data (one year from DHIS2 before bootstrapping)
+  # 4. All-levels processed dataset (national / district / chiefdom / facility)
   # -------------------------------------------------------------------------
-  raw_path <- file.path(dir, paste0(formula_name, "_raw_1yr_", today, ".rds"))
+  n_years_all <- round(length(unique(mg2_demo_alllevels$Month)) / 12)
+  alllevels_path <- file.path(
+    dir,
+    paste0(formula_name, "_All-levels_", n_years_all, "yrs_", today, ".rds")
+  )
 
-  if (!file.exists(raw_path) || overwrite) {
-    saveRDS(mg2_demo_raw, raw_path, compress = TRUE)
-    message("Raw 1-yr data saved:   ", basename(raw_path))
+  if (!file.exists(alllevels_path) || overwrite) {
+    saveRDS(mg2_demo_alllevels, alllevels_path, compress = FALSE)
+    message("All-levels data saved: ", basename(alllevels_path))
   } else {
-    message("Raw 1-yr data exists (skipped): ", basename(raw_path))
+    message("All-levels data exists (skipped): ", basename(alllevels_path))
   }
 
   message(

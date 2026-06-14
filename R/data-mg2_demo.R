@@ -24,7 +24,7 @@
 #'     months); RDT negative increases ~15% (more in peak season), simulating
 #'     an intervention effect the Evaluation tab can detect.
 #' }
-#' The unmodified raw 12-month data are stored separately in `mg2_demo_raw`.
+#' The all-levels processed dataset is stored in `mg2_demo_alllevels`.
 #'
 #' @format A data frame with columns:
 #' \describe{
@@ -63,25 +63,28 @@
 "mg2_demo"
 
 
-#' MG2 Demo Raw Data: Real Sierra Leone Data (12 months)
+#' MG2 Demo All-Levels Dataset: Sierra Leone Malaria (3 years)
 #'
-#' The raw 12 months of real data downloaded from the Sierra Leone DHIS2 demo
-#' instance (Jan–Dec 2025). Same format as [mg2_demo] and [api_data()] output.
-#' Use this to inspect the true seasonal pattern before the bootstrap is applied,
-#' or as a starting point for regenerating the demo with different parameters.
+#' Processed Sierra Leone malaria dataset covering all organisational unit
+#' levels (national, district, chiefdom, facility) for 50 data elements over
+#' approximately 3 years. Includes outlier flags and all columns produced by
+#' the MG2 processing pipeline. Written to disk by [mg2_demo_setup()].
 #'
-#' @format A data frame with the same columns as `mg2_demo`:
-#' `dataElement`, `orgUnit`, `period`, `COUNT`, `SUM`.
+#' @format A data.table / data frame with columns including:
+#' `orgUnit`, `orgUnitName`, `level`, `National`, `District`, `Chiefdom`,
+#' `Facility`, `dataSet`, `dataElement`, `Month`, `data`, `data.id`,
+#' `original`, `value`, and outlier flag columns
+#' (`key_entry_error`, `over_max`, `mad15`, `mad10`, `mad5`,
+#' `seasonal5`, `seasonal3`, `expected`).
 #'
-#' @seealso `mg2_demo`, `mg2_demo_formula`, `mg2_demo_meta`
+#' @seealso `mg2_demo`, `mg2_demo_processed`, `mg2_demo_formula`, `mg2_demo_meta`
 #' @examples
-#' data(mg2_demo_raw)
+#' data(mg2_demo_alllevels)
 #' \dontrun{
-#' # Monthly national totals for the real year
-#' dplyr::summarise(dplyr::group_by(mg2_demo_raw, dataElement, period),
-#'                  total = sum(SUM, na.rm = TRUE))
+#' dplyr::n_distinct(mg2_demo_alllevels$orgUnit)   # all org unit levels
+#' dplyr::n_distinct(mg2_demo_alllevels$data.id)   # number of data elements
 #' }
-"mg2_demo_raw"
+"mg2_demo_alllevels"
 
 
 #' MG2 Demo Formula Elements

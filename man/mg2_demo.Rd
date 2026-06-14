@@ -43,7 +43,7 @@ positive, and ACT treated are reduced ~15\% (more so in peak-season
 months); RDT negative increases ~15\% (more in peak season), simulating
 an intervention effect the Evaluation tab can detect.
 }
-The unmodified raw 12-month data are stored separately in \code{mg2_demo_raw}.
+The all-levels processed dataset is stored in \code{mg2_demo_alllevels}.
 
 \strong{Data elements included:}
 \tabular{ll}{
