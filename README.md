@@ -32,19 +32,15 @@ remotes::install_github("https://github.com/jpainter/MG2", dependencies = TRUE)
 
 ## Data file storage
 
-MG2 saves processed datasets as **`.fst`** files when the [`fst`](https://www.fstpackage.org/) package is installed, falling back to **`.rds`** otherwise. FST is a binary columnar format that reads and writes 5–10× faster than compressed RDS — important when working with national-level datasets that can reach several hundred megabytes.
+MG2 saves processed datasets as **`.qs`** files using the [`qs2`](https://cran.r-project.org/package=qs2) package, falling back to **`.rds`** if `qs2` is unavailable. QS is a ZSTD-compressed binary format that reads and writes significantly faster than compressed RDS and — critically — preserves all R object classes (including `yearmonth` time indices) without any post-read restoration step.
 
-`fst` is installed automatically with `dependencies = TRUE` (see above). To install it separately:
+`qs2` is listed in Imports and installed automatically with MG2.
 
-```r
-install.packages("fst")
-```
+MG2 selects the format at runtime via `mg2_data_ext()` — no configuration needed. New downloads and processed files are saved with the `.qs` extension by default.
 
-MG2 selects the format at runtime — no configuration needed. New downloads and processed files are saved with the `.fst` extension when `fst` is available.
+**Older `.rds` and `.fst` files continue to work.** The app detects the extension and reads any of the three formats transparently via `read_file()`. Files created before the QS format was introduced load without any changes.
 
-**Older `.rds` files continue to work.** The app detects the extension and reads either format transparently via `read_file()`. Files downloaded before `fst` was installed load without any changes.
-
-**Metadata files always remain `.rds`** — FST only handles flat data frames. The metadata objects (`metadata_*.rds`, `geoFeatures_*.rds`) contain spatial objects and nested lists that FST cannot serialize.
+**Metadata files always remain `.rds`** — QS handles flat data frames; the metadata objects (`metadata_*.rds`) contain nested lists and spatial objects best handled by base R serialization.
 
 ---
 
@@ -63,7 +59,7 @@ The app opens in your system browser. Work through the tabs from left to right �
 
 ```
 Setup → Metadata → Data → DQA → Reporting → Outliers → Evaluation
-                  (Formula / Download / Combine)
+                  └─ Formula / Download / Combine
 ```
 
 ---
@@ -109,7 +105,7 @@ Assess four dimensions of data quality before proceeding to analysis.
 
 - **Reporting completeness** — The proportion of expected facility-months with at least one report, shown as a time trend and by organisation unit level.
 - **Outliers** — A summary of flagged values by detection algorithm and time period.
-- **Forecast accuracy (MASE)** — Mean Absolute Scaled Error of a naive seasonal forecast, used as a signal of time-series stability. A rising MASE over time may indicate structural changes or data quality deterioration.
+- **Forecast accuracy (SWAPE)** — Scaled Weighted Absolute Percent Error of a naive seasonal forecast, used as a signal of time-series stability. A rising SWAPE over time may indicate structural changes or data quality deterioration.
 - **Consistency** — Evaluates DHIS2 validation rules against the formula elements for each facility × period. Displays an annual pass-rate chart, a per-rule summary table with traffic-light colouring, and a facility-period drilldown for failed rules. Rules that reference elements not present in the formula are flagged as incomplete rather than failed, so the consistency score reflects only rules that can actually be evaluated with the current data.
 
 ### 5. Reporting
@@ -267,11 +263,11 @@ In the app, click **Load Demo Data** on the Setup tab (right column) instead of 
 
 | Object | Description |
 |---|---|
-| `mg2_demo_raw` | The 12 real months (Jan–Dec 2025) as downloaded from the DHIS2 instance — unmodified. |
-| `mg2_demo` | Full 60-month dataset: real 2025 data plus 48 bootstrapped prior months with trends, gaps, and outliers. |
+| `mg2_demo` | Full 72-month dataset: real Jan–Dec 2025 data plus 60 bootstrapped prior months with trends, gaps, and outliers. |
 | `mg2_demo_formula` | Formula elements table — the 5 data elements below with UIDs and category option combos. |
-| `mg2_demo_meta` | Full metadata list: org units, hierarchy, data element dictionary, validation rules, etc. |
+| `mg2_demo_meta` | Real metadata from the Sierra Leone DHIS2 demo instance: org units, hierarchy, data element dictionary, validation rules, dataset forms. |
 | `mg2_demo_processed` | Pre-processed tsibble from `data_1()` — org unit hierarchy joined, time index built, ready for DQA onward. |
+| `mg2_demo_alllevels` | Processed dataset covering all org unit levels (national → facility) for 50 data elements over ~3 years, with outlier flags. |
 
 **Country:** Sierra Leone · **Org units:** 1,095 facilities across 19 districts (4-level hierarchy)
 
@@ -293,7 +289,22 @@ In the app, click **Load Demo Data** on the Setup tab (right column) instead of 
 - **Outlier cluster** — RDT-positive values (`wZwzzRnr9N4`) have a spike in Jun–Aug 2022 (~5% of facilities report 3–4× their expected value), giving the Outliers tab detectable signals.
 - **2025 malaria reduction** — inpatient cases, deaths, RDT positive, and ACT treated are reduced ~15% in 2025 (more so in peak-season months); RDT negative increases ~15%, simulating an intervention effect detectable by the Evaluation tab.
 
-The raw 12 real months are stored separately as `mg2_demo_raw`.
+### PDR Lao demo
+
+A second demo dataset covering Lao PDR malaria is also included, with 82 data elements and approximately 5 years of data.
+
+```r
+mg2_pdrlao_setup()   # writes demo files to ~/mg2_pdrlao_demo
+run_mg2()            # open the app → paste the returned path → skip Login
+```
+
+| Object | Description |
+|---|---|
+| `mg2_pdrlao_processed` | Pre-processed facility-level tsibble, ~57 months (Aug 2021–May 2026). |
+| `mg2_pdrlao_formula` | Formula elements table — 82 data elements with UIDs and category combos. |
+| `mg2_pdrlao_meta` | Full metadata from the PDR Lao DHIS2 instance. |
+
+---
 
 ### Regenerating the demo data
 
@@ -303,7 +314,7 @@ The build script is at `data-raw/generate_demo.R`. It requires a live internet c
 source("data-raw/generate_demo.R")
 ```
 
-This re-downloads all metadata and data, rebuilds the seasonal bootstrap, re-runs `data_1()`, and overwrites the four `data/*.rda` files. Run it when the demo instance is refreshed or you want to update the time window.
+This re-downloads all metadata and data, rebuilds the seasonal bootstrap, re-runs `data_1()`, and overwrites the `data/*.rda` files. Run it when the demo instance is refreshed or you want to update the time window.
 
 ---
 
