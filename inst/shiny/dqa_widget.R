@@ -256,8 +256,23 @@ dqa_widget_server <- function(
         })
       }
 
-      # Build dataElement → data_names map using UID-based matching via data.id
+      # Build dataElement → data_names map using UID-based matching via data.id.
+      # Falls back to the dataset's own dataElement column for elements not in
+      # the formula (e.g. when an all-levels file is loaded with a smaller formula).
       .dqa_element_map <- function(choices, fe, d) {
+        # Helper: group choices by dataElement column in the data
+        .group_by_de_col <- function(ch, d) {
+          if (!is.null(d) && "dataElement" %in% names(d) && "data" %in% names(d)) {
+            tryCatch({
+              lkp <- as.data.frame(d)[, c("data", "dataElement"), drop = FALSE] %>%
+                dplyr::distinct() %>%
+                dplyr::filter(data %in% ch)
+              if (nrow(lkp) > 0) return(base::split(lkp$data, lkp$dataElement))
+            }, error = function(e) NULL)
+          }
+          setNames(as.list(ch), ch)
+        }
+
         tryCatch({
           req_cols <- c("data", "data.id")
           fe_cols  <- c("dataElement.id", "dataElement")
@@ -274,13 +289,16 @@ dqa_widget_server <- function(
               dplyr::select(dataElement, data) %>%
               dplyr::distinct()
             if (nrow(result) > 0) {
-              map <- base::split(result$data, result$dataElement)
-              for (ch in setdiff(choices, unlist(map))) map[[ch]] <- ch
+              map      <- base::split(result$data, result$dataElement)
+              unmatched <- setdiff(choices, unlist(map))
+              if (length(unmatched) > 0)
+                map <- c(map, .group_by_de_col(unmatched, d))
               return(map)
             }
           }
         }, error = function(e) NULL)
-        setNames(as.list(choices), choices)
+        # No formula match at all — group entirely by dataElement column
+        .group_by_de_col(choices, d)
       }
 
       # Populate checkboxGroupInput in either expanded or collapsed mode.
