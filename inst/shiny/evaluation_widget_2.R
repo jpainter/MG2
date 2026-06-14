@@ -2388,12 +2388,14 @@ evaluation_widget_server <- function(
 
         # Determine number of agg levels available
         # If only one, do not facet (causes error, perhaps because of autoplot?)
+        # Guard: agg_level column may not be present in mable_Data when the
+        # dataset does not contain that admin level (e.g. PDRLao national agg).
 
-        num_agg_levels = count(
-          mable_Data %>% as_tibble,
-          !!rlang::sym(input$agg_level)
-        ) %>%
-          nrow()
+        num_agg_levels = if (input$agg_level %in% names(mable_Data)) {
+          count(mable_Data %>% as_tibble, !!rlang::sym(input$agg_level)) %>% nrow()
+        } else {
+          1L
+        }
 
         # Auto-facet by split column when stratification is active.
         # This shows each region on its own panel and allows per-region
