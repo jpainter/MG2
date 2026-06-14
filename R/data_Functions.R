@@ -3005,8 +3005,8 @@ combination_forecasts = function(primary.forecasts, only.models = NULL) {
   )
 
   for (x in seq_along(combo.model.names)) {
-    nmodels = nchar(combo.model.names[x])
     indiv.model.names = split_combination(combo.model.names[x], model.names)
+    nmodels = length(indiv.model.names)  # nchar() breaks with multi-char model names (p1, p4, p8)
 
     joined_fables = purrr::reduce(split_f[indiv.model.names], dplyr::left_join, by = join_vars)
     if (!"older.x" %in% names(joined_fables)) joined_fables$older.x = 0
@@ -3015,7 +3015,7 @@ combination_forecasts = function(primary.forecasts, only.models = NULL) {
 
     cf = joined_fables %>%
       dplyr::mutate(
-        samples = purrr::pmap(dplyr::across(dplyr::starts_with("sample")),
+        samples = purrr::pmap(dplyr::pick(dplyr::all_of(sample.cols)),
                               ~ purrr::reduce(list(...), `+`) / nmodels),
         older   = older.x
       ) %>%
