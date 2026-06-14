@@ -3137,59 +3137,80 @@ tsmodels = function(
 
   if (!is.null(covariate)) covariate = rlang::sym(covariate)
 
-  # Prophet models require fable.prophet (heavy rstan dependency — optional).
-  # Use rlang::quos + !!! splicing to include them only when the package is present.
-  .has_prophet <- requireNamespace("fable.prophet", quietly = TRUE)
+  # Prophet models require fable.prophet (heavy rstan/Stan dependency — optional).
+  # Skip prophet when training data is too short (< 24 months) to avoid OOM crashes
+  # on memory-constrained servers (Connect Cloud). Fitting prophet with ~14 months of
+  # training data reliably kills the R process via SIGKILL, producing an empty error.
+  .has_prophet   <- requireNamespace("fable.prophet", quietly = TRUE)
+  n_train_months <- length(unique(train_data[[tsibble::index_var(train_data)]]))
+  .use_prophet   <- .has_prophet && n_train_months >= 24
+
   if (msg && !.has_prophet)
     cat("\n - tsmodels: fable.prophet not installed; prophet models skipped")
+  if (msg && .has_prophet && !.use_prophet)
+    cat("\n - tsmodels: prophet skipped (only", n_train_months,
+        "training months; need >= 24)")
 
-  if (msg) cat("\n - tsmodels: Preparing primary models")
+  # Helper: merge prophet mable columns into base mable (both share the same keys).
+  .merge_prophet <- function(base_mbl, prop_mbl) {
+    if (is.null(prop_mbl)) return(base_mbl)
+    key_idx <- c(tsibble::key_vars(base_mbl), tsibble::index_var(base_mbl))
+    for (col in setdiff(names(prop_mbl), key_idx))
+      base_mbl[[col]] <- prop_mbl[[col]]
+    base_mbl
+  }
+
+  if (msg) cat("\n - tsmodels: Fitting base models (ARIMA/ETS/NNETAR/TSLM)")
   tictoc::tic()
   tictoc::tic()
 
   if (is.na(type)) {
-    if (.has_prophet) {
-      primary_models = train_data %>% fabletools::model(
-        a  = fable::ARIMA(var),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var),
-        t  = fable::TSLM(var),
-        p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative")),
-        .safely = TRUE
+    primary_models = train_data %>% fabletools::model(
+      a = fable::ARIMA(var),
+      e = fable::ETS(var),
+      n = fable::NNETAR(var),
+      t = fable::TSLM(var),
+      .safely = TRUE
+    )
+    if (msg) cat("\n - tsmodels: Base models done; fitting prophet models")
+    if (.use_prophet) {
+      .prop <- tryCatch(
+        train_data %>% fabletools::model(
+          p1 = fable.prophet::prophet(var ~ season("year", order = 1, type = "multiplicative")),
+          p4 = fable.prophet::prophet(var ~ season("year", 4,     type = "multiplicative")),
+          p8 = fable.prophet::prophet(var ~ season("year", 8,     type = "multiplicative")),
+          .safely = TRUE
+        ),
+        error = function(e) {
+          cat("\n - tsmodels: Prophet models failed:", conditionMessage(e)); NULL
+        }
       )
-    } else {
-      primary_models = train_data %>% fabletools::model(
-        a  = fable::ARIMA(var),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var),
-        t  = fable::TSLM(var),
-        .safely = TRUE
-      )
+      primary_models <- .merge_prophet(primary_models, .prop)
     }
   }
 
   if (!is.na(type) && type == "transform") {
-    if (.has_prophet) {
-      primary_models = train_data %>% fabletools::model(
-        a  = fable::ARIMA(log(var + 1)),
-        e  = fable::ETS(log(var + 1)),
-        n  = fable::NNETAR(log(var + 1)),
-        t  = fable::TSLM(log(var) ~ trend() + season()),
-        p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative")),
-        .safely = TRUE
+    primary_models = train_data %>% fabletools::model(
+      a = fable::ARIMA(log(var + 1)),
+      e = fable::ETS(log(var + 1)),
+      n = fable::NNETAR(log(var + 1)),
+      t = fable::TSLM(log(var) ~ trend() + season()),
+      .safely = TRUE
+    )
+    if (msg) cat("\n - tsmodels: Base models done; fitting prophet models")
+    if (.use_prophet) {
+      .prop <- tryCatch(
+        train_data %>% fabletools::model(
+          p1 = fable.prophet::prophet(log(var + 1) ~ season("year", 1, type = "multiplicative")),
+          p4 = fable.prophet::prophet(log(var + 1) ~ season("year", 4, type = "multiplicative")),
+          p8 = fable.prophet::prophet(log(var + 1) ~ season("year", 8, type = "multiplicative")),
+          .safely = TRUE
+        ),
+        error = function(e) {
+          cat("\n - tsmodels: Prophet models failed:", conditionMessage(e)); NULL
+        }
       )
-    } else {
-      primary_models = train_data %>% fabletools::model(
-        a  = fable::ARIMA(log(var + 1)),
-        e  = fable::ETS(log(var + 1)),
-        n  = fable::NNETAR(log(var + 1)),
-        t  = fable::TSLM(log(var) ~ trend() + season()),
-        .safely = TRUE
-      )
+      primary_models <- .merge_prophet(primary_models, .prop)
     }
   }
 
@@ -3197,50 +3218,56 @@ tsmodels = function(
   # into the model formulas — unavoidable since the column name is runtime-determined.
   if (!is.na(type) && type == "covariate") {
     if (.set.seed) set.seed(1432)
-    if (.has_prophet) {
-      primary_models = rlang::inject(train_data %>% fabletools::model(
-        a  = fable::ARIMA(var ~ log(!!covariate)),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var ~ !!covariate),
-        t  = fable::TSLM(var ~ trend() + season() + !!covariate),
-        p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      ))
-    } else {
-      primary_models = rlang::inject(train_data %>% fabletools::model(
-        a  = fable::ARIMA(var ~ log(!!covariate)),
-        e  = fable::ETS(var),
-        n  = fable::NNETAR(var ~ !!covariate),
-        t  = fable::TSLM(var ~ trend() + season() + !!covariate),
-        .safely = TRUE
-      ))
+    primary_models = rlang::inject(train_data %>% fabletools::model(
+      a = fable::ARIMA(var ~ log(!!covariate)),
+      e = fable::ETS(var),
+      n = fable::NNETAR(var ~ !!covariate),
+      t = fable::TSLM(var ~ trend() + season() + !!covariate),
+      .safely = TRUE
+    ))
+    if (msg) cat("\n - tsmodels: Base models done; fitting prophet models")
+    if (.use_prophet) {
+      .prop <- tryCatch(
+        rlang::inject(train_data %>% fabletools::model(
+          p1 = fable.prophet::prophet(var ~ !!covariate + season("year", 1, type = "multiplicative")),
+          p4 = fable.prophet::prophet(var ~ !!covariate + season("year", 4, type = "multiplicative")),
+          p8 = fable.prophet::prophet(var ~ !!covariate + season("year", 8, type = "multiplicative")),
+          .safely = TRUE
+        )),
+        error = function(e) {
+          cat("\n - tsmodels: Prophet models failed:", conditionMessage(e)); NULL
+        }
+      )
+      primary_models <- .merge_prophet(primary_models, .prop)
     }
   }
 
   if (!is.na(type) && type == "transform and covariate") {
-    if (.has_prophet) {
-      primary_models = rlang::inject(train_data %>% fabletools::model(
-        a  = fable::ARIMA(log(var) ~ log(!!covariate)),
-        e  = fable::ETS(log(var)),
-        n  = fable::NNETAR(log(var) ~ !!covariate),
-        t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
-        p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
-        p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
-        p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative")),
-        .safely = TRUE
-      ))
-    } else {
-      primary_models = rlang::inject(train_data %>% fabletools::model(
-        a  = fable::ARIMA(log(var) ~ log(!!covariate)),
-        e  = fable::ETS(log(var)),
-        n  = fable::NNETAR(log(var) ~ !!covariate),
-        t  = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
-        .safely = TRUE
-      ))
+    primary_models = rlang::inject(train_data %>% fabletools::model(
+      a = fable::ARIMA(log(var) ~ log(!!covariate)),
+      e = fable::ETS(log(var)),
+      n = fable::NNETAR(log(var) ~ !!covariate),
+      t = fable::TSLM(log(var) ~ trend() + season() + !!covariate),
+      .safely = TRUE
+    ))
+    if (msg) cat("\n - tsmodels: Base models done; fitting prophet models")
+    if (.use_prophet) {
+      .prop <- tryCatch(
+        rlang::inject(train_data %>% fabletools::model(
+          p1 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 1, type = "multiplicative")),
+          p4 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 4, type = "multiplicative")),
+          p8 = fable.prophet::prophet(log(var) ~ !!covariate + season("year", 8, type = "multiplicative")),
+          .safely = TRUE
+        )),
+        error = function(e) {
+          cat("\n - tsmodels: Prophet models failed:", conditionMessage(e)); NULL
+        }
+      )
+      primary_models <- .merge_prophet(primary_models, .prop)
     }
   }
+
+  if (msg) cat("\n - tsmodels: All models fitted")
 
   # When base_models is specified, drop unneeded model columns before forecasting.
   # Fitting all models is fast; generating n_forecasts sample paths is the bottleneck.
