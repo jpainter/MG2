@@ -8,7 +8,7 @@ Sys.setenv(MG2_DEMO_MODE = "1")
 # Packages not in Connect Cloud's managed list — install from Posit Package Manager
 # for pre-built Linux binaries (no compilation → installs in seconds).
 .ppm <- "https://packagemanager.posit.co/cran/__linux__/noble/latest"
-for (.p in c("qs2", "future.apply")) {
+for (.p in c("qs2", "future.apply", "feasts", "ggtime")) {
   if (!requireNamespace(.p, quietly = TRUE)) {
     message("Installing ", .p, " from Posit Package Manager (pre-built binary)...")
     install.packages(.p, repos = .ppm, quiet = TRUE)
