@@ -736,9 +736,9 @@ evaluation_widget_server <- function(
             just = ifelse(mape >= 0, 2, -2)
           ) %>%
           as_tibble() %>%
-          mutate(
-            !!input$agg_level := as.character(!!rlang::sym(input$agg_level))
-          )
+          { if (input$agg_level %in% names(.))
+              mutate(., !!input$agg_level := as.character(!!rlang::sym(input$agg_level)))
+            else . }
 
         if (!split() %in% 'None') {
           cat('\n - key.mape grouping_var', split())
@@ -824,9 +824,9 @@ evaluation_widget_server <- function(
             just = ifelse(mpe >= 0, 1, -1)
           ) %>%
           as_tibble() %>%
-          mutate(
-            !!input$agg_level := as.character(!!rlang::sym(input$agg_level))
-          )
+          { if (input$agg_level %in% names(.))
+              mutate(., !!input$agg_level := as.character(!!rlang::sym(input$agg_level)))
+            else . }
 
         if (!split() %in% 'None') {
           cat('\n - key.mape grouping_var', split())
@@ -2055,10 +2055,9 @@ evaluation_widget_server <- function(
         indexVar = index_var(fcast)
         keyVars = key_vars(fcast)
 
-        fcast = fcast %>%
-          mutate(
-            !!input$agg_level := as.character(!!rlang::sym(input$agg_level))
-          )
+        if (input$agg_level %in% names(fcast))
+          fcast = fcast %>%
+            mutate(!!input$agg_level := as.character(!!rlang::sym(input$agg_level)))
 
         if (!split() %in% 'None') {
           cat('\n - tsForecast grouping_var', split())
@@ -2154,10 +2153,9 @@ evaluation_widget_server <- function(
 
         cat('\n - tsPreForecast done.  Adding agg_level')
 
-        fcast = fcast %>%
-          mutate(
-            !!input$agg_level := as.character(!!rlang::sym(input$agg_level))
-          )
+        if (input$agg_level %in% names(fcast))
+          fcast = fcast %>%
+            mutate(!!input$agg_level := as.character(!!rlang::sym(input$agg_level)))
 
         cat('\n - tsPreForecast grouping_var', split())
         if (!split() %in% 'None') {
@@ -2681,11 +2679,10 @@ evaluation_widget_server <- function(
         ## Smooth line #####
         if (input$smooth) {
           cat('\n - agg level', input$agg_level)
-          .d. = .d %>%
-            as_tibble %>%
-            mutate(
-              !!input$agg_level := as.character(!!rlang::sym(input$agg_level))
-            )
+          .d. = .d %>% as_tibble
+          if (input$agg_level %in% names(.d.))
+            .d. = .d. %>%
+              mutate(!!input$agg_level := as.character(!!rlang::sym(input$agg_level)))
 
           cat('\n - smooth .d.') #glimpse(.d. )
           g = g +
