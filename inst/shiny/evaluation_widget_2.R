@@ -73,7 +73,7 @@ evaluation_widget_ui = function(id) {
                       ns("horizon"),
                       label = "Months of Evaluation:",
                       choices = c(3, 6, 12, 18, 24, 36),
-                      selected = 12, width = "100%"
+                      selected = 6, width = "100%"
                     ),
 
                     checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
@@ -548,7 +548,7 @@ evaluation_widget_server <- function(
             'evaluation_month',
             choices = setNames(as.character(c(unclass(dates()))), as.character(dates())),
             # selected = dates()[ round(length(dates())/2) ]
-            selected = as.character(unclass(max(dates()) - 11))
+            selected = as.character(unclass(max(dates()) - 5))
             # ifelse( period() %in% 'Month' ,
             #                  dates()[12],
             #                  dates()[52] )
@@ -1492,8 +1492,7 @@ evaluation_widget_server <- function(
           }
         }, error = function(e) NULL)
 
-        caption_text <- paste0(region_caption_text(), " | Blue bar = median",
-                               if (!is.null(prob_caption)) paste0(" | ", prob_caption) else "")
+        caption_text <- paste0(region_caption_text(), " | Blue bar = median")
 
         h <- diffHistogram(actual = act, predicted = pred, .var = 'total') +
           labs(caption = caption_text)
@@ -1513,6 +1512,20 @@ evaluation_widget_server <- function(
             label    = annotation_text,
             hjust    = -0.05, vjust = 1.1,
             size     = 3,
+            alpha    = 0.85,
+            linewidth  = 0.3
+          )
+        }
+
+        # Upper-right annotation: probability of decrease/increase
+        if (!is.null(prob_caption)) {
+          h <- h + annotate(
+            "label",
+            x = Inf, y = Inf,
+            label    = prob_caption,
+            hjust    = 1.05, vjust = 1.1,
+            size     = 3.5,
+            fontface = "bold",
             alpha    = 0.85,
             linewidth  = 0.3
           )
