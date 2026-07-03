@@ -1,14 +1,16 @@
 # DT table options... ####
-buttonList = function(file_name = paste('downloaded_', Sys.Date())) {
+buttonList = function(file_name = paste('downloaded_', Sys.Date()), columns = NULL) {
+  export_opts <- list(modifier = list(page = 'all'))
+  if (!is.null(columns)) export_opts$columns <- columns
   list(
     'copy',
     'print',
     list(
       extend = 'collection',
       buttons = list(
-        list(extend = 'csv', filename = file_name),
-        list(extend = 'excel', filename = file_name),
-        list(extend = 'pdf', filename = file_name)
+        list(extend = 'csv',   filename = file_name, exportOptions = export_opts),
+        list(extend = 'excel', filename = file_name, exportOptions = export_opts),
+        list(extend = 'pdf',   filename = file_name, exportOptions = export_opts)
       ),
       text = 'Download'
     )

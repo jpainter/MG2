@@ -308,7 +308,7 @@ evaluation_widget_server <- function(
       output$region_filter_status <- renderUI({
         sr <- regions_selected()
         parts <- Filter(function(x) !is.null(x) && length(x) > 0,
-                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+                        list(sr$level2, sr$level3, sr$level4, sr$level5, sr$level6))
         label <- if (length(parts) == 0) "National" else
           paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
         div(
@@ -329,7 +329,7 @@ evaluation_widget_server <- function(
         # Fallback: region only
         sr <- regions_selected()
         parts <- Filter(function(x) !is.null(x) && length(x) > 0,
-                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+                        list(sr$level2, sr$level3, sr$level4, sr$level5, sr$level6))
         if (length(parts) == 0) "National" else
           paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
       })
@@ -374,6 +374,8 @@ evaluation_widget_server <- function(
           d <- d[d[[ln[4]]] %in% sr$level4, ]
         if (!is_empty(sr$level5) && length(ln) >= 5 && ln[5] %in% names(d))
           d <- d[d[[ln[5]]] %in% sr$level5, ]
+        if (!is_empty(sr$level6) && length(ln) >= 6 && ln[6] %in% names(d))
+          d <- d[d[[ln[6]]] %in% sr$level6, ]
         d
       })
 

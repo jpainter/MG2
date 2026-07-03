@@ -569,7 +569,8 @@ reporting_widget_server <- function(
         level2 = NULL,
         level3 = NULL,
         level4 = NULL,
-        level5 = NULL
+        level5 = NULL,
+        level6 = NULL
       )
 
       # Sync region selection from the Regions widget
@@ -583,13 +584,14 @@ reporting_widget_server <- function(
         selected_org_levels$level3 <- sr$level3
         selected_org_levels$level4 <- sr$level4
         selected_org_levels$level5 <- sr$level5
+        selected_org_levels$level6 <- sr$level6
         cat('\n* reporting_widget synced region filter from Regions page')
       })
 
       output$region_filter_status <- renderUI({
         sr <- regions_selected()
         parts <- Filter(function(x) !is.null(x) && length(x) > 0,
-                        list(sr$level2, sr$level3, sr$level4, sr$level5))
+                        list(sr$level2, sr$level3, sr$level4, sr$level5, sr$level6))
         label <- if (length(parts) == 0) "National" else
           paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
         div(
@@ -973,6 +975,21 @@ reporting_widget_server <- function(
 
           data = setDT(data)[
             base::get(levelNames()[5]) %in% selected_org_levels$level5,
+            ,
+          ]
+
+        }
+
+        if (!is_empty(selected_org_levels$level6) && length(levelNames()) >= 6) {
+          cat(
+            '\n - filtering data by',
+            levelNames()[6],
+            "=",
+            selected_org_levels$level6
+          )
+
+          data = setDT(data)[
+            base::get(levelNames()[6]) %in% selected_org_levels$level6,
             ,
           ]
 
@@ -1799,6 +1816,7 @@ reporting_widget_server <- function(
           level3 = selected_org_levels$level3,
           level4 = selected_org_levels$level4,
           level5 = selected_org_levels$level5,
+          level6 = selected_org_levels$level6,
           .cat = TRUE
         )
 
@@ -2104,7 +2122,8 @@ reporting_widget_server <- function(
             selected_org_levels$level2,
             selected_org_levels$level3,
             selected_org_levels$level4,
-            selected_org_levels$level5
+            selected_org_levels$level5,
+            selected_org_levels$level6
           )
         )
         region_label <- if (length(parts) == 0) "National" else

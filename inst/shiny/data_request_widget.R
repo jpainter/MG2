@@ -244,7 +244,7 @@ data_request_widget_server <- function(
 
         # Warn if a region filter is active — only selected org units will download
         sr <- tryCatch(selected_regions(), error = function(e) NULL)
-        active_regions <- unlist(sr)
+        active_regions <- unlist(sr[c("level2", "level3", "level4", "level5", "level6")])
         if (length(active_regions) > 0) {
           showModal(modalDialog(
             title = "Region filter is active",
@@ -394,10 +394,16 @@ data_request_widget_server <- function(
               pull(id)
           } else {
             cat("\n - subNational data request")
-
-            .orgUnits = orgUnits() %>%
-              filter(name %in% orgUnitRequest()) %>%
-              pull(id)
+            sr <- selected_regions()
+            if (!is.null(sr$ids) && length(sr$ids) > 0) {
+              # Table row selection: use IDs directly to avoid duplicate-name ambiguity
+              cat("\n - using", length(sr$ids), "org unit IDs from table selection")
+              .orgUnits <- sr$ids
+            } else {
+              .orgUnits = orgUnits() %>%
+                filter(name %in% orgUnitRequest()) %>%
+                pull(id)
+            }
           }
 
           # If categoryOption is NA, then omit from request.  This will return 'total' with no categories.

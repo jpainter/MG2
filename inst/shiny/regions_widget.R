@@ -26,6 +26,10 @@ regions_widget_ui = function(id) {
       div(style = "min-width:160px; flex:1;",
         selectInput(ns("level5"), label = "OrgUnit Level5",
                     choices = NULL, selected = NULL, multiple = TRUE)
+      ),
+      div(style = "min-width:160px; flex:1;",
+        selectInput(ns("level6"), label = "OrgUnit Level6",
+                    choices = NULL, selected = NULL, multiple = TRUE)
       )
     ),
 
@@ -112,7 +116,9 @@ regions_widget_server <- function(
           level2 = input$level2,
           level3 = input$level3,
           level4 = input$level4,
-          level5 = input$level5
+          level5 = input$level5,
+          level6 = input$level6,
+          ids    = NULL   # org unit IDs from table row selection (for exact download matching)
         )
 
         # Also incorporate table row selections: clicking a row in the org unit
@@ -120,8 +126,11 @@ regions_widget_server <- function(
         sel_rows <- input$geoFeaturesTable_rows_selected
         if (!is.null(sel_rows) && length(sel_rows) > 0) {
           gf       <- geoFeatures.ous() %>% sf::st_drop_geometry()
-          sel      <- gf[sel_rows, c("name", "level"), drop = FALSE]
+          sel      <- gf[sel_rows, c("name", "level", "id"), drop = FALSE]
           lvl_nums <- levels()   # numeric level values, e.g. c(1, 2, 3, 4, 5)
+
+          # IDs for exact lookup in download request — avoids duplicate-name ambiguity
+          sr$ids <- sel$id
 
           for (i in seq(2, length(lvl_nums))) {
             key <- paste0("level", i)
@@ -131,7 +140,7 @@ regions_widget_server <- function(
           }
         }
 
-        cat("\n - selected_regions:", unlist(sr))
+        cat("\n - selected_regions:", unlist(sr[c("level2","level3","level4","level5","level6")]))
         return(sr)
       })
 
@@ -213,9 +222,17 @@ regions_widget_server <- function(
 
         ls = orgUnits() %>% dplyr::filter(parent %in% input$level4) %>% pull(name)
 
-        # cat( "\n - level3 update to:" , paste( ls , collapse = "" ) )
-
         updateSelectInput(session, 'level5', choices = ls, selected = NULL)
+      })
+
+      # level 6
+      observe({
+        req(input$level5)
+        cat('\n* regions_widget updating level6')
+
+        ls = orgUnits() %>% dplyr::filter(parent %in% input$level5) %>% pull(name)
+
+        updateSelectInput(session, 'level6', choices = ls, selected = NULL)
       })
 
       levelNames = reactive({
@@ -303,11 +320,18 @@ regions_widget_server <- function(
           gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
         }
 
-        if (!is.null(input$level5)) {
+        if (!is.null(input$level5) & is.null(input$level6)) {
           # Get all descendant nodes for the selected node
           descendants <- getDescendantsRecursive(input$level5, gf.ous)
           # Include the selected node itself
           nodesToKeep <- c(input$level5, descendants)
+
+          gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
+        }
+
+        if (!is.null(input$level6)) {
+          descendants <- getDescendantsRecursive(input$level6, gf.ous)
+          nodesToKeep <- c(input$level6, descendants)
 
           gf.ous = gf.ous %>% dplyr::filter(name %in% nodesToKeep)
         }

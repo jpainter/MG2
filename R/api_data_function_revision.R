@@ -959,7 +959,7 @@ api_data = function(
 #' @param selected list; named list with elements `level2` through `level5` (NULL when not selected)
 #' @export
 find_lowest_nonnull <- function(selected) {
-  levels <- c("level2", "level3", "level4", "level5")
+  levels <- c("level2", "level3", "level4", "level5", "level6")
 
   for (lvl in rev(levels)) {
     if (!is.null(selected[[lvl]])) {

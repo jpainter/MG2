@@ -58,6 +58,14 @@ metadata_widget_ui <- function(id) {
                 ns('downloadInfo'),
                 'Download Excel file with metadata'
               )
+            ),
+            column(
+              3,
+              tags$br(),
+              actionButton(
+                ns('exportFacilitiesCSV'),
+                'Save Facilities CSV to data directory'
+              )
             )
           )
         ),
@@ -932,6 +940,7 @@ metadata_widget_server <- function(
                });",
               session$ns("rulesClick")
             )),
+            extensions = 'Buttons',
             options = list(
               scrollX        = TRUE,
               scrollY        = "calc(100vh - 300px)",
@@ -939,7 +948,12 @@ metadata_widget_server <- function(
               paging         = FALSE,
               searching      = TRUE,
               info           = TRUE,
-              dom            = 'ti'
+              dom            = 'Bti',
+              buttons        = buttonList(
+                file_name = paste0('DataElements_', Sys.Date()),
+                columns   = ':not(.dt-noexport)'
+              ),
+              columnDefs = list(list(className = 'dt-noexport', targets = 1))
           )
         )
         })
@@ -1040,19 +1054,18 @@ metadata_widget_server <- function(
         DT::renderDT(DT::datatable(
           if (!is.null(categories())) categories(),
 
-          rownames = FALSE,
-          filter = 'top',
-          # options = DToptions_no_buttons()
-          options = list(
-            # bPaginate = FALSE,
-            # autoWidth = TRUE ,
+          rownames   = FALSE,
+          filter     = 'top',
+          extensions = 'Buttons',
+          options    = list(
             scrollX        = TRUE,
             scrollY        = "calc(100vh - 300px)",
             scrollCollapse = FALSE,
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            dom            = 'ti'
+            dom            = 'Bti',
+            buttons        = buttonList(file_name = paste0('Categories_', Sys.Date()))
           )
         ))
 
@@ -1079,6 +1092,7 @@ metadata_widget_server <- function(
              });",
             session$ns("formClick")
           )),
+          extensions = 'Buttons',
           options = list(
             scrollX        = TRUE,
             scrollY        = "calc(100vh - 300px)",
@@ -1086,7 +1100,12 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            dom            = 'ti'
+            dom            = 'Bti',
+            buttons        = buttonList(
+              file_name = paste0('DataSets_', Sys.Date()),
+              columns   = ':not(.dt-noexport)'
+            ),
+            columnDefs = list(list(className = 'dt-noexport', targets = 0))
           )
         )
       })
@@ -1536,6 +1555,7 @@ metadata_widget_server <- function(
              });",
             session$ns("indRulesClick")
           )),
+          extensions = 'Buttons',
           options = list(
             scrollX        = TRUE,
             scrollY        = "calc(100vh - 300px)",
@@ -1543,7 +1563,12 @@ metadata_widget_server <- function(
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            dom            = 'ti'
+            dom            = 'Bti',
+            buttons        = buttonList(
+              file_name = paste0('Indicators_', Sys.Date()),
+              columns   = ':not(.dt-noexport)'
+            ),
+            columnDefs = list(list(className = 'dt-noexport', targets = 1))
           )
         )
       })
@@ -1817,19 +1842,13 @@ metadata_widget_server <- function(
           orgUnits()
         },
 
-        rownames = FALSE,
-        filter = 'top',
-        # options = DToptions_no_buttons()
-        options = list(
-          scrollX        = TRUE,
-          scrollY        = "calc(100vh - 300px)",
-          scrollCollapse = FALSE,
-          paging         = FALSE,
-          searching      = TRUE,
-          info           = TRUE,
-          dom            = 'ti'
+        rownames    = FALSE,
+        filter      = 'top',
+        extensions  = 'Buttons',
+        options     = DToptions_with_buttons(
+          file_name = paste0('OrgUnits_', Sys.Date())
         )
-      ))
+      ), server = FALSE)
 
       output$OrgUnit_duplicates = DT::renderDT(
         orgUnitDuplicates(),
@@ -1838,7 +1857,8 @@ metadata_widget_server <- function(
         extensions = 'Buttons',
         options = DToptions_with_buttons(
           file_name = paste('OrgUnit_duplicates_', Sys.Date())
-        )
+        ),
+        server = FALSE
       )
 
       ## ousTree ####
@@ -1929,19 +1949,13 @@ metadata_widget_server <- function(
       output$orgUnitHierarchy = DT::renderDT(DT::datatable(
         ousTree(),
 
-        rownames = FALSE,
-        filter = 'top',
-        # options = DToptions_no_buttons()
-        options = list(
-          scrollX        = TRUE,
-          scrollY        = "calc(100vh - 300px)",
-          scrollCollapse = FALSE,
-          paging         = FALSE,
-          searching      = TRUE,
-          info           = TRUE,
-          dom            = 'ti'
+        rownames    = FALSE,
+        filter      = 'top',
+        extensions  = 'Buttons',
+        options     = DToptions_with_buttons(
+          file_name = paste0('OrgUnitHierarchy_', Sys.Date())
         )
-      ))
+      ), server = FALSE)
 
       ## geoFeatures ####
       ## for description of properties, see table 1.59,
@@ -2168,6 +2182,45 @@ metadata_widget_server <- function(
           saveRDS(geoFeatures(), file)
         }
       )
+
+      # Save facilities CSV to data directory ####
+      observeEvent(input$exportFacilitiesCSV, {
+        gf <- geoFeatures()
+        if (is.null(gf) || nrow(gf) == 0) {
+          showModal(modalDialog(
+            title = "No geo features loaded",
+            "Please load metadata first.",
+            easyClose = TRUE, fade = FALSE, size = "s",
+            footer = modalButton("OK")
+          ))
+          return()
+        }
+
+        # Detect facility level: prefer a levelName containing "facilit", else max level
+        lvls <- orgUnitLevels()
+        fac_level <- if (!is.null(lvls)) {
+          matches <- lvls$level[grepl("facilit", lvls$levelName, ignore.case = TRUE)]
+          if (length(matches) > 0) matches[1] else max(lvls$level, na.rm = TRUE)
+        } else {
+          max(gf$level, na.rm = TRUE)
+        }
+
+        facilities <- gf[gf$level == fac_level, c("name", "parentName", "latitude", "longitude")]
+        facilities <- as.data.frame(sf::st_drop_geometry(facilities))
+        colnames(facilities) <- c("facility_name", "parent_name", "latitude", "longitude")
+        facilities <- facilities[order(facilities$facility_name), ]
+
+        csv_file <- paste0(dir(), "facilities_", Sys.Date(), ".csv")
+        write.csv(facilities, csv_file, row.names = FALSE)
+
+        showModal(modalDialog(
+          title = "Facilities CSV saved",
+          p(paste(scales::comma(nrow(facilities)), "facilities written to:")),
+          tags$code(csv_file),
+          easyClose = TRUE, fade = FALSE, size = "m",
+          footer = modalButton("OK")
+        ))
+      })
 
       # Download  meta data to excel file ####
       output$downloadInfo <- downloadHandler(
@@ -2398,16 +2451,18 @@ metadata_widget_server <- function(
 
         DT::datatable(
           vr_display,
-          rownames = FALSE,
-          filter   = 'top',
-          options  = list(
+          rownames   = FALSE,
+          filter     = 'top',
+          extensions = 'Buttons',
+          options    = list(
             scrollX        = TRUE,
             scrollY        = "calc(100vh - 300px)",
             scrollCollapse = FALSE,
             paging         = FALSE,
             searching      = TRUE,
             info           = TRUE,
-            dom            = 'ti'
+            dom            = 'Bti',
+            buttons        = buttonList(file_name = paste0('ValidationRules_', Sys.Date()))
           )
         )
       })

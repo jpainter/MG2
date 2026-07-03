@@ -239,7 +239,7 @@ cleaning_widget_server <- function(
         label <- if (!is.null(ct) && nzchar(ct)) ct else {
           sr <- regions_selected()
           parts <- Filter(function(x) !is.null(x) && length(x) > 0,
-                          list(sr$level2, sr$level3, sr$level4, sr$level5))
+                          list(sr$level2, sr$level3, sr$level4, sr$level5, sr$level6))
           if (length(parts) == 0) "National" else
             paste(sapply(parts, paste, collapse = ", "), collapse = " / ")
         }
@@ -992,7 +992,7 @@ cleaning_widget_server <- function(
 
         # Hierarchy columns for this country instance
         lvl = levelNames()
-        hier_cols = intersect(lvl[seq(2, min(5L, length(lvl)))], names(flagged))
+        hier_cols = intersect(lvl[seq(2, min(6L, length(lvl)))], names(flagged))
 
         # Sort: champions first, then ratio descending
         setorder(flagged, -champion, -ratio, na.last = TRUE)
@@ -1272,6 +1272,11 @@ cleaning_widget_server <- function(
         if (!is_empty(sr$level5)) {
           cat('\n - filtering outlier data by', levelNames()[5], "=", sr$level5)
           d = setDT(d)[base::get(levelNames()[5]) %in% sr$level5, , ]
+        }
+
+        if (!is_empty(sr$level6) && length(levelNames()) >= 6) {
+          cat('\n - filtering outlier data by', levelNames()[6], "=", sr$level6)
+          d = setDT(d)[base::get(levelNames()[6]) %in% sr$level6, , ]
         }
 
         # filter dataElement — stay as data.table; callers use it directly

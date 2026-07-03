@@ -831,6 +831,7 @@ selectedData = function(
   level3 = NULL,
   level4 = NULL,
   level5 = NULL,
+  level6 = NULL,
   .cat = FALSE,
   ...
 ) {
@@ -887,6 +888,10 @@ selectedData = function(
 
   if (!.is_empty(level5) & !.is_empty(levelNames)) {
     data = data[base::get(levelNames[5]) %in% level5, , ]
+  }
+
+  if (!.is_empty(level6) & !.is_empty(levelNames) & length(levelNames) >= 6) {
+    data = data[base::get(levelNames[6]) %in% level6, , ]
   }
 
   # Combine level and data_categories filters into a single pass where possible

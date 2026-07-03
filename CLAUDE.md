@@ -6,7 +6,7 @@
 epidemiological analysis of routine health data from DHIS2 systems. Functions are also
 usable in standalone R scripts.
 
-**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.7
+**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.8
 **Reference:** [R Packages (2e)](https://r-pkgs.org)
 
 ---
@@ -143,7 +143,7 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 2N)
 
 ---
 
-## Current State (as of 2026-06-08)
+## Current State (as of 2026-07-03)
 
 **Version:** 0.1.8 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
@@ -157,6 +157,29 @@ Evaluation → Burden Estimate (dev) → AI Assistant (dev)
 **Remaining NOTE (Phase D — deferred):**
 - Bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::` qualification
 
+**Metadata widget improvements (2026-07-03):**
+- systemInfo tab: "Save Facilities CSV to data directory" button — detects facility level
+  from `orgUnitLevels()$levelName` (looks for "facilit", falls back to max level), writes
+  `facilities_YYYY-MM-DD.csv` with `facility_name / parent_name / latitude / longitude`
+- `DToptions.R`: `buttonList()` now exports all rows (`modifier = {page: 'all'}`) and
+  accepts optional `columns` CSS selector to exclude HTML columns from export
+- Large tables (orgUnits, orgUnitHierarchy, Duplicates): switched to `paging=TRUE`,
+  `server=FALSE` + `DToptions_with_buttons` — fast rendering, working export
+- Scroll tables (Categories, Validation Rules): keep `paging=FALSE`/scrollY, added
+  Copy/Print/Download buttons via `dom='Bti'` + `buttonList()`
+- HTML-column tables (dataElements, dataSets, Indicators): same scroll+buttons pattern;
+  HTML column marked `className='dt-noexport'`, excluded via `columns=':not(.dt-noexport)'`
+
+**Regions widget improvements (2026-07-03):**
+- Added Level 6 `selectInput` — cascades from Level 5; supports countries where facilities
+  are at level 6; all downstream widgets (DQA, Reporting, Outliers, Evaluation) filter and
+  display level6 selections
+- `selected_regions()` now carries `ids` (org unit IDs) alongside level names when table
+  rows are selected in the geoFeaturesTable
+- Download request uses org unit IDs (not names) when table selection drives the filter,
+  avoiding ambiguity from duplicate org unit names (e.g. 330 "Unknown" facilities in Nigeria)
+- `find_lowest_nonnull()` and `selectedData()` extended to level6
+
 **Demo data:**
 - `mg2_demo_*` — Sierra Leone malaria (5 elements, 72 months synthetic, yearmonth correct)
 - `mg2_pdrlao_*` — PDR Lao malaria (82 elements, ~57 months, Aug 2021–May 2026)
@@ -168,6 +191,8 @@ Evaluation → Burden Estimate (dev) → AI Assistant (dev)
 - shinyapps.io: `rsconnect::deployApp(appDir="deploy", appName="MG2-MagicGlasses2")`
 - Connect Cloud: republish via https://connect.posit.cloud/magicglasses (installs MG2 from `../` local clone)
 - Both deployments use `MG2_DEMO_MODE=1` env var; demo buttons replace shinyFiles picker
+- `deploy/app.R` auto-detects OS from `/etc/os-release` for PPM binary URL; installs `qs2`, `future.apply`, `feasts`, `ggtime` from PPM if missing; uses SHA-based check to reinstall MG2 only when repo HEAD changes — no version bumps needed
+- `tsmodels()` forces `future::plan(sequential)` before fable `model()` to prevent fabletools 0.7.0 from requiring `future.apply` for nested parallelism
 
 **File format (QS default, RDS fallback):**
 `mg2_data_ext()` returns `"qs"`. `save_file()` uses `qs2::qs_save()`; `read_file()` reads
