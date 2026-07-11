@@ -105,6 +105,15 @@ Same pattern applied to `selected_data()` via `cached_selected_data`.
 - `fable` model specials (`trend()`, `season()`) must NOT use `::` inside `model()` — they are resolved by fable's fitting environment.
 - `stats::filter` vs `dplyr::filter` conflict resolved via `@import data.table` in `zzz.R` + explicit `dplyr::filter()` calls.
 - All progress `modalDialog()` calls use `fade = FALSE` to prevent stuck Bootstrap animation queues.
+- New `R/` files follow golemverse naming: `fct_` prefix for feature/business-logic functions, `utils_` prefix for generic helpers (existing files are not renamed).
+
+### Golemverse assessment (2026-07-11)
+
+MG2 already implements ~80% of what golem provides (R package structure, `run_mg2()`, modular widgets, DESCRIPTION dependency management). **Migration not recommended** — moving modules from `inst/shiny/` to `R/` would expose widget code to `R CMD CHECK`, add golem as a runtime dependency, and rewire `system.file()` paths for zero user-facing gain. Golem is designed for commercial multi-developer shops deploying to Docker/enterprise servers.
+
+**Adopted without migration:**
+- `fct_` / `utils_` file-naming convention for new `R/` files
+- `dev/deploy.md` — step-by-step deployment checklist (see `dev/` directory)
 
 ---
 
