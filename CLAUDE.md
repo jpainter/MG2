@@ -255,3 +255,48 @@ Indicator B's formula mixes both COC schemes; its denominator covers only new-sc
 **Source files:**
 - Analysis/report: `reports/Nigeria/kebbi_tpr_rdt.Rmd`
 - Cross-project write-up: `../DHIS2 Best Practices/Drafts/nigeria_tpr_indicator_error.qmd`
+
+---
+
+## External Python reference code (2026-07-13)
+
+Mohamed Sillah Kanu (Informatics Consultancy Firm – Sierra Leone; also Research Data Analyst
+Associate, Northwestern University) built a set of Python/Streamlit tools covering the same
+domain as MG2 — CHIRPS rainfall, DHIS2/NMDR dashboards, DQA, outlier detection, TPR, and
+WHO Sub-National Tailoring (SNT). His GitHub (`mohamedsillahkanu`, 306 public repos) is mostly
+disposable single-`index.html` demo exports with no inspectable logic, but four repos have
+real Python source and were cloned to `dev/reference/` (gitignored + `.Rbuildignore`-excluded,
+not part of the MG2 package — see `dev/reference/*/LICENSE`, all Apache-2.0, one-way
+compatible with MG2's GPL-3 provided attribution is kept when porting logic):
+
+| Local directory | Source repo | Contents | Relevance |
+|---|---|---|---|
+| `chirps-rainfall-app-python` | `blank-app` | `streamlit_app.py` — CHIRPS raster download/clip via `geopandas`+`rasterio`, GADM boundaries | Potential R port target (`terra`/`sf`) for a rainfall-covariate feature |
+| `nmcp-analysis-app-python` | `blank-app-3` | `outlier_detection_and_correction.py` (32KB), `reporting.py`, `active_and_inactive_hf_adm2/3.py`, `combine_multiple_files.py`, `compute_new_variables.py`, `rename_variables.py` | Directly overlaps `R/outliers.R`, `dqa_functions.R`, `combine_functions.R` — worth diffing his outlier/reporting-rate logic against MG2's |
+| `snt-package-python` | `snt-package` | Installable package: `setup.py` + `snt/core.py` (132KB) | Likely his consolidated/cleaned library version of the above — check first before the sprawling demo repos |
+| `nmcp-sl-snt-python` | `nmcp-sl-snt` | `01Name Matching of Health Facilities.py` | Fuzzy facility-name matching — relevant to MG2 metadata/duplicate-detection work |
+
+**Not cloned (checked, confirmed no real source — pure `index.html` demo exports):**
+`dhis2-dqa`, `dqa-nmdr`, `dqa-updated`, `Final-DQA`, `Data-quality-assessment*`, `tpr`,
+`tpr-heatmap`, `testing-rate`, `treatment-rate`, `presumptive-treatment-rate`,
+`confirmed-not-treated`, `outlier-winsorisation-method`, `retrospective-analysis`,
+`interupted-time-series-analysis`, `time-series-visualization1`, `nmdr-dashboard-test`,
+`new-nmdr-set-up`, `nmdr-setup`, `introduction-nmdr`, `malaria-dashboard-nmdr`,
+`dhis2-bulk-upload-v3`, `metadata-download`, `download-dataset2`, `dashboard-dhis2-copy`,
+`auto-dhis2-instance-setup`.
+
+**Look at later — forked SNT training libraries (not his original work):**
+- `SNT-Code-Library` and `snt-library` — forked **NuMalariaModeling Faculty Enrichment
+  Program** materials. Actually **R-based** (`.Rprofile`, `renv.lock`, Quarto site), not
+  Python — potentially more directly reusable in MG2 than his Python work, since it's already
+  R. Contains shapefile-overlay, health-facility mapping, and testing-rate walkthroughs
+  (`README_Penta1_Python.md` is 3.1MB — likely a Jupyter export despite the Python name).
+  Not yet cloned/inspected.
+- `SNT` (his own repo) — `streamlit_app.py`/`HOME.py` are nearly empty (~3KB combined); the
+  44MB repo size is almost entirely raw Sierra Leone district-level malaria XLS data
+  (2015–2023), not code. Worth a look if MG2 ever needs Sierra Leone historical raw data for
+  testing, but skip for code-porting purposes.
+
+**Directory convention:** external reference clones live under `dev/reference/<name>/`,
+gitignored (`.gitignore`) and excluded from `R CMD check` (`.Rbuildignore: ^dev$`) — see
+`dev/deploy.md` for the sibling convention of non-package developer docs under `dev/`.

@@ -20,3 +20,6 @@ reports/Nigeria/kebbi_cache.rds
 # Working docs — video files and scripts are large/internal, not for the repo.
 docs/video/
 docs/video_script.md
+
+# Cloned external reference apps (e.g. Python tools being ported to R) — not part of MG2.
+/dev/reference/
