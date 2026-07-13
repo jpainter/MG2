@@ -14,8 +14,9 @@ inst/shiny/*.rds
 # sensitive data paths and intermediate cached files.
 /analysis/
 
-# Large facility-level data cache — regenerated from Nigeria FST download.
-reports/Nigeria/kebbi_cache.rds
+# Sensitive/private content (Nigeria indicator analysis, security review response) —
+# moved out of reports/ and given its own local-only git repo. Never track in MG2.
+/private/
 
 # Working docs — video files and scripts are large/internal, not for the repo.
 docs/video/

@@ -253,7 +253,8 @@ deflating TPR.
 Indicator B's formula mixes both COC schemes; its denominator covers only new-scheme COCs.
 
 **Source files:**
-- Analysis/report: `reports/Nigeria/kebbi_tpr_rdt.Rmd`
+- Analysis/report: `private/Nigeria/kebbi_tpr_rdt.Rmd` (moved 2026-07-13 — private, local-only
+  git repo, excluded from MG2's repo/build; see "Private/local-only content" section below)
 - Cross-project write-up: `../DHIS2 Best Practices/Drafts/nigeria_tpr_indicator_error.qmd`
 
 ---
@@ -300,3 +301,26 @@ compatible with MG2's GPL-3 provided attribution is kept when porting logic):
 **Directory convention:** external reference clones live under `dev/reference/<name>/`,
 gitignored (`.gitignore`) and excluded from `R CMD check` (`.Rbuildignore: ^dev$`) — see
 `dev/deploy.md` for the sibling convention of non-package developer docs under `dev/`.
+
+---
+
+## Private/local-only content (2026-07-13)
+
+The `jpainter/MG2` GitHub repo is **public**. `reports/Nigeria/*` (Nigeria TPR indicator
+analysis) and `reports/uio_security_response.txt` (UiO security review response) had
+already been pushed to `origin/main` before this was noticed. Both were moved to
+`private/` at the MG2 repo root, which:
+
+- Is fully excluded from MG2's git (`.gitignore: /private/`) and `R CMD check`
+  (`.Rbuildignore: ^private$`) — MG2 will never track or push anything under it again.
+- Has its **own independent local git repo** (`private/.git`, initialized 2026-07-13,
+  `git init` run *inside* `private/`) — full commit history locally, **no remote
+  configured**, so there is nothing to accidentally push.
+
+**Still outstanding:** removing the files from MG2's tracked tree and pushing that removal
+only stops them showing in the current GitHub browse view — the content remains fetchable
+from `origin/main`'s prior commits (and any existing forks/clones) unless the public repo's
+git history is actually rewritten (`git filter-repo` + force-push) or the repo is made
+private. That is a deliberately separate, not-yet-taken decision — force-pushing a rewritten
+history on a public repo is destructive (breaks existing clones/forks) and should only be
+done with explicit sign-off, not as a routine cleanup step.

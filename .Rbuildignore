@@ -15,6 +15,7 @@
 ^analysis$
 ^deploy$
 ^dev$
+^private$
 ^air\.toml$
 ^burden_estimate_plan$
 ^docs$
