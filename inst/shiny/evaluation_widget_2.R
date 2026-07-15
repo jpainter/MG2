@@ -54,7 +54,8 @@ evaluation_widget_ui = function(id) {
                   ),
 
                   br(),
-                  uiOutput(ns("selected_elements_display"))
+                  uiOutput(ns("selected_elements_display")),
+                  uiOutput(ns("rainfall_toggle_ui"))
                 ),
 
                 tabPanel(
@@ -337,6 +338,34 @@ evaluation_widget_server <- function(
       data.folder = reactive({
         directory_widget_output$directory()
       })
+
+      # ── Rainfall data (cross-widget) ─────────────────────────────────────────
+      # Loads all rainfall_*.rds files written by the Climate tab.
+      rainfall_data <- reactive({
+        d <- tryCatch(data.folder(), error = function(e) NULL)
+        if (is.null(d) || !nzchar(d %||% "")) return(NULL)
+        chirps_load_rainfall(d)
+      })
+
+      # Sidebar toggle — only shown when rainfall files are present.
+      output$rainfall_toggle_ui <- renderUI({
+        rd <- rainfall_data()
+        if (is.null(rd) || nrow(rd) == 0) return(NULL)
+        yr_range <- range(rd$year, na.rm = TRUE)
+        tagList(
+          hr(style = "margin: 8px 0 6px 0;"),
+          div(
+            style = "font-size:0.85em; color:#444; margin-bottom:4px;",
+            icon("cloud-rain", style = "color:#5b9bd5; margin-right:4px;"),
+            strong("Rainfall overlay"),
+            tags$br(),
+            tags$small(style = "color:#777;",
+                       sprintf("CHIRPS %d\u2013%d loaded", yr_range[1], yr_range[2]))
+          ),
+          checkboxInput(session$ns("show_rainfall"), "Overlay rainfall on chart", FALSE)
+        )
+      })
+
       indicator = reactive({
         data_widget_output$indicator()
       })
@@ -2353,6 +2382,64 @@ evaluation_widget_server <- function(
           ""
         }
 
+        # ── Rainfall overlay prep ────────────────────────────────────────────
+        # Computed before the main plot so rain_scale_k is available for sec.axis.
+        rain_plot_df <- NULL
+        rain_scale_k <- 1
+
+        if (isTRUE(input$show_rainfall) && !isTRUE(input$scale) &&
+            !is.null(rainfall_data())) {
+          rain      <- rainfall_data()
+          agg_col   <- input$agg_level
+          md_tbl    <- as_tibble(mable_Data) %>%
+            dplyr::mutate(
+              .yr = as.integer(format(as.Date(Month), "%Y")),
+              .mo = as.integer(format(as.Date(Month), "%m"))
+            )
+
+          # National-average helper — used as primary path when no name match exists
+          .rain_national <- function() {
+            rain_nat <- rain %>%
+              dplyr::group_by(year, month) %>%
+              dplyr::summarise(mean_rain = mean(mean_rain, na.rm = TRUE),
+                               .groups = "drop")
+            md_tbl %>%
+              dplyr::select(Month, .yr, .mo) %>%
+              dplyr::distinct() %>%
+              dplyr::left_join(rain_nat, by = c(".yr" = "year", ".mo" = "month"))
+          }
+
+          if (agg_col %in% names(md_tbl) && "name" %in% names(rain)) {
+            # Sub-national: try joining rainfall by org unit name
+            rain_join <- rain %>%
+              dplyr::select(name, year, month, mean_rain) %>%
+              dplyr::rename(!!agg_col := "name")
+            rain_plot_df <- md_tbl %>%
+              dplyr::select(Month, !!rlang::sym(agg_col), .yr, .mo) %>%
+              dplyr::distinct() %>%
+              dplyr::left_join(rain_join,
+                               by = c(stats::setNames("year", ".yr"),
+                                      stats::setNames("month", ".mo"),
+                                      agg_col))
+            # Fallback: at national level the name column won't match district names
+            if (!any(!is.na(rain_plot_df$mean_rain))) {
+              rain_plot_df <- .rain_national()
+            }
+          } else {
+            # National (no admin column): average across all org units
+            rain_plot_df <- .rain_national()
+          }
+
+          if (!is.null(rain_plot_df) && any(!is.na(rain_plot_df$mean_rain))) {
+            primary_max  <- max(mable_Data$total, na.rm = TRUE)
+            rain_max     <- max(rain_plot_df$mean_rain, na.rm = TRUE)
+            rain_scale_k <- if (rain_max > 0 && primary_max > 0)
+                              primary_max / rain_max else 1
+          } else {
+            rain_plot_df <- NULL
+          }
+        }
+
         tictoc::tic()
 
         ## Main plot ####
@@ -2360,7 +2447,7 @@ evaluation_widget_server <- function(
 
         g = mable_Data %>%
           filter(!is.na(total)) %>%
-          autoplot(total) +
+          ggtime::autoplot(total) +
           theme_minimal(base_size = 16) +
           theme(
             axis.text        = element_text(size = 14),
@@ -2378,6 +2465,18 @@ evaluation_widget_server <- function(
             color = 'brown',
             alpha = .25
           )
+
+        # Rainfall bars — drawn semi-transparent so the trend line shows through
+        if (!is.null(rain_plot_df)) {
+          g <- g + ggplot2::geom_col(
+            data        = rain_plot_df,
+            ggplot2::aes(x = Month, y = mean_rain * rain_scale_k),
+            fill        = "steelblue",
+            alpha       = 0.20,
+            width       = 25,     # ~25 days, slightly narrower than a calendar month
+            inherit.aes = FALSE
+          )
+        }
 
         cat('\n - basic plot done')
         tictoc::toc()
@@ -2457,7 +2556,17 @@ evaluation_widget_server <- function(
         # if ( .period %in% 'Week') g = g + scale_x_yearweek("", date_breaks = "1 year" )
 
         g = g +
-          scale_y_continuous(label = comma) +
+          scale_y_continuous(
+            labels   = scales::comma,
+            sec.axis = if (!is.null(rain_plot_df))
+                         ggplot2::sec_axis(
+                           ~ . / rain_scale_k,
+                           name   = "Rainfall (mm)",
+                           labels = scales::comma
+                         )
+                       else
+                         ggplot2::waiver()
+          ) +
           (if (!isTRUE(input$scale)) coord_cartesian(ylim = c(0, NA)) else NULL) +
           scale_color_discrete(drop = TRUE) +
           labs(
@@ -2718,7 +2827,7 @@ evaluation_widget_server <- function(
         req(input$evaluation_month)
         cat('\n* evaluation_widget plotComponenets():')
 
-        g = tsModel() %>% fabletools::components() %>% autoplot
+        g = tsModel() %>% fabletools::components() %>% ggtime::autoplot()
 
         cat('\n - end plotComponents():')
 

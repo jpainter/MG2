@@ -163,7 +163,7 @@ Detect and flag anomalous values using a sequential set of algorithms, each appl
 
 MAD-based detection is preferred over mean ± SD because it is robust when multiple outliers inflate the standard deviation. Seasonal detection uses `forecast::tsclean()` to compute expected values, catching values that are within the overall range of the series but anomalous for their time of year.
 
-### 7. Evaluation
+### 7. Evaluation *(and Climate — see below)*
 
 Fit time-series models to evaluate trends and measure the effect of programmatic interventions.
 
@@ -173,6 +173,104 @@ The evaluation module follows the interrupted time-series framework described by
 - **Model selection** — Choose between `"synchronize"` (same model type across all facilities for comparability) or `"optimize"` (best model per facility).
 - **Intervention evaluation** — The pre-intervention window is used as training data. Forecast accuracy over the post-intervention window is measured as Weighted Percent Error (WPE), summarised across replicates and displayed as a histogram.
 - **Annual change table** — A colour-coded summary of yearly totals and year-on-year percent change. When the most recent year is partial, percent change is computed against the same calendar months of the prior year.
+
+### 8. Climate *(dev)*
+
+Overlay monthly CHIRPS rainfall on your DHIS2 organisational boundaries to contextualise disease trends with rainfall seasonality.
+
+- **No separate shapefile needed** — the module reads org unit polygon boundaries directly from the metadata already loaded in the Metadata tab.
+- **Efficient downloads** — only the bounding box of your loaded boundaries is fetched from the CHIRPS server, not the full continental raster. Africa boundaries use the Africa-specific dataset (~3–5 MB compressed per month); all other regions use the global dataset (~20 MB). Downloaded files are cached locally so repeated runs are instant.
+- **Org unit level selector** — choose the administrative level to analyse (e.g. district, LGA, province). Available levels and polygon counts are shown automatically once metadata is loaded.
+- **Small polygon handling** — organisational units smaller than one CHIRPS cell (~5 km) have no pixel centroid falling inside them. These are filled with the value at the polygon centroid and flagged with an orange border on the map and *(centroid est.)* in the interactive popup.
+- **Outputs** — faceted ggplot choropleth across all selected months, interactive Leaflet map with per-polygon popups, monthly bar chart (mean ± SD across org units), summary statistics table, and CSV / Excel download.
+- **Multi-year mode** — select a year range (up to 5 years) to run the analysis across multiple years in sequence. Results are shown in four sub-tabs: Annual Maps (one facet per year), Multi-year Chart (annual totals or monthly breakdown), Anomaly (diverging RdBu map showing deviation from the multi-year mean, in mm or z-score; requires ≥ 2 years), and Data & Download.
+- **Rainfall overlay in Evaluation** — once at least one `rainfall_*.rds` file exists in your data directory, a toggle appears in the Evaluation tab's Data sidebar. Enabling it draws semi-transparent blue bars behind the time-series trend line, scaled to the primary y-axis. At national level the overlay shows the average across all org units in the rainfall file.
+
+**Required packages** (in Suggests):
+
+```r
+install.packages(c("terra", "sf", "leaflet"))
+```
+
+#### Rainfall data files
+
+After every successful analysis run, MG2 saves a flat rainfall file to your **data directory** (alongside your other processed files):
+
+```
+{data_dir}/rainfall_{year}_lvl{level}.rds
+```
+
+For example, a district-level (level 2) analysis for 2024 produces `rainfall_2024_lvl2.rds`.
+
+Each file is a plain data frame — no geometry, no sf dependency — with the following columns:
+
+| Column | Description |
+|---|---|
+| `id` | DHIS2 org unit UID |
+| `name` | Org unit name |
+| `parentName` | Parent org unit name |
+| `year` | Integer year |
+| `month` | Integer month (1–12) |
+| `mean_rain` | Mean CHIRPS rainfall in mm (zonal mean over polygon) |
+
+#### Using rainfall as a covariate in R scripts
+
+`chirps_load_rainfall()` scans your data directory, reads all `rainfall_*.rds` files (across all years and levels), combines them into a single data frame, and de-duplicates on `id × year × month`:
+
+```r
+library(MG2)
+
+rain <- chirps_load_rainfall(data_dir = "~/my_mg2_data")
+
+# Inspect available years and org units
+range(rain$year)
+dplyr::count(rain, year, month)
+```
+
+**Join rainfall into any evaluation data frame** by DHIS2 org unit ID, year, and month:
+
+```r
+# ts_df is a tidy data frame with columns: id, year, month, value
+merged <- dplyr::left_join(
+  ts_df,
+  rain[, c("id", "year", "month", "mean_rain")],
+  by = c("id", "year", "month")
+)
+```
+
+**Add lagged rainfall** (e.g. 1–3 month lag, common for malaria where transmission follows rainfall by 4–6 weeks):
+
+```r
+rain_lagged <- rain |>
+  dplyr::arrange(id, year, month) |>
+  dplyr::group_by(id) |>
+  dplyr::mutate(
+    rain_lag1 = dplyr::lag(mean_rain, 1),
+    rain_lag2 = dplyr::lag(mean_rain, 2),
+    rain_lag3 = dplyr::lag(mean_rain, 3)
+  ) |>
+  dplyr::ungroup()
+
+merged <- dplyr::left_join(ts_df, rain_lagged, by = c("id", "year", "month"))
+```
+
+**Use as a covariate in a TSLM model** (via the `fable` ecosystem):
+
+```r
+library(tsibble)
+library(fable)
+
+ts_with_rain <- merged |>
+  mutate(period = yearmonth(paste(year, month))) |>
+  as_tsibble(index = period, key = id)
+
+fit <- ts_with_rain |>
+  model(
+    with_rain = TSLM(value ~ trend() + season() + mean_rain + rain_lag1 + rain_lag2)
+  )
+```
+
+> **Note:** Multiple years of rainfall files are needed for lag-correlation, anomaly analysis, and the Evaluation tab overlay. Run the Climate tab once per year to build up your local archive. The multi-year mode (year range selector) will process and cache all selected years in a single run.
 
 ---
 
@@ -321,6 +419,32 @@ This re-downloads all metadata and data, rebuilds the seasonal bootstrap, re-run
 ## Contributing
 
 Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/jpainter/MG2/issues). Pull requests are also welcome — please open an issue first to discuss proposed changes.
+
+---
+
+## Acknowledgements
+
+### CHIRPS Climate Module
+
+The Climate module was inspired by the Python/Streamlit CHIRPS rainfall application developed by **Mohamed Sillah Kanu** (Informatics Consultancy Firm, Sierra Leone; Research Data Analyst Associate, Northwestern University). His original work covers CHIRPS raster download and clipping, GADM boundary integration, and zonal statistics for malaria programme analysis in Sierra Leone.
+
+The MG2 Climate module borrows the following concepts from that work:
+- Bounding-box–limited raster download (crop before cache, not after)
+- Zonal statistics pattern: crop raster to boundary extent, then extract per-polygon means
+- UI structure: org unit level selector, year/month pickers, tabbed outputs (map, statistics, download)
+
+The implementation is a complete rewrite in R using `terra`, `sf`, `leaflet`, and `ggplot2` in place of Python's `rasterio`, `geopandas`, and `streamlit`. Key additions relative to the original include DHIS2 org unit boundaries as the primary boundary source (replacing GADM), auto-selection of Africa vs global CHIRPS dataset, centroid-based fallback for sub-pixel polygons, and atomic TIF caching.
+
+The original Python source is licensed under the **Apache License 2.0**. In accordance with that license:
+
+> Copyright Mohamed Sillah Kanu. Licensed under the Apache License, Version 2.0.
+> Original source: https://github.com/mohamedsillahkanu/blank-app
+> Changes: rewritten in R; DHIS2 boundaries replace GADM; bbox-crop, centroid-fallback,
+> and Africa/global auto-selection logic added.
+
+A copy of the Apache License 2.0 is available at https://www.apache.org/licenses/LICENSE-2.0.
+
+MG2 is licensed under GPL-3, which is compatible with Apache-2.0 for combined works.
 
 ---
 

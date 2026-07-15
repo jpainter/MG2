@@ -94,6 +94,7 @@ source("regions_widget.R")     # Tab: Regions
 source("about_widget.R")       # Tab: About
 source("chat_widget.R")        # Tab: Assistant (AI chat, requires ellmer + shinychat)
 source("burden_widget.R")      # Tab: Burden Estimate (under development)
+source("climate_widget.R")     # Tab: Climate — CHIRPS rainfall analysis
 # map_widget.R and facilities_widget.r are not standalone modules;
 # they are embedded within other widgets and sourced there when needed.
 
@@ -211,6 +212,17 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Reporting",  uiOutput("reporting_empty_hint"), reporting_widget_ui("reporting1")),
   bslib::nav_panel("Outliers",   cleaning_widget_ui("cleaning1")),
   bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1")),
+  bslib::nav_panel(
+    tagList(
+      "Climate",
+      tags$span("dev", style = paste0(
+        "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
+        " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:5px;"
+      ))
+    ),
+    value = "Climate",
+    climate_widget_ui("climate1")
+  ),
   bslib::nav_panel(
     tagList(
       "Burden Estimate",
@@ -397,6 +409,12 @@ server <- function(input, output, session) {
     cleaning_widget_output   = cleaning_widget_output,
     regions_widget_output    = regions_widget_output,
     current_tab              = current_tab
+  )
+
+  climate_widget_server(
+    "climate1",
+    directory_widget_output = directory_widget_output,
+    metadata_widget_output  = metadata_widget_output
   )
 
   burden_widget_server(

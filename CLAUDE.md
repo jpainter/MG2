@@ -23,7 +23,8 @@ Given a DHIS2 connection or local data, MG2 guides analysts through:
 6. **Outliers** — Sequential outlier detection and flagging
 7. **Evaluation** — Time-series models, forecasts, and WPE assessment
 8. **Combine** — Build derived datasets (ratios, subsets) from existing processed files
-9. **Assistant** — AI chat (Claude / GPT-4o) with session-context system prompt
+9. **Climate** — Monthly CHIRPS rainfall extraction and mapping using DHIS2 org unit boundaries
+10. **Assistant** — AI chat (Claude / GPT-4o) with session-context system prompt
 
 ---
 
@@ -46,6 +47,14 @@ R/
   outlier_summary.R        # outlier.summary.tibble(), monthly/yearly summaries
   dqa_functions.R          # dqa_reporting(), dqa_consistency(), dqa_mase(), …
   combine_functions.R      # build_combined_dataset(), execute_include/ratio_step(), …
+  climate_functions.R      # chirps_download_tif(), chirps_extract_rainfall(),
+                           #   chirps_process_months(), chirps_make_map(),
+                           #   chirps_geo_levels(), chirps_geo_from_metadata(),
+                           #   chirps_combine_data(), chirps_write_excel(),
+                           #   chirps_save_flat(), chirps_load_rainfall(),
+                           #   chirps_make_chart(), chirps_annual_means_sf(),
+                           #   chirps_multi_year_map(), chirps_multi_year_chart(),
+                           #   chirps_anomaly_map()
   chat_functions.R         # build_mg2_system_prompt(), summarize_*_for_prompt()
   run_app.R                # run_mg2()
   zzz.R                    # @import data.table (required for := in package)
@@ -63,7 +72,8 @@ inst/shiny/
   cleaning_widget.r        # Module 7: outlier detection
   evaluation_widget_2.R    # Module 8: forecasting
   combine_widget.R         # Module 9: dataset combiner
-  chat_widget.R            # Module 10: AI assistant
+  climate_widget.R         # Module 10: CHIRPS rainfall (dev) — uses metadata geoFeatures
+  chat_widget.R            # Module 11: AI assistant
   regions_widget.R         # Auxiliary: regional filter + map
   map_widget.R             # Auxiliary: geographic viz
   about_widget.R           # About tab + environment check
@@ -152,16 +162,46 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 2N)
 
 ---
 
-## Current State (as of 2026-07-03)
+## Current State (as of 2026-07-14)
 
 **Version:** 0.1.8 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
 download + combine) → DQA (incl. Consistency + Reporting Map) → Reporting → Outliers →
-Evaluation → Burden Estimate (dev) → AI Assistant (dev)
+Evaluation → Climate (dev) → Burden Estimate (dev) → AI Assistant (dev)
 
 **Map tab:** widget file exists (`map_widget.R`), not yet integrated.
+
+**Climate tab (added 2026-07-14; updated 2026-07-15):**
+- `R/climate_functions.R` — pure R functions (no Shiny); `terra` + `sf` based
+- `inst/shiny/climate_widget.R` — Shiny module; reads `geoFeatures` from metadata widget
+- Downloads only the bounding box region (Africa TIF ~3–5 MB; global ~20 MB) — not the full
+  continental raster. Auto-selects Africa vs global based on bbox via `.chirps_in_africa()`
+- Two-level cache: (1) cropped CHIRPS TIFs in `climate_cache/` keyed by bbox+month+year;
+  (2) extracted sf results as `results_*.rds` in `climate_cache/` — repeat runs load from
+  RDS and skip extraction entirely. Progress shows "Extracting" (cached TIF) vs "Downloading".
+- Polygons smaller than one CHIRPS pixel (~5 km) get centroid-based fallback; flagged in
+  orange on the ggplot map grid and marked "(centroid est.)" in the leaflet popup
+- All returned sf objects are WGS84 (leaflet-ready); no downstream reprojection needed
+- Outputs: faceted ggplot choropleth, interactive leaflet, bar chart, statistics table, CSV + Excel download
+- After every run, writes `rainfall_{year}_lvl{level}.rds` to the **data directory** (not
+  `climate_cache/`) — a plain data frame (`id`, `name`, `parentName`, `year`, `month`,
+  `mean_rain`) for use as a covariate in other analyses. Load with `chirps_load_rainfall(data_dir)`;
+  join to ts data by `id + year + month`. See README § Climate for full code examples.
+- Multi-year mode: "Year range" selector (max 5 years) runs each year sequentially; results in
+  Annual Maps / Multi-year Chart / Anomaly / Statistics / Data & Download tabs.
+  Anomaly tab (≥2 years): diverging RdBu choropleth showing mm-deviation or z-score vs multi-year mean.
+- Interactive leaflet: stable base map via `renderLeaflet`; data layers pushed via `leafletProxy`
+  so the map never goes grey. `outputOptions(suspendWhenHidden = FALSE)` keeps it alive when tab hidden.
+- Rainfall overlay in Evaluation tab: `chirps_load_rainfall()` scans data directory; sidebar toggle
+  appears when files exist; bars scaled to primary y-axis (national average or per-unit join).
+  Bug fix (2026-07-15): national-level join fallback added — admin column present in mable_Data but
+  national name ≠ district names → join produces all NAs → now falls back to national average.
+- `ggtime::autoplot()` used throughout evaluation_widget_2.R (fabletools 0.6.0 deprecation fix).
+- Inspired by Mohamed Sillah Kanu's Python/Streamlit CHIRPS app
+  (`dev/reference/chirps-rainfall-app-python/`; Apache-2.0); UI layout, bbox-crop logic, and
+  zonal-statistics approach adapted to R; see README for full attribution
 
 **Remaining NOTE (Phase D — deferred):**
 - Bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::` qualification
