@@ -816,21 +816,52 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
                    stringsAsFactors = FALSE)
       })
     })
-    df        <- do.call(rbind, do.call(c, rows))
-    df$month  <- factor(df$month, levels = intersect(mon_order, unique(df$month)))
-    df$year   <- factor(df$year, levels = years)
+    df       <- do.call(rbind, do.call(c, rows))
+    df$month <- factor(df$month, levels = intersect(mon_order, unique(df$month)))
+    df$year  <- factor(df$year, levels = years)
+
+    # Multi-year mean ± SD per calendar month (across years, not org units)
+    ref <- stats::aggregate(mean_mm ~ month, data = df, FUN = function(x) {
+      c(mean = mean(x, na.rm = TRUE), sd = if (length(x) > 1) stats::sd(x) else 0)
+    })
+    ref <- data.frame(
+      month   = ref$month,
+      ref_mean = ref$mean_mm[, "mean"],
+      ref_sd   = ref$mean_mm[, "sd"]
+    )
+    ref$ymin <- pmax(0, ref$ref_mean - ref$ref_sd)
+    ref$ymax <- ref$ref_mean + ref$ref_sd
 
     title_str <- if (nzchar(title_prefix))
       paste0(title_prefix, " \u2014 Monthly Rainfall by Year (CHIRPS)")
     else "Monthly Rainfall by Year (CHIRPS)"
 
+    n_yrs <- length(years)
     p <- ggplot2::ggplot(df, ggplot2::aes(x = month, y = mean_mm, fill = year)) +
+      # shaded ribbon: multi-year mean ± 1 SD
+      ggplot2::geom_ribbon(
+        data = ref,
+        ggplot2::aes(x = as.integer(month), ymin = ymin, ymax = ymax),
+        inherit.aes = FALSE,
+        fill = "#aaaaaa", alpha = 0.25
+      ) +
+      # dashed reference line: multi-year monthly mean
+      ggplot2::geom_line(
+        data = ref,
+        ggplot2::aes(x = as.integer(month), y = ref_mean),
+        inherit.aes = FALSE,
+        colour = "#555555", linetype = "dashed", linewidth = 0.6
+      ) +
       ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.8),
                         alpha = 0.85, width = 0.75) +
+      ggplot2::scale_x_discrete() +
       ggplot2::scale_fill_brewer(palette = "Set1") +
       ggplot2::labs(x = NULL, y = "Mean rainfall (mm)", fill = "Year",
                     title = title_str,
-                    caption = "Bars = mean across org units")
+                    caption = paste0(
+                      "Bars = mean across org units per year  \u2022  ",
+                      "Dashed line = ", n_yrs, "-year monthly mean  \u2022  ",
+                      "Grey band = \u00b11 SD across years"))
   }
 
   p + ggplot2::theme_minimal(base_size = 13) +

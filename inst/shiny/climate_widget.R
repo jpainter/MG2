@@ -84,7 +84,7 @@ climate_widget_ui <- function(id) {
         ),
         helpText(
           style = "font-size:0.82em; color:#666; margin-top:-4px;",
-          icon("circle-info"), " Max 5 years. Cached data loads instantly."
+          icon("circle-info"), " Cached data loads instantly."
         )
       ),
 
@@ -121,7 +121,7 @@ climate_widget_ui <- function(id) {
         style = "width:100%; margin-top:6px;"
       ),
       br(), br(),
-      actionLink(ns("clear_cache"), icon("trash"), " Clear cache"),
+      actionLink(ns("clear_cache"), tagList(icon("trash"), " Clear cache")),
       uiOutput(ns("cache_status"))
     ),
 
@@ -417,8 +417,6 @@ climate_widget_server <- function(id,
             if (year_start >= year_end)
               stop("'From' year must be earlier than 'To' year.")
             years <- seq(year_start, year_end)
-            if (length(years) > 5)
-              stop("Please select at most 5 years.")
 
             n_total       <- length(years) * n_mon
             multi_results <- list()
@@ -567,9 +565,9 @@ climate_widget_server <- function(id,
             "Data & Download", br(),
             fluidRow(
               column(6, downloadButton(session$ns("dl_csv"),
-                                       "Download CSV", icon = icon("file-csv"))),
+                                       "Download CSV")),
               column(6, downloadButton(session$ns("dl_excel"),
-                                       "Download Excel", icon = icon("file-excel")))
+                                       "Download Excel"))
             ),
             br(),
             p(tags$small(style = "color:#666;",
@@ -698,10 +696,8 @@ climate_widget_server <- function(id,
         tabPanel(
           "Data & Download", br(),
           fluidRow(
-            column(6, downloadButton(session$ns("dl_csv"),
-                                     "Download CSV", icon = icon("file-csv"))),
-            column(6, downloadButton(session$ns("dl_excel"),
-                                     "Download Excel", icon = icon("file-excel")))
+            column(6, downloadButton(session$ns("dl_csv"),   "Download CSV")),
+            column(6, downloadButton(session$ns("dl_excel"), "Download Excel"))
           ),
           br(),
           p(tags$small(style = "color:#666;",
