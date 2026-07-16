@@ -203,6 +203,18 @@ chirps_load_custom_shapefile <- function(shp_path, shx_path, dbf_path,
           ceiling(bbox[["ymax"]] * 10) / 10)
 }
 
+# Generate N visually distinct qualitative colours for year-fill bars.
+# Uses a curated 12-colour base; interpolates via colorRampPalette for N > 12.
+.chirps_year_palette <- function(n) {
+  base <- c(
+    "#E41A1C","#377EB8","#4DAF4A","#984EA3","#FF7F00",
+    "#A65628","#F781BF","#666666","#1B9E77","#D95F02",
+    "#7570B3","#E7298A"
+  )
+  if (n <= length(base)) return(base[seq_len(n)])
+  grDevices::colorRampPalette(base)(n)
+}
+
 # TRUE when the bounding box lies entirely within the CHIRPS Africa domain.
 # Africa-only TIFs (~3-5 MB) are preferred over the global ones (~20 MB).
 .chirps_in_africa <- function(bbox) {
@@ -855,7 +867,8 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
       ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.8),
                         alpha = 0.85, width = 0.75) +
       ggplot2::scale_x_discrete() +
-      ggplot2::scale_fill_brewer(palette = "Set1") +
+      ggplot2::scale_fill_manual(values = .chirps_year_palette(length(years)),
+                                  breaks = years) +
       ggplot2::labs(x = NULL, y = "Mean rainfall (mm)", fill = "Year",
                     title = title_str,
                     caption = paste0(
