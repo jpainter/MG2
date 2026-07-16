@@ -744,9 +744,28 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
 
   viridis_opts <- c(viridis="D", plasma="C", inferno="B", magma="A", cividis="E")
 
+  # Tooltip: name + rainfall
+  label_col <- if ("name" %in% names(combined)) "name" else {
+    nc <- sort(grep("^NAME_", names(combined), value = TRUE))
+    if (length(nc)) tail(nc, 1) else NULL
+  }
+  combined$tooltip <- if (!is.null(label_col))
+    paste0("<b>", combined[[label_col]], "</b><br>",
+           round(combined$mean_rain, 1), " mm")
+  else
+    paste0(round(combined$mean_rain, 1), " mm")
+  combined$data_id <- if (!is.null(label_col))
+    paste0(combined$year_lbl, "_", combined[[label_col]])
+  else
+    seq_len(nrow(combined))
+
+  n_rows <- ceiling(length(unique(combined$year_lbl)) / 3)
+
   p <- ggplot2::ggplot(combined) +
-    ggplot2::geom_sf(ggplot2::aes(fill = mean_rain),
-                     color = "white", linewidth = 0.3) +
+    ggiraph::geom_sf_interactive(
+      ggplot2::aes(fill = mean_rain, tooltip = tooltip, data_id = data_id),
+      color = "white", linewidth = 0.3
+    ) +
     ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
     ggplot2::labs(title = title_str, fill = "Rainfall\n(mm)") +
     ggplot2::theme_void(base_size = 12) +
@@ -756,7 +775,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
       legend.position = "right"
     )
 
-  if (palette %in% names(viridis_opts)) {
+  p <- if (palette %in% names(viridis_opts)) {
     p + ggplot2::scale_fill_viridis_c(option = viridis_opts[[palette]],
                                        na.value = "grey80",
                                        limits = c(vmin, vmax), oob = scales::squish)
@@ -765,6 +784,18 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
                                        na.value = "grey80",
                                        limits = c(vmin, vmax), oob = scales::squish)
   }
+
+  ggiraph::girafe(
+    ggobj      = p,
+    width_svg  = 10,
+    height_svg = n_rows * 3 + 1.5,
+    options    = list(
+      ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
+      ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
+        padding:6px 8px; border-radius:4px; font-size:13px;"),
+      ggiraph::opts_sizing(rescale = TRUE, width = 1)
+    )
+  )
 }
 
 #' Build a ggplot2 bar chart comparing rainfall across multiple years
@@ -980,9 +1011,32 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
   else
     paste0("Rainfall Anomaly vs ", n_years, "-year Mean (CHIRPS)")
 
-  ggplot2::ggplot(combined) +
-    ggplot2::geom_sf(ggplot2::aes(fill = fill_val),
-                     color = "white", linewidth = 0.3) +
+  # Tooltip: name + anomaly value
+  label_col <- if ("name" %in% names(combined)) "name" else {
+    nc <- sort(grep("^NAME_", names(combined), value = TRUE))
+    if (length(nc)) tail(nc, 1) else NULL
+  }
+  val_str <- if (method == "zscore")
+    paste0(round(combined$fill_val, 2), " SD")
+  else
+    paste0(round(combined$fill_val, 1), " mm")
+
+  combined$tooltip <- if (!is.null(label_col))
+    paste0("<b>", combined[[label_col]], "</b><br>Anomaly: ", val_str)
+  else
+    paste0("Anomaly: ", val_str)
+  combined$data_id <- if (!is.null(label_col))
+    paste0(combined$year_lbl, "_", combined[[label_col]])
+  else
+    seq_len(nrow(combined))
+
+  n_rows <- ceiling(n_years / 3)
+
+  p <- ggplot2::ggplot(combined) +
+    ggiraph::geom_sf_interactive(
+      ggplot2::aes(fill = fill_val, tooltip = tooltip, data_id = data_id),
+      color = "white", linewidth = 0.3
+    ) +
     ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
     ggplot2::scale_fill_distiller(
       palette   = "RdBu",
@@ -1009,6 +1063,18 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
       strip.text   = ggplot2::element_text(face = "bold", size = 10),
       legend.position = "right"
     )
+
+  ggiraph::girafe(
+    ggobj      = p,
+    width_svg  = 10,
+    height_svg = n_rows * 3 + 1.5,
+    options    = list(
+      ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
+      ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
+        padding:6px 8px; border-radius:4px; font-size:13px;"),
+      ggiraph::opts_sizing(rescale = TRUE, width = 1)
+    )
+  )
 }
 
 # ── Summary statistics ────────────────────────────────────────────────────────

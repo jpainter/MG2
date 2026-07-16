@@ -496,8 +496,6 @@ climate_widget_server <- function(id,
         title_str <- paste0(rv$area_label %||% "", " \u2014 ", rv$level_label %||% "",
                             " \u2014 ", min(yrs), "\u2013", max(yrs))
         n_yrs     <- length(yrs)
-        # ncol=3 in both facet_wrap calls; 300px/row + 120px for title/caption/legend
-        map_h     <- paste0(max(400, 300 * ceiling(n_yrs / 3) + 120), "px")
 
         return(tabsetPanel(
           id = session$ns("result_tabs"),
@@ -505,7 +503,7 @@ climate_widget_server <- function(id,
           tabPanel(
             "Annual Maps", br(),
             p(tags$small(style = "color:#666;", title_str)),
-            plotOutput(session$ns("multi_map"), height = map_h)
+            ggiraph::girafeOutput(session$ns("multi_map"), width = "100%", height = "auto")
           ),
 
           tabPanel(
@@ -548,7 +546,7 @@ climate_widget_server <- function(id,
                   n_yrs, "-year average per polygon. ",
                   tags$strong("Blue = wetter than average; red = drier.")
                 ),
-                plotOutput(session$ns("anomaly_map"), height = map_h)
+                ggiraph::girafeOutput(session$ns("anomaly_map"), width = "100%", height = "auto")
               )
             } else {
               div(class = "alert alert-warning",
@@ -732,7 +730,7 @@ climate_widget_server <- function(id,
     })
 
     # ── Multi-year map ────────────────────────────────────────────────────────
-    output$multi_map <- renderPlot({
+    output$multi_map <- ggiraph::renderGirafe({
       req(rv$multi_results)
       chirps_multi_year_map(
         rv$multi_results,
@@ -753,7 +751,7 @@ climate_widget_server <- function(id,
     })
 
     # ── Anomaly map ───────────────────────────────────────────────────────────
-    output$anomaly_map <- renderPlot({
+    output$anomaly_map <- ggiraph::renderGirafe({
       req(rv$multi_results)
       req(length(rv$multi_results) >= 2)
       chirps_anomaly_map(

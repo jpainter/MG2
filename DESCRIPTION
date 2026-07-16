@@ -69,6 +69,7 @@ Suggests:
     lemon,
     officer,
     patchwork,
+    ggiraph,
     plotly,
     prophet,
     RColorBrewer,
