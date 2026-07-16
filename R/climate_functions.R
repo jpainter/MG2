@@ -763,19 +763,20 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
   else
     seq_len(nrow(combined))
 
-  n_rows <- ceiling(length(unique(combined$year_lbl)) / 3)
+  n_rows <- ceiling(length(unique(combined$year_lbl)) / 4)
 
   p <- ggplot2::ggplot(combined) +
     ggiraph::geom_sf_interactive(
       ggplot2::aes(fill = mean_rain, tooltip = tooltip, data_id = data_id),
       color = "white", linewidth = 0.3
     ) +
-    ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
+    ggplot2::facet_wrap(~ year_lbl, ncol = 4) +
     ggplot2::labs(title = title_str, fill = "Rainfall\n(mm)", caption = caption_str) +
     ggplot2::theme_void(base_size = 12) +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
-      strip.text = ggplot2::element_text(face = "bold", size = 10),
+      plot.title   = ggplot2::element_text(hjust = 0.5, face = "bold"),
+      plot.margin  = ggplot2::margin(2, 5, 5, 5),
+      strip.text   = ggplot2::element_text(face = "bold", size = 10),
       legend.position = "right"
     )
 
@@ -791,13 +792,13 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
 
   ggiraph::girafe(
     ggobj      = p,
-    width_svg  = 10,
-    height_svg = n_rows * 3 + 1.5,
+    width_svg  = 14,
+    height_svg = n_rows * 3.5 + 1.0,
     options    = list(
       ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
       ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
         padding:6px 8px; border-radius:4px; font-size:13px;"),
-      ggiraph::opts_sizing(rescale = FALSE, width = 0.95)
+      ggiraph::opts_sizing(rescale = TRUE, width = 1)
     )
   )
 }
@@ -1034,14 +1035,14 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
   else
     seq_len(nrow(combined))
 
-  n_rows <- ceiling(n_years / 3)
+  n_rows <- ceiling(n_years / 4)
 
   p <- ggplot2::ggplot(combined) +
     ggiraph::geom_sf_interactive(
       ggplot2::aes(fill = fill_val, tooltip = tooltip, data_id = data_id),
       color = "white", linewidth = 0.3
     ) +
-    ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
+    ggplot2::facet_wrap(~ year_lbl, ncol = 4) +
     ggplot2::scale_fill_distiller(
       palette   = "RdBu",
       direction = 1,
@@ -1061,19 +1062,20 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
     ggplot2::theme(
       plot.title   = ggplot2::element_text(hjust = 0.5, face = "bold"),
       plot.caption = ggplot2::element_text(hjust = 0.5, colour = "#666", size = 9),
+      plot.margin  = ggplot2::margin(2, 5, 5, 5),
       strip.text   = ggplot2::element_text(face = "bold", size = 10),
       legend.position = "right"
     )
 
   ggiraph::girafe(
     ggobj      = p,
-    width_svg  = 10,
-    height_svg = n_rows * 3 + 1.5,
+    width_svg  = 14,
+    height_svg = n_rows * 3.5 + 1.0,
     options    = list(
       ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
       ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
         padding:6px 8px; border-radius:4px; font-size:13px;"),
-      ggiraph::opts_sizing(rescale = FALSE, width = 0.95)
+      ggiraph::opts_sizing(rescale = TRUE, width = 1)
     )
   )
 }
