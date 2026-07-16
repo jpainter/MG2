@@ -496,6 +496,10 @@ climate_widget_server <- function(id,
         title_str <- paste0(rv$area_label %||% "", " \u2014 ", rv$level_label %||% "",
                             " \u2014 ", min(yrs), "\u2013", max(yrs))
         n_yrs     <- length(yrs)
+        # Height for girafe outputs: rescale=FALSE renders SVG at natural size;
+        # match the pixel height used in the function (n_rows * 3 + 1.5 inches at 96 dpi).
+        n_rows    <- ceiling(n_yrs / 3)
+        girafe_h  <- paste0(ceiling((n_rows * 3 + 1.5) * 96), "px")
 
         return(tabsetPanel(
           id = session$ns("result_tabs"),
@@ -503,7 +507,7 @@ climate_widget_server <- function(id,
           tabPanel(
             "Annual Maps", br(),
             p(tags$small(style = "color:#666;", title_str)),
-            ggiraph::girafeOutput(session$ns("multi_map"), width = "100%", height = "auto")
+            ggiraph::girafeOutput(session$ns("multi_map"), width = "100%", height = girafe_h)
           ),
 
           tabPanel(
@@ -528,25 +532,24 @@ climate_widget_server <- function(id,
             if (n_yrs >= 2) {
               tagList(
                 fluidRow(
-                  column(5,
+                  column(6,
                     radioButtons(
                       session$ns("anomaly_method"), "Units:",
                       choices  = c("mm deviation" = "mm",
                                    "Z-score (SD units)" = "zscore"),
                       selected = "mm", inline = TRUE
                     )
+                  ),
+                  column(6,
+                    tags$p(
+                      style = "font-size:0.83em; color:#555; margin-top:6px;",
+                      icon("circle-info", style = "color:#5b9bd5;"), " ",
+                      "Each panel = one year minus the ", n_yrs, "-year polygon mean.",
+                      tags$strong(" Blue = wetter; red = drier.")
+                    )
                   )
                 ),
-                div(
-                  style = paste0("background:#f0f4f8; border-left:4px solid #5b9bd5;",
-                                 " padding:8px 12px; margin:4px 0 10px 0;",
-                                 " border-radius:3px; font-size:0.85em; color:#444;"),
-                  icon("circle-info"), " ",
-                  "Each panel shows one year's mean rainfall minus the ",
-                  n_yrs, "-year average per polygon. ",
-                  tags$strong("Blue = wetter than average; red = drier.")
-                ),
-                ggiraph::girafeOutput(session$ns("anomaly_map"), width = "100%", height = "auto")
+                ggiraph::girafeOutput(session$ns("anomaly_map"), width = "100%", height = girafe_h)
               )
             } else {
               div(class = "alert alert-warning",
@@ -734,7 +737,7 @@ climate_widget_server <- function(id,
       req(rv$multi_results)
       chirps_multi_year_map(
         rv$multi_results,
-        title_prefix = paste0(rv$area_label %||% "", " \u2014 ", rv$level_label %||% ""),
+        title_prefix = rv$level_label %||% "",
         months       = sort(as.integer(input$months)),
         palette      = input$palette
       )
@@ -745,7 +748,7 @@ climate_widget_server <- function(id,
       req(rv$multi_results)
       chirps_multi_year_chart(
         rv$multi_results,
-        title_prefix = paste0(rv$area_label %||% "", " \u2014 ", rv$level_label %||% ""),
+        title_prefix = rv$level_label %||% "",
         view         = input$multi_chart_view %||% "annual"
       )
     })
@@ -756,7 +759,7 @@ climate_widget_server <- function(id,
       req(length(rv$multi_results) >= 2)
       chirps_anomaly_map(
         rv$multi_results,
-        title_prefix = paste0(rv$area_label %||% "", " \u2014 ", rv$level_label %||% ""),
+        title_prefix = rv$level_label %||% "",
         method       = input$anomaly_method %||% "mm"
       )
     })

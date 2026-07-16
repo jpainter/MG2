@@ -734,13 +734,17 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
   vmin <- if (length(all_vals) > 0) stats::quantile(all_vals, 0.05) else 0
   vmax <- if (length(all_vals) > 0) stats::quantile(all_vals, 0.95) else 100
 
-  mon_str <- if (!is.null(months) && length(months) > 0)
-    paste(mon_names[months], collapse = "+") else "all months"
+  mon_str <- if (is.null(months) || length(months) == 12)
+    "all months"
+  else
+    paste(mon_names[months], collapse = "+")
 
   title_str <- if (nzchar(title_prefix))
-    paste0(title_prefix, " \u2014 Annual Mean Rainfall (CHIRPS, ", mon_str, ")")
+    paste0(title_prefix, " \u2014 Annual Mean Rainfall")
   else
-    paste0("Annual Mean Rainfall (CHIRPS, ", mon_str, ")")
+    "Annual Mean Rainfall"
+
+  caption_str <- paste0("Source: CHIRPS | ", mon_str)
 
   viridis_opts <- c(viridis="D", plasma="C", inferno="B", magma="A", cividis="E")
 
@@ -767,7 +771,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
       color = "white", linewidth = 0.3
     ) +
     ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
-    ggplot2::labs(title = title_str, fill = "Rainfall\n(mm)") +
+    ggplot2::labs(title = title_str, fill = "Rainfall\n(mm)", caption = caption_str) +
     ggplot2::theme_void(base_size = 12) +
     ggplot2::theme(
       plot.title = ggplot2::element_text(hjust = 0.5, face = "bold"),
@@ -793,7 +797,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
       ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
       ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
         padding:6px 8px; border-radius:4px; font-size:13px;"),
-      ggiraph::opts_sizing(rescale = TRUE, width = 1)
+      ggiraph::opts_sizing(rescale = FALSE, width = 0.95)
     )
   )
 }
@@ -1007,9 +1011,9 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
   }
 
   title_str <- if (nzchar(title_prefix))
-    paste0(title_prefix, " \u2014 Rainfall Anomaly vs ", n_years, "-year Mean (CHIRPS)")
+    paste0(title_prefix, " \u2014 Rainfall Anomaly vs ", n_years, "-year Mean")
   else
-    paste0("Rainfall Anomaly vs ", n_years, "-year Mean (CHIRPS)")
+    paste0("Rainfall Anomaly vs ", n_years, "-year Mean")
 
   # Tooltip: name + anomaly value
   label_col <- if ("name" %in% names(combined)) "name" else {
@@ -1049,12 +1053,9 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
     ggplot2::labs(
       title   = title_str,
       fill    = anom_name,
-      caption = paste0("Blue = wetter than ", n_years, "-year mean; ",
-                       "red = drier.  ",
-                       if (method == "zscore")
-                         "Values in standard deviations."
-                       else
-                         "Values in mm.")
+      caption = paste0("Source: CHIRPS  |  ",
+                       "Blue = wetter than ", n_years, "-year mean; red = drier  |  ",
+                       if (method == "zscore") "Units: SD" else "Units: mm")
     ) +
     ggplot2::theme_void(base_size = 12) +
     ggplot2::theme(
@@ -1072,7 +1073,7 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
       ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
       ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
         padding:6px 8px; border-radius:4px; font-size:13px;"),
-      ggiraph::opts_sizing(rescale = TRUE, width = 1)
+      ggiraph::opts_sizing(rescale = FALSE, width = 0.95)
     )
   )
 }
