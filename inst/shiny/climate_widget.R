@@ -496,7 +496,8 @@ climate_widget_server <- function(id,
         title_str <- paste0(rv$area_label %||% "", " \u2014 ", rv$level_label %||% "",
                             " \u2014 ", min(yrs), "\u2013", max(yrs))
         n_yrs     <- length(yrs)
-        map_h     <- paste0(max(300, 250 * ceiling(n_yrs / 3)), "px")
+        # ncol=3 in both facet_wrap calls; 300px/row + 120px for title/caption/legend
+        map_h     <- paste0(max(400, 300 * ceiling(n_yrs / 3) + 120), "px")
 
         return(tabsetPanel(
           id = session$ns("result_tabs"),

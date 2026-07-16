@@ -747,7 +747,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
   p <- ggplot2::ggplot(combined) +
     ggplot2::geom_sf(ggplot2::aes(fill = mean_rain),
                      color = "white", linewidth = 0.3) +
-    ggplot2::facet_wrap(~ year_lbl) +
+    ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
     ggplot2::labs(title = title_str, fill = "Rainfall\n(mm)") +
     ggplot2::theme_void(base_size = 12) +
     ggplot2::theme(
@@ -815,11 +815,18 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
       paste0(title_prefix, " \u2014 Annual Mean Rainfall (CHIRPS)")
     else "Annual Mean Rainfall (CHIRPS)"
 
+    ref_ymin2 <- max(0, ref_mean - 2 * ref_sd)
+    ref_ymax2 <- ref_mean + 2 * ref_sd
+
     p <- ggplot2::ggplot(df, ggplot2::aes(x = year, y = mean_mm)) +
-      # ±1 SD band across all years
+      # ±2 SD band (darker grey, drawn first so ±1 SD renders on top)
+      ggplot2::annotate("rect",
+        xmin = -Inf, xmax = Inf, ymin = ref_ymin2, ymax = ref_ymax2,
+        fill = "#888888", alpha = 0.18) +
+      # ±1 SD band (lighter grey)
       ggplot2::annotate("rect",
         xmin = -Inf, xmax = Inf, ymin = ref_ymin, ymax = ref_ymax,
-        fill = "#aaaaaa", alpha = 0.25) +
+        fill = "#aaaaaa", alpha = 0.28) +
       # multi-year mean line
       ggplot2::geom_hline(yintercept = ref_mean,
                           colour = "#555555", linetype = "dashed", linewidth = 0.6) +
@@ -828,7 +835,7 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
                     caption = paste0(
                       "Bars = mean across org units and selected months  \u2022  ",
                       "Dashed line = ", n_yrs, "-year mean  \u2022  ",
-                      "Grey band = \u00b11 SD across years"))
+                      "Bands = \u00b11 SD (light) and \u00b12 SD (dark) across years"))
 
   } else {
     rows <- lapply(years, function(yr) {
@@ -853,8 +860,10 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
       ref_mean = ref$mean_mm[, "mean"],
       ref_sd   = ref$mean_mm[, "sd"]
     )
-    ref$ymin <- pmax(0, ref$ref_mean - ref$ref_sd)
-    ref$ymax <- ref$ref_mean + ref$ref_sd
+    ref$ymin  <- pmax(0, ref$ref_mean - ref$ref_sd)
+    ref$ymax  <- ref$ref_mean + ref$ref_sd
+    ref$ymin2 <- pmax(0, ref$ref_mean - 2 * ref$ref_sd)
+    ref$ymax2 <- ref$ref_mean + 2 * ref$ref_sd
 
     title_str <- if (nzchar(title_prefix))
       paste0(title_prefix, " \u2014 Monthly Rainfall by Year (CHIRPS)")
@@ -862,12 +871,19 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
 
     n_yrs <- length(years)
     p <- ggplot2::ggplot(df, ggplot2::aes(x = month, y = mean_mm, fill = year)) +
-      # shaded ribbon: multi-year mean ± 1 SD
+      # ±2 SD ribbon (darker grey, drawn first)
+      ggplot2::geom_ribbon(
+        data = ref,
+        ggplot2::aes(x = as.integer(month), ymin = ymin2, ymax = ymax2),
+        inherit.aes = FALSE,
+        fill = "#888888", alpha = 0.18
+      ) +
+      # ±1 SD ribbon (lighter grey, on top)
       ggplot2::geom_ribbon(
         data = ref,
         ggplot2::aes(x = as.integer(month), ymin = ymin, ymax = ymax),
         inherit.aes = FALSE,
-        fill = "#aaaaaa", alpha = 0.25
+        fill = "#aaaaaa", alpha = 0.28
       ) +
       # dashed reference line: multi-year monthly mean
       ggplot2::geom_line(
@@ -886,7 +902,7 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
                     caption = paste0(
                       "Bars = mean across org units per year  \u2022  ",
                       "Dashed line = ", n_yrs, "-year monthly mean  \u2022  ",
-                      "Grey band = \u00b11 SD across years"))
+                      "Bands = \u00b11 SD (light) and \u00b12 SD (dark) across years"))
   }
 
   p + ggplot2::theme_minimal(base_size = 13) +
@@ -944,11 +960,20 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
   combined$year_lbl <- factor(combined$year_lbl,
                                levels = sort(unique(combined$year_lbl)))
 
-  lim <- max(abs(combined$fill_val), na.rm = TRUE)
-  lim <- ceiling(lim * 10) / 10
-
   n_years   <- length(year_sfs)
   anom_name <- if (method == "zscore") "Anomaly\n(SD units)" else "Anomaly\n(mm)"
+
+  # Z-score: fixed symmetric scale -3 to 3 so small anomalies don't look extreme.
+  # mm:      data-driven symmetric scale rounded to one decimal.
+  if (method == "zscore") {
+    scale_lim    <- c(-3, 3)
+    scale_breaks <- seq(-3, 3, by = 0.5)
+  } else {
+    lim       <- max(abs(combined$fill_val), na.rm = TRUE)
+    lim       <- ceiling(lim * 10) / 10
+    scale_lim <- c(-lim, lim)
+    scale_breaks <- ggplot2::waiver()
+  }
 
   title_str <- if (nzchar(title_prefix))
     paste0(title_prefix, " \u2014 Rainfall Anomaly vs ", n_years, "-year Mean (CHIRPS)")
@@ -958,11 +983,12 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
   ggplot2::ggplot(combined) +
     ggplot2::geom_sf(ggplot2::aes(fill = fill_val),
                      color = "white", linewidth = 0.3) +
-    ggplot2::facet_wrap(~ year_lbl) +
+    ggplot2::facet_wrap(~ year_lbl, ncol = 3) +
     ggplot2::scale_fill_distiller(
       palette   = "RdBu",
       direction = 1,
-      limits    = c(-lim, lim),
+      limits    = scale_lim,
+      breaks    = scale_breaks,
       na.value  = "grey80",
       oob       = scales::squish
     ) +
