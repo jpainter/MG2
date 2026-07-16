@@ -799,24 +799,36 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
       if (length(vals) == 0) return(NULL)
       data.frame(year    = yr,
                  mean_mm = mean(vals),
-                 sd_mm   = if (length(vals) > 1) stats::sd(vals) else 0,
                  stringsAsFactors = FALSE)
     })
-    df        <- do.call(rbind, Filter(Negate(is.null), rows))
-    df$year   <- factor(df$year, levels = years)
-    df$ymin   <- pmax(0, df$mean_mm - df$sd_mm)
-    df$ymax   <- df$mean_mm + df$sd_mm
+    df      <- do.call(rbind, Filter(Negate(is.null), rows))
+    df$year <- factor(df$year, levels = years)
+
+    # Multi-year mean ± SD across years (the reference band)
+    ref_mean <- mean(df$mean_mm, na.rm = TRUE)
+    ref_sd   <- if (nrow(df) > 1) stats::sd(df$mean_mm, na.rm = TRUE) else 0
+    ref_ymin <- max(0, ref_mean - ref_sd)
+    ref_ymax <- ref_mean + ref_sd
+    n_yrs    <- nrow(df)
 
     title_str <- if (nzchar(title_prefix))
       paste0(title_prefix, " \u2014 Annual Mean Rainfall (CHIRPS)")
     else "Annual Mean Rainfall (CHIRPS)"
 
     p <- ggplot2::ggplot(df, ggplot2::aes(x = year, y = mean_mm)) +
+      # ±1 SD band across all years
+      ggplot2::annotate("rect",
+        xmin = -Inf, xmax = Inf, ymin = ref_ymin, ymax = ref_ymax,
+        fill = "#aaaaaa", alpha = 0.25) +
+      # multi-year mean line
+      ggplot2::geom_hline(yintercept = ref_mean,
+                          colour = "#555555", linetype = "dashed", linewidth = 0.6) +
       ggplot2::geom_col(fill = "#5b9bd5", alpha = 0.85) +
-      ggplot2::geom_errorbar(ggplot2::aes(ymin = ymin, ymax = ymax),
-                              width = 0.35, colour = "#333") +
       ggplot2::labs(x = NULL, y = "Mean rainfall (mm)", title = title_str,
-                    caption = "Bars = mean across org units and selected months; error bars = \u00b11 SD")
+                    caption = paste0(
+                      "Bars = mean across org units and selected months  \u2022  ",
+                      "Dashed line = ", n_yrs, "-year mean  \u2022  ",
+                      "Grey band = \u00b11 SD across years"))
 
   } else {
     rows <- lapply(years, function(yr) {
