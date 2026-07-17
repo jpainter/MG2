@@ -18,6 +18,7 @@ selectedData(
   level3 = NULL,
   level4 = NULL,
   level5 = NULL,
+  level6 = NULL,
   .cat = FALSE,
   ...
 )

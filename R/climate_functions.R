@@ -167,6 +167,7 @@ chirps_download_gadm <- function(country_code, admin_level,
 #' @param prj_path Optional path to `.prj` projection file.
 #' @return An `sf` polygon object.
 #' @importFrom sf st_read st_crs<-
+#' @export
 chirps_load_custom_shapefile <- function(shp_path, shx_path, dbf_path,
                                           prj_path = NULL) {
   if (!requireNamespace("sf", quietly = TRUE)) stop("Package 'sf' is required.")
@@ -243,6 +244,7 @@ chirps_load_custom_shapefile <- function(shp_path, shx_path, dbf_path,
 #' @param cache_dir Directory for caching downloaded files.
 #' @return Path to the cached `.tif` file (cropped when `bbox` is supplied).
 #' @importFrom httr GET content status_code timeout
+#' @export
 chirps_download_tif <- function(year, month, bbox = NULL, cache_dir = tempdir()) {
   v <- chirps_validate_date(year, month)
   if (!v$valid) stop(v$message)
@@ -404,6 +406,7 @@ chirps_extract_rainfall <- function(sf_obj, tif_path) {
 #' @param on_error    Optional `function(msg)` called when a month fails.
 #' @return Named list of `sf` objects, one per successfully processed month
 #'   (names are three-letter month abbreviations, e.g. `"Jan"`, `"Feb"`).
+#' @export
 chirps_process_months <- function(sf_obj, year, months,
                                    cache_dir   = tempdir(),
                                    on_progress = NULL,
@@ -471,6 +474,7 @@ chirps_process_months <- function(sf_obj, year, months,
 #' @param level_str Character identifier for the admin level (e.g. `"2"` or
 #'   `"custom"`).
 #' @return A filename string (not a full path) ending in `.rds`.
+#' @export
 chirps_results_cache_key <- function(sf_obj, year, months, level_str = "custom") {
   bbox <- tryCatch({
     bb <- sf::st_bbox(sf::st_transform(sf_obj, 4326))
@@ -495,6 +499,7 @@ chirps_results_cache_key <- function(sf_obj, year, months, level_str = "custom")
 #' @return A `ggplot` object.
 #' @importFrom ggplot2 ggplot aes geom_sf facet_wrap scale_fill_distiller
 #'   scale_fill_viridis_c theme_void labs theme element_text
+#' @export
 chirps_make_map <- function(results_list, title_prefix = "", year,
                              palette = "Blues") {
   if (!requireNamespace("ggplot2", quietly = TRUE))
@@ -584,6 +589,7 @@ chirps_make_map <- function(results_list, title_prefix = "", year,
 #' @importFrom ggplot2 ggplot aes geom_col geom_errorbar position_dodge
 #'   scale_fill_brewer scale_fill_manual theme_minimal theme element_blank
 #'   element_text labs
+#' @export
 chirps_make_chart <- function(results_list, year,
                                title_prefix    = "",
                                group_by_parent = FALSE) {
@@ -692,6 +698,7 @@ chirps_make_chart <- function(results_list, year,
 #' @param data_list Named list of `sf` objects from `chirps_process_months()`.
 #' @return An `sf` object with `mean_rain` set to the cross-month mean per
 #'   polygon, or `NULL` if `data_list` is empty.
+#' @export
 chirps_annual_means_sf <- function(data_list) {
   if (length(data_list) == 0) return(NULL)
   sf_ref   <- data_list[[1]]
@@ -709,6 +716,7 @@ chirps_annual_means_sf <- function(data_list) {
 #' @param months        Integer vector of selected months (used in subtitle only).
 #' @param palette       Colour palette name (same options as `chirps_make_map()`).
 #' @return A `ggplot` object.
+#' @export
 chirps_multi_year_map <- function(multi_results, title_prefix = "",
                                    months = NULL, palette = "Blues") {
   if (!requireNamespace("ggplot2", quietly = TRUE))
@@ -817,6 +825,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
 #' @param title_prefix  Character prefix for the plot title.
 #' @param view          `"annual"` (default) or `"monthly"`.
 #' @return A `ggplot` object.
+#' @export
 chirps_multi_year_chart <- function(multi_results, title_prefix = "",
                                     view = c("annual", "monthly")) {
   if (!requireNamespace("ggplot2", quietly = TRUE))
@@ -961,6 +970,7 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
 #' @param method        `"mm"` (deviation in millimetres, default) or `"zscore"`
 #'   (deviation divided by the multi-year SD — dimensionless).
 #' @return A `ggplot` object with a diverging palette centred at zero.
+#' @export
 chirps_anomaly_map <- function(multi_results, title_prefix = "",
                                 method = c("mm", "zscore")) {
   if (!requireNamespace("ggplot2", quietly = TRUE))
@@ -1087,6 +1097,7 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
 #' @param results_list Named list from `chirps_process_months()`.
 #' @param year         Integer year (added as a column for context).
 #' @return A `data.frame` with one row per month.
+#' @export
 chirps_stats_table <- function(results_list, year) {
   rows <- lapply(names(results_list), function(mon) {
     vals <- results_list[[mon]]$mean_rain
@@ -1117,6 +1128,7 @@ chirps_stats_table <- function(results_list, year) {
 #' @param level        Integer admin level to extract.
 #' @return An `sf` polygon object, or `NULL` if no polygons exist at that level.
 #' @importFrom sf st_is_empty st_geometry_type
+#' @export
 chirps_geo_from_metadata <- function(geo_features, level) {
   if (!requireNamespace("sf", quietly = TRUE)) stop("Package 'sf' is required.")
   if (is.null(geo_features) || nrow(geo_features) == 0) return(NULL)
@@ -1139,6 +1151,7 @@ chirps_geo_from_metadata <- function(geo_features, level) {
 #' @return A `data.frame` with columns `level`, `levelName`, `n_polygons`,
 #'   or `NULL` if no polygon data are found.
 #' @importFrom sf st_is_empty st_geometry_type
+#' @export
 chirps_geo_levels <- function(geo_features) {
   if (!requireNamespace("sf", quietly = TRUE)) stop("Package 'sf' is required.")
   if (is.null(geo_features) || nrow(geo_features) == 0) return(NULL)
@@ -1173,6 +1186,7 @@ chirps_geo_levels <- function(geo_features) {
 #'   `"DHIS2 metadata"` or `"Custom upload"`).
 #' @param level_label  Human-readable level description (e.g. `"Districts"`).
 #' @return A `data.frame` (no geometry column).
+#' @export
 chirps_combine_data <- function(results_list, year,
                                  source_label = "",
                                  level_label  = "") {
@@ -1220,6 +1234,7 @@ chirps_combine_data <- function(results_list, year,
 #' @param level_label   Admin level description.
 #' @return Raw bytes of the `.xlsx` file (suitable for Shiny `downloadHandler`).
 #' @importFrom openxlsx createWorkbook addWorksheet writeData saveWorkbook
+#' @export
 chirps_write_excel <- function(flat_df, stats_df, year,
                                 area_label   = "",
                                 months       = 1:12,
@@ -1284,6 +1299,7 @@ chirps_write_excel <- function(flat_df, stats_df, year,
 #' @param level_str  Character level identifier used in the cache key (e.g. `"2"`
 #'   or `"custom"`).
 #' @return Invisibly, the path the file was written to.
+#' @export
 chirps_save_flat <- function(flat_df, data_dir, year, level_str = "custom") {
   keep <- intersect(c("id", "name", "parentName", "year", "month", "mean_rain"),
                     names(flat_df))
@@ -1306,6 +1322,7 @@ chirps_save_flat <- function(flat_df, data_dir, year, level_str = "custom") {
 #' @param data_dir The MG2 data directory.
 #' @return A data frame with columns `id`, `name`, `parentName`, `year`,
 #'   `month`, `mean_rain`, or `NULL` if no files are found.
+#' @export
 chirps_load_rainfall <- function(data_dir) {
   if (is.null(data_dir) || !nzchar(data_dir %||% "")) return(NULL)
 
