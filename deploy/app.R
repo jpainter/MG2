@@ -15,7 +15,7 @@ Sys.setenv(MG2_DEMO_MODE = "1")
 .os <- if (length(.os) == 1L && nzchar(.os)) .os else "jammy"  # safe default
 message("PPM target OS: ", .os)
 .ppm <- paste0("https://packagemanager.posit.co/cran/__linux__/", .os, "/latest")
-for (.p in c("qs2", "future.apply", "feasts", "ggtime")) {
+for (.p in c("qs2", "future.apply", "feasts", "ggtime", "ggiraph")) {
   if (!requireNamespace(.p, quietly = TRUE)) {
     message("Installing ", .p, " from Posit Package Manager (pre-built binary)...")
     install.packages(.p, repos = .ppm, quiet = TRUE)
