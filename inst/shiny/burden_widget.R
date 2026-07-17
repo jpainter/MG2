@@ -71,6 +71,11 @@ burden_widget_ui <- function(id) {
             uiOutput(ns("cat_map_ui")),
             uiOutput(ns("date_range_display")),
             selectInput(
+              ns("years"),
+              label   = "Years to include:",
+              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+            ),
+            selectInput(
               ns("value_source"),
               label = "Values to use:",
               choices = c(
@@ -149,22 +154,18 @@ burden_widget_ui <- function(id) {
           )
         ),
 
-        conditionalPanel(
-          condition = sprintf("input['%s'] === 'Model'", ns("burden_sidebar_tab")),
+        hr(),
 
-          hr(),
-
-          actionButton(ns("run"), "Run Estimates",
-                       class = "btn-primary btn-block", style = "width:100%;"),
-          br(),
-          div(
-            style = paste0(
-              "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
-              " padding:6px; max-height:180px; overflow-y:auto;",
-              " font-size:0.78em; font-family:monospace;"
-            ),
-            verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
-          )
+        actionButton(ns("run"), "Run Estimates",
+                     class = "btn-primary btn-block", style = "width:100%;"),
+        br(),
+        div(
+          style = paste0(
+            "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
+            " padding:6px; max-height:180px; overflow-y:auto;",
+            " font-size:0.78em; font-family:monospace;"
+          ),
+          verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
         ),
       ),
 
@@ -249,7 +250,7 @@ burden_widget_ui <- function(id) {
             "Methods",
 
             div(
-              style = "max-width:820px; padding:16px; font-size:0.95em; line-height:1.6;",
+              style = "max-width:820px; padding:16px; font-size:0.95em; line-height:1.6; max-height:calc(100vh - 150px); overflow-y:auto;",
 
               h4("Burden Estimation Methods"),
 
@@ -491,7 +492,7 @@ burden_widget_ui <- function(id) {
           bslib::nav_panel(
             "References",
             div(
-              style = "max-width:820px; padding:16px; font-size:0.92em; line-height:1.7;",
+              style = "max-width:820px; padding:16px; font-size:0.92em; line-height:1.7; max-height:calc(100vh - 150px); overflow-y:auto;",
 
               h4("Literature Search"),
 
@@ -662,6 +663,20 @@ burden_widget_server <- function(
                         choices = c(none_choice, base_names), selected = "")
       updateSelectInput(session, "population_element",
                         choices = c(none_choice, base_names), selected = "")
+    })
+
+    # Populate year selector from available data
+    observeEvent(selected_data(), {
+      d <- selected_data()
+      req(!is.null(d) && nrow(d) > 0 && "Month" %in% names(d))
+      yrs <- tryCatch({
+        sort(unique(as.integer(format(
+          as.Date(as.integer(d$Month), origin = "1970-01-01"), "%Y"
+        ))))
+      }, error = function(e) integer(0))
+      if (length(yrs) > 0)
+        updateSelectInput(session, "years",
+                          choices = yrs, selected = yrs)
     })
 
     # When base element(s) selected, populate the by-category selector
@@ -839,19 +854,29 @@ burden_widget_server <- function(
       ln         <- level_names()
       region_col <- if (length(ln) >= 2) ln[2] else ln[1]
 
-      # Filter data to the champion-window date range from Reporting widget.
-      # Convert to yearmonth so data.table comparisons work correctly.
-      sm_ym <- .to_ym(start_month())
-      em_ym <- .to_ym(end_month())
+      # Filter data to selected years (year selector takes priority over Reporting period).
+      sel_yrs <- as.integer(input$years)
       d  <- data.table::as.data.table(d_all)
-      if (!is.null(sm_ym)) d <- d[Month >= sm_ym]
-      if (!is.null(em_ym)) d <- d[Month <= em_ym]
-      if (nrow(d) == 0) { add_log("ERROR: no data in the selected date range."); return() }
-      sm_d <- .ym_date(sm_ym)
-      em_d <- .ym_date(em_ym)
-      period_label <- if (!is.null(sm_d) && !is.null(em_d))
-        paste0(format(sm_d, "%b %Y"), " – ", format(em_d, "%b %Y"))
-      else "all available data"
+      if (length(sel_yrs) > 0) {
+        d[, .yr := as.integer(format(
+          as.Date(as.integer(Month), origin = "1970-01-01"), "%Y"
+        ))]
+        d <- d[.yr %in% sel_yrs]
+        d[, .yr := NULL]
+        period_label <- paste(range(sel_yrs), collapse = "\u2013")
+        sm_ym <- NULL; em_ym <- NULL
+      } else {
+        sm_ym <- .to_ym(start_month())
+        em_ym <- .to_ym(end_month())
+        if (!is.null(sm_ym)) d <- d[Month >= sm_ym]
+        if (!is.null(em_ym)) d <- d[Month <= em_ym]
+        sm_d <- .ym_date(sm_ym)
+        em_d <- .ym_date(em_ym)
+        period_label <- if (!is.null(sm_d) && !is.null(em_d))
+          paste0(format(sm_d, "%b %Y"), " \u2013 ", format(em_d, "%b %Y"))
+        else "all available data"
+      }
+      if (nrow(d) == 0) { add_log("ERROR: no data in the selected period."); return() }
       add_log(paste0("  Period: ", period_label))
 
       # Clear previous results
@@ -891,10 +916,8 @@ burden_widget_server <- function(
       # Store period label for display on Results tab
       results$period_label <- period_label
 
-      # Period-filtered data kept for the "Reported" map layer
+      # Period-filtered data kept for the "Reported" map layer (d is already filtered)
       d_period <- data.table::copy(d)
-      if (!is.null(sm_ym)) d_period <- d_period[Month >= sm_ym]
-      if (!is.null(em_ym)) d_period <- d_period[Month <= em_ym]
       results$d_period        <- d_period
       results$tgt_used        <- tgt
       results$region_col_used <- region_col
