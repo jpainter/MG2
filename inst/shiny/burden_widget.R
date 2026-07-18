@@ -666,18 +666,18 @@ burden_widget_server <- function(
                         choices = c(none_choice, base_names), selected = "")
     })
 
-    # Populate year selector from available data
-    observeEvent(selected_data(), {
-      d <- selected_data()
-      req(!is.null(d) && nrow(d) > 0 && "Month" %in% names(d))
-      yrs <- tryCatch({
-        sort(unique(as.integer(format(
-          as.Date(as.integer(d$Month), origin = "1970-01-01"), "%Y"
-        ))))
-      }, error = function(e) integer(0))
-      if (length(yrs) > 0)
-        updateCheckboxGroupInput(session, "years",
-                                 choices = yrs, selected = yrs, inline = TRUE)
+    # Populate year checkboxes from the reporting widget's date range
+    observe({
+      sm <- start_month()
+      em <- end_month()
+      req(!is.null(sm) && !is.null(em))
+      sm_d <- tryCatch(.ym_date(sm), error = function(e) NULL)
+      em_d <- tryCatch(.ym_date(em), error = function(e) NULL)
+      req(!is.null(sm_d) && !is.null(em_d))
+      yrs <- seq(as.integer(format(sm_d, "%Y")),
+                 as.integer(format(em_d, "%Y")))
+      updateCheckboxGroupInput(session, "years",
+                               choices = yrs, selected = yrs, inline = TRUE)
     })
 
     # When base element(s) selected, populate the by-category selector

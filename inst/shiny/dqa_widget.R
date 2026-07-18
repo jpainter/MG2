@@ -64,8 +64,13 @@ dqa_widget_ui = function(id) {
                 ),
                 bslib::nav_panel(
                   "Facility Heatmap",
-                  chartModuleUI(ns("dqaFacilityHeatmap"),
-                                height = "calc(75vh - 50px)", overlay = TRUE)
+                  fluidRow(
+                    column(4,
+                      selectInput(ns("heatmap_region"), "Region:",
+                                  choices = NULL, width = "100%")
+                    )
+                  ),
+                  uiOutput(ns("dqaFacilityHeatmapUI"))
                 )
               )
             ),
@@ -816,29 +821,44 @@ dqa_widget_server <- function(
         req(length(ln) >= 2)
         level_col <- ln[2]
         req(level_col %in% names(region_filtered_data1()))
-        cat("\n* facility_heatmap: computing, level_col=", level_col,
-            "nrow=", nrow(region_filtered_data1()), "\n")
-        result <- tryCatch(
+        tryCatch(
           dqa_facility_heatmap_data(region_filtered_data1(), level_col),
-          error = function(e) {
-            cat("\n! facility_heatmap error:", e$message, "\n")
-            NULL
-          }
+          error = function(e) { cat("\n! facility_heatmap error:", e$message, "\n"); NULL }
         )
-        cat("\n* facility_heatmap: result rows=",
-            if (is.null(result)) "NULL" else nrow(result), "\n")
-        result
       })
 
-      chartModuleServer("dqaFacilityHeatmap", reactive({
+      # Populate region selector from heatmap data
+      observeEvent(facility_heatmap_rv(), {
+        hm <- facility_heatmap_rv()
+        req(!is.null(hm) && nrow(hm) > 0 && "region" %in% names(hm))
+        regions <- sort(unique(hm$region))
+        updateSelectInput(session, "heatmap_region",
+                          choices = regions, selected = regions[1])
+      })
+
+      # Dynamic plot container: height scales with facility count in selected region
+      output$dqaFacilityHeatmapUI <- renderUI({
         hm <- facility_heatmap_rv()
         req(!is.null(hm) && nrow(hm) > 0)
-        # Scale height: 12px per facility, capped at the viewport limit
-        n_fac <- length(unique(hm$orgUnit))
-        h     <- min(max(n_fac * 12L, 300L), 2400L)
-        dqa_facility_heatmap_plot(hm) +
-          ggplot2::labs(caption = region_caption_text())
-      }))
+        reg <- input$heatmap_region
+        req(!is.null(reg) && nzchar(reg))
+        n_fac  <- length(unique(hm$orgUnit[hm$region == reg]))
+        px_h   <- max(n_fac * 18L + 80L, 300L)   # 18px per facility + header
+        div(
+          style = paste0("height:", px_h, "px; overflow-y:auto;"),
+          plotOutput(session$ns("heatmap_plot"), height = paste0(px_h, "px"))
+        )
+      })
+
+      output$heatmap_plot <- renderPlot(res = 96, {
+        hm <- facility_heatmap_rv()
+        req(!is.null(hm) && nrow(hm) > 0)
+        reg <- input$heatmap_region
+        req(!is.null(reg) && nzchar(reg))
+        hm_reg <- hm[hm$region == reg, , drop = FALSE]
+        dqa_facility_heatmap_plot(hm_reg, max_label_n = 200L) +
+          ggplot2::labs(caption = paste0(reg, " | ", region_caption_text()))
+      })
 
       # Return ####
       return()
