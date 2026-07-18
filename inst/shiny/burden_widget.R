@@ -1244,7 +1244,11 @@ burden_widget_server <- function(
           df <- as.data.frame(df)
           if ("category" %in% names(df)) {
             if (!show_cats) {
-              df <- df[df$category == "Total", , drop = FALSE]
+              # Filter to "Total" rows only when they exist (multi-category runs).
+              # Single-category runs: add_category_totals() skips adding a Total
+              # row, so keep all rows as-is — they represent the only (total) category.
+              if ("Total" %in% df$category)
+                df <- df[df$category == "Total", , drop = FALSE]
             }
           }
           df
