@@ -854,30 +854,44 @@ burden_widget_server <- function(
       ln         <- level_names()
       region_col <- if (length(ln) >= 2) ln[2] else ln[1]
 
-      # Filter data to selected years (year selector takes priority over Reporting period).
-      sel_yrs <- as.integer(input$years)
-      d  <- data.table::as.data.table(d_all)
+      # Resolve period window: year selector takes priority over Reporting period.
+      sel_yrs <- sort(as.integer(input$years))
       if (length(sel_yrs) > 0) {
-        d[, .yr := as.integer(format(
-          as.Date(as.integer(Month), origin = "1970-01-01"), "%Y"
-        ))]
-        d <- d[.yr %in% sel_yrs]
-        d[, .yr := NULL]
-        period_label <- paste(range(sel_yrs), collapse = "\u2013")
-        sm_ym <- NULL; em_ym <- NULL
+        sm_ym      <- tsibble::yearmonth(paste(min(sel_yrs), "Jan"))
+        em_ym      <- tsibble::yearmonth(paste(max(sel_yrs), "Dec"))
+        period_label <- if (length(sel_yrs) == 1L) as.character(sel_yrs)
+                        else paste(range(sel_yrs), collapse = "\u2013")
       } else {
         sm_ym <- .to_ym(start_month())
         em_ym <- .to_ym(end_month())
-        if (!is.null(sm_ym)) d <- d[Month >= sm_ym]
-        if (!is.null(em_ym)) d <- d[Month <= em_ym]
-        sm_d <- .ym_date(sm_ym)
-        em_d <- .ym_date(em_ym)
+        sm_d  <- .ym_date(sm_ym)
+        em_d  <- .ym_date(em_ym)
         period_label <- if (!is.null(sm_d) && !is.null(em_d))
           paste0(format(sm_d, "%b %Y"), " \u2013 ", format(em_d, "%b %Y"))
         else "all available data"
       }
-      if (nrow(d) == 0) { add_log("ERROR: no data in the selected period."); return() }
+      # Quick check that data exists in the chosen window
+      d_check <- data.table::as.data.table(d_all)
+      if (!is.null(sm_ym)) d_check <- d_check[Month >= sm_ym]
+      if (!is.null(em_ym)) d_check <- d_check[Month <= em_ym]
+      if (nrow(d_check) == 0L) { add_log("ERROR: no data in the selected period."); return() }
+      rm(d_check)
       add_log(paste0("  Period: ", period_label))
+
+      # Early champion check — burden functions all require at least one champion.
+      n_champs <- data.table::uniqueN(
+        data.table::as.data.table(d_all)[Selected == "Champion", orgUnit]
+      )
+      if (n_champs == 0L) {
+        add_log(paste0(
+          "ERROR: No champion facilities found in the data. ",
+          "In the Reporting tab, go to the Reporting Consistency tab, ",
+          "check 'Stratify by consistently reporting facilities', ",
+          "and increase 'Allowed missing months' (try 3-6 for a multi-year period)."
+        ))
+        return()
+      }
+      add_log(paste0("  Champions: ", n_champs, " facilities"))
 
       # Clear previous results
       results$A  <- NULL; results$B  <- NULL
@@ -916,8 +930,10 @@ burden_widget_server <- function(
       # Store period label for display on Results tab
       results$period_label <- period_label
 
-      # Period-filtered data kept for the "Reported" map layer (d is already filtered)
-      d_period <- data.table::copy(d)
+      # Period-filtered data for the "Reported" map layer
+      d_period <- data.table::copy(data.table::as.data.table(d))
+      if (!is.null(sm_ym)) d_period <- d_period[Month >= sm_ym]
+      if (!is.null(em_ym)) d_period <- d_period[Month <= em_ym]
       results$d_period        <- d_period
       results$tgt_used        <- tgt
       results$region_col_used <- region_col
