@@ -111,12 +111,20 @@ dqa_widget_ui = function(id) {
 
             bslib::nav_panel(
               "Facilities",
-              br(),
-              uiOutput(ns("facilities_status_note")),
-              chartModuleUI(ns("dqaFacilitiesPlot"),
-                            height = "calc(55vh - 50px)", overlay = TRUE),
-              br(),
-              DT::DTOutput(ns("dqaFacilitiesTable"))
+              bslib::navset_tab(
+                bslib::nav_panel(
+                  "Chart",
+                  br(),
+                  uiOutput(ns("facilities_status_note")),
+                  chartModuleUI(ns("dqaFacilitiesPlot"),
+                                height = "calc(70vh - 50px)", overlay = TRUE)
+                ),
+                bslib::nav_panel(
+                  "Table",
+                  br(),
+                  DT::DTOutput(ns("dqaFacilitiesTable"))
+                )
+              )
             )
           )
         )
@@ -508,11 +516,16 @@ dqa_widget_server <- function(
         cat('\n* dqa_region_reporting: geoFeatures rows=', if(!is.null(geoFeatures())) nrow(geoFeatures()) else 'NULL')
         req(dqa_data())
         req(levelNames())
-        req(geoFeatures())
+        # Note: geoFeatures is NOT required here — reporting aggregation runs even
+        # without geo data; the map renderer checks geoFeatures separately.
 
-        # Match the grouping level to the lowest non-national level in geoFeatures.
-        gf_levels  <- sort(unique(geoFeatures()$level))
-        map_level  <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
+        # Default to level 2 when geoFeatures is unavailable
+        if (!is.null(geoFeatures())) {
+          gf_levels <- sort(unique(geoFeatures()$level))
+          map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
+        } else {
+          map_level <- 2L
+        }
         # levelNames()[1]=National, [2]=level2, [3]=level3, ...
         level_col  <- if (length(levelNames()) >= map_level) levelNames()[map_level] else levelNames()[2L]
         req(level_col %in% names(dqa_data()))
@@ -560,9 +573,12 @@ dqa_widget_server <- function(
         # Some demo datasets only have chiefdom (level 3) shapes, not district (level 2).
         gf_levels <- sort(unique(geoFeatures()$level))
         map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
-        gf2 <- geoFeatures() |>
-          dplyr::filter(level == map_level) |>
-          dplyr::left_join(rep_yr, by = c("name" = "region_name"))
+        gf_filtered <- geoFeatures() |> dplyr::filter(level == map_level)
+        cat('\n* dqaReportingMap: gf names=', paste(sort(gf_filtered$name), collapse=', '))
+        cat('\n* dqaReportingMap: rep_yr region_names=', paste(sort(unique(rep_yr$region_name)), collapse=', '))
+        gf2 <- dplyr::left_join(gf_filtered, rep_yr, by = c("name" = "region_name"))
+        n_matched <- sum(!is.na(gf2$pr))
+        cat('\n* dqaReportingMap: matched', n_matched, 'of', nrow(gf2), 'polygons')
         req(nrow(gf2) > 0)
 
         pal  <- leaflet::colorNumeric("RdYlGn", domain = c(0, 1), na.color = "#cccccc")
@@ -800,10 +816,18 @@ dqa_widget_server <- function(
         req(length(ln) >= 2)
         level_col <- ln[2]
         req(level_col %in% names(region_filtered_data1()))
-        tryCatch(
+        cat("\n* facility_heatmap: computing, level_col=", level_col,
+            "nrow=", nrow(region_filtered_data1()), "\n")
+        result <- tryCatch(
           dqa_facility_heatmap_data(region_filtered_data1(), level_col),
-          error = function(e) { message("facility_heatmap: ", e$message); NULL }
+          error = function(e) {
+            cat("\n! facility_heatmap error:", e$message, "\n")
+            NULL
+          }
         )
+        cat("\n* facility_heatmap: result rows=",
+            if (is.null(result)) "NULL" else nrow(result), "\n")
+        result
       })
 
       chartModuleServer("dqaFacilityHeatmap", reactive({

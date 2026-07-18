@@ -954,6 +954,8 @@ dqa_facility_heatmap_data <- function(data, level_col) {
 
   result <- merge(cell, lookup,  by = "orgUnit", all.x = TRUE)
   result <- merge(result, totals, by = "orgUnit", all.x = TRUE)
+  # Month is kept as plain integer (days-since-epoch) throughout — the plot
+  # function converts via as.Date(as.integer(unclass(x)), origin="1970-01-01").
   as.data.frame(result)
 }
 
@@ -986,13 +988,13 @@ dqa_facility_heatmap_plot <- function(heatmap_data,
   df$orgUnitName <- factor(df$orgUnitName,
                             levels = rev(ou_order$orgUnitName))
 
-  # Format Month axis — show one label every 6 months to avoid overlap
-  all_months_ym  <- sort(unique(tsibble::yearmonth(df$Month)))
+  # Format Month axis — show one label every 6 months to avoid overlap.
+  # Month is stored as days-since-epoch (yearmonth internal encoding); convert
+  # via as.Date() to avoid tsibble::yearmonth(integer) treating days as months.
+  month_dates    <- as.Date(as.integer(unclass(df$Month)), origin = "1970-01-01")
+  all_months_ym  <- sort(unique(tsibble::yearmonth(month_dates)))
   month_levels   <- format(as.Date(all_months_ym), "%b %Y")
-  df$month_label <- factor(
-    format(as.Date(tsibble::yearmonth(df$Month)), "%b %Y"),
-    levels = month_levels
-  )
+  df$month_label <- factor(format(month_dates, "%b %Y"), levels = month_levels)
   # Thinned break set: every 6th month label
   break_idx  <- seq(1L, length(month_levels), by = 6L)
   axis_breaks <- month_levels[break_idx]

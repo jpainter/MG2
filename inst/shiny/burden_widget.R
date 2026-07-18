@@ -70,10 +70,13 @@ burden_widget_ui <- function(id) {
             ),
             uiOutput(ns("cat_map_ui")),
             uiOutput(ns("date_range_display")),
-            selectInput(
+            tags$label("Years to include:"),
+            checkboxGroupInput(
               ns("years"),
-              label   = "Years to include:",
-              choices = NULL, multiple = TRUE, selectize = TRUE, width = "100%"
+              label    = NULL,
+              choices  = NULL,
+              selected = NULL,
+              inline   = TRUE
             ),
             selectInput(
               ns("value_source"),
@@ -150,23 +153,21 @@ burden_widget_ui <- function(id) {
                                          min = 1, max = 100, step = 1, width = "100%"))
                 )
               )
+            ),
+            hr(),
+            actionButton(ns("run"), "Run Estimates",
+                         class = "btn-primary btn-block", style = "width:100%;"),
+            br(),
+            div(
+              style = paste0(
+                "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
+                " padding:6px; max-height:180px; overflow-y:auto;",
+                " font-size:0.78em; font-family:monospace;"
+              ),
+              verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
             )
           )
-        ),
-
-        hr(),
-
-        actionButton(ns("run"), "Run Estimates",
-                     class = "btn-primary btn-block", style = "width:100%;"),
-        br(),
-        div(
-          style = paste0(
-            "background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px;",
-            " padding:6px; max-height:180px; overflow-y:auto;",
-            " font-size:0.78em; font-family:monospace;"
-          ),
-          verbatimTextOutput(ns("progress_log"), placeholder = TRUE)
-        ),
+        )
       ),
 
       mainPanel(
@@ -675,8 +676,8 @@ burden_widget_server <- function(
         ))))
       }, error = function(e) integer(0))
       if (length(yrs) > 0)
-        updateSelectInput(session, "years",
-                          choices = yrs, selected = yrs)
+        updateCheckboxGroupInput(session, "years",
+                                 choices = yrs, selected = yrs, inline = TRUE)
     })
 
     # When base element(s) selected, populate the by-category selector
