@@ -1402,8 +1402,14 @@ burden_widget_server <- function(
 
         map_data <- as.data.frame(res$subnational)
         if (!"category" %in% names(map_data)) map_data$category <- "Total"
-        map_data <- map_data[map_data$category == cat_sel &
-                             map_data$region != "National", ]
+        # When "Total" is selected but no Total rows exist (single-category run),
+        # sum across all categories within each region rather than returning nothing.
+        if (cat_sel == "Total" && !"Total" %in% map_data$category) {
+          map_data <- map_data[map_data$region != "National", ]
+        } else {
+          map_data <- map_data[map_data$category == cat_sel &
+                               map_data$region != "National", ]
+        }
         req(nrow(map_data) > 0)
       }
 
