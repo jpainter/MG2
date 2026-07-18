@@ -938,12 +938,19 @@ dqa_facility_heatmap_data <- function(data, level_col) {
   lookup <- unique(dt[, .(orgUnit, orgUnitName, region = get(level_col))])
   lookup[is.na(region), region := "(Unknown)"]
 
-  # Complete grid so every facility has a cell for every month
-  all_months <- sort(unique(dt$Month))
-  all_ous    <- unique(dt$orgUnit)
-  grid       <- data.table::CJ(orgUnit = all_ous, Month = all_months)
-  cell       <- merge(grid, cell, by = c("orgUnit", "Month"), all.x = TRUE)
+  # Complete grid so every facility has a cell for every month.
+  # Use integer representation for CJ to avoid data.table stripping the
+  # yearmonth class, then restore the class after merging.
+  month_class    <- class(dt[["Month"]])
+  all_months_int <- sort(unique(as.integer(unclass(dt[["Month"]]))))
+  all_ous        <- unique(dt$orgUnit)
+  cell[, .Month_int := as.integer(unclass(Month))]
+  grid <- data.table::CJ(orgUnit = all_ous, .Month_int = all_months_int)
+  cell <- merge(grid, cell[, .(orgUnit, .Month_int, reported)],
+                by = c("orgUnit", ".Month_int"), all.x = TRUE)
   cell[is.na(reported), reported := 0L]
+  cell[, Month := structure(.Month_int, class = month_class)]
+  cell[, .Month_int := NULL]
 
   result <- merge(cell, lookup,  by = "orgUnit", all.x = TRUE)
   result <- merge(result, totals, by = "orgUnit", all.x = TRUE)
@@ -979,10 +986,16 @@ dqa_facility_heatmap_plot <- function(heatmap_data,
   df$orgUnitName <- factor(df$orgUnitName,
                             levels = rev(ou_order$orgUnitName))
 
-  # Format Month axis
-  df$month_label <- format(as.Date(tsibble::yearmonth(df$Month)), "%b %Y")
-  month_levels   <- format(as.Date(sort(unique(tsibble::yearmonth(df$Month)))), "%b %Y")
-  df$month_label <- factor(df$month_label, levels = month_levels)
+  # Format Month axis — show one label every 6 months to avoid overlap
+  all_months_ym  <- sort(unique(tsibble::yearmonth(df$Month)))
+  month_levels   <- format(as.Date(all_months_ym), "%b %Y")
+  df$month_label <- factor(
+    format(as.Date(tsibble::yearmonth(df$Month)), "%b %Y"),
+    levels = month_levels
+  )
+  # Thinned break set: every 6th month label
+  break_idx  <- seq(1L, length(month_levels), by = 6L)
+  axis_breaks <- month_levels[break_idx]
 
   ggplot2::ggplot(df,
     ggplot2::aes(x = month_label, y = orgUnitName,
@@ -995,6 +1008,7 @@ dqa_facility_heatmap_plot <- function(heatmap_data,
       name   = NULL
     ) +
     ggplot2::facet_wrap(ggplot2::vars(region), scales = "free_y", ncol = 1) +
+    ggplot2::scale_x_discrete(breaks = axis_breaks) +
     ggplot2::scale_y_discrete(labels = function(x) {
       # Blank out labels for big-region facilities
       ifelse(x %in% df$orgUnitName[df$region %in% big_regions], "", x)
