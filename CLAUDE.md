@@ -6,7 +6,7 @@
 epidemiological analysis of routine health data from DHIS2 systems. Functions are also
 usable in standalone R scripts.
 
-**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.8
+**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.9
 **Reference:** [R Packages (2e)](https://r-pkgs.org)
 
 ---
@@ -162,18 +162,20 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 2N)
 
 ---
 
-## Current State (as of 2026-07-14)
+## Current State (as of 2026-07-18)
 
-**Version:** 0.1.8 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
+**Version:** 0.1.9 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
-download + combine) → DQA (incl. Consistency + Reporting Map) → Reporting → Outliers →
-Evaluation → Climate (dev) → Burden Estimate (dev) → AI Assistant (dev)
+download + combine) → DQA (incl. Consistency + Reporting Map + Facilities + Heatmap) →
+Reporting → Outliers → Evaluation → Climate (dev) → Burden Estimate (dev) → AI Assistant (dev)
 
 **Map tab:** widget file exists (`map_widget.R`), not yet integrated.
 
-**Climate tab (added 2026-07-14; updated 2026-07-15):**
+**Version history:** `NEWS.md` — documents user-facing changes for every release.
+
+**Climate tab:**
 - `R/climate_functions.R` — pure R functions (no Shiny); `terra` + `sf` based
 - `inst/shiny/climate_widget.R` — Shiny module; reads `geoFeatures` from metadata widget
 - Downloads only the bounding box region (Africa TIF ~3–5 MB; global ~20 MB) — not the full
@@ -189,51 +191,35 @@ Evaluation → Climate (dev) → Burden Estimate (dev) → AI Assistant (dev)
   `climate_cache/`) — a plain data frame (`id`, `name`, `parentName`, `year`, `month`,
   `mean_rain`) for use as a covariate in other analyses. Load with `chirps_load_rainfall(data_dir)`;
   join to ts data by `id + year + month`. See README § Climate for full code examples.
-- Multi-year mode: "Year range" selector (max 5 years) runs each year sequentially; results in
-  Annual Maps / Multi-year Chart / Anomaly / Statistics / Data & Download tabs.
-  Anomaly tab (≥2 years): diverging RdBu choropleth showing mm-deviation or z-score vs multi-year mean.
+- Multi-year mode: "Year range" selector runs each year sequentially; results in Annual Maps /
+  Multi-year Chart / Anomaly / Statistics / Data & Download tabs. Anomaly tab (≥2 years):
+  diverging RdBu choropleth showing mm-deviation or z-score vs multi-year mean.
 - Interactive leaflet: stable base map via `renderLeaflet`; data layers pushed via `leafletProxy`
   so the map never goes grey. `outputOptions(suspendWhenHidden = FALSE)` keeps it alive when tab hidden.
-- Rainfall overlay in Evaluation tab: `chirps_load_rainfall()` scans data directory; sidebar toggle
-  appears when files exist; bars scaled to primary y-axis (national average or per-unit join).
-  Bug fix (2026-07-15): national-level join fallback added — admin column present in mable_Data but
-  national name ≠ district names → join produces all NAs → now falls back to national average.
-- `ggtime::autoplot()` used throughout evaluation_widget_2.R (fabletools 0.6.0 deprecation fix).
-- Inspired by Mohamed Sillah Kanu's Python/Streamlit CHIRPS app
-  (`dev/reference/chirps-rainfall-app-python/`; Apache-2.0); UI layout, bbox-crop logic, and
-  zonal-statistics approach adapted to R; see README for full attribution
+- Rainfall overlay in Evaluation tab: sidebar toggle appears when files exist; national average
+  fallback when district join produces all NAs.
+- Inspired by Mohamed Sillah Kanu's Python/Streamlit CHIRPS app (Apache-2.0); see README for attribution.
 
-**Remaining NOTE (Phase D — deferred):**
-- Bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::` qualification
-
-**Metadata widget improvements (2026-07-03):**
-- systemInfo tab: "Save Facilities CSV to data directory" button — detects facility level
-  from `orgUnitLevels()$levelName` (looks for "facilit", falls back to max level), writes
-  `facilities_YYYY-MM-DD.csv` with `facility_name / parent_name / latitude / longitude`
-- `DToptions.R`: `buttonList()` now exports all rows (`modifier = {page: 'all'}`) and
-  accepts optional `columns` CSS selector to exclude HTML columns from export
-- Large tables (orgUnits, orgUnitHierarchy, Duplicates): switched to `paging=TRUE`,
-  `server=FALSE` + `DToptions_with_buttons` — fast rendering, working export
-- Scroll tables (Categories, Validation Rules): keep `paging=FALSE`/scrollY, added
-  Copy/Print/Download buttons via `dom='Bti'` + `buttonList()`
-- HTML-column tables (dataElements, dataSets, Indicators): same scroll+buttons pattern;
-  HTML column marked `className='dt-noexport'`, excluded via `columns=':not(.dt-noexport)'`
-
-**Regions widget improvements (2026-07-03):**
-- Added Level 6 `selectInput` — cascades from Level 5; supports countries where facilities
-  are at level 6; all downstream widgets (DQA, Reporting, Outliers, Evaluation) filter and
-  display level6 selections
-- `selected_regions()` now carries `ids` (org unit IDs) alongside level names when table
-  rows are selected in the geoFeaturesTable
-- Download request uses org unit IDs (not names) when table selection drives the filter,
-  avoiding ambiguity from duplicate org unit names (e.g. 330 "Unknown" facilities in Nigeria)
-- `find_lowest_nonnull()` and `selectedData()` extended to level6
+**DQA tab (0.1.9 additions):**
+- Facilities sub-tab: active/inactive bar chart + summary table (`dqa_facility_status()`)
+- Facility Heatmap sub-tab: facility × month reporting grid, filtered by region dropdown,
+  height scales to facility count (`dqa_facility_heatmap_data()` / `dqa_facility_heatmap_plot()`)
+- Reporting Map: works with demo data via `mg2_demo_geo`; `dqa_region_reporting()` no longer
+  requires `geoFeatures` (map renderer guards separately)
+- `dqa_facility_heatmap_data()`: Month kept as plain integer (days-since-epoch) throughout —
+  `data.table::CJ()` and `merge()` strip yearmonth class; plot converts via
+  `as.Date(as.integer(unclass(x)), origin="1970-01-01")`
 
 **Demo data:**
-- `mg2_demo_*` — Sierra Leone malaria (5 elements, 72 months synthetic, yearmonth correct)
+- `mg2_demo_*` — Sierra Leone malaria (5 elements, 72 months synthetic)
+- `mg2_demo_geo` — Sierra Leone district polygons (GADM level-2; Western Rural+Urban merged to
+  Western Area); injected into metadata at `mg2_demo_setup()` write time
 - `mg2_pdrlao_*` — PDR Lao malaria (82 elements, ~57 months, Aug 2021–May 2026)
 - `mg2_demo_setup()` / `mg2_pdrlao_setup()` — write demo files to disk
 - Login tab has two demo buttons (Sierra Leone / PDR Lao) using `actionButton` not `shinyFiles`
+
+**Remaining NOTE (Phase D — deferred):**
+- Bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::` qualification
 
 **Deployments:**
 - GitHub releases: automated via `.github/workflows/release.yml` (push `git tag vX.Y.Z`)
