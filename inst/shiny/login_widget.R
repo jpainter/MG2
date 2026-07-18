@@ -125,6 +125,48 @@ login_widget_ui <- function(id) {
             )
           }
         )
+      ),
+
+      # ── Load from shared URLs ────────────────────────────────────────────────
+      fluidRow(
+        column(
+          12,
+          hr(),
+          h4("Or load from shared links:"),
+          tags$p(
+            tags$small(
+              "Paste direct download links from Google Drive, Dropbox, or OneDrive.",
+              "Formula and metadata links are optional but enable mapping and formula features."
+            ),
+            style = "color:#555; margin-bottom:8px;"
+          ),
+          fluidRow(
+            column(6,
+              textInput(ns("url_data"),    "Data file (.qs or .rds):",
+                        placeholder = "https://drive.google.com/file/d/…"),
+              textInput(ns("url_formula"), "Formula file (.xlsx, optional):",
+                        placeholder = "https://drive.google.com/file/d/…"),
+              textInput(ns("url_meta"),    "Metadata file (.rds, optional):",
+                        placeholder = "https://drive.google.com/file/d/…")
+            ),
+            column(6,
+              br(),
+              actionButton(ns("load_from_url"), "Download & Load",
+                           icon  = icon("cloud-download-alt"),
+                           class = "btn-primary"),
+              br(), br(),
+              tags$p(tags$small(tags$strong("Google Drive:"),
+                " right-click file → Share → 'Anyone with link' → Copy link"),
+                style = "color:#666;"),
+              tags$p(tags$small(tags$strong("Dropbox:"),
+                " Share → Copy link (dl=0 is converted automatically)"),
+                style = "color:#666;"),
+              tags$p(tags$small(tags$strong("OneDrive:"),
+                " Share → Copy link → Paste here"),
+                style = "color:#666;")
+            )
+          )
+        )
       )
     )
   )
@@ -572,6 +614,75 @@ login_widget_server <- function(id, directory_widget_output = NULL, demo_dir = N
         if (is.null(system.info())) {} else { system.info() },
         align = "ll"
       )
+
+      # ── Load from URL ─────────────────────────────────────────────────────────
+      observeEvent(input$load_from_url, {
+        url_data <- trimws(input$url_data %||% "")
+        if (!nzchar(url_data)) {
+          showModal(modalDialog(
+            title     = "Data URL required",
+            tags$p("Please paste a link to your processed data file (.qs or .rds)."),
+            easyClose = TRUE, fade = FALSE, footer = modalButton("OK")
+          ))
+          return()
+        }
+
+        showModal(modalDialog(
+          title     = "Downloading files…",
+          tags$p("Fetching your data from the shared links. This may take a moment."),
+          easyClose = FALSE, footer = NULL, fade = FALSE
+        ))
+
+        result <- tryCatch({
+          destdir <- file.path(tempdir(), paste0("mg2_url_", format(Sys.time(), "%H%M%S")))
+          mg2_load_from_urls(
+            data_url    = url_data,
+            formula_url = trimws(input$url_formula %||% ""),
+            meta_url    = trimws(input$url_meta    %||% ""),
+            destdir     = destdir
+          )
+        }, error = function(e) {
+          removeModal()
+          showModal(modalDialog(
+            title     = "Download failed",
+            tags$p(conditionMessage(e)),
+            tags$p(tags$small("Check that the link is a direct download URL and that sharing permissions allow access.")),
+            easyClose = TRUE, fade = FALSE, footer = modalButton("Close")
+          ))
+          NULL
+        })
+
+        if (is.null(result)) return()
+
+        .pending_demo_dir(result)
+        has_meta    <- length(list.files(result, pattern = "^metadata.*\\.rds$")) > 0
+        has_formula <- length(list.files(result, pattern = "\\.xlsx$")) > 0
+
+        showModal(modalDialog(
+          title     = "Files ready",
+          tags$p(icon("circle-check", style = "color:#3c763d; margin-right:6px;"),
+                 tags$strong("Data downloaded successfully.")),
+          if (!has_formula) tags$p(tags$small(icon("triangle-exclamation", style="color:#e67e00;"),
+            " No formula file — go to Data tab and select elements manually.")),
+          if (!has_meta) tags$p(tags$small(icon("triangle-exclamation", style="color:#e67e00;"),
+            " No metadata file — mapping and org unit features will be limited.")),
+          tags$p(icon("arrow-right", style = "margin-right:6px;"),
+                 "Go to the ", tags$strong("Data"), " tab to select and load your dataset."),
+          easyClose = FALSE, fade = FALSE,
+          footer = actionButton(session$ns("url_load_ok"), "OK — Go to Data",
+                                class = "btn-primary", icon = icon("arrow-right"))
+        ))
+      })
+
+      observeEvent(input$url_load_ok, {
+        removeModal()
+        d <- .pending_demo_dir()
+        if (!is.null(d)) {
+          demo_dir(d)
+          .pending_demo_dir(NULL)
+        }
+        if (!is.null(nav_goto)) nav_goto("Data")
+      })
 
       # Return ####
       return(list(
