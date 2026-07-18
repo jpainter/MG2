@@ -105,7 +105,11 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   meta_path <- file.path(dir, paste0("metadata_", today, ".rds"))
 
   if (!file.exists(meta_path) || overwrite) {
-    saveRDS(mg2_demo_meta, meta_path)
+    # Inject district-level polygons into the metadata so the DQA map,
+    # climate widget, and burden map all have geometry for Sierra Leone.
+    meta_out <- mg2_demo_meta
+    meta_out$geoFeatures <- mg2_demo_geo
+    saveRDS(meta_out, meta_path)
     message("Metadata saved:        ", basename(meta_path))
   } else {
     message("Metadata exists (skipped): ", basename(meta_path))

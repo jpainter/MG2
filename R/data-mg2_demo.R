@@ -199,3 +199,29 @@
 #' tsibble::n_keys(mg2_demo_processed)   # number of facility × element series
 #' }
 "mg2_demo_processed"
+
+
+#' Sierra Leone District Polygons (Demo Geography)
+#'
+#' An `sf` object containing district-level polygon boundaries for Sierra Leone,
+#' formatted to match the `geoFeatures` structure expected by MG2's metadata
+#' widget. Included so the DQA map, Climate widget, and Burden map all render
+#' correctly when using the Sierra Leone demo data.
+#'
+#' Source: GADM level-2 polygons via \pkg{geodata}, with "Western Rural" and
+#' "Western Urban" merged into "Western Area" to match the DHIS2 district
+#' naming used in \code{mg2_demo_alllevels}.
+#'
+#' @format An `sf` data frame with 13 rows (one per district) and columns:
+#' \describe{
+#'   \item{id}{Placeholder identifier (character).}
+#'   \item{name}{District name — matches the `District` column in
+#'     \code{mg2_demo_alllevels} and the `name` field used by map joins.}
+#'   \item{level}{Admin level — always \code{2L} (district).}
+#'   \item{levelName}{Human-readable level label: \code{"District"}.}
+#'   \item{parentName}{Parent admin unit: \code{"Sierra Leone"}.}
+#'   \item{geometry}{Multipolygon geometry in WGS84 (EPSG:4326).}
+#' }
+#' @seealso [mg2_demo_setup()]
+#' @source \url{https://geodata.ucdavis.edu/gadm/} (GADM 4.1, CC BY 4.0)
+"mg2_demo_geo"
