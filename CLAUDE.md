@@ -157,8 +157,15 @@ come from `DESCRIPTION`. Revisit only if multiple developers need reproducibilit
 devtools::document()   # regenerate NAMESPACE + man/
 devtools::load_all()   # load package
 run_mg2()              # launch app
-devtools::check()      # must pass before committing (baseline: 0E · 0W · 2N)
+devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 ```
+
+**When bumping the version** (do all four together):
+1. Update `Version:` in `DESCRIPTION`
+2. Update `Date:` in `DESCRIPTION` to today (`date +%Y-%m-%d`)
+3. Add `# MG2 X.Y.Z` entry to `NEWS.md`
+4. Update version in `CLAUDE.md` header + Current State section
+5. `git tag vX.Y.Z && git push origin main --tags`
 
 ---
 
