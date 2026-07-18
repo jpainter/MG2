@@ -61,6 +61,11 @@ dqa_widget_ui = function(id) {
                     uiOutput(ns("dqa_map_year_ui"))
                   ),
                   leaflet::leafletOutput(ns("dqaReportingMap"), height = "72vh")
+                ),
+                bslib::nav_panel(
+                  "Facility Heatmap",
+                  chartModuleUI(ns("dqaFacilityHeatmap"),
+                                height = "calc(75vh - 50px)", overlay = TRUE)
                 )
               )
             ),
@@ -102,6 +107,16 @@ dqa_widget_ui = function(id) {
             bslib::nav_panel(
               "MASE",
               chartModuleUI(ns("dqaMaseOutput"), height = "calc(70vh - 50px)", overlay = TRUE)
+            ),
+
+            bslib::nav_panel(
+              "Facilities",
+              br(),
+              uiOutput(ns("facilities_status_note")),
+              chartModuleUI(ns("dqaFacilitiesPlot"),
+                            height = "calc(55vh - 50px)", overlay = TRUE),
+              br(),
+              DT::DTOutput(ns("dqaFacilitiesTable"))
             )
           )
         )
@@ -727,6 +742,79 @@ dqa_widget_server <- function(
           )
         )
       })
+
+      # Facility Status tab ####
+
+      facility_status_rv <- reactive({
+        req(region_filtered_data1())
+        ln <- levelNames()
+        req(length(ln) >= 2)
+        level_col <- ln[2]
+        req(level_col %in% names(region_filtered_data1()))
+        tryCatch(
+          dqa_facility_status(region_filtered_data1(), level_col),
+          error = function(e) { message("facility_status: ", e$message); NULL }
+        )
+      })
+
+      output$facilities_status_note <- renderUI({
+        fs <- facility_status_rv()
+        req(!is.null(fs) && nrow(fs) > 0)
+        n_total  <- nrow(fs)
+        n_active <- sum(fs$status == "Active")
+        pct      <- round(100 * n_active / n_total, 1)
+        div(
+          style = paste0(
+            "background:#e8f4fd; padding:8px 14px;",
+            " border-left:4px solid #2196F3; border-radius:3px; margin-bottom:8px;"
+          ),
+          paste0(n_total, " facilities total: ", n_active,
+                 " Active (", pct, "%), ", n_total - n_active, " Inactive.")
+        )
+      })
+
+      chartModuleServer("dqaFacilitiesPlot", reactive({
+        fs <- facility_status_rv()
+        req(!is.null(fs) && nrow(fs) > 0)
+        dqa_facility_status_plot(fs) +
+          ggplot2::labs(caption = region_caption_text())
+      }))
+
+      output$dqaFacilitiesTable <- DT::renderDT({
+        fs <- facility_status_rv()
+        req(!is.null(fs) && nrow(fs) > 0)
+        DT::datatable(
+          dqa_facility_status_table(fs),
+          rownames = FALSE,
+          options  = list(scrollX = TRUE, paging = FALSE, dom = "ti")
+        )
+      })
+
+      outputOptions(output, "dqaFacilitiesTable", suspendWhenHidden = TRUE)
+
+      # Facility Heatmap (Reporting sub-tab) ####
+
+      facility_heatmap_rv <- reactive({
+        req(region_filtered_data1())
+        ln <- levelNames()
+        req(length(ln) >= 2)
+        level_col <- ln[2]
+        req(level_col %in% names(region_filtered_data1()))
+        tryCatch(
+          dqa_facility_heatmap_data(region_filtered_data1(), level_col),
+          error = function(e) { message("facility_heatmap: ", e$message); NULL }
+        )
+      })
+
+      chartModuleServer("dqaFacilityHeatmap", reactive({
+        hm <- facility_heatmap_rv()
+        req(!is.null(hm) && nrow(hm) > 0)
+        # Scale height: 12px per facility, capped at the viewport limit
+        n_fac <- length(unique(hm$orgUnit))
+        h     <- min(max(n_fac * 12L, 300L), 2400L)
+        dqa_facility_heatmap_plot(hm) +
+          ggplot2::labs(caption = region_caption_text())
+      }))
 
       # Return ####
       return()

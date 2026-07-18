@@ -319,6 +319,15 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
     val_n == 0,                  0,
     default = val_n / val_d
   )]
+  # Clip negative values to 0.  Ratios are non-negative by construction, but
+  # if a future step type supports subtraction this safeguard prevents negative
+  # case counts from propagating downstream.
+  n_neg <- sum(joined$original < 0, na.rm = TRUE)
+  if (n_neg > 0L) {
+    warning("execute_ratio_step '", step$output_name, "': clipped ",
+            n_neg, " negative value(s) to 0.")
+    joined[!is.na(original) & original < 0, original := 0]
+  }
   cat("  non-NA ratio values:", sum(!is.na(joined$original)), "\n")
   cat("  missing_numerator:", sum(joined$missing_numerator), "\n")
   cat("  missing_denominator:", sum(joined$missing_denominator), "\n")

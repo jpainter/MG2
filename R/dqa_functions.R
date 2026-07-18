@@ -788,3 +788,226 @@ dqa_swape_plot <- function(data) {
 #' @rdname dqa_swape_plot
 #' @export
 dqa_mase_plot <- dqa_swape_plot   # backwards-compatible alias
+
+
+# Facility Status (Active / Inactive) -----------------------------------------
+
+#' Classify facilities as Active or Inactive
+#'
+#' A facility is "Active" if it has at least one non-NA, non-zero value for
+#' any data element in the dataset.  All others are "Inactive".
+#'
+#' @param data data.frame / data.table from `region_filtered_data1()`.  Must
+#'   contain columns `orgUnit`, `orgUnitName`, `original`, and `level_col`.
+#' @param level_col Character scalar; column name for the admin-2 grouping
+#'   (e.g. `levelNames()[2]`).
+#' @return A data.frame with columns `orgUnit`, `orgUnitName`, `region`,
+#'   `status` ("Active" / "Inactive").
+#' @export
+dqa_facility_status <- function(data, level_col) {
+  dt <- data.table::as.data.table(data)
+  req_cols <- c("orgUnit", "orgUnitName", "original", level_col)
+  missing  <- setdiff(req_cols, names(dt))
+  if (length(missing) > 0L)
+    stop("dqa_facility_status: missing columns: ", paste(missing, collapse = ", "))
+
+  # Facility-level lookup (orgUnit → name + region)
+  lookup <- unique(dt[, .(orgUnit, orgUnitName, region = get(level_col))])
+  lookup[is.na(region), region := "(Unknown)"]
+
+  # Is ANY value non-NA and non-zero?
+  activity <- dt[, .(active = any(!is.na(original) & original != 0)),
+                 by = orgUnit]
+
+  result <- merge(lookup, activity, by = "orgUnit", all.x = TRUE)
+  result[is.na(active), active := FALSE]
+  result[, status := data.table::fifelse(active, "Active", "Inactive")]
+  result[, active := NULL]
+  as.data.frame(result)
+}
+
+#' Stacked bar chart of Active vs Inactive facilities by region
+#'
+#' @param status_data Output of [dqa_facility_status()].
+#' @param text_size Numeric base text size (default 16).
+#' @return A ggplot object.
+#' @export
+dqa_facility_status_plot <- function(status_data, text_size = 16) {
+  df <- as.data.frame(status_data)
+  if (nrow(df) == 0L) return(ggplot2::ggplot() + ggplot2::theme_void())
+
+  # Summarise by region and status
+  summary <- do.call(rbind, lapply(split(df, df$region), function(g) {
+    data.frame(
+      region   = g$region[1L],
+      status   = c("Active", "Inactive"),
+      n        = c(sum(g$status == "Active"), sum(g$status == "Inactive")),
+      stringsAsFactors = FALSE
+    )
+  }))
+  total_by_region <- tapply(df$orgUnit, df$region, length)
+  summary$total   <- total_by_region[summary$region]
+  summary$pct     <- summary$n / summary$total
+
+  # Order regions by % active descending
+  region_order <- names(sort(
+    tapply(df$status == "Active", df$region, mean), decreasing = TRUE
+  ))
+  summary$region <- factor(summary$region, levels = region_order)
+  summary$status <- factor(summary$status, levels = c("Active", "Inactive"))
+
+  ggplot2::ggplot(summary,
+    ggplot2::aes(x = region, y = pct, fill = status)
+  ) +
+    ggplot2::geom_bar(stat = "identity", width = 0.7) +
+    ggplot2::coord_flip() +
+    ggplot2::scale_fill_manual(
+      values = c(Active = "#2196F3", Inactive = "#BDBDBD"),
+      name   = NULL
+    ) +
+    ggplot2::scale_y_continuous(labels = scales::percent_format(1L),
+                                expand  = ggplot2::expansion(mult = c(0, 0.04))) +
+    ggplot2::labs(x = NULL, y = "% of facilities",
+                  title    = "Active vs Inactive Facilities by Region",
+                  subtitle = "Active = at least one non-zero report in the dataset") +
+    ggplot2::theme_minimal(base_size = text_size) +
+    ggplot2::theme(legend.position = "bottom")
+}
+
+#' Summary table: region | total | active | inactive | % active
+#'
+#' @param status_data Output of [dqa_facility_status()].
+#' @return A data.frame suitable for `DT::datatable()`.
+#' @export
+dqa_facility_status_table <- function(status_data) {
+  df <- as.data.frame(status_data)
+  if (nrow(df) == 0L) return(data.frame())
+
+  regions <- sort(unique(df$region))
+  out <- do.call(rbind, lapply(regions, function(r) {
+    g        <- df[df$region == r, ]
+    n_total  <- nrow(g)
+    n_active <- sum(g$status == "Active")
+    data.frame(
+      Region   = r,
+      Total    = n_total,
+      Active   = n_active,
+      Inactive = n_total - n_active,
+      `% Active` = paste0(round(100 * n_active / n_total, 1), "%"),
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+  }))
+  # National row
+  n_t <- nrow(df); n_a <- sum(df$status == "Active")
+  nat <- data.frame(
+    Region = "National", Total = n_t, Active = n_a, Inactive = n_t - n_a,
+    `% Active` = paste0(round(100 * n_a / n_t, 1), "%"),
+    check.names = FALSE, stringsAsFactors = FALSE
+  )
+  rbind(nat, out)
+}
+
+
+# Facility Reporting Heatmap --------------------------------------------------
+
+#' Build the facility x month reporting matrix
+#'
+#' A facility "reported" in a month if it has any non-NA, non-zero value.
+#'
+#' @param data data.frame / data.table from `region_filtered_data1()`.
+#' @param level_col Character; column for region faceting (`levelNames()[2]`).
+#' @return A data.frame with columns `orgUnit`, `orgUnitName`, `region`,
+#'   `Month`, `reported` (0/1), `total_reported` (integer, for row ordering).
+#' @export
+dqa_facility_heatmap_data <- function(data, level_col) {
+  dt <- data.table::as.data.table(data)
+  req_cols <- c("orgUnit", "orgUnitName", "original", "Month", level_col)
+  missing  <- setdiff(req_cols, names(dt))
+  if (length(missing) > 0L)
+    stop("dqa_facility_heatmap_data: missing columns: ", paste(missing, collapse = ", "))
+
+  # Binary reported per facility × month
+  cell <- dt[, .(reported = as.integer(any(!is.na(original) & original != 0))),
+             by = .(orgUnit, Month)]
+
+  # Total months reported per facility (for row sort order)
+  totals <- cell[, .(total_reported = sum(reported)), by = orgUnit]
+
+  # Facility metadata lookup
+  lookup <- unique(dt[, .(orgUnit, orgUnitName, region = get(level_col))])
+  lookup[is.na(region), region := "(Unknown)"]
+
+  # Complete grid so every facility has a cell for every month
+  all_months <- sort(unique(dt$Month))
+  all_ous    <- unique(dt$orgUnit)
+  grid       <- data.table::CJ(orgUnit = all_ous, Month = all_months)
+  cell       <- merge(grid, cell, by = c("orgUnit", "Month"), all.x = TRUE)
+  cell[is.na(reported), reported := 0L]
+
+  result <- merge(cell, lookup,  by = "orgUnit", all.x = TRUE)
+  result <- merge(result, totals, by = "orgUnit", all.x = TRUE)
+  as.data.frame(result)
+}
+
+#' Plot facility x month reporting heatmap
+#'
+#' @param heatmap_data Output of [dqa_facility_heatmap_data()].
+#' @param max_label_n Integer; suppress y-axis facility labels when a region
+#'   has more than this many facilities (default 30).
+#' @param text_size Numeric base text size (default 13).
+#' @return A ggplot object faceted by region.
+#' @export
+dqa_facility_heatmap_plot <- function(heatmap_data,
+                                      max_label_n = 30L,
+                                      text_size   = 13) {
+  df <- as.data.frame(heatmap_data)
+  if (nrow(df) == 0L) return(ggplot2::ggplot() + ggplot2::theme_void())
+
+  # Determine regions with too many facilities to label
+  n_per_region <- tapply(df$orgUnit, df$region, function(x) length(unique(x)))
+  big_regions  <- names(n_per_region)[n_per_region > max_label_n]
+
+  # Sort facilities within each region by total_reported desc
+  df$label <- df$orgUnitName
+  df$label[df$region %in% big_regions] <- ""
+
+  # Factor levels: sort within region by total_reported desc so top reporters
+  # appear at the top of each facet panel
+  ou_order <- unique(df[order(df$region, -df$total_reported),
+                         c("orgUnit", "orgUnitName")])
+  df$orgUnitName <- factor(df$orgUnitName,
+                            levels = rev(ou_order$orgUnitName))
+
+  # Format Month axis
+  df$month_label <- format(as.Date(tsibble::yearmonth(df$Month)), "%b %Y")
+  month_levels   <- format(as.Date(sort(unique(tsibble::yearmonth(df$Month)))), "%b %Y")
+  df$month_label <- factor(df$month_label, levels = month_levels)
+
+  ggplot2::ggplot(df,
+    ggplot2::aes(x = month_label, y = orgUnitName,
+                 fill = factor(reported))
+  ) +
+    ggplot2::geom_tile(color = "white", linewidth = 0.15) +
+    ggplot2::scale_fill_manual(
+      values = c("0" = "#E0E0E0", "1" = "#0288D1"),
+      labels = c("0" = "No report", "1" = "Reported"),
+      name   = NULL
+    ) +
+    ggplot2::facet_wrap(ggplot2::vars(region), scales = "free_y", ncol = 1) +
+    ggplot2::scale_y_discrete(labels = function(x) {
+      # Blank out labels for big-region facilities
+      ifelse(x %in% df$orgUnitName[df$region %in% big_regions], "", x)
+    }) +
+    ggplot2::labs(x = NULL, y = NULL,
+                  title    = "Facility Reporting by Month",
+                  subtitle = "Blue = at least one non-zero value; Grey = no report") +
+    ggplot2::theme_minimal(base_size = text_size) +
+    ggplot2::theme(
+      axis.text.x      = ggplot2::element_text(angle = 45, hjust = 1, size = 9),
+      axis.text.y      = ggplot2::element_text(size = 8),
+      strip.text       = ggplot2::element_text(face = "bold"),
+      legend.position  = "bottom",
+      panel.grid.major = ggplot2::element_blank()
+    )
+}

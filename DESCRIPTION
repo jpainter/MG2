@@ -43,6 +43,7 @@ Imports:
     rlang,
     rstudioapi,
     scales,
+    sf,
     shiny (>= 1.7.0),
     shinybusy,
     shinyFiles,
@@ -50,6 +51,7 @@ Imports:
     shinyWidgets,
     stringi,
     stringr,
+    terra,
     tibble,
     tictoc,
     tidyr,
@@ -75,8 +77,6 @@ Suggests:
     RColorBrewer,
     readxl,
     rmarkdown,
-    sf,
-    terra,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
