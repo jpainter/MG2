@@ -56,13 +56,23 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       config_path <- path.expand("~/.mg2_config.rds")
 
       # Load directory history (up to 10); support both old single-dir and new list format
+      .is_temp_dir <- function(path) {
+        tryCatch(
+          startsWith(normalizePath(path, mustWork = FALSE),
+                     normalizePath(tempdir(), mustWork = FALSE)),
+          error = function(e) FALSE
+        )
+      }
+
       load_dir_history <- function() {
         cfg <- tryCatch(readRDS(config_path), error = function(e) list())
         dirs <- if (!is.null(cfg$directories)) cfg$directories else if (!is.null(cfg$directory)) cfg$directory else character(0)
-        dirs[nchar(dirs) > 0 & dir.exists(dirs)]
+        dirs[nchar(dirs) > 0 & dir.exists(dirs) & !vapply(dirs, .is_temp_dir, logical(1))]
       }
 
       save_dir_history <- function(new_dir, existing) {
+        # Never persist temp directories (e.g. URL-load sessions)
+        if (.is_temp_dir(new_dir)) return(existing)
         # Normalize: strip trailing slash before storing
         new_dir  <- sub("/$", "", new_dir)
         existing <- sub("/$", "", existing)
