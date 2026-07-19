@@ -140,7 +140,10 @@ data_widget_server <- function(
       data.folder = reactive({
         directory_widget_output$directory()
       })
-      ws <- reactive({ directory_widget_output$workspace() })
+      ws <- reactive({
+        req(data.folder())
+        mg2_workspace(data.folder())
+      })
       dataElements = reactive({
         metadata_widget_output$dataElements()
       })
@@ -166,11 +169,10 @@ data_widget_server <- function(
 
         ff = ws_list_files(ws(), search = 'Formulas_', type = 'xlsx|rds')
         if (is_empty(ff)) {
-          cat('\n - no forumula files in directory')
+          cat('\n - no formula files in directory')
           return()
         }
 
-        # cat( '\n - formula.files:' , ff  )
         if (!any(ws_file_exists(ws(), ff))) {
           return()
         }

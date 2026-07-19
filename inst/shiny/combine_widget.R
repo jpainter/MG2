@@ -172,7 +172,10 @@ combine_widget_server <- function(id,
 
     # ── Reactive dependencies ───────────────────────────────────────────────
     data.folder <- reactive({ directory_widget_output$directory() })
-    ws          <- reactive({ directory_widget_output$workspace() })
+    ws          <- reactive({
+      req(data.folder())
+      mg2_workspace(data.folder())
+    })
     ousTree     <- reactive({ metadata_widget_output$ousTree() })
 
     # ── Step and source state ───────────────────────────────────────────────

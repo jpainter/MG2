@@ -145,7 +145,10 @@ cleaning_widget_server <- function(
       data.folder = reactive({
         directory_widget_output$directory()
       })
-      ws <- reactive({ directory_widget_output$workspace() })
+      ws <- reactive({
+        req(data.folder())
+        mg2_workspace(data.folder())
+      })
       indicator = reactive({
         data_widget_output$indicator()
       })
