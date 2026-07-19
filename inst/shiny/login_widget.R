@@ -145,7 +145,7 @@ login_widget_ui <- function(id) {
               textInput(ns("url_data"),    "Data file (.qs or .rds):",
                         placeholder = "https://drive.google.com/file/d/…"),
               textInput(ns("url_formula"), "Formula file (.xlsx, optional):",
-                        placeholder = "https://drive.google.com/file/d/…"),
+                        placeholder = "drive.google.com/file/d/… or docs.google.com/spreadsheets/…"),
               textInput(ns("url_meta"),    "Metadata file (.rds, optional):",
                         placeholder = "https://drive.google.com/file/d/…")
             ),

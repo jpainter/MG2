@@ -10,6 +10,16 @@
   url <- trimws(url)
   if (!nzchar(url)) return(url)
 
+  # Google Sheets: docs.google.com/spreadsheets/d/ID/edit?...
+  # → export as xlsx directly
+  if (grepl("docs\\.google\\.com/spreadsheets", url, ignore.case = TRUE)) {
+    id <- regmatches(url, regexpr("(?<=/d/)([A-Za-z0-9_-]+)", url, perl = TRUE))
+    if (length(id) && nzchar(id))
+      return(paste0("https://docs.google.com/spreadsheets/d/", id,
+                    "/export?format=xlsx"))
+    return(url)
+  }
+
   # Google Drive: file/d/ID/view  or  open?id=ID  →  uc?export=download&id=ID
   if (grepl("drive\\.google\\.com", url, ignore.case = TRUE)) {
     id <- regmatches(url, regexpr("(?<=/d/)([A-Za-z0-9_-]+)", url, perl = TRUE))
