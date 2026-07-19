@@ -76,6 +76,34 @@ mg2_load_from_urls <- function(data_url,
     if (httr::http_error(resp))
       stop(label, " download failed (HTTP ", httr::status_code(resp), "): ", url)
 
+    # Guard: Google Drive may return an HTML confirmation page instead of the
+    # file (virus-scan prompt for larger files). Detect via Content-Type and
+    # follow the embedded download link if present.
+    ct <- httr::headers(resp)[["content-type"]] %||% ""
+    if (grepl("text/html", ct, ignore.case = TRUE)) {
+      html <- httr::content(resp, "text", encoding = "UTF-8")
+      m <- regmatches(html, regexpr(
+        "/uc\\?export=download[^\"'>]*confirm=[A-Za-z0-9_-]+[^\"'>]*",
+        html, perl = TRUE
+      ))
+      if (length(m) && nzchar(m)) {
+        confirm_url <- paste0("https://drive.google.com",
+                              gsub("&amp;", "&", m[1]))
+        resp <- httr::GET(confirm_url, httr::timeout(timeout),
+                          httr::user_agent("Mozilla/5.0 (MG2)"))
+        if (httr::http_error(resp))
+          stop(label, " download failed after Drive confirmation (HTTP ",
+               httr::status_code(resp), ")")
+      } else {
+        stop(
+          label, " download returned an HTML page instead of a file.\n",
+          "For Google Drive: open the file \u2192 Share \u2192 ",
+          "'Anyone with the link' \u2192 Copy link.\n",
+          "URL tried: ", url
+        )
+      }
+    }
+
     # Detect extension from Content-Disposition → URL → allowed_ext[1]
     cd   <- httr::headers(resp)[["content-disposition"]]
     ext  <- if (!is.null(cd) && grepl("filename", cd, ignore.case = TRUE)) {
