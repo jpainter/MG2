@@ -47,7 +47,9 @@ mg2_workspace <- function(path) {
     ws <- list(path = path, folder_path = sub("^onedrive:", "", path))
     class(ws) <- c("mg2_ws_onedrive", "mg2_workspace")
   } else {
-    if (!endsWith(path, "/")) path <- paste0(path, "/")
+    # Normalize: strip trailing slash so file.path() works cleanly.
+    # ws$path for local workspaces is always a bare directory path.
+    path <- sub("/$", "", path)
     ws <- list(path = path)
     class(ws) <- c("mg2_ws_local", "mg2_workspace")
   }
@@ -333,7 +335,9 @@ ws_path <- function(ws, filename = NULL) UseMethod("ws_path")
 
 #' @export
 ws_path.mg2_ws_local <- function(ws, filename = NULL) {
-  if (is.null(filename)) ws$path else file.path(ws$path, filename)
+  # With no filename: return path with trailing slash (drop-in for data.folder()).
+  # With filename: use file.path() for clean joining.
+  if (is.null(filename)) paste0(ws$path, "/") else file.path(ws$path, filename)
 }
 
 #' @export
