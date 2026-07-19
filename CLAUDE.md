@@ -169,7 +169,7 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 
 ---
 
-## Current State (as of 2026-07-18)
+## Current State (as of 2026-07-19)
 
 **Version:** 0.1.9 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
@@ -181,6 +181,50 @@ Reporting → Outliers → Evaluation → Climate (dev) → Burden Estimate (dev
 **Map tab:** widget file exists (`map_widget.R`), not yet integrated.
 
 **Version history:** `NEWS.md` — documents user-facing changes for every release.
+
+**Active branches (as of 2026-07-19):**
+
+| Branch | Status | Purpose |
+|---|---|---|
+| `main` | stable | All 0.1.9 features; evaluation autoplot deprecation fix |
+| `feature/url-load` | ready to test | Load data from shared Google Drive / Dropbox / OneDrive URLs (Login tab); read-only, single-session stopgap |
+| `feature/cloud-workspace` | Phase 1 complete | Cloud storage workspace abstraction (Option B); see below |
+
+**`feature/url-load` — "Load from shared links":**
+- New section on Login tab: paste share URLs for data (.qs/.rds), formula (.xlsx or Google Sheets), metadata (.rds)
+- `R/fct_url_load.R`: `mg2_load_from_urls()` + `.mg2_normalize_url()` handle Google Drive, Google Sheets, Dropbox, OneDrive URLs
+- Normalizes Google Sheets `/edit` links → `/export?format=xlsx`; follows Google Drive virus-scan HTML confirmation pages automatically
+- Downloaded files go to a session temp dir; temp dirs are never saved to `~/.mg2_config.rds` directory history
+- Read-only, single-session — files are not written back to the cloud source
+
+**`feature/cloud-workspace` — Option B workspace abstraction (Phase 1 complete):**
+
+The long-term cloud storage solution. Replaces raw path strings with an S3 workspace object that dispatches file I/O to the correct backend (local, Google Drive, OneDrive).
+
+*Architecture:*
+- `R/fct_workspace.R` — S3 generics + local backend; gdrive/onedrive stubs
+- `directory_widget.R` — returns `workspace` reactive alongside `directory` alias (backward compat)
+- All 6 file-I/O widgets + `combine_functions.R` migrated to `ws_*()` methods
+
+*Workspace API:*
+```r
+ws_list(ws, pattern)          ws_list_files(ws, search, type, other)
+ws_read_file(ws, filename)    ws_save_file(ws, data, filename)
+ws_read_rds(ws, filename)     ws_save_rds(ws, obj, filename)
+ws_read_xlsx(ws, filename)    ws_save_xlsx(ws, wb, filename)
+ws_file_exists(ws, filename)  ws_file_info(ws, filename)
+ws_file_rename(ws, from, to)  ws_path(ws, filename=NULL)
+ws_is_local(ws)
+```
+
+*Phase 1 behavior:* identical to `main` — local backend is thin wrappers over existing functions. Test by running the full workflow; any regression is a call-site bug.
+
+*Phase 2 (Google Drive — not yet started):*
+1. Implement `ws_*.mg2_ws_gdrive` methods in `fct_workspace.R` (download to temp → read; save to temp → upload via `googledrive` package)
+2. Add "Connect Google Drive" button + OAuth flow in `directory_widget.R`
+3. Handle `api_data()` escape hatch: download previous dataset to temp dir before call, upload result after
+4. One-time Google Cloud Console setup: enable Drive API, OAuth consent screen, register redirect URI, set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars
+5. Add `googledrive` + `gargle` to DESCRIPTION Imports
 
 **Climate tab:**
 - `R/climate_functions.R` — pure R functions (no Shiny); `terra` + `sf` based
