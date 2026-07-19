@@ -329,7 +329,16 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         updateSelectInput(session, 'datasetFiles', choices = rds_data_files())
       })
 
+      # Workspace object — wraps data.folder() in an mg2_workspace S3 object.
+      # Consumers can use ws_*() methods instead of building paths manually.
+      # data.folder kept for backward compat during migration.
+      workspace <- reactive({
+        req(data.folder())
+        mg2_workspace(data.folder())
+      })
+
       return(list(
+        workspace = workspace,
         directory = data.folder,
         metadata.files = metadata.files,
         geofeatures.files = geofeatures.files
