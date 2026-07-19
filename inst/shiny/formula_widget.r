@@ -172,6 +172,7 @@ formula_widget_server <- function(
       dir = reactive({
         directory_widget_output$directory()
       })
+      ws <- reactive({ directory_widget_output$workspace() })
       validationRules = reactive({
         if (!is.null(metadata_widget_output)) metadata_widget_output$validationRules()
       })
@@ -841,7 +842,7 @@ formula_widget_server <- function(
             rowNames = FALSE
           )
           openxlsx::writeDataTable(wb, sheet2, new.formula_elements, rowNames = FALSE)
-          openxlsx::saveWorkbook(wb, target_file, overwrite = TRUE)
+          ws_save_xlsx(ws(), wb, basename(target_file))
 
           if (!is.null(formulaSaved)) formulaSaved(formulaSaved() + 1)
 
@@ -996,7 +997,7 @@ formula_widget_server <- function(
           openxlsx::addWorksheet(wb, "Formula Elements")
           openxlsx::writeDataTable(wb, 1, existing_formulas, rowNames = FALSE)
           openxlsx::writeDataTable(wb, 2, existing_elements, rowNames = FALSE)
-          openxlsx::saveWorkbook(wb, target, overwrite = TRUE)
+          ws_save_xlsx(ws(), wb, basename(target))
 
           updated_formula_elements$df <- dataElementDictionary()[0, ]
           if (!is.null(formulaSaved)) formulaSaved(formulaSaved() + 1)
@@ -1052,7 +1053,7 @@ formula_widget_server <- function(
           openxlsx::addWorksheet(wb, "Formula Elements")
           openxlsx::writeDataTable(wb, 1, existing_formulas, rowNames = FALSE)
           openxlsx::writeDataTable(wb, 2, existing_elements, rowNames = FALSE)
-          openxlsx::saveWorkbook(wb, target, overwrite = TRUE)
+          ws_save_xlsx(ws(), wb, basename(target))
 
           df <- updated_formula_elements$df
           if ("Formula.Name" %in% names(df)) df$Formula.Name <- new_nm
@@ -1064,7 +1065,7 @@ formula_widget_server <- function(
           data_dir <- dir()
           matching_files <- character(0)
           if (!is.null(data_dir) && nzchar(data_dir)) {
-            all_rds <- list.files(data_dir, pattern = "\\.rds$", full.names = FALSE)
+            all_rds <- ws_list(ws(), pattern = "\\.rds$")
             matching_files <- all_rds[grepl(old_nm, all_rds, fixed = TRUE)]
           }
 
@@ -1114,7 +1115,7 @@ formula_widget_server <- function(
 
         if (is.null(old_nm) || is.null(data_dir)) return()
 
-        all_rds <- list.files(data_dir, pattern = "\\.rds$", full.names = FALSE)
+        all_rds <- ws_list(ws(), pattern = "\\.rds$")
         to_rename <- all_rds[grepl(old_nm, all_rds, fixed = TRUE)]
 
         n_ok  <- 0L
@@ -1122,7 +1123,7 @@ formula_widget_server <- function(
         for (f in to_rename) {
           new_f <- gsub(old_nm, new_nm, f, fixed = TRUE)
           tryCatch({
-            file.rename(file.path(data_dir, f), file.path(data_dir, new_f))
+            ws_file_rename(ws(), f, new_f)
             n_ok <- n_ok + 1L
           }, error = function(e) {
             n_err <- n_err + 1L
@@ -1169,7 +1170,7 @@ formula_widget_server <- function(
         }
 
         tryCatch({
-          file.rename(old_path, new_path)
+          ws_file_rename(ws(), basename(old_path), basename(new_path))
           if (!is.null(formulaSaved)) formulaSaved(formulaSaved() + 1)
           showNotification(
             paste0("File renamed to '", basename(new_path), "'. Select it from the file list."),

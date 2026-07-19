@@ -129,6 +129,7 @@ data_request_widget_server <- function(
       data.folder = reactive({
         dataDirectory$directory()
       })
+      ws <- reactive({ dataDirectory$workspace() })
       indicator = reactive({
         data_widget_output$indicator()
       })
@@ -470,10 +471,9 @@ data_request_widget_server <- function(
           }
 
           cat('\n - dataset():', dataset.file())
-          file = paste0(data.folder(), dataset.file())
 
-          if (file_test("-f", file)) {
-            .previous_dataset_file = file
+          if (ws_file_exists(ws(), dataset.file())) {
+            .previous_dataset_file = ws_path(ws(), dataset.file())
             .update = TRUE
             cat('\n - previous file exists:', file)
             # Previous dataset file:
@@ -505,7 +505,7 @@ data_request_widget_server <- function(
             previous_dataset_file = .previous_dataset_file,
             prev.data = .dataset,
             level1.id = .level1.id,
-            dir = data.folder(),
+            dir = ws_path(ws()),
             shinyApp = TRUE,
             parallel = FALSE,
             childOnly = TRUE
@@ -550,7 +550,7 @@ data_request_widget_server <- function(
             )
           )
 
-          save_file(x, saveAs)
+          ws_save_file(ws(), x, basename(saveAs))
           if (.partial) {
             cat('\n* partial download saved — stopping early\n')
             return()
@@ -650,7 +650,7 @@ data_request_widget_server <- function(
         # Saving ####
         cat('\n - saving dataset to', saveAs)
 
-        save_file(u, saveAs)
+        ws_save_file(ws(), u, basename(saveAs))
         removeModal()
       })
 

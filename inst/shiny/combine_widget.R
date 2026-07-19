@@ -172,6 +172,7 @@ combine_widget_server <- function(id,
 
     # ── Reactive dependencies ───────────────────────────────────────────────
     data.folder <- reactive({ directory_widget_output$directory() })
+    ws          <- reactive({ directory_widget_output$workspace() })
     ousTree     <- reactive({ metadata_widget_output$ousTree() })
 
     # ── Step and source state ───────────────────────────────────────────────
@@ -185,7 +186,7 @@ combine_widget_server <- function(id,
     # ── Formula file picker ─────────────────────────────────────────────────
     formula_files <- reactive({
       req(data.folder())
-      list_dir_files(search = "Formulas_", dir = data.folder(), type = "xlsx|rds")
+      ws_list_files(ws(), search = "Formulas_", type = "xlsx|rds")
     })
 
     observe({
@@ -197,18 +198,17 @@ combine_widget_server <- function(id,
     # ── Formula names from selected formula file ────────────────────────────
     formula_names_src <- reactive({
       req(input$src_formula_file, data.folder())
-      file <- paste0(data.folder(), input$src_formula_file)
-      if (!file.exists(file)) return(character(0))
+      if (!ws_file_exists(ws(), input$src_formula_file)) return(character(0))
 
       tryCatch({
-        if (grepl("\\.xlsx$", file, ignore.case = TRUE)) {
-          readxl::read_excel(file, sheet = "Formula") |>
+        if (grepl("\\.xlsx$", input$src_formula_file, ignore.case = TRUE)) {
+          readxl::read_excel(ws_path(ws(), input$src_formula_file), sheet = "Formula") |>
             dplyr::filter(!is.na(Formula.Name)) |>
             dplyr::pull(Formula.Name) |>
             unique() |>
             sort()
         } else {
-          d <- readRDS(file)
+          d <- ws_read_rds(ws(), input$src_formula_file)
           sort(unique(d$Formula.Name))
         }
       }, error = function(e) character(0))
@@ -222,7 +222,7 @@ combine_widget_server <- function(id,
     src_rds_files <- reactive({
       req(input$src_formula_name, data.folder())
 
-      dir.files <- list.files(data.folder())
+      dir.files <- ws_list(ws())
 
       # Filter to .rds/.fst files, excluding Update_ and Combinations_ files
       data.files <- dir.files[
@@ -236,7 +236,7 @@ combine_widget_server <- function(id,
       if (length(matches) == 0) return(data.files)   # show all if no match
 
       # Sort by modification time, most recent first
-      mtimes  <- file.info(file.path(data.folder(), matches))$mtime
+      mtimes  <- ws_file_info(ws(), matches)$mtime
       matches[rev(order(mtimes))]
     })
 
@@ -254,14 +254,13 @@ combine_widget_server <- function(id,
       }
 
       fname <- input$src_formula_name
-      fp    <- paste0(data.folder(), dfile)
 
       showModal(modalDialog(
         title = paste("Loading metadata for", fname, "…"),
         easyClose = TRUE, size = "s", footer = NULL
       ))
 
-      meta <- tryCatch(read_combine_meta(fp),
+      meta <- tryCatch(read_combine_meta(ws_path(ws(), dfile)),
                        error = function(e) {
                          showNotification(paste("Could not read file:", e$message),
                                           type = "error")
@@ -319,8 +318,8 @@ combine_widget_server <- function(id,
     observe({
       req(data.folder())
       defs <- c(
-        list_dir_files(search = "Definition_",   type = "rds", dir = data.folder()),
-        list_dir_files(search = "Combinations_", type = "rds", dir = data.folder())
+        ws_list_files(ws(), search = "Definition_",   type = "rds"),
+        ws_list_files(ws(), search = "Combinations_", type = "rds")
       )
       updateSelectInput(session, "combo_def_file",
                         choices = if (length(defs)) defs else character(0))
@@ -329,8 +328,7 @@ combine_widget_server <- function(id,
     # ── Load definition file ────────────────────────────────────────────────
     observeEvent(input$combo_def_file, {
       req(input$combo_def_file, data.folder())
-      fp <- paste0(data.folder(), input$combo_def_file)
-      if (!file.exists(fp)) {
+      if (!ws_file_exists(ws(), input$combo_def_file)) {
         showNotification("Definition file not found.", type = "error"); return()
       }
 
@@ -345,7 +343,7 @@ combine_widget_server <- function(id,
       )
       on.exit(removeNotification(notif_id), add = TRUE)
 
-      def <- tryCatch(load_combine_definition(fp),
+      def <- tryCatch(load_combine_definition(ws = ws(), filename = input$combo_def_file),
                       error = function(e) {
                         showNotification(paste("Load failed:", e$message), type = "error")
                         NULL
@@ -363,9 +361,8 @@ combine_widget_server <- function(id,
       })))
       new_sources <- list()
       for (dfile in src_files) {
-        fp_src <- paste0(data.folder(), dfile)
-        if (!file.exists(fp_src)) next
-        meta  <- tryCatch(read_combine_meta(fp_src), error = function(e) NULL)
+        if (!ws_file_exists(ws(), dfile)) next
+        meta  <- tryCatch(read_combine_meta(ws_path(ws(), dfile)), error = function(e) NULL)
         fname <- tools::file_path_sans_ext(dfile)
         new_sources[[fname]] <- list(formula_name = fname,
                                      dataset_file  = dfile,
@@ -724,7 +721,7 @@ combine_widget_server <- function(id,
             result <- tryCatch(
               build_combined_dataset(
                 steps        = steps_to_use,
-                data_folder  = data.folder(),
+                ws           = ws(),
                 ousTree      = if (!is.null(ousTree)) ousTree() else NULL,
                 formula_name = name,
                 .progress    = function(value, message, detail = "")
@@ -814,15 +811,14 @@ combine_widget_server <- function(id,
 
       if (is.null(result)) return()
 
-      saveRDS(result, out_path)
+      ws_save_rds(ws(), result, fn)
 
       def_fn   <- paste0("Definition_", gsub("[^A-Za-z0-9_-]", "_", name),
                          "_", format(Sys.Date(), "%Y-%m-%d"), ".rds")
-      def_path <- paste0(data.folder(), def_fn)
       save_combine_definition(
         list(steps = combo_steps(), combo_name = name, output_file = fn,
              created = Sys.time()),
-        def_path
+        ws = ws(), filename = def_fn
       )
 
       # Register combo_name in the selected formula xlsx so data_widget can find it

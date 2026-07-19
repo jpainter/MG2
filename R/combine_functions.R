@@ -177,15 +177,20 @@ apply_combine_cleaning <- function(d, cleaning_level = "seasonal3") {
 
 #' Execute an Include step
 #' @noRd
-execute_include_step <- function(step, data_folder, period_col, verbose = FALSE) {
+execute_include_step <- function(step, data_folder = NULL, period_col, verbose = FALSE,
+                                  ws = NULL) {
   cat("  [Include]", step$output_name, "<- file:", step$source_file,
       "| values:", paste(step$data_values, collapse = ", "),
       "| cleaning:", step$cleaning_level, "\n")
 
-  fp <- paste0(data_folder, step$source_file)
-  if (!file.exists(fp)) stop("File not found: ", fp)
-
-  d <- read_file(fp)
+  if (!is.null(ws)) {
+    if (!ws_file_exists(ws, step$source_file)) stop("File not found: ", step$source_file)
+    d <- ws_read_file(ws, step$source_file)
+  } else {
+    fp <- paste0(data_folder, step$source_file)
+    if (!file.exists(fp)) stop("File not found: ", fp)
+    d <- read_file(fp)
+  }
   if (!is.data.table(d)) setDT(d)
 
   d <- d[data %chin% step$data_values]
@@ -217,7 +222,8 @@ execute_include_step <- function(step, data_folder, period_col, verbose = FALSE)
 
 #' Execute a Ratio step
 #' @noRd
-execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
+execute_ratio_step <- function(step, data_folder = NULL, period_col, verbose = FALSE,
+                                ws = NULL) {
 
   # na.rm controls whether partial category data is included in sums.
   # TRUE (default, backward-compatible): sum available values even when some
@@ -231,10 +237,14 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
         "| values:", paste(spec$data_values, collapse = ", "),
         "| cleaning:", spec$cleaning_level, "\n")
 
-    fp <- paste0(data_folder, spec$source_file)
-    if (!file.exists(fp)) stop("File not found: ", fp)
-
-    d <- read_file(fp)
+    if (!is.null(ws)) {
+      if (!ws_file_exists(ws, spec$source_file)) stop("File not found: ", spec$source_file)
+      d <- ws_read_file(ws, spec$source_file)
+    } else {
+      fp <- paste0(data_folder, spec$source_file)
+      if (!file.exists(fp)) stop("File not found: ", fp)
+      d <- read_file(fp)
+    }
     if (!is.data.table(d)) setDT(d)
     d <- d[data %chin% spec$data_values]
     if (nrow(d) == 0) {
@@ -388,10 +398,15 @@ execute_ratio_step <- function(step, data_folder, period_col, verbose = FALSE) {
 #'   when calling from a Shiny `withProgress()` context.
 #' @return data.table in standard processed-dataset format.
 #' @export
-build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
+build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
                                    formula_name = "Combined", verbose = TRUE,
-                                   .progress = NULL) {
+                                   .progress = NULL, ws = NULL) {
   if (length(steps) == 0) stop("build_combined_dataset: no steps defined")
+
+  if (is.null(ws)) {
+    if (is.null(data_folder)) stop("Either ws or data_folder must be provided.")
+    ws <- mg2_workspace(data_folder)
+  }
 
   # Progress reporting helper  -  no-op when .progress is NULL
   rp <- function(value, message, detail = "") {
@@ -399,7 +414,7 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
   }
 
   cat("\n* build_combined_dataset:", formula_name, "\n")
-  cat("- data_folder:", data_folder, "\n")
+  cat("- data_folder:", ws_path(ws), "\n")
   cat("- steps:", length(steps), "\n")
 
   rp(0.02, "Detecting period type")
@@ -409,9 +424,8 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
   for (s in steps) {
     src <- if (s$operation == "Ratio") s$numerator$source_file else s$source_file
     if (!is.null(src)) {
-      fp <- paste0(data_folder, src)
-      if (file.exists(fp)) {
-        tmp        <- read_file(fp)
+      if (ws_file_exists(ws, src)) {
+        tmp        <- ws_read_file(ws, src)
         period_col <- if ("Week" %in% names(tmp)) "Week" else "Month"
         rm(tmp)
         cat("- period type:", period_col, "\n")
@@ -432,8 +446,8 @@ build_combined_dataset <- function(steps, data_folder, ousTree = NULL,
 
     rows <- tryCatch({
       r <- switch(s$operation,
-        Include = execute_include_step(s, data_folder, period_col, verbose),
-        Ratio   = execute_ratio_step(s,   data_folder, period_col, verbose),
+        Include = execute_include_step(s, data_folder, period_col, verbose, ws = ws),
+        Ratio   = execute_ratio_step(s,   data_folder, period_col, verbose, ws = ws),
         {
           warning("Unknown operation '", s$operation, "'"); NULL
         }
@@ -616,20 +630,30 @@ suggest_combine_filename <- function(combo_name) {
 #' Save a combination definition to a companion RDS file
 #'
 #' @param definition List with `steps`, `combo_name`, and optional `formula_file`.
-#' @param file_path Full path for the companion file.
+#' @param file_path Full path for the companion file (legacy).
+#' @param ws An `mg2_workspace` object (preferred over `file_path`).
+#' @param filename Filename within the workspace (used with `ws`).
 #' @export
-save_combine_definition <- function(definition, file_path) {
+save_combine_definition <- function(definition, file_path = NULL, ws = NULL,
+                                    filename = NULL) {
   definition$modified <- Sys.time()
   if (is.null(definition$created)) definition$created <- Sys.time()
+  if (!is.null(ws) && !is.null(filename)) {
+    ws_save_rds(ws, definition, filename)
+    return(invisible(filename))
+  }
   saveRDS(definition, file_path)
   invisible(file_path)
 }
 
 #' Load a combination definition from a companion RDS file
 #'
-#' @param file_path Full path to a `Definition_*.rds` file.
+#' @param file_path Full path to a `Definition_*.rds` file (legacy).
+#' @param ws An `mg2_workspace` object (preferred over `file_path`).
+#' @param filename Filename within the workspace (used with `ws`).
 #' @return Definition list.
 #' @export
-load_combine_definition <- function(file_path) {
+load_combine_definition <- function(file_path = NULL, ws = NULL, filename = NULL) {
+  if (!is.null(ws) && !is.null(filename)) return(ws_read_rds(ws, filename))
   readRDS(file_path)
 }

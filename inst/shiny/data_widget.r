@@ -140,6 +140,7 @@ data_widget_server <- function(
       data.folder = reactive({
         directory_widget_output$directory()
       })
+      ws <- reactive({ directory_widget_output$workspace() })
       dataElements = reactive({
         metadata_widget_output$dataElements()
       })
@@ -163,14 +164,14 @@ data_widget_server <- function(
         req(data.folder())
         cat('\n* data_widget looking for formula files in', data.folder(), '\n')
 
-        ff = list_dir_files(search = 'Formulas_', dir = data.folder(), type = 'xlsx|rds')
+        ff = ws_list_files(ws(), search = 'Formulas_', type = 'xlsx|rds')
         if (is_empty(ff)) {
           cat('\n - no forumula files in directory')
           return()
         }
 
         # cat( '\n - formula.files:' , ff  )
-        if (!any(file.exists(paste0(data.folder(), ff)))) {
+        if (!any(ws_file_exists(ws(), ff))) {
           return()
         }
 
@@ -329,7 +330,7 @@ data_widget_server <- function(
         if (!dir.exists(data.folder())) {
           return(NULL)
         }
-        dir.files = list.files(data.folder())
+        dir.files = ws_list(ws())
         cat("\n - number of dir.files :", length(dir.files))
         return(dir.files)
       })
@@ -374,7 +375,7 @@ data_widget_server <- function(
         # cat( '\n data_files are:\n' , data_files )
 
         # Arrange by modified date
-        data_file.mdate = file.info(paste0(data.folder(), data_files))$mtime
+        data_file.mdate = ws_file_info(ws(), data_files)$mtime
         data_files = data_files[rev(order(data_file.mdate))]
 
         cat('\n - done:', length(data_files), 'files')
@@ -506,7 +507,7 @@ data_widget_server <- function(
 
         cat('\n - rescan data_1 done:', nrow(d1), 'rows')
 
-        save_file(d1, dataset.file())
+        ws_save_file(ws(), d1, basename(dataset.file()))
         cat('\n - rescan dataset saved to', dataset.file())
 
         if (!is.data.table(d1)) setDT(d1)
@@ -555,7 +556,7 @@ data_widget_server <- function(
           )
 
           cat('\n - reading selected file', file)
-          d = read_file(file)
+          d = ws_read_file(ws(), basename(file))
 
           removeModal()
 
@@ -565,9 +566,9 @@ data_widget_server <- function(
           # load ~10x faster with ~10x less disk space.
           if (tolower(tools::file_ext(file)) == "rds") {
             qs_file <- sub("\\.rds$", ".qs", file, ignore.case = TRUE)
-            if (!file.exists(qs_file)) {
+            if (!ws_file_exists(ws(), basename(qs_file))) {
               tryCatch({
-                MG2:::save_file(d, qs_file)
+                ws_save_file(ws(), d, basename(qs_file))
                 showNotification(
                   paste0("Saved as ", basename(qs_file),
                          " for faster future loading. ",
@@ -697,7 +698,7 @@ data_widget_server <- function(
 
           # Save the processed result so subsequent loads skip data_1() entirely
           cat('\n - saving processed dataset to', dataset.file())
-          save_file(d1, dataset.file())
+          ws_save_file(ws(), d1, basename(dataset.file()))
           showNotification("Dataset processed and saved.", type = "message", duration = 3)
         } else {
           cat('\n -- data1 already prepared')

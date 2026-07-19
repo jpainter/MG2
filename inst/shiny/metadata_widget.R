@@ -197,6 +197,7 @@ metadata_widget_server <- function(
       dir = reactive({
         directory_widget_output$directory()
       })
+      ws <- reactive({ directory_widget_output$workspace() })
       metadata.files = reactive({
         directory_widget_output$metadata.files()
       })
@@ -242,7 +243,7 @@ metadata_widget_server <- function(
           paste("Downloaded:", format(Sys.Date(), "%d %b %Y"))
         } else if (!is.null(chosen)) {
           mtime <- tryCatch(
-            file.info(paste0(dir(), chosen))$mtime,
+            ws_file_info(ws(), chosen)$mtime,
             error = function(e) NA
           )
           if (!is.na(mtime)) {
@@ -305,7 +306,7 @@ metadata_widget_server <- function(
 
           new_meta_file <- paste0("metadata_", Sys.Date(), ".rds")
           cat("\n- Saving", new_meta_file)
-          saveRDS(meta, paste0(dir(), new_meta_file))
+          ws_save_rds(ws(), meta, new_meta_file)
           selected_metadata_file(new_meta_file)
         } else {
           showModal(
@@ -331,12 +332,11 @@ metadata_widget_server <- function(
           metadata.files()[1]
         }
 
-        file = paste0(dir(), chosen)
-        cat('\n - looking for metadata file:', file)
+        cat('\n - looking for metadata file:', chosen)
 
-        if (file.exists(file) & !dir.exists(file)) {
-          cat('\n- reading metadata from ', file)
-          metadata = readRDS(file)
+        if (ws_file_exists(ws(), chosen)) {
+          cat('\n- reading metadata from ', chosen)
+          metadata = ws_read_rds(ws(), chosen)
           return(metadata)
         } else {
           cat('\n- NO METADATA')

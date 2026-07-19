@@ -145,6 +145,7 @@ cleaning_widget_server <- function(
       data.folder = reactive({
         directory_widget_output$directory()
       })
+      ws <- reactive({ directory_widget_output$workspace() })
       indicator = reactive({
         data_widget_output$indicator()
       })
@@ -708,7 +709,7 @@ cleaning_widget_server <- function(
           cat('\n - saving data1.seasonal to replace dataset')
           cat('\n - names(data1.seasonal):', names(data1.seasonal))
 
-          saveRDS(data1.seasonal, paste0(data.folder(), dataset.file()))
+          ws_save_rds(ws(), data1.seasonal, dataset.file())
 
           showNotification(
             "Outlier scan complete — data saved.",
