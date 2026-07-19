@@ -2447,6 +2447,7 @@ evaluation_widget_server <- function(
 
         g = mable_Data %>%
           filter(!is.na(total)) %>%
+          as_tibble() %>%
           ggplot(aes(
             x     = !!rlang::sym(.period),
             y     = total,
