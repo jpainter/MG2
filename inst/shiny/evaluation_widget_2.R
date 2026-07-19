@@ -2447,7 +2447,13 @@ evaluation_widget_server <- function(
 
         g = mable_Data %>%
           filter(!is.na(total)) %>%
-          ggtime::autoplot(total) +
+          ggplot(aes(
+            x     = !!rlang::sym(.period),
+            y     = total,
+            color = grouping_var,
+            group = grouping_var
+          )) +
+          geom_line() +
           theme_minimal(base_size = 16) +
           theme(
             axis.text        = element_text(size = 14),
