@@ -414,7 +414,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
   }
 
   cat("\n* build_combined_dataset:", formula_name, "\n")
-  cat("- data_folder:", ws_path(ws), "\n")
+  cat("- workspace:", if (ws_is_local(ws)) ws_path(ws) else paste0("<", class(ws)[1], ">"), "\n")
   cat("- steps:", length(steps), "\n")
 
   rp(0.02, "Detecting period type")
@@ -569,14 +569,20 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
 #' Does nothing if the name already exists.
 #'
 #' @param formula_name Character; the combination name (e.g. `"TPR"`).
-#' @param formula_file Full path to a `Formulas_*.xlsx` file.
+#' @param formula_file Full path to a `Formulas_*.xlsx` file, or (if `ws` is
+#'   supplied) just its filename within that workspace.
+#' @param ws Optional `mg2_workspace` object (from
+#'   `directory_widget_output$workspace()`). When supplied, reads/writes via
+#'   `ws_read_xlsx()`/`ws_save_xlsx()` instead of treating `formula_file` as a
+#'   raw path -- required for this to work against a connected Google Drive
+#'   workspace rather than always going local.
 #' @return Invisible `TRUE` on success.
 #' @export
-register_combined_formula <- function(formula_name, formula_file) {
+register_combined_formula <- function(formula_name, formula_file, ws = NULL) {
   if (!requireNamespace("openxlsx", quietly = TRUE))
     stop("Package 'openxlsx' is required to update the formula file.")
 
-  wb      <- openxlsx::loadWorkbook(formula_file)
+  wb <- if (!is.null(ws)) ws_read_xlsx(ws, formula_file) else openxlsx::loadWorkbook(formula_file)
   current <- openxlsx::readWorkbook(wb, sheet = "Formula", colNames = TRUE)
 
   if (formula_name %in% current$Formula.Name) {
@@ -604,7 +610,11 @@ register_combined_formula <- function(formula_name, formula_file) {
 
   openxlsx::writeData(wb, sheet = "Formula", x = updated, startRow = 1,
                       startCol = 1, colNames = TRUE)
-  openxlsx::saveWorkbook(wb, formula_file, overwrite = TRUE)
+  if (!is.null(ws)) {
+    ws_save_xlsx(ws, wb, formula_file)
+  } else {
+    openxlsx::saveWorkbook(wb, formula_file, overwrite = TRUE)
+  }
   cat("- registered '", formula_name, "' in", basename(formula_file), "\n")
   invisible(TRUE)
 }

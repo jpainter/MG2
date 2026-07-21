@@ -156,7 +156,6 @@ dqa_widget_server <- function(
       options(shiny.reactlog = FALSE)
       options(dplyr.summarise.inform = FALSE)
 
-      data.folder  = reactive({ directory_widget_output$directory() })
       indicator    = reactive({ data_widget_output$indicator() })
       formulas     = reactive({ data_widget_output$formulas() })
       dataset.file = reactive({ data_widget_output$dataset.file() })

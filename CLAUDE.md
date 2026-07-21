@@ -70,7 +70,7 @@ inst/shiny/
   dqa_widget.R             # Module 5: DQA (sidebarLayout, Consistency tab)
   reporting_widget.r       # Module 6: reporting bias
   cleaning_widget.r        # Module 7: outlier detection
-  evaluation_widget_2.R    # Module 8: forecasting
+  evaluation_widget.R      # Module 8: forecasting
   combine_widget.R         # Module 9: dataset combiner
   climate_widget.R         # Module 10: CHIRPS rainfall (dev) — uses metadata geoFeatures
   chat_widget.R            # Module 11: AI assistant
@@ -169,7 +169,7 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 
 ---
 
-## Current State (as of 2026-07-19)
+## Current State (as of 2026-07-20)
 
 **Version:** 0.1.9 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
 
@@ -188,7 +188,7 @@ Reporting → Outliers → Evaluation → Climate (dev) → Burden Estimate (dev
 |---|---|---|
 | `main` | stable | All 0.1.9 features; evaluation autoplot deprecation fix |
 | `feature/url-load` | ready to test | Load data from shared Google Drive / Dropbox / OneDrive URLs (Login tab); read-only, single-session stopgap |
-| `feature/cloud-workspace` | Phase 1 complete | Cloud storage workspace abstraction (Option B); see below |
+| `feature/cloud-workspace` | Phase 2 complete (Google Drive) | Cloud storage workspace abstraction (Option B); see below |
 
 **`feature/url-load` — "Load from shared links":**
 - New section on Login tab: paste share URLs for data (.qs/.rds), formula (.xlsx or Google Sheets), metadata (.rds)
@@ -197,14 +197,15 @@ Reporting → Outliers → Evaluation → Climate (dev) → Burden Estimate (dev
 - Downloaded files go to a session temp dir; temp dirs are never saved to `~/.mg2_config.rds` directory history
 - Read-only, single-session — files are not written back to the cloud source
 
-**`feature/cloud-workspace` — Option B workspace abstraction (Phase 1 complete):**
+**`feature/cloud-workspace` — Option B workspace abstraction (Phase 2 complete: Google Drive):**
 
 The long-term cloud storage solution. Replaces raw path strings with an S3 workspace object that dispatches file I/O to the correct backend (local, Google Drive, OneDrive).
 
 *Architecture:*
-- `R/fct_workspace.R` — S3 generics + local backend; gdrive/onedrive stubs
-- `directory_widget.R` — returns `workspace` reactive alongside `directory` alias (backward compat)
-- All 6 file-I/O widgets + `combine_functions.R` migrated to `ws_*()` methods
+- `R/fct_workspace.R` — S3 generics; local backend (Phase 1) + Google Drive backend (Phase 2); OneDrive still stubbed (Phase 3)
+- `R/fct_gdrive_oauth.R` — Google OAuth as a **web-application redirect flow**, not `googledrive::drive_auth()`. That function's default flow opens a local browser + prompts in the R console — both assume the R process and the user share one machine, which breaks on hosted deploys (shinyapps.io/Connect Cloud) and is confusing even locally. Instead: a plain link sends the user's browser to Google; Google redirects back to the app's own URL with `?code=&state=`; the server exchanges the code directly via `httr::POST()` (no `gargle` orchestration) and stores the resulting `httr::Token2.0` in a per-session `reactiveVal` — never written to disk.
+- `directory_widget.R` — "Connect Google Drive" UI + OAuth redirect handling; returns `workspace` reactive (the single local/cloud switch — local path or `gdrive:FOLDER_ID` + token) alongside `directory` alias (raw local path only, backward compat, still used by a few display-only/local-cache call sites)
+- All file-I/O widgets migrated to consume `workspace()` (not just the `directory` alias) — see "Known gotcha" below
 
 *Workspace API:*
 ```r
@@ -213,18 +214,21 @@ ws_read_file(ws, filename)    ws_save_file(ws, data, filename)
 ws_read_rds(ws, filename)     ws_save_rds(ws, obj, filename)
 ws_read_xlsx(ws, filename)    ws_save_xlsx(ws, wb, filename)
 ws_file_exists(ws, filename)  ws_file_info(ws, filename)
-ws_file_rename(ws, from, to)  ws_path(ws, filename=NULL)
+ws_file_rename(ws, from, to)  ws_path(ws, filename=NULL)          # local only, errors on gdrive
+ws_local_copy(ws, filename)   ws_save_local_copy(ws, local_path, filename)  # escape hatches, any backend
 ws_is_local(ws)
 ```
+`ws_path()` only ever worked for local workspaces (deliberately errors for gdrive). `ws_local_copy()`/`ws_save_local_copy()` are the general escape hatches for code that insists on a real on-disk path either direction (e.g. `readxl::read_excel()`, `api_data()`'s `previous_dataset_file`, `write.csv()`) — local backends pass through with no copy; gdrive downloads/uploads via a session temp file.
 
-*Phase 1 behavior:* identical to `main` — local backend is thin wrappers over existing functions. Test by running the full workflow; any regression is a call-site bug.
+*Known gotcha (root-caused 2026-07-20, fixed):* several widgets built their **own** local-only `ws <- reactive({ mg2_workspace(dir()) })` instead of using `directory_widget_output$workspace()` directly. This was invisible in Phase 1 (both approaches were equivalent when only the local backend existed) but silently discarded the Drive connection in Phase 2 — e.g. DHIS2 metadata downloads kept landing in the local directory even with Drive connected. Fixed in `metadata_widget.R`, `combine_widget.R`, `data_request_widget.R`. Also fixed: ~13 places in `metadata_widget.R` that checked file existence via a raw local path instead of `ws_file_exists()`; a facilities-CSV export and formula-registration write (`register_combined_formula()`, now takes `ws =`) that bypassed the workspace; `chirps_save_flat()`/`chirps_load_rainfall()` (now take `ws =`) for the Climate tab's persistent rainfall output (the CHIRPS TIF *cache* itself deliberately stays local-only — disposable/re-derivable, no benefit to routing through Drive); and `app.R`'s "Next →" button, which only checked the local path and so never appeared for Drive-only users. **If a new widget reads/writes user data, it must use `workspace()`/`ws_*()`, never reconstruct its own `mg2_workspace()` from the raw directory path.**
 
-*Phase 2 (Google Drive — not yet started):*
-1. Implement `ws_*.mg2_ws_gdrive` methods in `fct_workspace.R` (download to temp → read; save to temp → upload via `googledrive` package)
-2. Add "Connect Google Drive" button + OAuth flow in `directory_widget.R`
-3. Handle `api_data()` escape hatch: download previous dataset to temp dir before call, upload result after
-4. One-time Google Cloud Console setup: enable Drive API, OAuth consent screen, register redirect URI, set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars
-5. Add `googledrive` + `gargle` to DESCRIPTION Imports
+*Deploy-target limitation:* the redirect flow currently only works for local runs — it needs a fixed local port (`run_mg2(port = 8100)`, matching whatever redirect URI is registered on the OAuth client) and Google Cloud Console redirect URIs are per-exact-URL. Extending to shinyapps.io/Connect Cloud needs their public URLs registered as additional redirect URIs on the same "Web application" OAuth client (`fct_gdrive_oauth.R`'s `redirect_uri` is already computed dynamically from `session$clientData`, so no code change needed there — just GCP config).
+
+*Google Cloud Console setup (one-time, done for the `dhis2jp` project):* Drive API enabled; OAuth consent screen in Testing mode with test users added (must include every account that will connect Drive); **two** OAuth clients exist — a "Desktop app" client (unused now, was for the abandoned `drive_auth()` console flow) and the "Web application" client actually in use, with `http://127.0.0.1:8100/` as an authorized redirect URI; `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` in `.Renviron` hold the Web application client's credentials; scope is the full `https://www.googleapis.com/auth/drive` (not `drive.file` — that scope only covers files the app created or the user picked via Google's own Picker widget, which doesn't support MG2's "paste a folder link" UX).
+
+*`app.R` session-end grace period (root-caused 2026-07-20):* `session$onSessionEnded(stopApp)` used to fire immediately, a convenience so closing the browser tab frees the R console for local single-user runs. That's fatal to the OAuth redirect flow: clicking "Connect Google Drive" navigates the tab away to Google (closing the WebSocket = "session ended") and back — `stopApp()` was tearing down the whole server before the redirect could land, with no error printed (a clean intentional shutdown, not a crash — very confusing to debug). Fixed with a 90-second grace period (`later::later()`) before actually stopping, canceled if a new session (the redirect landing back) connects in the meantime. Normal "close tab and walk away" behavior is unchanged, just delayed.
+
+**File rename (2026-07-20):** `evaluation_widget_2.R` → `evaluation_widget.R` (the old dead `evaluation_widget.R`, never sourced by `app.R`, was deleted first). Also removed unused `data.folder`/`data_folder` reactives (defined, never called) from `burden_widget.R`, `dqa_widget.R`, `regions_widget.R`.
 
 **Climate tab:**
 - `R/climate_functions.R` — pure R functions (no Shiny); `terra` + `sf` based

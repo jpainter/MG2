@@ -171,10 +171,9 @@ combine_widget_server <- function(id,
     ns <- session$ns
 
     # ── Reactive dependencies ───────────────────────────────────────────────
-    data.folder <- reactive({ directory_widget_output$directory() })
     ws          <- reactive({
-      req(data.folder())
-      mg2_workspace(data.folder())
+      req(directory_widget_output$workspace())
+      directory_widget_output$workspace()
     })
     ousTree     <- reactive({ metadata_widget_output$ousTree() })
 
@@ -188,7 +187,7 @@ combine_widget_server <- function(id,
 
     # ── Formula file picker ─────────────────────────────────────────────────
     formula_files <- reactive({
-      req(data.folder())
+      req(ws())
       ws_list_files(ws(), search = "Formulas_", type = "xlsx|rds")
     })
 
@@ -200,12 +199,12 @@ combine_widget_server <- function(id,
 
     # ── Formula names from selected formula file ────────────────────────────
     formula_names_src <- reactive({
-      req(input$src_formula_file, data.folder())
+      req(input$src_formula_file, ws())
       if (!ws_file_exists(ws(), input$src_formula_file)) return(character(0))
 
       tryCatch({
         if (grepl("\\.xlsx$", input$src_formula_file, ignore.case = TRUE)) {
-          readxl::read_excel(ws_path(ws(), input$src_formula_file), sheet = "Formula") |>
+          readxl::read_excel(ws_local_copy(ws(), input$src_formula_file), sheet = "Formula") |>
             dplyr::filter(!is.na(Formula.Name)) |>
             dplyr::pull(Formula.Name) |>
             unique() |>
@@ -223,7 +222,7 @@ combine_widget_server <- function(id,
 
     # ── Find matching dataset files — same logic as data_widget rds_data_file
     src_rds_files <- reactive({
-      req(input$src_formula_name, data.folder())
+      req(input$src_formula_name, ws())
 
       dir.files <- ws_list(ws())
 
@@ -263,7 +262,7 @@ combine_widget_server <- function(id,
         easyClose = TRUE, size = "s", footer = NULL
       ))
 
-      meta <- tryCatch(read_combine_meta(ws_path(ws(), dfile)),
+      meta <- tryCatch(read_combine_meta(ws_local_copy(ws(), dfile)),
                        error = function(e) {
                          showNotification(paste("Could not read file:", e$message),
                                           type = "error")
@@ -319,7 +318,7 @@ combine_widget_server <- function(id,
 
     # ── Available Combinations_*.rds definition files ────────────────────────
     observe({
-      req(data.folder())
+      req(ws())
       defs <- c(
         ws_list_files(ws(), search = "Definition_",   type = "rds"),
         ws_list_files(ws(), search = "Combinations_", type = "rds")
@@ -330,7 +329,7 @@ combine_widget_server <- function(id,
 
     # ── Load definition file ────────────────────────────────────────────────
     observeEvent(input$combo_def_file, {
-      req(input$combo_def_file, data.folder())
+      req(input$combo_def_file, ws())
       if (!ws_file_exists(ws(), input$combo_def_file)) {
         showNotification("Definition file not found.", type = "error"); return()
       }
@@ -365,7 +364,7 @@ combine_widget_server <- function(id,
       new_sources <- list()
       for (dfile in src_files) {
         if (!ws_file_exists(ws(), dfile)) next
-        meta  <- tryCatch(read_combine_meta(ws_path(ws(), dfile)), error = function(e) NULL)
+        meta  <- tryCatch(read_combine_meta(ws_local_copy(ws(), dfile)), error = function(e) NULL)
         fname <- tools::file_path_sans_ext(dfile)
         new_sources[[fname]] <- list(formula_name = fname,
                                      dataset_file  = dfile,
@@ -751,7 +750,7 @@ combine_widget_server <- function(id,
     preview_data <- reactiveVal(NULL)
 
     observeEvent(input$run_preview, {
-      req(length(combo_steps()) > 0, data.folder())
+      req(length(combo_steps()) > 0, ws())
       through   <- as.integer(input$preview_step_sel)
       n_all     <- length(combo_steps())
       steps_sub <- combo_steps()[seq_len(min(through, n_all))]
@@ -787,14 +786,13 @@ combine_widget_server <- function(id,
     })
 
     observeEvent(input$build_combo, {
-      req(length(combo_steps()) > 0, data.folder())
+      req(length(combo_steps()) > 0, ws())
       name <- trimws(input$combo_name)
       fn   <- trimws(input$combo_filename)
       if (nchar(name) == 0) {
         showNotification("Enter a combination name first.", type = "warning"); return()
       }
       if (nchar(fn) == 0) fn <- suggest_combine_filename(name)
-      out_path <- paste0(data.folder(), fn)
 
       # Reuse previewed result if it covers all steps; otherwise build fresh
       n_all  <- length(combo_steps())
@@ -828,10 +826,9 @@ combine_widget_server <- function(id,
       reg_file <- trimws(if (is.null(input$reg_formula_file)) "" else input$reg_formula_file)
       reg_msg  <- ""
       if (length(reg_file) > 0 && nchar(reg_file) > 0) {
-        reg_path <- paste0(data.folder(), reg_file)
         reg_err  <- NULL
         tryCatch(
-          register_combined_formula(name, reg_path),
+          register_combined_formula(name, reg_file, ws = ws()),
           error = function(e) { reg_err <<- e$message }
         )
         reg_msg <- if (is.null(reg_err))

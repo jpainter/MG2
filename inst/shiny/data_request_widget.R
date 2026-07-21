@@ -130,8 +130,8 @@ data_request_widget_server <- function(
         dataDirectory$directory()
       })
       ws <- reactive({
-        req(data.folder())
-        mg2_workspace(data.folder())
+        req(dataDirectory$workspace())
+        dataDirectory$workspace()
       })
       indicator = reactive({
         data_widget_output$indicator()
@@ -476,7 +476,7 @@ data_request_widget_server <- function(
           cat('\n - dataset():', dataset.file())
 
           if (ws_file_exists(ws(), dataset.file())) {
-            .previous_dataset_file = ws_path(ws(), dataset.file())
+            .previous_dataset_file = ws_local_copy(ws(), dataset.file())
             .update = TRUE
             cat('\n - previous file exists:', file)
             # Previous dataset file:
@@ -508,7 +508,10 @@ data_request_widget_server <- function(
             previous_dataset_file = .previous_dataset_file,
             prev.data = .dataset,
             level1.id = .level1.id,
-            dir = ws_path(ws()),
+            # api_data() doesn't actually write through `dir` (only referenced
+            # in a commented-out debug line), so a scratch temp dir is fine
+            # for non-local workspaces -- the real save is ws_save_file() below.
+            dir = if (ws_is_local(ws())) ws_path(ws()) else tempdir(),
             shinyApp = TRUE,
             parallel = FALSE,
             childOnly = TRUE

@@ -66,9 +66,6 @@ regions_widget_server <- function(
 
       # cat('\n** regions_widget\n -importing data from other modules')
 
-      data.folder = reactive({
-        directory_widget_output$directory()
-      })
       geofeatures.files = reactive({
         directory_widget_output$geofeatures.files()
       })

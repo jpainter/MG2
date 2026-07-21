@@ -4,10 +4,14 @@
 \alias{load_combine_definition}
 \title{Load a combination definition from a companion RDS file}
 \usage{
-load_combine_definition(file_path)
+load_combine_definition(file_path = NULL, ws = NULL, filename = NULL)
 }
 \arguments{
-\item{file_path}{Full path to a \code{Definition_*.rds} file.}
+\item{file_path}{Full path to a \code{Definition_*.rds} file (legacy).}
+
+\item{ws}{An \code{mg2_workspace} object (preferred over \code{file_path}).}
+
+\item{filename}{Filename within the workspace (used with \code{ws}).}
 }
 \value{
 Definition list.

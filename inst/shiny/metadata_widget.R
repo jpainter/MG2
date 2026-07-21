@@ -198,8 +198,8 @@ metadata_widget_server <- function(
         directory_widget_output$directory()
       })
       ws <- reactive({
-        req(dir())
-        mg2_workspace(dir())
+        req(directory_widget_output$workspace())
+        directory_widget_output$workspace()
       })
       metadata.files = reactive({
         directory_widget_output$metadata.files()
@@ -363,10 +363,10 @@ metadata_widget_server <- function(
 
           cat('\n metadata widget system.info completed \n')
         } else {
-          file = paste0(dir(), if (!is.null(input$metadata_file_select)) input$metadata_file_select else metadata.files()[1])
+          file = if (!is.null(input$metadata_file_select)) input$metadata_file_select else metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             cat(' - reading from metadata')
             info = metadata()$systemInfo
             if (!"data.frame" %in% class(info)) {
@@ -484,10 +484,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- reading from'  )
             # deg = read_excel( file , sheet = 'DataElementGroups' )
             # cat('\n- dataElementGroups has' , nrow(deg) , "rows" )
@@ -556,10 +556,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- reading from'  )
             # dataSets = read_excel( file , sheet = 'DataSets' )
             # cat('\n- DataSets has' , nrow(dataSets) , "rows" )
@@ -755,10 +755,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- reading from'  )
             # categories = read_excel( file , sheet = 'Categories' )
             # cat('\n- Categories has' , nrow(categories) , "rows" )
@@ -885,10 +885,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- reading from'  )
             # dictionary = read_excel( file , sheet = 'DataElements' )
             # cat('\n- dataElements has' , nrow(dictionary) , "rows" )
@@ -1427,10 +1427,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- reading from'  )
             # translated = read_excel( file , sheet = 'Indicators' )
             # cat('\n- Indicators has' , nrow(translated) , "rows" )
@@ -1483,8 +1483,8 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file <- paste0(dir(), metadata.files()[1])
-          if (file.exists(file) && !dir.exists(file)) {
+          file <- metadata.files()[1]
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             cat(' - reading validationRules from metadata rds')
             vr <- metadata()$validationRules
             if (is.null(vr)) return(tibble::tibble())
@@ -1626,10 +1626,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n- looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- orgUnitLevels reading from'  )
             # ousLevels = read_excel( file  ,
             #                         sheet = 'OrgUnitLevels' )
@@ -1770,10 +1770,10 @@ metadata_widget_server <- function(
           # test:
           # saveRDS( ous , 'orgUnits.rds' )
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- orgUnits reading from'  )
             # ous. = read_excel( file ,
             #                         sheet = 'OrgUnits' )
@@ -1893,10 +1893,10 @@ metadata_widget_server <- function(
 
           removeModal()
         } else {
-          file = paste0(dir(), metadata.files()[1])
+          file = metadata.files()[1]
           cat('\n - looking for metadata file:', file)
 
-          if (file.exists(file) & !dir.exists(file)) {
+          if (!is.null(file) && ws_file_exists(ws(), file)) {
             # cat('\n- reading from'  )
             # ous.tree = read_excel( file , sheet = 'orgUnitHierarchy', guess_max = 1e6 )
 
@@ -2177,8 +2177,11 @@ metadata_widget_server <- function(
       # Save geoFeatures to an rds file ####
 
       output$downloadGeoFeatures <- downloadHandler(
+        # Suggested filename for the user's own browser download -- unrelated
+        # to the workspace (this streams to the user's computer, not to
+        # local/Drive storage), so no directory prefix belongs here.
         filename = function() {
-          paste0(dir(), "geoFeatures_", Sys.Date(), ".rds")
+          paste0("geoFeatures_", Sys.Date(), ".rds")
         },
 
         content = function(file) {
@@ -2186,7 +2189,7 @@ metadata_widget_server <- function(
         }
       )
 
-      # Save facilities CSV to data directory ####
+      # Save facilities CSV to the workspace (local or Drive) ####
       observeEvent(input$exportFacilitiesCSV, {
         gf <- geoFeatures()
         if (is.null(gf) || nrow(gf) == 0) {
@@ -2213,13 +2216,16 @@ metadata_widget_server <- function(
         colnames(facilities) <- c("facility_name", "parent_name", "latitude", "longitude")
         facilities <- facilities[order(facilities$facility_name), ]
 
-        csv_file <- paste0(dir(), "facilities_", Sys.Date(), ".csv")
-        write.csv(facilities, csv_file, row.names = FALSE)
+        csv_fn   <- paste0("facilities_", Sys.Date(), ".csv")
+        tmp_path <- tempfile(fileext = ".csv")
+        write.csv(facilities, tmp_path, row.names = FALSE)
+        ws_save_local_copy(ws(), tmp_path, csv_fn)
+        unlink(tmp_path)
 
         showModal(modalDialog(
           title = "Facilities CSV saved",
           p(paste(scales::comma(nrow(facilities)), "facilities written to:")),
-          tags$code(csv_file),
+          tags$code(csv_fn),
           easyClose = TRUE, fade = FALSE, size = "m",
           footer = modalButton("OK")
         ))
@@ -2474,8 +2480,8 @@ metadata_widget_server <- function(
 
       resources = reactive({
         # Try to load from saved metadata first (fast, works offline)
-        file <- paste0(dir(), metadata.files()[1])
-        if (file.exists(file) && !dir.exists(file)) {
+        file <- metadata.files()[1]
+        if (!is.null(file) && ws_file_exists(ws(), file)) {
           res <- metadata()$resources
           if (!is.null(res) && nrow(res) > 0) {
             cat('\n - resources: loaded from metadata rds\n')

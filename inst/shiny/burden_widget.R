@@ -615,8 +615,6 @@ burden_widget_server <- function(
 
     # ── reactive sources ──────────────────────────────────────────────────────
 
-    data_folder <- reactive({ directory_widget_output$directory() })
-
     selected_data <- reactive({
       req(reporting_widget_output)
       reporting_widget_output$selected_data()

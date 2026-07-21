@@ -4,20 +4,32 @@
 \alias{chirps_save_flat}
 \title{Save a standardized flat rainfall RDS to the data directory}
 \usage{
-chirps_save_flat(flat_df, data_dir, year, level_str = "custom")
+chirps_save_flat(
+  flat_df,
+  data_dir = NULL,
+  year,
+  level_str = "custom",
+  ws = NULL
+)
 }
 \arguments{
 \item{flat_df}{Combined data frame from \code{chirps_combine_data()}.}
 
-\item{data_dir}{The MG2 data directory (from \code{directory_widget_output$directory()}).}
+\item{data_dir}{The MG2 data directory (from \code{directory_widget_output$directory()}).
+Ignored if \code{ws} is supplied.}
 
 \item{year}{Integer year.}
 
 \item{level_str}{Character level identifier used in the cache key (e.g. \code{"2"}
 or \code{"custom"}).}
+
+\item{ws}{Optional \code{mg2_workspace} object (from
+\code{directory_widget_output$workspace()}). When supplied, writes via
+\code{ws_save_rds()} instead of \code{data_dir} -- required for the file to land
+in a connected Google Drive workspace rather than always going local.}
 }
 \value{
-Invisibly, the path the file was written to.
+Invisibly, the path (local) or filename (workspace) written to.
 }
 \description{
 Writes (or overwrites) \verb{rainfall_\{year\}_lvl\{level_str\}.rds} containing only

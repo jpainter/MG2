@@ -6,11 +6,12 @@
 \usage{
 build_combined_dataset(
   steps,
-  data_folder,
+  data_folder = NULL,
   ousTree = NULL,
   formula_name = "Combined",
   verbose = TRUE,
-  .progress = NULL
+  .progress = NULL,
+  ws = NULL
 )
 }
 \arguments{

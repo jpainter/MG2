@@ -4,12 +4,19 @@
 \alias{register_combined_formula}
 \title{Add a formula name to an existing formula xlsx file}
 \usage{
-register_combined_formula(formula_name, formula_file)
+register_combined_formula(formula_name, formula_file, ws = NULL)
 }
 \arguments{
 \item{formula_name}{Character; the combination name (e.g. \code{"TPR"}).}
 
-\item{formula_file}{Full path to a \code{Formulas_*.xlsx} file.}
+\item{formula_file}{Full path to a \code{Formulas_*.xlsx} file, or (if \code{ws} is
+supplied) just its filename within that workspace.}
+
+\item{ws}{Optional \code{mg2_workspace} object (from
+\code{directory_widget_output$workspace()}). When supplied, reads/writes via
+\code{ws_read_xlsx()}/\code{ws_save_xlsx()} instead of treating \code{formula_file} as a
+raw path -- required for this to work against a connected Google Drive
+workspace rather than always going local.}
 }
 \value{
 Invisible \code{TRUE} on success.

@@ -4,10 +4,15 @@
 \alias{chirps_load_rainfall}
 \title{Load and combine all available flat rainfall RDS files from the data directory}
 \usage{
-chirps_load_rainfall(data_dir)
+chirps_load_rainfall(data_dir = NULL, ws = NULL)
 }
 \arguments{
-\item{data_dir}{The MG2 data directory.}
+\item{data_dir}{The MG2 data directory. Ignored if \code{ws} is supplied.}
+
+\item{ws}{Optional \code{mg2_workspace} object (from
+\code{directory_widget_output$workspace()}). When supplied, reads via
+\code{ws_list_files()}/\code{ws_read_rds()} instead of \code{data_dir} -- required to
+see rainfall files saved to a connected Google Drive workspace.}
 }
 \value{
 A data frame with columns \code{id}, \code{name}, \code{parentName}, \code{year},

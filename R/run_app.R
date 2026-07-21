@@ -32,8 +32,13 @@ run_mg2 <- function(...) {
 
   on.exit(try(httpuv::stopAllServers(), silent = TRUE), add = TRUE)
 
+  args <- utils::modifyList(
+    list(appDir = app_dir, display.mode = "normal", launch.browser = TRUE),
+    list(...)
+  )
+
   tryCatch(
-    shiny::runApp(app_dir, display.mode = "normal", launch.browser = TRUE, ...),
+    do.call(shiny::runApp, args),
     interrupt = function(e) message("App stopped.")
   )
 }

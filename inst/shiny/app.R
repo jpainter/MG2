@@ -89,7 +89,7 @@ source("combine_widget.R")     # Tab: Data — combine/derive datasets
 source("dqa_widget.R")         # Tab: DQA
 source("reporting_widget.r")   # Tab: Reporting
 source("cleaning_widget.r")    # Tab: Outliers
-source("evaluation_widget_2.R")# Tab: Evaluation
+source("evaluation_widget.R")# Tab: Evaluation
 source("regions_widget.R")     # Tab: Regions
 source("about_widget.R")       # Tab: About
 source("chat_widget.R")        # Tab: Assistant (AI chat, requires ellmer + shinychat)
@@ -250,8 +250,35 @@ ui <- bslib::page_navbar(
 )
 
 # Server --------------------------------------------------------------------
+
+# Stopping the app on session-end is a convenience for local single-user runs
+# (close the tab -> the R process/console is freed). But a plain "session
+# ended" event can't distinguish that from a browser doing a full-page
+# navigation and back -- exactly what the Google Drive OAuth redirect does
+# (directory_widget.R's "Connect Google Drive" link navigates away, then
+# Google redirects back, opening a brand-new session). Stopping immediately
+# would kill the app before the redirect ever lands. Instead: wait a grace
+# period long enough to cover that round-trip, and cancel the pending stop
+# if a new session connects (the redirect coming back) in the meantime.
+.mg2_session_count  <- 0L
+.mg2_pending_stop   <- NULL
+.mg2_stop_grace_sec <- 90
+
 server <- function(input, output, session) {
-  session$onSessionEnded(stopApp)
+  .mg2_session_count <<- .mg2_session_count + 1L
+  if (!is.null(.mg2_pending_stop)) {
+    later::cancel(.mg2_pending_stop)
+    .mg2_pending_stop <<- NULL
+  }
+
+  session$onSessionEnded(function() {
+    .mg2_session_count <<- .mg2_session_count - 1L
+    if (.mg2_session_count <= 0L) {
+      .mg2_pending_stop <<- later::later(function() {
+        if (.mg2_session_count <= 0L) stopApp()
+      }, delay = .mg2_stop_grace_sec)
+    }
+  })
 
   # Dependency check — show notifications for warnings on startup
   local({
@@ -284,7 +311,7 @@ server <- function(input, output, session) {
 
   # Setup tab: "Next →" button once a data directory is set (#2)
   output$setup_next_btn <- renderUI({
-    req(directory_widget_output$directory())
+    req(directory_widget_output$workspace())
     div(
       style = "margin-top:24px; padding:8px 16px;",
       actionButton(

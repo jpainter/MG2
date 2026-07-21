@@ -1295,18 +1295,29 @@ chirps_write_excel <- function(flat_df, stats_df, year,
 #'
 #' @param flat_df    Combined data frame from `chirps_combine_data()`.
 #' @param data_dir   The MG2 data directory (from `directory_widget_output$directory()`).
+#'   Ignored if `ws` is supplied.
 #' @param year       Integer year.
 #' @param level_str  Character level identifier used in the cache key (e.g. `"2"`
 #'   or `"custom"`).
-#' @return Invisibly, the path the file was written to.
+#' @param ws         Optional `mg2_workspace` object (from
+#'   `directory_widget_output$workspace()`). When supplied, writes via
+#'   `ws_save_rds()` instead of `data_dir` -- required for the file to land
+#'   in a connected Google Drive workspace rather than always going local.
+#' @return Invisibly, the path (local) or filename (workspace) written to.
 #' @export
-chirps_save_flat <- function(flat_df, data_dir, year, level_str = "custom") {
+chirps_save_flat <- function(flat_df, data_dir = NULL, year, level_str = "custom", ws = NULL) {
   keep <- intersect(c("id", "name", "parentName", "year", "month", "mean_rain"),
                     names(flat_df))
   out  <- flat_df[, keep, drop = FALSE]
 
   fname <- sprintf("rainfall_%d_lvl%s.rds", as.integer(year), level_str)
-  path  <- file.path(data_dir, fname)
+
+  if (!is.null(ws)) {
+    ws_save_rds(ws, out, fname)
+    return(invisible(fname))
+  }
+
+  path <- file.path(data_dir, fname)
   saveRDS(out, path)
   invisible(path)
 }
@@ -1319,19 +1330,26 @@ chirps_save_flat <- function(flat_df, data_dir, year, level_str = "custom") {
 #' de-duplicated by keeping the first occurrence (lowest level number, which
 #' is typically finer-grained).
 #'
-#' @param data_dir The MG2 data directory.
+#' @param data_dir The MG2 data directory. Ignored if `ws` is supplied.
+#' @param ws Optional `mg2_workspace` object (from
+#'   `directory_widget_output$workspace()`). When supplied, reads via
+#'   `ws_list_files()`/`ws_read_rds()` instead of `data_dir` -- required to
+#'   see rainfall files saved to a connected Google Drive workspace.
 #' @return A data frame with columns `id`, `name`, `parentName`, `year`,
 #'   `month`, `mean_rain`, or `NULL` if no files are found.
 #' @export
-chirps_load_rainfall <- function(data_dir) {
-  if (is.null(data_dir) || !nzchar(data_dir %||% "")) return(NULL)
+chirps_load_rainfall <- function(data_dir = NULL, ws = NULL) {
+  if (!is.null(ws)) {
+    files <- ws_list_files(ws, search = "rainfall_", type = "rds")
+    if (length(files) == 0) return(NULL)
+    dfs <- lapply(files, function(f) tryCatch(ws_read_rds(ws, f), error = function(e) NULL))
+  } else {
+    if (is.null(data_dir) || !nzchar(data_dir %||% "")) return(NULL)
+    files <- list.files(data_dir, pattern = "^rainfall_.*\\.rds$", full.names = TRUE)
+    if (length(files) == 0) return(NULL)
+    dfs <- lapply(files, function(f) tryCatch(readRDS(f), error = function(e) NULL))
+  }
 
-  files <- list.files(data_dir, pattern = "^rainfall_.*\\.rds$", full.names = TRUE)
-  if (length(files) == 0) return(NULL)
-
-  dfs <- lapply(files, function(f) {
-    tryCatch(readRDS(f), error = function(e) NULL)
-  })
   dfs <- Filter(Negate(is.null), dfs)
   if (length(dfs) == 0) return(NULL)
 

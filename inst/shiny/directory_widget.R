@@ -38,6 +38,12 @@ directory_widget_ui = function(id) {
 
     br(),
 
+    h4('Or connect a cloud drive:'),
+
+    uiOutput(ns("gdrive_connect_ui")),
+
+    br(),
+
     h4('This directory Contains:'),
 
     tableOutput(ns('folderInfo')),
@@ -161,32 +167,24 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       })
 
       data.dir.files = reactive({
-        req(data.folder())
-        if (!dir.exists(data.folder())) {
-          return(NULL)
-        }
-        dir.files = list.files(data.folder())
-        return(dir.files)
+        ws <- workspace()
+        req(ws)
+        if (ws_is_local(ws) && !dir.exists(ws_path(ws))) return(NULL)
+        ws_list(ws)
       })
 
       folderInfo = reactive({
-        req(data.folder())
-        # there are a couple forms of metadata in the api.  This code tests the format, then gets metadata
-        # if available, use resources method
-        cat('\n folder info : ', data.folder())
+        ws <- workspace()
+        req(ws)
 
-        d = data.folder()
-        data.dir.files = base::dir(d)
+        data.dir.files = ws_list(ws)
 
         if (length(data.dir.files) == 0) {
           return(tibble(`File type:` = c("Metadata", "Formula", "Data"),
                         Number = 0L, `Most Recent` = "—"))
         }
 
-        finf = map_df(data.dir.files, ~ file.info(paste(d, .x, sep = "/")))
-
-        # Testing
-        # save(d, data.dir.files, finf, file = "finf.rda")
+        finf = ws_file_info(ws, data.dir.files)
 
         metadata.files = grepl("metadata", data.dir.files, ignore.case = TRUE)
         formula.files = grepl("formulas", data.dir.files, ignore.case = TRUE)
@@ -208,100 +206,25 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           )
         )
 
-        cat('\n directory widget folderInfo completed')
         return(info)
       })
 
       output$folderInfo = renderTable(folderInfo())
 
       metadata.files = reactive({
-        req(data.folder())
-        cat('- looking for metadata in:', data.folder(), '\n')
-
-        dir.files = data.dir.files()
-
-        # file.type = '.xl' # input$file.type
-        file.type = '.rds'
-        file.other = "metadata"
-
-        search.index =
-          grepl(file.type, dir.files, ignore.case = TRUE) &
-          grepl(file.other, dir.files, ignore.case = TRUE)
-
-        if (!any(search.index)) {
-          cat('- no metadata files in directory \n')
-          return(NULL)
-        }
-
-        mf = dir.files[search.index]
-
-        # Arrange by modified date
-        mf.mdate = file.info(paste0(data.folder(), mf))$mtime
-        mf = mf[rev(order(mf.mdate))]
-
-        cat('-', length(mf), 'metadata files \n')
-
-        cat('mf:', mf, '\n')
-
-        return(mf)
+        ws <- workspace()
+        req(ws)
+        mf <- ws_list_files(ws, search = "metadata", type = "rds")
+        if (length(mf) == 0) return(NULL)
+        mf
       })
 
       geofeatures.files = reactive({
-        req(data.folder())
-        cat(
-          '\n* geofeatures.files: looking for geoFeatures in:',
-          data.folder(),
-          '\n'
-        )
-
-        dir.files = data.dir.files()
-
-        file.type = '.rds' # input$file.type
-        file.other = "geofeatures"
-
-        search.index =
-          grepl(file.type, dir.files, ignore.case = TRUE) &
-          grepl(file.other, dir.files, ignore.case = TRUE)
-
-        if (!any(search.index)) {
-          cat('- no geoFeatures files in directory \n')
-          return(NULL)
-        }
-
-        gf = dir.files[search.index]
-
-        # Arrange by modified date
-        gf.mdate = file.info(paste0(data.folder(), gf))$mtime
-        gf = gf[rev(order(gf.mdate))]
-
-        cat('-', length(gf), 'geofeatures files \n')
-
-        cat('gf:', gf, '\n')
-
-        return(gf)
-      })
-
-      rds_data_files = reactive({
-        req(data.dir.files())
-        cat('- looking for rds files in:', data.folder(), '\n')
-
-        dir.files = data.dir.files()
-
-        file.type = 'rds' # input$file.type
-        file.other = "cleaned|seasonal|data"
-
-        search.index =
-          grepl(file.type, dir.files, ignore.case = TRUE) &
-          grepl(file.other, dir.files, ignore.case = TRUE)
-
-        data.files = paste0(data.folder(), dir.files[search.index])
-
-        if (!any(file.exists(data.files))) {
-          return(NULL)
-        }
-
-        cat("-data file exists: \n")
-        return(data.files)
+        ws <- workspace()
+        req(ws)
+        gf <- ws_list_files(ws, search = "geofeatures", type = "rds")
+        if (length(gf) == 0) return(NULL)
+        gf
       })
 
       # Update list of data files
@@ -324,15 +247,164 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         )
       })
 
-      observe({
-        cat('\n directory_widget -updating .rds file list \n')
-        updateSelectInput(session, 'datasetFiles', choices = rds_data_files())
+      # ── Google Drive connection (Phase 2) ────────────────────────────────
+      # Redirect-based web-application OAuth flow (R/fct_gdrive_oauth.R) --
+      # not googledrive::drive_auth(), whose default flow assumes a local
+      # browser + R console on the same machine and breaks on hosted deploys
+      # (shinyapps.io / Connect Cloud). The token lives only in this
+      # session's reactiveVal -- never written to disk.
+      gdrive_token     <- reactiveVal(NULL)
+      gdrive_folder_id <- reactiveVal(NULL)
+      gdrive_folder_nm <- reactiveVal(NULL)
+
+      .parse_gdrive_folder_id <- function(x) {
+        x <- trimws(x)
+        m <- regmatches(x, regexpr("(?<=folders/)[A-Za-z0-9_-]+", x, perl = TRUE))
+        if (length(m) > 0 && nzchar(m)) return(m)
+        m <- regmatches(x, regexpr("(?<=[?&]id=)[A-Za-z0-9_-]+", x, perl = TRUE))
+        if (length(m) > 0 && nzchar(m)) return(m)
+        x  # assume a bare folder ID was pasted
+      }
+
+      # Must match exactly what's registered on the OAuth client. Computed
+      # from this session's own URL so it's correct for local dev, shinyapps.io,
+      # and Connect Cloud alike -- as long as each target's real URL is
+      # registered as an authorized redirect URI in Google Cloud Console.
+      redirect_uri <- reactive({
+        cd <- session$clientData
+        paste0(
+          cd$url_protocol, "//", cd$url_hostname,
+          if (nzchar(cd$url_port)) paste0(":", cd$url_port) else "",
+          cd$url_pathname
+        )
       })
 
-      # Workspace object — wraps data.folder() in an mg2_workspace S3 object.
-      # Consumers can use ws_*() methods instead of building paths manually.
-      # data.folder kept for backward compat during migration.
+      # Handle the redirect back from Google (?code=...&state=...). Runs once
+      # per session load; the browser did a full-page navigation to get here,
+      # so this is a brand-new Shiny session -- mg2_gdrive_verify_state()
+      # validates the state nonce without needing session continuity.
+      observeEvent(session$clientData$url_search, {
+        cat("\n* gdrive redirect observer fired\n")
+        qs <- session$clientData$url_search
+        cat("- url_search:", qs, "\n")
+        if (!nzchar(qs)) { cat("- empty query string, skipping\n"); return() }
+        params <- shiny::parseQueryString(qs)
+        if (is.null(params$code) || is.null(params$state)) {
+          cat("- no code/state in query string, skipping\n")
+          return()
+        }
+        cat("- found code + state, verifying state\n")
+
+        if (!mg2_gdrive_verify_state(params$state)) {
+          cat("- state verification FAILED\n")
+          showNotification(
+            "Google Drive sign-in failed a security check (invalid or expired link). Please try again.",
+            type = "error"
+          )
+          shiny::updateQueryString("?", mode = "replace", session = session)
+          return()
+        }
+        cat("- state verified OK, exchanging code\n")
+
+        tok <- tryCatch(
+          mg2_gdrive_exchange_code(params$code, redirect_uri()),
+          error = function(e) {
+            cat("- code exchange FAILED:", conditionMessage(e), "\n")
+            showNotification(paste("Google Drive sign-in failed:", conditionMessage(e)),
+                              type = "error")
+            NULL
+          }
+        )
+        cat("- code exchange step complete, token is", if (is.null(tok)) "NULL" else "present", "\n")
+
+        # Scrub the code from the URL/browser history either way -- a spent
+        # code can't be redeemed twice, so leaving it there just risks a
+        # confusing error on refresh.
+        shiny::updateQueryString("?", mode = "replace", session = session)
+        cat("- query string scrubbed\n")
+
+        if (!is.null(tok)) {
+          gdrive_token(tok)
+          showNotification("Google Drive connected. Paste a folder link or ID below.",
+                            type = "message")
+        }
+        cat("* gdrive redirect observer finished\n")
+      }, once = TRUE, ignoreInit = FALSE)
+
+      output$gdrive_connect_ui <- renderUI({
+        if (is.null(gdrive_token())) {
+          state <- mg2_gdrive_new_state()
+          tags$a(
+            href  = mg2_gdrive_auth_url(redirect_uri(), state),
+            class = "btn btn-outline-primary",
+            style = "width: 100%; display: inline-block; text-align: center;",
+            icon("cloud"), " Connect Google Drive"
+          )
+        } else if (is.null(gdrive_folder_nm())) {
+          fluidRow(
+            column(
+              8,
+              textInput(
+                ns("gdrive_folder_input"),
+                label = NULL,
+                placeholder = "Paste a Google Drive folder link or folder ID..."
+              )
+            ),
+            column(
+              4,
+              actionButton(ns("gdrive_set_folder"), "Use this folder", class = "btn-primary")
+            )
+          )
+        } else {
+          tagList(
+            div(icon("check-circle"), paste0(" Using Drive folder: ", gdrive_folder_nm())),
+            actionLink(ns("gdrive_disconnect"), "Disconnect / use local directory instead")
+          )
+        }
+      })
+
+      observeEvent(input$gdrive_set_folder, {
+        req(input$gdrive_folder_input, gdrive_token())
+        fid <- .parse_gdrive_folder_id(input$gdrive_folder_input)
+
+        googledrive::drive_auth(token = gdrive_token())
+        info <- tryCatch(googledrive::drive_get(googledrive::as_id(fid)), error = function(e) NULL)
+
+        if (is.null(info) || nrow(info) == 0) {
+          showNotification(
+            "Could not find that Google Drive folder. Check the link/ID and sharing permissions.",
+            type = "error"
+          )
+          return()
+        }
+
+        is_folder <- identical(info$drive_resource[[1]]$mimeType,
+                                "application/vnd.google-apps.folder")
+        if (!is_folder) {
+          showNotification("That points to a file, not a folder. Paste a folder link instead.",
+                            type = "error")
+          return()
+        }
+
+        gdrive_folder_id(fid)
+        gdrive_folder_nm(info$name[[1]])
+        showNotification(paste("Using Google Drive folder:", info$name[[1]]), type = "message")
+      })
+
+      observeEvent(input$gdrive_disconnect, {
+        gdrive_token(NULL)
+        gdrive_folder_id(NULL)
+        gdrive_folder_nm(NULL)
+      })
+
+      # Workspace object — wraps data.folder() (or a connected Google Drive
+      # folder + its session token) in an mg2_workspace S3 object. Consumers
+      # can use ws_*() methods instead of building paths manually. data.folder
+      # kept for backward compat during migration.
       workspace <- reactive({
+        if (!is.null(gdrive_folder_id())) {
+          return(mg2_workspace(paste0("gdrive:", gdrive_folder_id()), token = gdrive_token()))
+        }
         req(data.folder())
         mg2_workspace(data.folder())
       })

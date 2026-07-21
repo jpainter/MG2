@@ -4,12 +4,21 @@
 \alias{save_combine_definition}
 \title{Save a combination definition to a companion RDS file}
 \usage{
-save_combine_definition(definition, file_path)
+save_combine_definition(
+  definition,
+  file_path = NULL,
+  ws = NULL,
+  filename = NULL
+)
 }
 \arguments{
 \item{definition}{List with \code{steps}, \code{combo_name}, and optional \code{formula_file}.}
 
-\item{file_path}{Full path for the companion file.}
+\item{file_path}{Full path for the companion file (legacy).}
+
+\item{ws}{An \code{mg2_workspace} object (preferred over \code{file_path}).}
+
+\item{filename}{Filename within the workspace (used with \code{ws}).}
 }
 \description{
 Save a combination definition to a companion RDS file

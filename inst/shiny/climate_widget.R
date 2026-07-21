@@ -141,10 +141,21 @@ climate_widget_server <- function(id,
   moduleServer(id, function(input, output, session) {
 
     # ── Cache directory ──────────────────────────────────────────────────────
+    # Deliberately local-only (even when a Google Drive workspace is
+    # connected): this is a disposable, re-derivable cache of cropped CHIRPS
+    # TIFs, not user data -- round-tripping cache writes through Drive would
+    # just be slow for no benefit.
     cache_dir <- reactive({
       d <- tryCatch(directory_widget_output$directory(), error = function(e) NULL)
       base <- if (!is.null(d) && nzchar(d %||% "")) d else tempdir()
       file.path(base, "climate_cache")
+    })
+
+    # The persistent, user-facing rainfall output file (unlike the cache
+    # above) does need to respect the local/Drive switch -- see .save_flat().
+    ws <- reactive({
+      req(directory_widget_output$workspace())
+      directory_widget_output$workspace()
     })
 
     # ── Month helpers ────────────────────────────────────────────────────────
@@ -380,13 +391,12 @@ climate_widget_server <- function(id,
             dl
           }
 
-          # Helper: save flat rainfall file to data directory
+          # Helper: save flat rainfall file to the workspace (local or Drive)
           .save_flat <- function(flat_df, yr) {
-            data_dir <- tryCatch(directory_widget_output$directory(),
-                                 error = function(e) NULL)
-            if (!is.null(data_dir) && nzchar(data_dir %||% ""))
+            w <- tryCatch(ws(), error = function(e) NULL)
+            if (!is.null(w))
               tryCatch(
-                chirps_save_flat(flat_df, data_dir, yr, lvl_str),
+                chirps_save_flat(flat_df, year = yr, level_str = lvl_str, ws = w),
                 error = function(e)
                   showNotification(paste0("Rainfall file not saved: ", conditionMessage(e)),
                                    type = "warning", duration = 6)
