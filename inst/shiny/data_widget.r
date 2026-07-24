@@ -162,11 +162,9 @@ data_widget_server <- function(
       formula.files = reactive({
         if (!is.null(formulaSaved)) formulaSaved()  # re-scan after save creates a new file
         req(data.folder())
-        cat('\n* data_widget looking for formula files in', data.folder(), '\n')
 
         ff = ws_list_files(ws(), search = 'Formulas_', type = 'xlsx|rds')
         if (is_empty(ff)) {
-          cat('\n - no formula files in directory')
           return()
         }
 

@@ -70,8 +70,12 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         )
       }
 
+      load_config <- function() {
+        tryCatch(readRDS(config_path), error = function(e) list())
+      }
+
       load_dir_history <- function() {
-        cfg <- tryCatch(readRDS(config_path), error = function(e) list())
+        cfg <- load_config()
         dirs <- if (!is.null(cfg$directories)) cfg$directories else if (!is.null(cfg$directory)) cfg$directory else character(0)
         dirs[nchar(dirs) > 0 & dir.exists(dirs) & !vapply(dirs, .is_temp_dir, logical(1))]
       }
@@ -85,12 +89,43 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         updated  <- unique(c(new_dir, existing[nchar(existing) > 0]))
         # Skip disk write in demo mode (server filesystem is ephemeral)
         if (!nzchar(Sys.getenv("MG2_DEMO_MODE"))) {
-          tryCatch(
-            saveRDS(list(directories = head(updated, 10)), config_path),
-            error = function(e) NULL
-          )
+          tryCatch({
+            cfg <- load_config()
+            cfg$directories <- head(updated, 10)
+            saveRDS(cfg, config_path)
+          }, error = function(e) NULL)
         }
         head(updated, 10)
+      }
+
+      # Persist/restore Google Drive folder ID (not the token — tokens are
+      # always session-only). Lets the user re-auth with one click instead of
+      # re-pasting the folder link every session.
+      load_gdrive_folder_id <- function() {
+        if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) return(NULL)
+        cfg <- load_config()
+        fid <- cfg$gdrive_folder_id
+        if (!is.null(fid) && nzchar(fid)) fid else NULL
+      }
+
+      save_gdrive_folder <- function(folder_id, folder_name) {
+        if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) return(invisible(NULL))
+        tryCatch({
+          cfg <- load_config()
+          cfg$gdrive_folder_id   <- folder_id
+          cfg$gdrive_folder_name <- folder_name
+          saveRDS(cfg, config_path)
+        }, error = function(e) NULL)
+      }
+
+      clear_gdrive_folder <- function() {
+        if (nzchar(Sys.getenv("MG2_DEMO_MODE"))) return(invisible(NULL))
+        tryCatch({
+          cfg <- load_config()
+          cfg$gdrive_folder_id   <- NULL
+          cfg$gdrive_folder_name <- NULL
+          saveRDS(cfg, config_path)
+        }, error = function(e) NULL)
       }
 
       dir_history <- reactiveVal(load_dir_history())
@@ -146,7 +181,6 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       }, ignoreNULL = TRUE, ignoreInit = FALSE)
 
       data.folder = reactive({
-        cat('\n* data.folder:\n')
         req(input$data.directory)
 
         data.dir <- input$data.directory
@@ -156,7 +190,6 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           data.dir <- paste0(data.dir, "/")
         }
 
-        cat('\n - data.folder is ', data.dir, '\n')
         return(data.dir)
       })
 
@@ -253,9 +286,17 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       # browser + R console on the same machine and breaks on hosted deploys
       # (shinyapps.io / Connect Cloud). The token lives only in this
       # session's reactiveVal -- never written to disk.
+      # Folder ID and name are restored from config on startup so the user can
+      # reconnect with one click instead of re-pasting the folder link.
       gdrive_token     <- reactiveVal(NULL)
-      gdrive_folder_id <- reactiveVal(NULL)
-      gdrive_folder_nm <- reactiveVal(NULL)
+      gdrive_folder_id <- reactiveVal(load_gdrive_folder_id())
+      gdrive_folder_nm <- reactiveVal({
+        cfg <- load_config()
+        if (!is.null(cfg$gdrive_folder_name) && nzchar(cfg$gdrive_folder_name))
+          cfg$gdrive_folder_name
+        else
+          NULL
+      })
 
       .parse_gdrive_folder_id <- function(x) {
         x <- trimws(x)
@@ -283,33 +324,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       # per session load; the browser did a full-page navigation to get here,
       # so this is a brand-new Shiny session -- mg2_gdrive_verify_state()
       # validates the state nonce without needing session continuity.
-      # Log the full client URL once on session init so we can trace redirects
-      observe({
-        cd <- session$clientData
-        cat(sprintf(
-          "\n* directory_widget session init (id=%s)\n  url: %s//%s:%s%s%s\n",
-          session$token,
-          cd$url_protocol, cd$url_hostname, cd$url_port,
-          cd$url_pathname, cd$url_search
-        ))
-      }) |> bindEvent(session$clientData$url_search, once = TRUE, ignoreInit = FALSE)
-
       observeEvent(session$clientData$url_search, {
-        cat("\n* gdrive redirect observer fired (once=TRUE, so fires at most once)\n")
         qs <- session$clientData$url_search
-        cat("- url_search:", if (nzchar(qs)) qs else "<empty>", "\n")
-        cat("- redirect_uri will be:", redirect_uri(), "\n")
-        if (!nzchar(qs)) { cat("- empty query string, skipping\n"); return() }
+        if (!nzchar(qs)) return()
         params <- shiny::parseQueryString(qs)
-        cat("- parsed params:", paste(names(params), collapse=", "), "\n")
-        if (is.null(params$code) || is.null(params$state)) {
-          cat("- no code/state in query string, skipping\n")
-          return()
-        }
-        cat("- found code + state, verifying state\n")
+        if (is.null(params$code) || is.null(params$state)) return()
 
         if (!mg2_gdrive_verify_state(params$state)) {
-          cat("- state verification FAILED\n")
           showNotification(
             "Google Drive sign-in failed a security check (invalid or expired link). Please try again.",
             type = "error"
@@ -317,43 +338,62 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           shiny::updateQueryString("?", mode = "replace", session = session)
           return()
         }
-        cat("- state verified OK, exchanging code\n")
 
         tok <- tryCatch(
           mg2_gdrive_exchange_code(params$code, redirect_uri()),
           error = function(e) {
-            cat("- code exchange FAILED:", conditionMessage(e), "\n")
             showNotification(paste("Google Drive sign-in failed:", conditionMessage(e)),
                               type = "error")
             NULL
           }
         )
-        cat("- code exchange step complete, token is", if (is.null(tok)) "NULL" else "present", "\n")
 
         # Scrub the code from the URL/browser history either way -- a spent
         # code can't be redeemed twice, so leaving it there just risks a
         # confusing error on refresh.
         shiny::updateQueryString("?", mode = "replace", session = session)
-        cat("- query string scrubbed\n")
 
         if (!is.null(tok)) {
           gdrive_token(tok)
-          showNotification("Google Drive connected. Paste a folder link or ID below.",
-                            type = "message")
+          # If no folder is saved, prompt the user to paste one.
+          # If a folder IS saved, observeEvent(gdrive_token()) above will
+          # auto-verify it and set gdrive_folder_nm().
+          if (is.null(gdrive_folder_id())) {
+            showNotification("Google Drive connected. Paste a folder link or ID below.",
+                              type = "message")
+          }
         }
-        cat("* gdrive redirect observer finished\n")
       }, once = TRUE, ignoreInit = FALSE)
 
       output$gdrive_connect_ui <- renderUI({
-        if (is.null(gdrive_token())) {
-          state <- mg2_gdrive_new_state()
-          tags$a(
-            href  = mg2_gdrive_auth_url(redirect_uri(), state),
-            class = "btn btn-outline-primary",
-            style = "width: 100%; display: inline-block; text-align: center;",
-            icon("cloud"), " Connect Google Drive"
+        fid <- gdrive_folder_id()
+        fnm <- gdrive_folder_nm()
+        tok <- gdrive_token()
+
+        if (!is.null(fid) && !is.null(fnm) && !is.null(tok)) {
+          # Fully connected (token + folder)
+          tagList(
+            div(icon("check-circle"), paste0(" Using Drive folder: ", fnm)),
+            actionLink(ns("gdrive_disconnect"), "Disconnect / use local directory instead")
           )
-        } else if (is.null(gdrive_folder_nm())) {
+        } else if (!is.null(fid) && !is.null(fnm) && is.null(tok)) {
+          # Folder saved from a previous session but token expired — one-click reconnect
+          state <- mg2_gdrive_new_state()
+          tagList(
+            div(
+              style = "margin-bottom: 6px; color: #555;",
+              icon("folder"), paste0(" Previous folder: ", fnm)
+            ),
+            tags$a(
+              href  = mg2_gdrive_auth_url(redirect_uri(), state),
+              class = "btn btn-outline-primary",
+              style = "width: 100%; display: inline-block; text-align: center;",
+              icon("rotate-right"), " Reconnect Google Drive"
+            ),
+            actionLink(ns("gdrive_disconnect"), "Clear saved folder")
+          )
+        } else if (!is.null(tok) && is.null(fnm)) {
+          # Authenticated but no folder chosen yet
           fluidRow(
             column(
               8,
@@ -369,9 +409,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
             )
           )
         } else {
-          tagList(
-            div(icon("check-circle"), paste0(" Using Drive folder: ", gdrive_folder_nm())),
-            actionLink(ns("gdrive_disconnect"), "Disconnect / use local directory instead")
+          # Not connected at all
+          state <- mg2_gdrive_new_state()
+          tags$a(
+            href  = mg2_gdrive_auth_url(redirect_uri(), state),
+            class = "btn btn-outline-primary",
+            style = "width: 100%; display: inline-block; text-align: center;",
+            icon("cloud"), " Connect Google Drive"
           )
         }
       })
@@ -401,13 +445,40 @@ directory_widget_server <- function(id, demo_dir = NULL) {
 
         gdrive_folder_id(fid)
         gdrive_folder_nm(info$name[[1]])
+        save_gdrive_folder(fid, info$name[[1]])
         showNotification(paste("Using Google Drive folder:", info$name[[1]]), type = "message")
+      })
+
+      # After OAuth redirect: if a folder ID was already saved, auto-verify it
+      # with the fresh token so the user doesn't need to paste the link again.
+      observeEvent(gdrive_token(), {
+        req(gdrive_token())
+        fid <- gdrive_folder_id()
+        if (is.null(fid) || !is.null(gdrive_folder_nm())) return()
+
+        cat("* gdrive: token arrived, verifying saved folder_id", fid, "\n")
+        googledrive::drive_auth(token = gdrive_token())
+        info <- tryCatch(googledrive::drive_get(googledrive::as_id(fid)), error = function(e) NULL)
+        if (!is.null(info) && nrow(info) > 0) {
+          gdrive_folder_nm(info$name[[1]])
+          showNotification(paste("Reconnected to Drive folder:", info$name[[1]]), type = "message")
+        } else {
+          cat("* gdrive: saved folder not accessible, clearing\n")
+          showNotification(
+            "Could not access the previously connected Drive folder. Please reconnect.",
+            type = "warning"
+          )
+          gdrive_folder_id(NULL)
+          gdrive_folder_nm(NULL)
+          clear_gdrive_folder()
+        }
       })
 
       observeEvent(input$gdrive_disconnect, {
         gdrive_token(NULL)
         gdrive_folder_id(NULL)
         gdrive_folder_nm(NULL)
+        clear_gdrive_folder()
       })
 
       # Hide the local directory picker when Drive is connected; restore it on disconnect
