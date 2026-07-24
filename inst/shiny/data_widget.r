@@ -195,13 +195,9 @@ data_widget_server <- function(
       observeEvent(input$refresh, {
         cat('\n* Update data widget text boxes')
 
-        aa = data.folder()
-
-        cat('\n - looking for formula files in', aa, '\n')
-
-        ff = list_dir_files(search = 'Formulas_', dir = aa, type = 'xlsx|rds')
+        ff = ws_list_files(ws(), search = 'Formulas_', type = 'xlsx|rds')
         if (is_empty(ff)) {
-          cat('\n - no forumula files in directory')
+          updateSelectInput(session, 'formula.file', choices = character(0), selected = NULL)
           return()
         }
 
@@ -277,23 +273,20 @@ data_widget_server <- function(
         req(input$formula.file)
         cat('\n* all_formula_elements:')
 
-        file = paste0(data.folder(), input$formula.file)
-        cat('\n - formula file', input$formula.file)
+        fn <- input$formula.file
+        cat('\n - formula file', fn)
 
-        if (!any(file.exists(file))) {
+        if (!ws_file_exists(ws(), fn)) {
           return(NULL)
         }
 
-        if (grepl(fixed('.xlsx'), file)) {
-          cat('\n - read xls file', file)
-          formulas = read_excel(
-            file,
-            sheet = 'Formula Elements',
-            guess_max = 1e6
-          )
+        if (grepl(fixed('.xlsx'), fn)) {
+          cat('\n - read xlsx via workspace\n')
+          local_path <- ws_local_copy(ws(), fn)
+          formulas = read_excel(local_path, sheet = 'Formula Elements', guess_max = 1e6)
         } else {
-          cat('\n - reading formula elements from formula rds file', file)
-          formulas = readRDS(file)
+          cat('\n - read rds via workspace\n')
+          formulas = ws_read_rds(ws(), fn)
         }
 
         # Legacy files without a role column: treat all elements as primary
@@ -777,11 +770,25 @@ data_widget_server <- function(
         all_formula_elements = all_formula_elements,
         formula_elements = formula_elements,
         formulaFile = reactive({
-          req(data.folder())
-          if (is.null(input$formula.file) || input$formula.file == "") {
-            paste0(data.folder(), "Formulas_", format(Sys.Date(), "%Y_%b%d"), ".xlsx")
+          fn <- if (is.null(input$formula.file) || input$formula.file == "") {
+            paste0("Formulas_", format(Sys.Date(), "%Y_%b%d"), ".xlsx")
           } else {
-            paste0(data.folder(), input$formula.file)
+            input$formula.file
+          }
+          current_ws <- ws()
+          if (ws_is_local(current_ws)) {
+            # Local: return full path so file.exists() / read_excel() work unchanged
+            req(data.folder())
+            paste0(data.folder(), fn)
+          } else {
+            # Drive: return a local temp copy so formula_widget's file.exists() /
+            # read_excel() calls work without modification.
+            # ws_save_xlsx() uses basename(target) so the Drive filename is correct.
+            if (ws_file_exists(current_ws, fn)) {
+              ws_local_copy(current_ws, fn)
+            } else {
+              file.path(tempdir(), fn)   # new file — doesn't exist on Drive yet
+            }
           }
         }),
         dataset.file = reactive({
