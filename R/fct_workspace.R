@@ -380,14 +380,15 @@ ws_file_exists <- function(ws, filename) UseMethod("ws_file_exists")
 
 #' @export
 ws_file_exists.mg2_ws_local <- function(ws, filename) {
-  if (length(filename) == 0 || !nzchar(filename)) return(FALSE)
+  if (length(filename) == 0) return(FALSE)
   file.exists(file.path(ws$path, filename))
 }
 
 #' @export
 ws_file_exists.mg2_ws_gdrive <- function(ws, filename) {
-  if (length(filename) == 0 || !nzchar(filename)) return(FALSE)
-  !is.null(.ws_gdrive_find(ws, filename))
+  if (length(filename) == 0) return(FALSE)
+  # Handle vectors (e.g. ws_file_exists(ws, ff) where ff is a character vector)
+  vapply(filename, function(fn) !is.null(.ws_gdrive_find(ws, fn)), logical(1))
 }
 
 #' @export
