@@ -231,11 +231,12 @@ data_widget_server <- function(
 
       observe({
         cat('\n* updating formula.files input ')
+        ff <- formula.files()
         updateSelectInput(
           session,
           'formula.file',
-          choices = formula.files(),
-          selected = 1
+          choices  = if (is.null(ff)) character(0) else ff,
+          selected = if (is.null(ff)) NULL else 1
         )
       })
 
@@ -243,25 +244,23 @@ data_widget_server <- function(
         if (!is.null(formulaSaved)) formulaSaved()  # invalidate when formula is saved
         cat('\n* formulas:')
 
-        if (is.null(input$formula.file)) {
+        req(input$formula.file)
+        fn <- input$formula.file
+        cat('\n - formula file:', fn)
+
+        if (!ws_file_exists(ws(), fn)) {
           return(NULL)
         }
 
-        file = paste0(data.folder(), input$formula.file)
-        cat('\n - formula file:', file)
-
-        if (!any(file.exists(file))) {
-          return(NULL)
-        }
-
-        if (grepl(fixed('.xlsx'), file)) {
-          cat('\n - read xls file', file)
-          formulas = read_excel(file, sheet = 'Formula') %>%
+        if (grepl(fixed('.xlsx'), fn)) {
+          cat('\n - read xlsx via workspace\n')
+          local_path <- ws_local_copy(ws(), fn)
+          formulas = read_excel(local_path, sheet = 'Formula') %>%
             filter(!is.na(Formula.Name)) %>%
             arrange(desc(Formula.Name))
         } else {
-          cat('\n - reading formula rds file', file)
-          formulas = readRDS(file)
+          cat('\n - read rds via workspace\n')
+          formulas = ws_read_rds(ws(), fn)
         }
 
         cat('\n - formula.Name:', unique(formulas$Formula.Name))
