@@ -505,8 +505,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       # can use ws_*() methods instead of building paths manually. data.folder
       # kept for backward compat during migration.
       workspace <- reactive({
-        if (!is.null(gdrive_folder_id())) {
-          return(mg2_workspace(paste0("gdrive:", gdrive_folder_id()), token = gdrive_token()))
+        fid <- gdrive_folder_id()
+        tok <- gdrive_token()
+        # Only switch to gdrive backend when authenticated — a saved folder ID
+        # without a token (session just started, not yet reconnected) falls
+        # through to the local workspace so the app remains usable.
+        if (!is.null(fid) && !is.null(tok)) {
+          return(mg2_workspace(paste0("gdrive:", fid), token = tok))
         }
         req(data.folder())
         mg2_workspace(data.folder())

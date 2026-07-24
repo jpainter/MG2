@@ -270,7 +270,7 @@ server <- function(input, output, session) {
               .mg2_session_count, session$token))
   if (!is.null(.mg2_pending_stop)) {
     cat("- canceling pending stopApp timer\n")
-    later::cancel(.mg2_pending_stop)
+    .mg2_pending_stop()   # later() returns a cancel function; call it to cancel
     .mg2_pending_stop <<- NULL
   }
 
