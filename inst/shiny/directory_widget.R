@@ -481,12 +481,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         clear_gdrive_folder()
       })
 
-      # Hide the local directory picker when Drive is connected; restore it on disconnect
+      # Hide the local directory picker when Drive is connected; restore it on disconnect.
+      # shinyjs auto-prepends the module namespace, so pass the bare id (no ns()).
       observe({
         if (!is.null(gdrive_folder_id())) {
-          shinyjs::hide(ns("local_dir_section"))
+          shinyjs::hide("local_dir_section")
         } else {
-          shinyjs::show(ns("local_dir_section"))
+          shinyjs::show("local_dir_section")
         }
       })
 
