@@ -140,10 +140,7 @@ data_widget_server <- function(
       data.folder = reactive({
         directory_widget_output$directory()
       })
-      ws <- reactive({
-        req(data.folder())
-        mg2_workspace(data.folder())
-      })
+      ws <- reactive({ directory_widget_output$workspace() })
       dataElements = reactive({
         metadata_widget_output$dataElements()
       })

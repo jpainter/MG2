@@ -197,10 +197,7 @@ metadata_widget_server <- function(
       dir = reactive({
         directory_widget_output$directory()
       })
-      ws <- reactive({
-        req(directory_widget_output$workspace())
-        directory_widget_output$workspace()
-      })
+      ws <- reactive({ directory_widget_output$workspace() })
       metadata.files = reactive({
         directory_widget_output$metadata.files()
       })

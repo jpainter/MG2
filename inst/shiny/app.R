@@ -266,16 +266,25 @@ ui <- bslib::page_navbar(
 
 server <- function(input, output, session) {
   .mg2_session_count <<- .mg2_session_count + 1L
+  cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
+              .mg2_session_count, session$token))
   if (!is.null(.mg2_pending_stop)) {
+    cat("- canceling pending stopApp timer\n")
     later::cancel(.mg2_pending_stop)
     .mg2_pending_stop <<- NULL
   }
 
   session$onSessionEnded(function() {
     .mg2_session_count <<- .mg2_session_count - 1L
+    cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
+                .mg2_session_count, session$token))
     if (.mg2_session_count <= 0L) {
+      cat(sprintf("- scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
       .mg2_pending_stop <<- later::later(function() {
-        if (.mg2_session_count <= 0L) stopApp()
+        if (.mg2_session_count <= 0L) {
+          cat("\n- grace period expired, stopping app\n")
+          stopApp()
+        }
       }, delay = .mg2_stop_grace_sec)
     }
   })

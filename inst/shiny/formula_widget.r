@@ -172,10 +172,7 @@ formula_widget_server <- function(
       dir = reactive({
         directory_widget_output$directory()
       })
-      ws <- reactive({
-        req(dir())
-        mg2_workspace(dir())
-      })
+      ws <- reactive({ directory_widget_output$workspace() })
       validationRules = reactive({
         if (!is.null(metadata_widget_output)) metadata_widget_output$validationRules()
       })

@@ -4,47 +4,47 @@ directory_widget_ui = function(id) {
   tagList(
     hr(),
 
-    h3('Step 1.  Provide directory for data files:'),
-
-    fluidRow(
-      column(
-        12,
-        selectizeInput(
-          ns("data.directory"),
-          label   = NULL,
-          choices = NULL,
-          width   = "100%",
-          options = list(
-            create       = TRUE,
-            createOnBlur = TRUE,
-            placeholder  = "Select a recent directory or paste/type a path..."
+    # Local directory picker — hidden when a Drive folder is connected
+    div(
+      id = ns("local_dir_section"),
+      h3('Step 1.  Provide directory for data files:'),
+      fluidRow(
+        column(
+          12,
+          selectizeInput(
+            ns("data.directory"),
+            label   = NULL,
+            choices = NULL,
+            width   = "100%",
+            options = list(
+              create       = TRUE,
+              createOnBlur = TRUE,
+              placeholder  = "Select a recent directory or paste/type a path..."
+            )
           )
         )
-      )
-    ),
-
-    fluidRow(
-      column(
-        3,
-        shinyFiles::shinyDirButton(
-          ns("folder"),
-          label     = "Browse...",
-          title     = "Select data directory",
-          icon      = icon("folder-open"),
-          style     = "width: 100%"
-        )
       ),
+      fluidRow(
+        column(
+          3,
+          shinyFiles::shinyDirButton(
+            ns("folder"),
+            label     = "Browse...",
+            title     = "Select data directory",
+            icon      = icon("folder-open"),
+            style     = "width: 100%"
+          )
+        ),
+      ),
+      br(),
+      h4('Or connect a cloud drive:')
     ),
-
-    br(),
-
-    h4('Or connect a cloud drive:'),
 
     uiOutput(ns("gdrive_connect_ui")),
 
     br(),
 
-    h4('This directory Contains:'),
+    uiOutput(ns("folder_contents_heading")),
 
     tableOutput(ns('folderInfo')),
 
@@ -283,12 +283,25 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       # per session load; the browser did a full-page navigation to get here,
       # so this is a brand-new Shiny session -- mg2_gdrive_verify_state()
       # validates the state nonce without needing session continuity.
+      # Log the full client URL once on session init so we can trace redirects
+      observe({
+        cd <- session$clientData
+        cat(sprintf(
+          "\n* directory_widget session init (id=%s)\n  url: %s//%s:%s%s%s\n",
+          session$token,
+          cd$url_protocol, cd$url_hostname, cd$url_port,
+          cd$url_pathname, cd$url_search
+        ))
+      }) |> bindEvent(session$clientData$url_search, once = TRUE, ignoreInit = FALSE)
+
       observeEvent(session$clientData$url_search, {
-        cat("\n* gdrive redirect observer fired\n")
+        cat("\n* gdrive redirect observer fired (once=TRUE, so fires at most once)\n")
         qs <- session$clientData$url_search
-        cat("- url_search:", qs, "\n")
+        cat("- url_search:", if (nzchar(qs)) qs else "<empty>", "\n")
+        cat("- redirect_uri will be:", redirect_uri(), "\n")
         if (!nzchar(qs)) { cat("- empty query string, skipping\n"); return() }
         params <- shiny::parseQueryString(qs)
+        cat("- parsed params:", paste(names(params), collapse=", "), "\n")
         if (is.null(params$code) || is.null(params$state)) {
           cat("- no code/state in query string, skipping\n")
           return()
@@ -395,6 +408,24 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         gdrive_token(NULL)
         gdrive_folder_id(NULL)
         gdrive_folder_nm(NULL)
+      })
+
+      # Hide the local directory picker when Drive is connected; restore it on disconnect
+      observe({
+        if (!is.null(gdrive_folder_id())) {
+          shinyjs::hide(ns("local_dir_section"))
+        } else {
+          shinyjs::show(ns("local_dir_section"))
+        }
+      })
+
+      # Dynamic heading: "This Drive folder contains" vs "This directory contains"
+      output$folder_contents_heading <- renderUI({
+        if (!is.null(gdrive_folder_id())) {
+          h4(paste0("Drive folder \u201c", gdrive_folder_nm(), "\u201d contains:"))
+        } else {
+          h4("This directory contains:")
+        }
       })
 
       # Workspace object — wraps data.folder() (or a connected Google Drive

@@ -33,7 +33,7 @@ run_mg2 <- function(...) {
   on.exit(try(httpuv::stopAllServers(), silent = TRUE), add = TRUE)
 
   args <- utils::modifyList(
-    list(appDir = app_dir, display.mode = "normal", launch.browser = TRUE),
+    list(appDir = app_dir, display.mode = "normal", launch.browser = TRUE, port = 8100L),
     list(...)
   )
 

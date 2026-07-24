@@ -171,10 +171,7 @@ combine_widget_server <- function(id,
     ns <- session$ns
 
     # ── Reactive dependencies ───────────────────────────────────────────────
-    ws          <- reactive({
-      req(directory_widget_output$workspace())
-      directory_widget_output$workspace()
-    })
+    ws          <- reactive({ directory_widget_output$workspace() })
     ousTree     <- reactive({ metadata_widget_output$ousTree() })
 
     # ── Step and source state ───────────────────────────────────────────────

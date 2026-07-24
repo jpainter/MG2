@@ -129,10 +129,7 @@ data_request_widget_server <- function(
       data.folder = reactive({
         dataDirectory$directory()
       })
-      ws <- reactive({
-        req(dataDirectory$workspace())
-        dataDirectory$workspace()
-      })
+      ws <- reactive({ dataDirectory$workspace() })
       indicator = reactive({
         data_widget_output$indicator()
       })
