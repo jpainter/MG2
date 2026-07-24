@@ -379,12 +379,16 @@ ws_save_xlsx.mg2_ws_onedrive <- function(ws, wb, filename)
 ws_file_exists <- function(ws, filename) UseMethod("ws_file_exists")
 
 #' @export
-ws_file_exists.mg2_ws_local <- function(ws, filename)
+ws_file_exists.mg2_ws_local <- function(ws, filename) {
+  if (length(filename) == 0 || !nzchar(filename)) return(FALSE)
   file.exists(file.path(ws$path, filename))
+}
 
 #' @export
-ws_file_exists.mg2_ws_gdrive <- function(ws, filename)
+ws_file_exists.mg2_ws_gdrive <- function(ws, filename) {
+  if (length(filename) == 0 || !nzchar(filename)) return(FALSE)
   !is.null(.ws_gdrive_find(ws, filename))
+}
 
 #' @export
 ws_file_exists.mg2_ws_onedrive <- function(ws, filename)
