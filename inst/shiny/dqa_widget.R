@@ -420,6 +420,7 @@ dqa_widget_server <- function(
 
       # DQA data filtered to selected elements
       dqa_data = reactive({
+        if (!is.null(current_tab)) req(current_tab() == "DQA")
         req(region_filtered_data1())
         req(length(selected_dqa_elements$elements) > 0)
         d     <- region_filtered_data1()
