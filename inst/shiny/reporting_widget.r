@@ -1606,8 +1606,13 @@ reporting_widget_server <- function(
           return(g)
         }
 
-        #print('end plot2')
-        return(g)
+        # No data for the selected element — return an informative empty plot
+        ggplot() +
+          annotate(
+            "text", x = 0.5, y = 0.5, size = 5, color = "#888888",
+            label = "No reports found for the selected element.\nThe element may exist in the formula but have no recorded values."
+          ) +
+          theme_void()
       })
 
       r_month <- chartModuleServer(
