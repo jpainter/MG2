@@ -297,6 +297,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         else
           NULL
       })
+      # TRUE once the user has clicked "Connect / Reconnect Google Drive" in
+      # this session. Used by app.R's onSessionEnded to decide whether to apply
+      # the OAuth grace period (the click navigates the browser away, ending the
+      # Shiny session, so we need to survive long enough for the redirect back).
+      # Detecting the CLICK is the right signal -- drive_connected() only becomes
+      # TRUE in the NEW session (after redirect), never in the session that ends.
+      oauth_initiated  <- reactiveVal(FALSE)
 
       .parse_gdrive_folder_id <- function(x) {
         x <- trimws(x)
@@ -318,6 +325,16 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           if (nzchar(cd$url_port)) paste0(":", cd$url_port) else "",
           cd$url_pathname
         )
+      })
+
+      # When the user clicks Connect / Reconnect, navigate the browser to Google.
+      # Generate the state nonce here (at click time), mark oauth_initiated so
+      # app.R knows to apply the grace period before stopping.
+      observeEvent(input$gdrive_auth_btn, {
+        state <- mg2_gdrive_new_state()
+        oauth_initiated(TRUE)
+        shinyjs::runjs(sprintf("window.location.href='%s';",
+                                mg2_gdrive_auth_url(redirect_uri(), state)))
       })
 
       # Handle the redirect back from Google (?code=...&state=...). Runs once
@@ -378,17 +395,16 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           )
         } else if (!is.null(fid) && !is.null(fnm) && is.null(tok)) {
           # Folder saved from a previous session but token expired — one-click reconnect
-          state <- mg2_gdrive_new_state()
           tagList(
             div(
               style = "margin-bottom: 6px; color: #555;",
               icon("folder"), paste0(" Previous folder: ", fnm)
             ),
-            tags$a(
-              href  = mg2_gdrive_auth_url(redirect_uri(), state),
+            actionButton(
+              ns("gdrive_auth_btn"),
+              tagList(icon("rotate-right"), " Reconnect Google Drive"),
               class = "btn btn-outline-primary",
-              style = "width: 100%; display: inline-block; text-align: center;",
-              icon("rotate-right"), " Reconnect Google Drive"
+              style = "width: 100%; display: inline-block; text-align: center;"
             ),
             actionLink(ns("gdrive_disconnect"), "Clear saved folder")
           )
@@ -410,12 +426,11 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           )
         } else {
           # Not connected at all
-          state <- mg2_gdrive_new_state()
-          tags$a(
-            href  = mg2_gdrive_auth_url(redirect_uri(), state),
+          actionButton(
+            ns("gdrive_auth_btn"),
+            tagList(icon("cloud"), " Connect Google Drive"),
             class = "btn btn-outline-primary",
-            style = "width: 100%; display: inline-block; text-align: center;",
-            icon("cloud"), " Connect Google Drive"
+            style = "width: 100%; display: inline-block; text-align: center;"
           )
         }
       })
@@ -526,7 +541,8 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         directory = data.folder,
         metadata.files = metadata.files,
         geofeatures.files = geofeatures.files,
-        drive_connected = reactive({ !is.null(gdrive_token()) && !is.null(gdrive_folder_id()) })
+        drive_connected = reactive({ !is.null(gdrive_token()) && !is.null(gdrive_folder_id()) }),
+        oauth_initiated = oauth_initiated
       ))
     }
   )

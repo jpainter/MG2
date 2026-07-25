@@ -274,19 +274,21 @@ server <- function(input, output, session) {
     .mg2_pending_stop <<- NULL
   }
 
-  # Track whether Drive was authenticated during this session. Set by an
-  # observer below (after directory_widget_server runs). Used in onSessionEnded
-  # to decide whether to apply the OAuth grace period.
-  .session_drive_active <- FALSE
+  # TRUE once the user clicks "Connect / Reconnect Google Drive" in this session.
+  # Clicking the button navigates the browser to Google (ending the WebSocket),
+  # so we need the grace period to survive until the redirect lands back.
+  # We detect the CLICK — not auth completion — because auth only completes in
+  # the NEW session (after the redirect), never in the session that initiated it.
+  .session_oauth_initiated <- FALSE
 
   session$onSessionEnded(function() {
     .mg2_session_count <<- .mg2_session_count - 1L
     cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
                 .mg2_session_count, session$token))
     if (.mg2_session_count <= 0L) {
-      if (.session_drive_active) {
-        # Drive OAuth redirect may be in flight — wait for the new session
-        cat(sprintf("- Drive was active; scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
+      if (.session_oauth_initiated) {
+        # OAuth redirect may be in flight — wait for the new session
+        cat(sprintf("- OAuth initiated; scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
         .mg2_pending_stop <<- later::later(function() {
           if (.mg2_session_count <= 0L) {
             cat("\n- grace period expired, stopping app\n")
@@ -294,7 +296,7 @@ server <- function(input, output, session) {
           }
         }, delay = .mg2_stop_grace_sec)
       } else {
-        # Local-only session — stop immediately (original behavior)
+        # Normal close — stop immediately (original behavior)
         stopApp()
       }
     }
@@ -322,11 +324,11 @@ server <- function(input, output, session) {
 
   directory_widget_output <- directory_widget_server("directory1", demo_dir = demo_dir)
 
-  # Set session flag when Drive is authenticated so onSessionEnded knows
-  # to apply the OAuth grace period instead of stopping immediately.
+  # Set session flag when the user clicks "Connect / Reconnect Google Drive" so
+  # onSessionEnded knows to apply the OAuth grace period instead of stopping immediately.
   observe({
-    if (isTRUE(directory_widget_output$drive_connected())) {
-      .session_drive_active <<- TRUE
+    if (isTRUE(directory_widget_output$oauth_initiated())) {
+      .session_oauth_initiated <<- TRUE
     }
   })
 
