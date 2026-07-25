@@ -401,15 +401,19 @@ data_widget_server <- function(
 
       dataset.file = reactive({
         req(input$dataset)
-        req(data.folder())
 
         cat('\n* data_widget  dataset.file():', input$dataset)
 
-        data.folder = isolate(data.folder())
-        file = paste0(data.folder, input$dataset)
-
-        cat('\n - ', file)
-        return(file)
+        current_ws <- ws()
+        if (ws_is_local(current_ws)) {
+          req(data.folder())
+          file <- paste0(data.folder(), input$dataset)
+          cat('\n - ', file)
+          return(file)
+        } else {
+          # Drive: return just the filename; ws_file_exists / ws_read_file handle it
+          return(input$dataset)
+        }
       })
 
       # Rescan button: reconstruct raw format → data_1() → store in rescan_val()
@@ -524,7 +528,7 @@ data_widget_server <- function(
 
         file = isolate(dataset.file())
 
-        if (!is.null(input$dataset) && file_test("-f", file)) {
+        if (!is.null(input$dataset) && ws_file_exists(ws(), basename(file))) {
           # Return cached result when file path and scan counter are unchanged.
           # This prevents "Reading data" from flashing (and replacing other modals)
           # when Shiny re-sends input$dataset with the same value.

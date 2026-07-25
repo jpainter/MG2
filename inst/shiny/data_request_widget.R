@@ -475,7 +475,7 @@ data_request_widget_server <- function(
           if (ws_file_exists(ws(), dataset.file())) {
             .previous_dataset_file = ws_local_copy(ws(), dataset.file())
             .update = TRUE
-            cat('\n - previous file exists:', file)
+            cat('\n - previous file exists:', dataset.file())
             # Previous dataset file:
             .dataset = dataset()
           } else {
