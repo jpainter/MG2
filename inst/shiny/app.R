@@ -274,18 +274,29 @@ server <- function(input, output, session) {
     .mg2_pending_stop <<- NULL
   }
 
+  # Track whether Drive was authenticated during this session. Set by an
+  # observer below (after directory_widget_server runs). Used in onSessionEnded
+  # to decide whether to apply the OAuth grace period.
+  .session_drive_active <- FALSE
+
   session$onSessionEnded(function() {
     .mg2_session_count <<- .mg2_session_count - 1L
     cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
                 .mg2_session_count, session$token))
     if (.mg2_session_count <= 0L) {
-      cat(sprintf("- scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
-      .mg2_pending_stop <<- later::later(function() {
-        if (.mg2_session_count <= 0L) {
-          cat("\n- grace period expired, stopping app\n")
-          stopApp()
-        }
-      }, delay = .mg2_stop_grace_sec)
+      if (.session_drive_active) {
+        # Drive OAuth redirect may be in flight — wait for the new session
+        cat(sprintf("- Drive was active; scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
+        .mg2_pending_stop <<- later::later(function() {
+          if (.mg2_session_count <= 0L) {
+            cat("\n- grace period expired, stopping app\n")
+            stopApp()
+          }
+        }, delay = .mg2_stop_grace_sec)
+      } else {
+        # Local-only session — stop immediately (original behavior)
+        stopApp()
+      }
     }
   })
 
@@ -310,6 +321,14 @@ server <- function(input, output, session) {
   })
 
   directory_widget_output <- directory_widget_server("directory1", demo_dir = demo_dir)
+
+  # Set session flag when Drive is authenticated so onSessionEnded knows
+  # to apply the OAuth grace period instead of stopping immediately.
+  observe({
+    if (isTRUE(directory_widget_output$drive_connected())) {
+      .session_drive_active <<- TRUE
+    }
+  })
 
   login_widget_output <- login_widget_server(
     "login1",

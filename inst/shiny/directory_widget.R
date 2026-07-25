@@ -525,7 +525,8 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         workspace = workspace,
         directory = data.folder,
         metadata.files = metadata.files,
-        geofeatures.files = geofeatures.files
+        geofeatures.files = geofeatures.files,
+        drive_connected = reactive({ !is.null(gdrive_token()) && !is.null(gdrive_folder_id()) })
       ))
     }
   )
