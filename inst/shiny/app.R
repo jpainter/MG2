@@ -260,18 +260,26 @@ ui <- bslib::page_navbar(
 # would kill the app before the redirect ever lands. Instead: wait a grace
 # period long enough to cover that round-trip, and cancel the pending stop
 # if a new session connects (the redirect coming back) in the meantime.
-.mg2_session_count  <- 0L
-.mg2_pending_stop   <- NULL
-.mg2_stop_grace_sec <- 90
+# These two globals must live in .GlobalEnv so their values (and the
+# later() cancel handle) survive across run_mg2() calls.  Each new call
+# sources app.R into a fresh environment; without .GlobalEnv the cancel
+# handle is orphaned and the old timer fires on the newly-launched app.
+if (is.function(.GlobalEnv$.mg2_pending_stop)) {
+  cat("* Canceling pending stopApp timer from previous app instance\n")
+  .GlobalEnv$.mg2_pending_stop()
+}
+.GlobalEnv$.mg2_pending_stop  <- NULL
+.GlobalEnv$.mg2_session_count <- 0L
+.mg2_stop_grace_sec <- 90   # grace period duration; local to this app env is fine
 
 server <- function(input, output, session) {
-  .mg2_session_count <<- .mg2_session_count + 1L
+  .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
   cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
-              .mg2_session_count, session$token))
-  if (!is.null(.mg2_pending_stop)) {
+              .GlobalEnv$.mg2_session_count, session$token))
+  if (!is.null(.GlobalEnv$.mg2_pending_stop)) {
     cat("- canceling pending stopApp timer\n")
-    .mg2_pending_stop()   # later() returns a cancel function; call it to cancel
-    .mg2_pending_stop <<- NULL
+    .GlobalEnv$.mg2_pending_stop()
+    .GlobalEnv$.mg2_pending_stop <- NULL
   }
 
   # TRUE once the user clicks "Connect / Reconnect Google Drive" in this session.
@@ -282,15 +290,15 @@ server <- function(input, output, session) {
   .session_oauth_initiated <- FALSE
 
   session$onSessionEnded(function() {
-    .mg2_session_count <<- .mg2_session_count - 1L
+    .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
     cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
-                .mg2_session_count, session$token))
-    if (.mg2_session_count <= 0L) {
+                .GlobalEnv$.mg2_session_count, session$token))
+    if (.GlobalEnv$.mg2_session_count <= 0L) {
       if (.session_oauth_initiated) {
         # OAuth redirect may be in flight — wait for the new session
         cat(sprintf("- OAuth initiated; scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
-        .mg2_pending_stop <<- later::later(function() {
-          if (.mg2_session_count <= 0L) {
+        .GlobalEnv$.mg2_pending_stop <- later::later(function() {
+          if (.GlobalEnv$.mg2_session_count <= 0L) {
             cat("\n- grace period expired, stopping app\n")
             stopApp()
           }
