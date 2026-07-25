@@ -481,10 +481,13 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         clear_gdrive_folder()
       })
 
-      # Hide the local directory picker when Drive is connected; restore it on disconnect.
+      # Hide the local directory picker only when fully connected to Drive
+      # (both folder ID and token present). A saved folder ID without a token
+      # means "reconnect pending" — the user is still in local mode.
       # shinyjs auto-prepends the module namespace, so pass the bare id (no ns()).
       observe({
-        if (!is.null(gdrive_folder_id())) {
+        drive_active <- !is.null(gdrive_folder_id()) && !is.null(gdrive_token())
+        if (drive_active) {
           shinyjs::hide("local_dir_section")
         } else {
           shinyjs::show("local_dir_section")
@@ -493,7 +496,8 @@ directory_widget_server <- function(id, demo_dir = NULL) {
 
       # Dynamic heading: "This Drive folder contains" vs "This directory contains"
       output$folder_contents_heading <- renderUI({
-        if (!is.null(gdrive_folder_id())) {
+        drive_active <- !is.null(gdrive_folder_id()) && !is.null(gdrive_token())
+        if (drive_active) {
           h4(paste0("Drive folder \u201c", gdrive_folder_nm(), "\u201d contains:"))
         } else {
           h4("This directory contains:")
