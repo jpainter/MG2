@@ -250,8 +250,29 @@ ui <- bslib::page_navbar(
 )
 
 # Server --------------------------------------------------------------------
+
+# Track session count in .GlobalEnv so it survives across run_mg2() calls
+# (each call sources app.R into a fresh environment).
+if (is.function(.GlobalEnv$.mg2_pending_stop)) {
+  cat("* Canceling pending stopApp timer from previous app instance\n")
+  .GlobalEnv$.mg2_pending_stop()
+}
+.GlobalEnv$.mg2_pending_stop  <- NULL
+.GlobalEnv$.mg2_session_count <- 0L
+
 server <- function(input, output, session) {
-  session$onSessionEnded(stopApp)
+  .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
+  cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
+              .GlobalEnv$.mg2_session_count, session$token))
+
+  session$onSessionEnded(function() {
+    .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
+    cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
+                .GlobalEnv$.mg2_session_count, session$token))
+    if (.GlobalEnv$.mg2_session_count <= 0L) {
+      stopApp()
+    }
+  })
 
   # Dependency check — show notifications for warnings on startup
   local({
