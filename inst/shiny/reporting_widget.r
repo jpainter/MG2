@@ -1656,7 +1656,8 @@ reporting_widget_server <- function(
               ) +
               scale_color_manual(
                 name   = "Facilities",
-                values = c('All' = 'black', 'Champion' = 'brown', 'System gap' = 'darkorange')
+                values = c('All' = 'black', 'Champion' = 'brown', 'System gap' = 'darkorange'),
+                drop   = FALSE   # keep all 3 keys so override.aes length always matches
               ) +
               guides(color = guide_legend(
                 override.aes = list(
