@@ -267,7 +267,7 @@ reporting_widget_ui = function(id) {
           ),
 
           tabPanel(
-            "Facilities",
+            "Champion vs Non-Champion",
 
             # tableOutput( ns('orgUnitReportingTable'))
 
@@ -306,8 +306,9 @@ reporting_widget_ui = function(id) {
               ),
               tabPanel(
                 "Data",
-                style = "height:80vh; overflow: hidden;",
-                DT::dataTableOutput(ns("facility_table"))
+                style = "padding-top:8px;",
+                div(style = "height:75vh; overflow-y:auto;",
+                    DT::dataTableOutput(ns("facility_table")))
               )
             )
           )
@@ -2424,13 +2425,19 @@ reporting_widget_server <- function(
             summarise(medianValue = median(dataCol, na.rm = TRUE), .groups = "drop")
         }
 
+        # Attach facility display name from raw data (orgUnitName column, if present)
+        if ("orgUnitName" %in% names(selected_data())) {
+          name_lookup <- unique(selected_data()[, c("orgUnit", "orgUnitName")])
+          avgValues <- dplyr::left_join(avgValues, name_lookup, by = "orgUnit")
+        }
+
         cat("\n - done avgValues:")
         return(avgValues)
       })
 
       champion_facilities = reactive({
         req(avgValues())
-        req(reportingSelectedOUs())
+        req(!is.null(reportingSelectedOUs()))
         cat("\n * champion_facilities:")
 
         sou = reportingSelectedOUs()
@@ -2475,7 +2482,7 @@ reporting_widget_server <- function(
             champion = ifelse(
               id %in% sou,
               "Consistent Reporting (Champion)",
-              "Inconstent Reporting"
+              "Inconsistent Reporting"
             )
           )
 
@@ -2497,36 +2504,56 @@ reporting_widget_server <- function(
       })
 
       facility_chart = reactive({
-        req(champion_facilities())
+        req(avgValues())
+        req(!is.null(reportingSelectedOUs()))
         cat("\n * facility_chart:")
 
-        champion_facilities = champion_facilities() %>% st_drop_geometry()
+        sou <- reportingSelectedOUs()
+        av  <- avgValues()
 
-        summary = champion_facilities %>%
-          select(-parentGraph, groups) %>%
+        chart_data <- av %>%
+          mutate(
+            champion = ifelse(
+              orgUnit %in% sou,
+              "Consistent Reporting (Champion)",
+              "Inconsistent Reporting"
+            )
+          )
+
+        # Only keep categories that actually exist in data
+        summary_tbl <- chart_data %>%
           group_by(champion) %>%
-          summarise(n = n(), mean = mean(medianValue, na.rm = TRUE))
+          summarise(n = dplyr::n(), mean = mean(medianValue, na.rm = TRUE),
+                    .groups = "drop") %>%
+          arrange(champion)
 
-        annotation = paste0(
-          "mean = ",
-          round(summary$mean),
-          " (n=",
-          scales::comma(summary$n),
-          ")"
+        annotation <- paste0(
+          "mean = ", round(summary_tbl$mean),
+          " (n=", scales::comma(summary_tbl$n), ")"
         )
+        # x positions for annotation match the factor levels that exist
+        x_pos <- seq_len(nrow(summary_tbl))
 
-        facility_chart =
-          champion_facilities %>%
+        if (nrow(chart_data) == 0 || all(is.na(chart_data$medianValue))) {
+          return(
+            ggplot() +
+              annotate("text", x = 0.5, y = 0.5,
+                       label = "No facility data available for this selection.",
+                       size = 5, color = "grey50") +
+              theme_void()
+          )
+        }
+
+        facility_chart <-
+          chart_data %>%
           ggplot(aes(champion, medianValue)) +
           geom_boxplot() +
           stat_summary(fun = mean, geom = "point", shape = 5, size = 4) +
           geom_jitter(width = .35) +
-          labs(x = "", y = "Median Value") +
+          labs(x = "", y = "Median Value",
+               title = "Comparison of Values Reported by Consistent and Inconsistent Reporting Facilities") +
           scale_y_log10() +
-          annotate('text', x = 1:2, y = 1.5, label = annotation) +
-          labs(
-            title = "Comparison of Values Repoted by Consistent and Inconsistent Reporting Facilities"
-          )
+          annotate("text", x = x_pos, y = 1.5, label = annotation)
 
         cat("\n - done facility_chart:")
         return(facility_chart)
@@ -2640,7 +2667,12 @@ reporting_widget_server <- function(
 
         cat('\n - factpal')
 
-        factpal <- colorFactor(c("red4", "grey20"), facilities$champion)
+        # Specify levels explicitly so colorFactor works even when facilities
+        # is an empty sf (no GPS coordinates matched for this facility).
+        factpal <- colorFactor(
+          palette = c("red4", "grey20"),
+          levels  = c("Consistent Reporting (Champion)", "Inconsistent Reporting")
+        )
 
         cat('\n - add markers')
 
@@ -2683,6 +2715,114 @@ reporting_widget_server <- function(
         # Split into champion / non-champion for separate coloured cluster layers
         champ    <- facilities %>% filter(champion == "Consistent Reporting (Champion)")
         nonchamp <- facilities %>% filter(champion != "Consistent Reporting (Champion)")
+
+        # ── District-level choropleth fallback ──────────────────────────────
+        # When geoFeatures has no POINT features matching facility UIDs (e.g.
+        # demo data only has district polygons), aggregate champion status to
+        # the district level and show a choropleth, mirroring the DQA map.
+        if (nrow(champ) == 0 && nrow(nonchamp) == 0) {
+          cat("\n - no facility points matched; building district choropleth")
+          ln       <- levelNames()
+          lvl2_col <- if (length(ln) >= 2L) ln[2L] else NULL
+          sou      <- reportingSelectedOUs()
+
+          gf_poly <- gf %>%
+            dplyr::filter(sf::st_geometry_type(.) != "POINT") %>%
+            dplyr::filter(!sf::st_is_empty(.)) %>%
+            sf::st_transform(4326)
+
+          # Build district-level summary from avgValues + champion status
+          # Note: `avgValues` is already the data frame (local variable above)
+          av <- avgValues
+          if (!is.null(lvl2_col) && lvl2_col %in% names(av) && nrow(gf_poly) > 0) {
+            # Normalize names before joining: strip 2-3 char lowercase prefix
+            # (e.g. "eb Ebonyi State" → "Ebonyi State") AND common admin suffixes
+            # (e.g. "Ebonyi State" → "Ebonyi") so both sides reduce to the bare
+            # geographic name, which is what geoFeatures$name uses in many DHIS2
+            # instances.
+            .norm_name <- function(x) {
+              x <- sub("^[a-z]{2,3}\\s+", "", x)
+              x <- sub("\\s+(State|Province|Region|District|County|Department|Division|Zone|Territory)$",
+                       "", x, ignore.case = TRUE)
+              trimws(x)
+            }
+            dist_sum <- av %>%
+              dplyr::mutate(
+                is_champ  = orgUnit %in% sou,
+                .join_key = .norm_name(!!rlang::sym(lvl2_col))
+              ) %>%
+              dplyr::group_by(.join_key) %>%
+              dplyr::summarise(
+                n_total      = dplyr::n(),
+                n_champion   = sum(is_champ),
+                pct_champion = mean(is_champ),
+                median_value = median(medianValue, na.rm = TRUE),
+                .groups = "drop"
+              )
+
+            gf_poly <- gf_poly %>%
+              dplyr::mutate(.name_norm = .norm_name(name))
+            cat("\n - reporting choropleth: gf names sample:",
+                paste(head(sort(gf_poly$.name_norm), 5), collapse = ", "))
+            cat("\n - reporting choropleth: dist_sum keys:",
+                paste(head(sort(dist_sum$.join_key), 5), collapse = ", "))
+
+            gf_data <- gf_poly %>%
+              dplyr::left_join(dist_sum, by = c(".name_norm" = ".join_key"))
+
+            n_matched <- sum(!is.na(gf_data$pct_champion))
+            cat("\n - district choropleth: matched", n_matched, "of", nrow(gf_data), "districts")
+
+            if (n_matched > 0) {
+              pal  <- leaflet::colorNumeric("RdYlGn", domain = c(0, 1), na.color = "#cccccc")
+              bbox <- tryCatch(sf::st_bbox(gf_data), error = function(e) NULL)
+              m <- leaflet::leaflet(gf_data) %>%
+                leaflet::addTiles() %>%
+                leaflet::addPolygons(
+                  fillColor  = ~pal(pct_champion),
+                  fillOpacity = 0.75,
+                  color      = "white",
+                  weight     = 1,
+                  label      = ~paste0(
+                    name, ": ",
+                    ifelse(is.na(pct_champion), "no data",
+                           paste0(round(100 * pct_champion, 1), "% champion (",
+                                  n_champion, "/", n_total, ")"))
+                  ),
+                  highlightOptions = leaflet::highlightOptions(
+                    weight = 2, color = "#444", bringToFront = TRUE
+                  )
+                ) %>%
+                leaflet::addLegend(
+                  pal    = pal, values = c(0, 1),
+                  title  = "% Champion<br>Facilities",
+                  labFormat = leaflet::labelFormat(
+                    suffix = "%", transform = function(x) round(x * 100)
+                  )
+                )
+              if (!is.null(bbox))
+                m <- m %>% leaflet::fitBounds(
+                  lng1 = unname(bbox["xmin"]), lat1 = unname(bbox["ymin"]),
+                  lng2 = unname(bbox["xmax"]), lat2 = unname(bbox["ymax"])
+                )
+              cat('\n - done (district choropleth)')
+              return(m)
+            }
+          }
+
+          # If even district aggregation fails, return base map with a note
+          cat("\n - district join failed; returning base map")
+          return(
+            base.map %>%
+              leaflet::addControl(
+                html = "<div style='padding:8px;background:white;border-radius:4px;'>
+                  Facility coordinates not available.<br>
+                  District outline map shown.</div>",
+                position = "topright"
+              )
+          )
+        }
+        # ── End district choropleth fallback ─────────────────────────────────
 
         mk_radius <- function(fac) ifelse(
           is.na(fac$medianValue) | fac$medianValue == 0,
@@ -2757,8 +2897,6 @@ reporting_widget_server <- function(
                       lng2 = unname(fac_bbox["xmax"]), lat2 = unname(fac_bbox["ymax"]))
         }
 
-        #   options = popupOptions(closeButton = FALSE)
-
         cat('\n - done')
 
         return(gf.map)
@@ -2767,32 +2905,69 @@ reporting_widget_server <- function(
       chartModuleServer("facility_chart", reactive({ facility_chart() }))
 
       output$facility_map <- renderLeaflet({
+        gf <- geoFeatures()
+        if (!inherits(gf, "sf") || nrow(gf) == 0) {
+          return(
+            leaflet() %>%
+              addTiles() %>%
+              addControl(
+                html = "<div style='padding:10px;background:white;border-radius:4px;'>
+                  <b>Geographic features not available.</b><br>
+                  Load metadata with org unit boundaries to display this map.</div>",
+                position = "topright"
+              )
+          )
+        }
         facility_map()
       })
 
       output$facility_table <- DT::renderDT({
-        ln      <- levelNames()
+        ln       <- levelNames()
         prov_col <- if (length(ln) >= 2L) ln[2L] else NULL
 
-        drop_cols <- c("parentGraph", "groups", "medianValueRange",
-                       "medianValueRangeSize", "level")
+        gf_avail <- inherits(geoFeatures(), "sf") && nrow(geoFeatures()) > 0
 
-        df <- champion_facilities() %>%
-          st_drop_geometry() %>%
-          select(-any_of(drop_cols))
+        if (gf_avail) {
+          # Full table: drop internal geoFeatures columns and sf geometry
+          drop_cols <- c("parentGraph", "groups", "medianValueRange",
+                         "medianValueRangeSize", "level", "levelName",
+                         "id", "code", "parent", "parentName", "orgUnitName",
+                         "geom_type", "latitude", "longitude",
+                         ".gf_norm", ".name_norm", "geometry")
+          df <- champion_facilities() %>%
+            st_drop_geometry() %>%
+            select(-any_of(drop_cols))
+          lead_cols <- c(prov_col, "name", "champion", "medianValue")
+        } else {
+          # Fallback: build from avgValues() + reportingSelectedOUs()
+          req(avgValues())
+          req(!is.null(reportingSelectedOUs()))
+          sou <- reportingSelectedOUs()
+          av  <- avgValues()
+          df  <- av %>%
+            mutate(
+              champion = ifelse(
+                orgUnit %in% sou,
+                "Consistent Reporting (Champion)",
+                "Inconsistent Reporting"
+              )
+            )
+          # Prefer orgUnitName if avgValues() carries it, else use orgUnit UID
+          if ("orgUnitName" %in% names(df)) {
+            df <- df %>% rename(name = orgUnitName)
+          } else {
+            df <- df %>% mutate(name = orgUnit)
+          }
+          lead_cols <- c(prov_col, "name", "champion", "medianValue")
+        }
 
-        # Put province column first so table is easy to sort/filter by region
-        lead_cols <- c(prov_col, "name", "champion", "medianValue")
         lead_cols <- lead_cols[lead_cols %in% names(df)]
-        rest_cols <- setdiff(names(df), lead_cols)
+        rest_cols <- setdiff(names(df), c(lead_cols, "orgUnit"))
         df <- df[, c(lead_cols, rest_cols), drop = FALSE]
 
         # Rename for display
-        rename_map <- c(
-          name         = "Facility",
-          champion     = "Reporting",
-          medianValue  = "Median Value"
-        )
+        rename_map <- c(name = "Facility", champion = "Reporting",
+                        medianValue = "Median Value")
         if (!is.null(prov_col)) rename_map[[prov_col]] <- "Province"
         names(df)[names(df) %in% names(rename_map)] <-
           rename_map[names(df)[names(df) %in% names(rename_map)]]
@@ -2804,10 +2979,11 @@ reporting_widget_server <- function(
           rownames  = FALSE,
           filter    = "top",
           options   = list(
-            DToptions_no_buttons(),
             scrollX    = TRUE,
-            scrollY    = "60vh",
-            paging     = FALSE,
+            paging     = TRUE,
+            pageLength = 25,
+            dom        = "lBfrtip",
+            lengthMenu = list(c(25, 50, 100, -1), list("25", "50", "100", "All")),
             columnDefs = list(
               list(className = "dt-left",   targets = "_all"),
               list(className = "dt-right",

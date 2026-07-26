@@ -273,39 +273,49 @@ if (is.function(.GlobalEnv$.mg2_pending_stop)) {
 .mg2_stop_grace_sec <- 90   # grace period duration; local to this app env is fine
 
 server <- function(input, output, session) {
-  # Positron IDE always opens a built-in preview pane alongside the browser.
-  # Its session URL contains "_positronRender" in the query string. Exclude it
-  # from the real-session count so closing the browser (count 2→1) triggers
-  # stopApp() rather than leaving the app alive with count = 1.
-  # session$request is the raw HTTP request (available immediately, not reactive).
-  # Log it to fingerprint which fields differ between the Positron preview pane
-  # and a real browser session.
-  cat(sprintf(
-    "\n=== SESSION INIT (id=%s)\n    QUERY_STRING=%s\n    HTTP_USER_AGENT=%s\n    HTTP_REFERER=%s\n    PATH_INFO=%s\n",
-    session$token,
-    tryCatch(paste0(session$request$QUERY_STRING),     error = function(e) "ERR"),
-    tryCatch(paste0(session$request$HTTP_USER_AGENT),  error = function(e) "ERR"),
-    tryCatch(paste0(session$request$HTTP_REFERER),     error = function(e) "ERR"),
-    tryCatch(paste0(session$request$PATH_INFO),        error = function(e) "ERR")
-  ))
+  # ── Session counting with Positron viewer detection ──────────────────────
+  #
+  # Positron IDE opens a built-in preview pane (an embedded browser) the
+  # moment run_mg2() is called, BEFORE the user's real browser opens.
+  # This gives count=2 at startup; closing Safari drops to count=1 → the app
+  # never stops.
+  #
+  # session$request fields (QUERY_STRING, HTTP_USER_AGENT, …) are NOT safely
+  # readable at the top of server() in our environment — they all throw errors.
+  # session$clientData IS available, but only inside reactive contexts.
+  #
+  # Strategy:
+  #   1. Count every session immediately (optimistic +1).
+  #   2. Once clientData is available, check url_search for "_positronRender".
+  #      If found, correct the count back (-1) and mark this session as Positron.
+  #   3. onSessionEnded: Positron sessions are no-ops; real sessions decrement
+  #      and trigger stopApp() when count reaches 0.
 
-  .is_positron_viewer <- isTRUE(tryCatch(
-    grepl("_positronRender", session$request$QUERY_STRING, fixed = TRUE),
-    error = function(e) FALSE
-  ))
-
-  if (.is_positron_viewer) {
-    cat(sprintf("\n=== POSITRON VIEWER SESSION (not counted, id=%s) ===\n", session$token))
-  } else {
-    .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
-    cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
-                .GlobalEnv$.mg2_session_count, session$token))
-    if (!is.null(.GlobalEnv$.mg2_pending_stop)) {
-      cat("- canceling pending stopApp timer\n")
-      .GlobalEnv$.mg2_pending_stop()
-      .GlobalEnv$.mg2_pending_stop <- NULL
-    }
+  .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
+  cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
+              .GlobalEnv$.mg2_session_count, session$token))
+  if (!is.null(.GlobalEnv$.mg2_pending_stop)) {
+    cat("- canceling pending stopApp timer\n")
+    .GlobalEnv$.mg2_pending_stop()
+    .GlobalEnv$.mg2_pending_stop <- NULL
   }
+
+  # Reactive flag: starts FALSE, flipped TRUE once we confirm Positron.
+  .is_positron_viewer <- reactiveVal(FALSE)
+
+  # session$clientData$url_search is populated by the browser JS after the
+  # WebSocket handshake — fire once to check it.
+  observeEvent(session$clientData$url_search, once = TRUE, {
+    url_s <- tryCatch(session$clientData$url_search, error = function(e) "")
+    cat(sprintf("\n=== SESSION URL_SEARCH (id=%s): %s\n",
+                session$token, if (nzchar(url_s)) url_s else "(empty)"))
+    if (isTRUE(grepl("positron", url_s, ignore.case = TRUE))) {
+      .is_positron_viewer(TRUE)
+      .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
+      cat(sprintf("=== POSITRON VIEWER DETECTED — count corrected to %d (id=%s) ===\n",
+                  .GlobalEnv$.mg2_session_count, session$token))
+    }
+  })
 
   # TRUE once the user clicks "Connect / Reconnect Google Drive" in this session.
   # Clicking the button navigates the browser to Google (ending the WebSocket),
@@ -315,7 +325,7 @@ server <- function(input, output, session) {
   .session_oauth_initiated <- FALSE
 
   session$onSessionEnded(function() {
-    if (.is_positron_viewer) {
+    if (isolate(.is_positron_viewer())) {
       cat(sprintf("\n=== POSITRON VIEWER END (not counted, id=%s) ===\n", session$token))
       return()
     }
@@ -333,7 +343,7 @@ server <- function(input, output, session) {
           }
         }, delay = .mg2_stop_grace_sec)
       } else {
-        # Normal close — stop immediately (original behavior)
+        # Normal close — stop immediately
         stopApp()
       }
     }
