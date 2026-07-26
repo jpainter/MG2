@@ -273,13 +273,26 @@ if (is.function(.GlobalEnv$.mg2_pending_stop)) {
 .mg2_stop_grace_sec <- 90   # grace period duration; local to this app env is fine
 
 server <- function(input, output, session) {
-  .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
-  cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
-              .GlobalEnv$.mg2_session_count, session$token))
-  if (!is.null(.GlobalEnv$.mg2_pending_stop)) {
-    cat("- canceling pending stopApp timer\n")
-    .GlobalEnv$.mg2_pending_stop()
-    .GlobalEnv$.mg2_pending_stop <- NULL
+  # Positron IDE always opens a built-in preview pane alongside the browser.
+  # Its session URL contains "_positronRender" in the query string. Exclude it
+  # from the real-session count so closing the browser (count 2→1) triggers
+  # stopApp() rather than leaving the app alive with count = 1.
+  .is_positron_viewer <- isTRUE(tryCatch(
+    grepl("_positronRender", session$clientData$url_search, fixed = TRUE),
+    error = function(e) FALSE
+  ))
+
+  if (.is_positron_viewer) {
+    cat(sprintf("\n=== POSITRON VIEWER SESSION (not counted, id=%s) ===\n", session$token))
+  } else {
+    .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
+    cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
+                .GlobalEnv$.mg2_session_count, session$token))
+    if (!is.null(.GlobalEnv$.mg2_pending_stop)) {
+      cat("- canceling pending stopApp timer\n")
+      .GlobalEnv$.mg2_pending_stop()
+      .GlobalEnv$.mg2_pending_stop <- NULL
+    }
   }
 
   # TRUE once the user clicks "Connect / Reconnect Google Drive" in this session.
@@ -290,6 +303,10 @@ server <- function(input, output, session) {
   .session_oauth_initiated <- FALSE
 
   session$onSessionEnded(function() {
+    if (.is_positron_viewer) {
+      cat(sprintf("\n=== POSITRON VIEWER END (not counted, id=%s) ===\n", session$token))
+      return()
+    }
     .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
     cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
                 .GlobalEnv$.mg2_session_count, session$token))
