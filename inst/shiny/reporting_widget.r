@@ -1656,16 +1656,12 @@ reporting_widget_server <- function(
               ) +
               scale_color_manual(
                 name   = "Facilities",
-                values = c('All' = 'black', 'Champion' = 'brown', 'System gap' = 'darkorange'),
-                drop   = FALSE   # keep all 3 keys so override.aes length always matches
-              ) +
-              guides(color = guide_legend(
-                override.aes = list(
-                  shape    = c(19L, 19L, 25L),
-                  linetype = c("solid", "solid", "blank"),
-                  fill     = c(NA, NA, "orange")
-                )
-              ))
+                values = c('All' = 'black', 'Champion' = 'brown', 'System gap' = 'darkorange')
+              )
+              # No override.aes: ggplot2 builds each key from its geom directly.
+              # override.aes length must match legend keys exactly; that count
+              # varies (Champion absent when no facilities qualify), so a fixed
+              # list always risks a length mismatch crash.
           } else {
             g <- g +
               scale_color_manual(
