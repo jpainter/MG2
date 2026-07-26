@@ -1420,7 +1420,8 @@ reporting_widget_server <- function(
 
       reportingSelectedOUs <- reactive({
         #print( 'reportingSelectedOUs()' )
-        req(hasVisitedReporting())  # dormant until user first opens Reporting tab
+        req(hasVisitedReporting())         # dormant until user first opens Reporting tab
+        req(current_tab() == "Reporting")  # suspend when user navigates away
         req(endingMonth_debounced())
         req(startingMonth_debounced())
         req(d())
@@ -1805,19 +1806,25 @@ reporting_widget_server <- function(
         reactive({ plot1() + theme_bw(base_size = 16) })
       )
 
-      # Cache the last successfully-computed selected_data so that downstream
-      # widgets (cleaning, evaluation, dqa) always have a stable value even if
-      # selected_data() is mid-computation or blocked by req().
+      # Cache the last successfully-computed values so downstream widgets
+      # (cleaning, evaluation, dqa) keep a stable result while the user is on
+      # another tab and the Reporting reactives are suspended by req().
       cached_selected_data = reactiveValues(value = NULL)
       observeEvent(selected_data(), ignoreNULL = TRUE, {
         cached_selected_data$value <- selected_data()
+      })
+
+      cached_rous = reactiveValues(value = NULL)
+      observeEvent(reportingSelectedOUs(), ignoreNULL = FALSE, {
+        cached_rous$value <- reportingSelectedOUs()
       })
 
       # selected_data. select ous and data element categories ####
 
       selected_data = reactive({
         #print( 'selected_data():')
-        req(hasVisitedReporting())  # dormant until user first opens Reporting tab
+        req(hasVisitedReporting())         # dormant until user first opens Reporting tab
+        req(current_tab() == "Reporting")  # suspend when user navigates away
         req(data1())
         req(selected_data_categories$elements)
 
@@ -2846,7 +2853,7 @@ reporting_widget_server <- function(
           num_facilities = num_facilities,
           selected_data = reactive({ cached_selected_data$value }),
           caption.text = caption.text,
-          reportingSelectedOUs = reportingSelectedOUs,
+          reportingSelectedOUs = reactive({ cached_rous$value }),
           selected_data_categories = reactive({ selected_data_categories$elements })
         )
       )
