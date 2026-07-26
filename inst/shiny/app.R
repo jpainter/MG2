@@ -277,6 +277,18 @@ server <- function(input, output, session) {
   # Its session URL contains "_positronRender" in the query string. Exclude it
   # from the real-session count so closing the browser (count 2→1) triggers
   # stopApp() rather than leaving the app alive with count = 1.
+  # Log all clientData URL fields so we can fingerprint the Positron viewer
+  # session vs the real browser session and pick the right detection criterion.
+  cat(sprintf(
+    "\n=== SESSION INIT (id=%s)\n    url_search=%s\n    url_pathname=%s\n    url_hostname=%s\n    url_port=%s\n    url_protocol=%s\n",
+    session$token,
+    tryCatch(paste0(session$clientData$url_search),   error = function(e) "ERR"),
+    tryCatch(paste0(session$clientData$url_pathname), error = function(e) "ERR"),
+    tryCatch(paste0(session$clientData$url_hostname), error = function(e) "ERR"),
+    tryCatch(paste0(session$clientData$url_port),     error = function(e) "ERR"),
+    tryCatch(paste0(session$clientData$url_protocol), error = function(e) "ERR")
+  ))
+
   .is_positron_viewer <- isTRUE(tryCatch(
     grepl("_positronRender", session$clientData$url_search, fixed = TRUE),
     error = function(e) FALSE
