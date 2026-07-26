@@ -196,6 +196,7 @@ mostFrequentReportingOUs <- function(
   count.any = NULL,          # deprecated — use reporting_rule
   reporting_rule = NULL,     # "all_categories" | "all_elements" | "any_selected" | "any_data"
   data_categories = NULL,
+  strict = TRUE,             # TRUE: require all calendar months; FALSE: only months with any reports
   testing = FALSE,
   .cat = FALSE
 ) {
@@ -325,17 +326,38 @@ mostFrequentReportingOUs <- function(
   mr = dt_rep[, .(report_periods = .N), by = .(year, orgUnit)]
   if (.cat) cat('\n - mr rows:', nrow(mr), '| unique orgUnits:', uniqueN(mr$orgUnit), '| unique years:', uniqueN(mr$year))
 
-  # Denominator: count distinct periods per year using SELECTED elements only
-  # (when available). This ensures the time window is defined by when the
-  # selected data was being collected — not by all elements in the dataset.
-  dt_periods <- if (has_cats && reporting_rule != "any_data")
-    dt[get("data") %chin% data_categories]
-  else
-    dt
-  ppy = unique(dt_periods[, period, with = FALSE])
-  setnames(ppy, period, 'period_val')
-  ppy[, year := data.table::year(as.IDate(unclass(period_val), origin = "1970-01-01"))]
-  periods_per_year = ppy[, .(max = .N), by = year]
+  # Denominator: how many periods should a champion have reported each year?
+  #
+  # strict = TRUE  (default): every calendar period in [startingMonth, endingMonth].
+  #   A month with zero reporters still counts against any facility that missed it.
+  #   System-wide gaps (strikes, form changes) are penalised — "champion" means
+  #   reporting every calendar month. Boundary years handled correctly (partial year).
+  #
+  # strict = FALSE: only periods that appear anywhere in the data for that year.
+  #   A system-wide gap month is invisible to the algorithm; a facility that reported
+  #   whenever any other facility did is a champion, even if that was only 2 months.
+  if (strict) {
+    if (period == "Month") {
+      all_dates <- seq(as.Date(startingMonth), as.Date(endingMonth), by = "month")
+      all_ints  <- unclass(tsibble::yearmonth(all_dates))
+    } else {
+      all_dates <- seq(as.Date(startingMonth), as.Date(endingMonth), by = "week")
+      all_ints  <- unclass(tsibble::yearweek(all_dates))
+    }
+    periods_per_year <- data.table(int = all_ints)[
+      , .(max = .N),
+      by = .(year = data.table::year(as.IDate(int, origin = "1970-01-01")))
+    ]
+  } else {
+    dt_periods <- if (has_cats && reporting_rule != "any_data")
+      dt[get("data") %chin% data_categories]
+    else
+      dt
+    ppy <- unique(dt_periods[, period, with = FALSE])
+    setnames(ppy, period, "period_val")
+    ppy[, year := data.table::year(as.IDate(unclass(period_val), origin = "1970-01-01"))]
+    periods_per_year <- ppy[, .(max = .N), by = year]
+  }
   # max_years from selected-element denominator so count.any doesn't extend window
   max_years = uniqueN(periods_per_year$year)
   if (.cat) {

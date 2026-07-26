@@ -99,6 +99,12 @@ reporting_widget_ui = function(id) {
                 label = "Number of missing reports allowed/yr",
                 choices = 0:2,
                 selected = 0
+              ),
+
+              checkboxInput(
+                ns("exclude_gaps"),
+                label = 'Exclude system-wide gaps (months where no facility reported are not required of champion facilities)',
+                value = FALSE
               )
             )
           ),
@@ -1470,6 +1476,7 @@ reporting_widget_server <- function(
             missing_reports = as.integer(input$missing_reports),
             reporting_rule  = input$reporting_rule,
             data_categories = selected_data_categories$elements,
+            strict          = !isTRUE(input$exclude_gaps),
             .cat = TRUE
           )
 
@@ -1546,6 +1553,42 @@ reporting_widget_server <- function(
         return(x.m)
       })
 
+      # Calendar months in [startingMonth, endingMonth] with zero reports from
+      # any facility — shown as orange markers on plot2 so users can see system-
+      # wide gaps (strikes, form changes) that may inflate champion status.
+      gap_months <- reactive({
+        req(period(), monthly.reports())
+        sm_str <- startingMonth_debounced()
+        em_str <- endingMonth_debounced()
+        req(!is.null(sm_str) && nzchar(sm_str))
+        req(!is.null(em_str) && nzchar(em_str))
+
+        .period <- period()
+        mr      <- monthly.reports()
+
+        if (.period == "Month") {
+          sm        <- as.yearmonth(sm_str)
+          em        <- as.yearmonth(em_str)
+          all_dates <- seq(as.Date(sm), as.Date(em), by = "month")
+          all_per   <- tsibble::yearmonth(all_dates)
+        } else {
+          sm        <- tsibble::yearweek(sm_str)
+          em        <- tsibble::yearweek(em_str)
+          all_dates <- seq(as.Date(sm), as.Date(em), by = "week")
+          all_per   <- tsibble::yearweek(all_dates)
+        }
+
+        all_int      <- unclass(all_per)
+        reported_int <- if (nrow(mr) > 0) unclass(mr[[.period]]) else integer(0L)
+        gap_int      <- setdiff(all_int, reported_int)
+        if (length(gap_int) == 0L) return(NULL)
+
+        tibble::tibble(
+          !!.period := structure(gap_int, class = class(all_per)),
+          year      = data.table::year(as.IDate(gap_int, origin = "1970-01-01"))
+        )
+      })
+
       # plot_reporting_by_month ####
 
       plot2 = reactive({
@@ -1600,6 +1643,19 @@ reporting_widget_server <- function(
                 data = x.months() %>% mutate(facilities = 'Champion')
               ) +
               geom_line(data = x.months() %>% mutate(facilities = 'Champion'))
+          }
+
+          # Mark system-wide gap months (no facility reported at all)
+          gm <- gap_months()
+          if (!is.null(gm) && nrow(gm) > 0) {
+            g <- g +
+              geom_point(
+                data = gm,
+                aes(x = !!rlang::sym(.period), y = 0),
+                shape = 25, size = 2.5, fill = "orange", color = "darkorange",
+                inherit.aes = FALSE
+              ) +
+              labs(caption = "\u25bc no reports from any facility (system-wide gap)")
           }
 
           # return( shift_legend3(g) )
