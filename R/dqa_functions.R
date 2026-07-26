@@ -921,7 +921,9 @@ dqa_facility_status_table <- function(status_data) {
 #' @return A data.frame with columns `orgUnit`, `orgUnitName`, `region`,
 #'   `Month`, `reported` (0/1), `total_reported` (integer, for row ordering).
 #' @export
-dqa_facility_heatmap_data <- function(data, level_col) {
+dqa_facility_heatmap_data <- function(data, level_col,
+                                      min_month = NULL,
+                                      max_month = NULL) {
   dt <- data.table::as.data.table(data)
   req_cols <- c("orgUnit", "orgUnitName", "original", "Month", level_col)
   missing  <- setdiff(req_cols, names(dt))
@@ -942,8 +944,18 @@ dqa_facility_heatmap_data <- function(data, level_col) {
   # Complete grid so every facility has a cell for every month.
   # Use integer representation for CJ to avoid data.table stripping the
   # yearmonth class, then restore the class after merging.
+  # min_month / max_month (integer days-since-epoch) allow the caller to expand
+  # the grid to cover months that are entirely absent from the filtered data
+  # (e.g. a selected element with zero reports in early or late months).
   month_class    <- class(dt[["Month"]])
-  all_months_int <- sort(unique(as.integer(unclass(dt[["Month"]]))))
+  data_months    <- sort(unique(as.integer(unclass(dt[["Month"]]))))
+  # Build one yearmonth per calendar month between the global min and max
+  lo <- if (!is.null(min_month)) as.integer(min_month) else data_months[1L]
+  hi <- if (!is.null(max_month)) as.integer(max_month) else data_months[length(data_months)]
+  lo_ym <- tsibble::yearmonth(as.Date(lo, origin = "1970-01-01"))
+  hi_ym <- tsibble::yearmonth(as.Date(hi, origin = "1970-01-01"))
+  full_range_ym  <- seq(lo_ym, hi_ym, by = 1L)
+  all_months_int <- sort(unique(as.integer(unclass(full_range_ym))))
   all_ous        <- unique(dt$orgUnit)
   cell[, .Month_int := as.integer(unclass(Month))]
   grid <- data.table::CJ(orgUnit = all_ous, .Month_int = all_months_int)
@@ -983,9 +995,20 @@ dqa_facility_heatmap_plot <- function(heatmap_data,
   df$label[df$region %in% big_regions] <- ""
 
   # Factor levels: sort within region by total_reported desc so top reporters
-  # appear at the top of each facet panel
+  # appear at the top of each facet panel.
+  # Use orgUnit (UID) as the canonical key: if two facilities share the same
+  # display name, make.unique() appends ".1", ".2" etc. to avoid duplicated
+  # factor levels which cause a hard error.
   ou_order <- unique(df[order(df$region, -df$total_reported),
                          c("orgUnit", "orgUnitName")])
+  if (anyDuplicated(ou_order$orgUnitName)) {
+    dup_mask <- duplicated(ou_order$orgUnitName) | duplicated(ou_order$orgUnitName, fromLast = TRUE)
+    ou_order$orgUnitName[dup_mask] <- paste0(
+      ou_order$orgUnitName[dup_mask], " [", ou_order$orgUnit[dup_mask], "]"
+    )
+    name_map <- setNames(ou_order$orgUnitName, ou_order$orgUnit)
+    df$orgUnitName <- name_map[df$orgUnit]
+  }
   df$orgUnitName <- factor(df$orgUnitName,
                             levels = rev(ou_order$orgUnitName))
 
@@ -1016,7 +1039,7 @@ dqa_facility_heatmap_plot <- function(heatmap_data,
       # Blank out labels for big-region facilities
       ifelse(x %in% df$orgUnitName[df$region %in% big_regions], "", x)
     }) +
-    ggplot2::labs(x = NULL, y = NULL,
+    ggplot2::labs(x = NULL, y = "Facility",
                   title    = "Facility Reporting by Month",
                   subtitle = "Blue = at least one non-zero value; Grey = no report") +
     ggplot2::theme_minimal(base_size = text_size) +

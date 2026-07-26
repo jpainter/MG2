@@ -566,9 +566,34 @@ dqa_widget_server <- function(
       })
 
       output$dqaReportingMap <- leaflet::renderLeaflet({
+        cat('\n* dqaReportingMap: renderer fired')
         res <- dqa_region_reporting()
-        req(res)
-        req(geoFeatures())
+        cat('\n* dqaReportingMap: dqa_region_reporting rows=',
+            if (is.null(res)) 'NULL' else nrow(res))
+        if (is.null(res)) {
+          return(leaflet::leaflet() |> leaflet::addTiles() |> leaflet::addControl(
+            html = paste0(
+              "<div style='padding:10px;background:white;border-radius:4px;max-width:300px;'>",
+              "<b>Reporting data not ready.</b><br>",
+              "Select data elements and press Update, then check the Chart tab renders,",
+              " before opening this map.</div>"
+            ),
+            position = "topright"
+          ))
+        }
+        gf_chk <- geoFeatures()
+        if (!inherits(gf_chk, "sf") || nrow(gf_chk) == 0) {
+          return(
+            leaflet::leaflet() %>%
+              leaflet::addTiles() %>%
+              leaflet::addControl(
+                html = "<div style='padding:10px;background:white;border-radius:4px;'>
+                  <b>Geographic features not available.</b><br>
+                  Load metadata with org unit boundaries to display this map.</div>",
+                position = "topright"
+              )
+          )
+        }
 
         # Use slider year if available; otherwise default to the most recent year
         yr <- if (!is.null(input$dqa_map_year)) input$dqa_map_year else max(res$Year)
@@ -580,12 +605,40 @@ dqa_widget_server <- function(
         gf_levels <- sort(unique(geoFeatures()$level))
         map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
         gf_filtered <- geoFeatures() |> dplyr::filter(level == map_level)
-        cat('\n* dqaReportingMap: gf names=', paste(sort(gf_filtered$name), collapse=', '))
-        cat('\n* dqaReportingMap: rep_yr region_names=', paste(sort(unique(rep_yr$region_name)), collapse=', '))
-        gf2 <- dplyr::left_join(gf_filtered, rep_yr, by = c("name" = "region_name"))
+        # Normalize names on BOTH sides before joining: strip 2-3 char lowercase
+        # prefix (e.g. "eb Ebonyi State" → "Ebonyi State") AND common admin
+        # suffixes (e.g. "Ebonyi State" → "Ebonyi") so data names match
+        # geoFeatures$name regardless of DHIS2 instance naming conventions.
+        .norm_name <- function(x) {
+          x <- sub("^[a-z]{2,3}\\s+", "", x)
+          x <- sub("\\s+(State|Province|Region|District|County|Department|Division|Zone|Territory)$",
+                   "", x, ignore.case = TRUE)
+          trimws(x)
+        }
+        rep_yr      <- rep_yr      |> dplyr::mutate(.rn_norm = .norm_name(region_name))
+        gf_filtered <- gf_filtered |> dplyr::mutate(.gf_norm = .norm_name(name))
+        cat('\n* dqaReportingMap: gf names (norm)=', paste(sort(gf_filtered$.gf_norm)[1:min(5,nrow(gf_filtered))], collapse=', '))
+        cat('\n* dqaReportingMap: rep_yr region_names (norm)=', paste(sort(unique(rep_yr$.rn_norm))[1:min(5,length(unique(rep_yr$.rn_norm)))], collapse=', '))
+        gf2 <- dplyr::left_join(gf_filtered, rep_yr, by = c(".gf_norm" = ".rn_norm"))
         n_matched <- sum(!is.na(gf2$pr))
         cat('\n* dqaReportingMap: matched', n_matched, 'of', nrow(gf2), 'polygons')
         req(nrow(gf2) > 0)
+        if (n_matched == 0) {
+          gf_sample   <- paste(head(sort(gf_filtered$.gf_norm), 3), collapse = ", ")
+          data_sample <- paste(head(sort(unique(rep_yr$.rn_norm)), 3), collapse = ", ")
+          return(
+            leaflet::leaflet() |> leaflet::addTiles() |> leaflet::addControl(
+              html = sprintf(
+                "<div style='padding:10px;background:white;border-radius:4px;max-width:320px;'>
+                  <b>Region names did not match.</b><br>
+                  Map names: %s…<br>Data names: %s…<br>
+                  Check that metadata org unit names match the data hierarchy.</div>",
+                gf_sample, data_sample
+              ),
+              position = "topright"
+            )
+          )
+        }
 
         pal  <- leaflet::colorNumeric("RdYlGn", domain = c(0, 1), na.color = "#cccccc")
         bbox <- sf::st_bbox(gf2)
@@ -822,8 +875,30 @@ dqa_widget_server <- function(
         req(length(ln) >= 2)
         level_col <- ln[2]
         req(level_col %in% names(region_filtered_data1()))
+
+        full_data <- region_filtered_data1()
+
+        # Global date range from ALL elements — used to build the complete
+        # calendar grid so months with zero reports for the selected element
+        # still appear as grey cells rather than being absent from the x-axis.
+        all_months_int <- as.integer(unclass(full_data[["Month"]]))
+        global_min <- min(all_months_int, na.rm = TRUE)
+        global_max <- max(all_months_int, na.rm = TRUE)
+
+        # Filter to selected data elements so the heatmap reflects what the
+        # user is analysing, not all elements in the dataset.
+        hm_data <- full_data
+        if (length(selected_dqa_elements$elements) > 0 &&
+            "data" %in% names(hm_data)) {
+          hm_data <- dplyr::filter(hm_data,
+                                   data %in% selected_dqa_elements$elements)
+        }
+        if (nrow(hm_data) == 0) return(NULL)
+
         tryCatch(
-          dqa_facility_heatmap_data(region_filtered_data1(), level_col),
+          dqa_facility_heatmap_data(hm_data, level_col,
+                                    min_month = global_min,
+                                    max_month = global_max),
           error = function(e) { cat("\n! facility_heatmap error:", e$message, "\n"); NULL }
         )
       })
@@ -845,8 +920,10 @@ dqa_widget_server <- function(
         req(!is.null(reg) && nzchar(reg))
         n_fac  <- length(unique(hm$orgUnit[hm$region == reg]))
         px_h   <- max(n_fac * 18L + 80L, 300L)   # 18px per facility + header
+        # The scroll container is capped at 70vh; the plot inside has the full
+        # computed height so facility rows are not squashed.
         div(
-          style = paste0("height:", px_h, "px; overflow-y:auto;"),
+          style = "height:70vh; overflow-y:auto; overflow-x:hidden;",
           plotOutput(session$ns("heatmap_plot"), height = paste0(px_h, "px"))
         )
       })

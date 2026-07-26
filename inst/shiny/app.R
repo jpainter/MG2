@@ -261,21 +261,37 @@ if (is.function(.GlobalEnv$.mg2_pending_stop)) {
 .GlobalEnv$.mg2_session_count <- 0L
 
 server <- function(input, output, session) {
-  # Count sessions optimistically then correct asynchronously for Positron.
-  # Positron IDE opens a built-in preview pane alongside the browser tab;
-  # that pane opens its own Shiny session. We detect it via url_search
-  # (async, once clientData is ready) and subtract it from the count so
-  # closing the browser tab (count 2→1) actually triggers stopApp().
+  # ── Session counting with Positron viewer detection ──────────────────────
+  #
+  # Positron IDE opens a built-in preview pane (an embedded browser) the
+  # moment run_mg2() is called, BEFORE the user's real browser opens.
+  # This gives count=2 at startup; closing Safari drops to count=1 → the app
+  # never stops.
+  #
+  # session$request fields (QUERY_STRING, HTTP_USER_AGENT, …) are NOT safely
+  # readable at the top of server() in our environment — they all throw errors.
+  # session$clientData IS available, but only inside reactive contexts.
+  #
+  # Strategy:
+  #   1. Count every session immediately (optimistic +1).
+  #   2. Once clientData is available, check url_search for "positron".
+  #      If found, correct the count back (-1) and mark this session as Positron.
+  #   3. onSessionEnded: Positron sessions are no-ops; real sessions decrement
+  #      and trigger stopApp() when count reaches 0.
+
   .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
   cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
               .GlobalEnv$.mg2_session_count, session$token))
 
+  # Reactive flag: starts FALSE, flipped TRUE once we confirm Positron.
   .is_positron_viewer <- reactiveVal(FALSE)
 
+  # session$clientData$url_search is populated by the browser JS after the
+  # WebSocket handshake — fire once to check it.
   observeEvent(session$clientData$url_search, once = TRUE, {
     url_s <- tryCatch(session$clientData$url_search, error = function(e) "")
-    cat(sprintf("\n=== SESSION URL_SEARCH (id=%s): %s\n", session$token,
-                if (nzchar(url_s)) url_s else "(empty)"))
+    cat(sprintf("\n=== SESSION URL_SEARCH (id=%s): %s\n",
+                session$token, if (nzchar(url_s)) url_s else "(empty)"))
     if (isTRUE(grepl("positron", url_s, ignore.case = TRUE))) {
       .is_positron_viewer(TRUE)
       .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
