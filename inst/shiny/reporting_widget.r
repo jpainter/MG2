@@ -184,7 +184,7 @@ reporting_widget_ui = function(id) {
           type = "tabs",
           tabPanel(
             "Summary",
-            style = "height:90vh;",
+            style = "height:90vh; overflow-y:auto;",
 
             fluidPage(
               htmlOutput(ns("region_filter_status")),
@@ -1629,11 +1629,8 @@ reporting_widget_server <- function(
             #                     , breaks = .breaks
             #                     # , labels  = as.character( .breaks )
             #                     )  +
-            ylim(0, NA) +
-            scale_color_manual(
-              values = c('All' = 'black', 'Champion' = 'brown')
-            ) +
-            labs(color = "Facilities")
+            ylim(0, NA)
+            # scale_color_manual added below after gap_months() is known
 
           if (!is.null(reportingSelectedOUs())) {
             cat('\n - g + selected facilities ')
@@ -1645,17 +1642,34 @@ reporting_widget_server <- function(
               geom_line(data = x.months() %>% mutate(facilities = 'Champion'))
           }
 
-          # Mark system-wide gap months (no facility reported at all)
+          # Mark system-wide gap months (no facility reported at all).
+          # Add them via the color aesthetic so they appear in the legend.
           gm <- gap_months()
           if (!is.null(gm) && nrow(gm) > 0) {
             g <- g +
               geom_point(
-                data = gm,
-                aes(x = !!rlang::sym(.period), y = 0),
-                shape = 25, size = 2.5, fill = "orange", color = "darkorange",
+                data = dplyr::mutate(gm, facilities = "System gap"),
+                aes(x = !!rlang::sym(.period), y = 0, color = facilities),
+                shape = 25, size = 2.5, fill = "orange",
                 inherit.aes = FALSE
               ) +
-              labs(caption = "\u25bc no reports from any facility (system-wide gap)")
+              scale_color_manual(
+                name   = "Facilities",
+                values = c('All' = 'black', 'Champion' = 'brown', 'System gap' = 'darkorange')
+              ) +
+              guides(color = guide_legend(
+                override.aes = list(
+                  shape    = c(19L, 19L, 25L),
+                  linetype = c("solid", "solid", "blank"),
+                  fill     = c(NA, NA, "orange")
+                )
+              ))
+          } else {
+            g <- g +
+              scale_color_manual(
+                name   = "Facilities",
+                values = c('All' = 'black', 'Champion' = 'brown')
+              )
           }
 
           # return( shift_legend3(g) )
