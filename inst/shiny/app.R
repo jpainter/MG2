@@ -261,11 +261,34 @@ if (is.function(.GlobalEnv$.mg2_pending_stop)) {
 .GlobalEnv$.mg2_session_count <- 0L
 
 server <- function(input, output, session) {
+  # Count sessions optimistically then correct asynchronously for Positron.
+  # Positron IDE opens a built-in preview pane alongside the browser tab;
+  # that pane opens its own Shiny session. We detect it via url_search
+  # (async, once clientData is ready) and subtract it from the count so
+  # closing the browser tab (count 2→1) actually triggers stopApp().
   .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
   cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
               .GlobalEnv$.mg2_session_count, session$token))
 
+  .is_positron_viewer <- reactiveVal(FALSE)
+
+  observeEvent(session$clientData$url_search, once = TRUE, {
+    url_s <- tryCatch(session$clientData$url_search, error = function(e) "")
+    cat(sprintf("\n=== SESSION URL_SEARCH (id=%s): %s\n", session$token,
+                if (nzchar(url_s)) url_s else "(empty)"))
+    if (isTRUE(grepl("positron", url_s, ignore.case = TRUE))) {
+      .is_positron_viewer(TRUE)
+      .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
+      cat(sprintf("=== POSITRON VIEWER DETECTED — count corrected to %d (id=%s) ===\n",
+                  .GlobalEnv$.mg2_session_count, session$token))
+    }
+  })
+
   session$onSessionEnded(function() {
+    if (isolate(.is_positron_viewer())) {
+      cat(sprintf("\n=== POSITRON VIEWER END (not counted, id=%s) ===\n", session$token))
+      return()
+    }
     .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
     cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
                 .GlobalEnv$.mg2_session_count, session$token))
