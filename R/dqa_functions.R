@@ -437,7 +437,7 @@ dqa_years <- function(dqa_data) {
 #' @return Numeric vector with count of consistently reporting facilities per year.
 #' @export
 dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
-                          .cat = FALSE, .progress = NULL, ...) {
+                          strict = TRUE, .cat = FALSE, .progress = NULL, ...) {
   startingMonth <- tsibble::yearmonth(
     paste0(dqa_years(dqa_data)$Year, "Jan")
   )
@@ -462,6 +462,7 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
       endingMonth     = endingMonth[i],
       missing_reports = missing_reports,
       count.any       = count.any,
+      strict          = strict,
       .cat            = FALSE
     )
     if (is.function(.progress)) .progress(i, n_years)
