@@ -516,31 +516,43 @@ dqa_widget_server <- function(
       # Reporting Map ####
 
       dqa_region_reporting = reactive({
-        cat('\n* dqa_region_reporting: dqa_data rows=', if(!is.null(dqa_data())) nrow(dqa_data()) else 'NULL')
-        cat('\n* dqa_region_reporting: levelNames=', paste(levelNames(), collapse=','))
-        cat('\n* dqa_region_reporting: geoFeatures rows=', if(!is.null(geoFeatures())) nrow(geoFeatures()) else 'NULL')
-        req(dqa_data())
-        req(levelNames())
+        # Snapshot each reactive ONCE — calling levelNames()/geoFeatures() again
+        # later in this expression is not guaranteed to return the same value
+        # (geoFeatures() does file I/O and can be invalidated/re-triggered by
+        # cross-module reactivity), which was silently producing a level_col
+        # that didn't match the vector printed just above it.
+        dd <- dqa_data()
+        ln <- levelNames()
+        gf <- geoFeatures()
+
+        cat('\n* dqa_region_reporting: dqa_data rows=', if(!is.null(dd)) nrow(dd) else 'NULL')
+        cat('\n* dqa_region_reporting: levelNames=', paste(ln, collapse=','))
+        cat('\n* dqa_region_reporting: geoFeatures rows=', if(!is.null(gf)) nrow(gf) else 'NULL')
+        req(dd)
+        req(ln)
         # Note: geoFeatures is NOT required here — reporting aggregation runs even
         # without geo data; the map renderer checks geoFeatures separately.
 
         # Default to level 2 when geoFeatures is unavailable
-        if (!is.null(geoFeatures())) {
-          gf_levels <- sort(unique(geoFeatures()$level))
+        if (!is.null(gf)) {
+          gf_levels <- sort(unique(gf$level))
           map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
         } else {
           map_level <- 2L
         }
-        # levelNames()[1]=National, [2]=level2, [3]=level3, ...
-        level_col  <- if (length(levelNames()) >= map_level) levelNames()[map_level] else levelNames()[2L]
-        req(level_col %in% names(dqa_data()))
+        # ln[1]=National, [2]=level2, [3]=level3, ...
+        level_col  <- if (length(ln) >= map_level) ln[map_level] else ln[2L]
+        cat('\n* dqa_region_reporting: map_level=', map_level, '| level_col=', level_col,
+            '| in dqa_data names?', level_col %in% names(dd))
+        cat('\n* dqa_region_reporting: dqa_data names=', paste(names(dd), collapse=', '))
+        req(level_col %in% names(dd))
 
         notif_id <- showNotification("DQA map: computing per-region reporting…",
                                      duration = NULL, type = "message", closeButton = FALSE)
         on.exit(removeNotification(notif_id), add = TRUE)
 
         dqa_reporting_by_region(
-          dqa_data(),
+          dd,
           level_col       = level_col,
           missing_reports = 0L,
           .progress       = NULL
@@ -599,11 +611,13 @@ dqa_widget_server <- function(
 
         rep_yr <- res |> dplyr::filter(Year == yr)
 
-        # Use the lowest non-national level present in geoFeatures.
+        # Use the lowest non-national level present in geoFeatures (snapshot
+        # gf_chk once — see dqa_region_reporting for why re-calling
+        # geoFeatures() isn't safe here).
         # Some demo datasets only have chiefdom (level 3) shapes, not district (level 2).
-        gf_levels <- sort(unique(geoFeatures()$level))
+        gf_levels <- sort(unique(gf_chk$level))
         map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
-        gf_filtered <- geoFeatures() |> dplyr::filter(level == map_level)
+        gf_filtered <- gf_chk |> dplyr::filter(level == map_level)
         # Normalize names on BOTH sides before joining: strip 2-3 char lowercase
         # prefix (e.g. "eb Ebonyi State" → "Ebonyi State") AND common admin
         # suffixes (e.g. "Ebonyi State" → "Ebonyi") so data names match
@@ -672,8 +686,8 @@ dqa_widget_server <- function(
           )
       })
 
-      outputOptions(output, "dqaReportingMap", suspendWhenHidden = TRUE)
-      outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = TRUE)
+      outputOptions(output, "dqaReportingMap", suspendWhenHidden = FALSE)
+      outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = FALSE)
 
       # Consistency tab ####
 

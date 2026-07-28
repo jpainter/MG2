@@ -292,7 +292,15 @@ evaluation_widget_server <- function(
       # Once TRUE it never reverts, so it does not create a per-tab-switch loop.
       hasVisitedEvaluation = reactiveVal(FALSE)
       observeEvent(current_tab(), {
-        if (isTRUE(current_tab() == "Evaluation")) hasVisitedEvaluation(TRUE)
+        if (isTRUE(current_tab() == "Evaluation")) {
+          hasVisitedEvaluation(TRUE)
+          # The Time-Series Chart sub-tab is active by default inside
+          # fillPage(tabsetPanel(...)) and sized with vh-based height, so it
+          # never receives Bootstrap's shown.bs.tab event that Shiny normally
+          # uses to size plotOutput correctly — it can render at 0 height on
+          # first paint and never recover. Force a resize once layout settles.
+          shinyjs::delay(300, shinyjs::runjs("window.dispatchEvent(new Event('resize'));"))
+        }
       }, ignoreInit = TRUE)
 
       options(shiny.trace = FALSE)
@@ -2376,6 +2384,22 @@ evaluation_widget_server <- function(
         cat('\n - ploTrends mable_Data():')
         mable_Data = mable_Data()
         cat('\n - ploTrends .d:') #glimpse(.d)
+
+        # mable_data()/aggData() never create a grouping_var column (unlike
+        # trendData(), the older pipeline) — add it here the same way
+        # tsPreForecast()/key.mape() do, since the plot below colors/groups
+        # (and optionally facets) by it. Use split_col() (not split()) —
+        # that's the column mable_Data() itself was actually grouped/aggregated
+        # by (see mable_Data()'s own `split = split_col()`), and it's what
+        # this same function already uses for facet_wrap() further below.
+        .grouping_col <- split_col()
+        if (!is.null(.grouping_col) && .grouping_col %in% names(mable_Data)) {
+          mable_Data = mable_Data %>%
+            mutate(grouping_var = as.character(!!rlang::sym(.grouping_col)))
+        } else {
+          mable_Data = mable_Data %>%
+            mutate(grouping_var = 'Total')
+        }
 
         data.text = if ("data" %in% names(mable_Data)) {
           paste(unique(as.character(mable_Data$data)), collapse = " + ")

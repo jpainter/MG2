@@ -2194,7 +2194,11 @@ reporting_widget_server <- function(
       })
 
       caption.text = reactive({
-        rous = reportingSelectedOUs()
+        # reportingSelectedOUs() has req(current_tab() == "Reporting") and
+        # fails silently when called from any other tab (see cached_rous
+        # pattern) — caption.text() is used from Evaluation's plotTrends(),
+        # so it must read the cached value instead.
+        rous = cached_rous$value
 
         parts <- Filter(
           function(x) !is.null(x) && length(x) > 0,
