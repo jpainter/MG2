@@ -24,7 +24,8 @@ Given a DHIS2 connection or local data, MG2 guides analysts through:
 7. **Evaluation** — Time-series models, forecasts, and WPE assessment
 8. **Combine** — Build derived datasets (ratios, subsets) from existing processed files
 9. **Climate** — Monthly CHIRPS rainfall extraction and mapping using DHIS2 org unit boundaries
-10. **Assistant** — AI chat (Claude / GPT-4o) with session-context system prompt
+10. **Output** — Write MG2 results to a local DHIS2 instance (spin up via d2 cluster, import metadata, write values)
+11. **Assistant** — AI chat (Claude / GPT-4o) with session-context system prompt
 
 ---
 
@@ -55,6 +56,11 @@ R/
                            #   chirps_make_chart(), chirps_annual_means_sf(),
                            #   chirps_multi_year_map(), chirps_multi_year_chart(),
                            #   chirps_anomaly_map()
+  fct_output_dhis2.R       # mg2_build_org_units_payload(), mg2_build_source_de_payload(),
+                           #   mg2_build_output_de_payload(), mg2_post_metadata(),
+                           #   mg2_format_raw_data_values(), mg2_post_data_values(),
+                           #   mg2_check_instance_metadata(), mg2_test_dhis2_connection()
+  fct_cluster_manager.R    # manage_clusters() — dev Shiny gadget for local d2 instances
   chat_functions.R         # build_mg2_system_prompt(), summarize_*_for_prompt()
   run_app.R                # run_mg2()
   zzz.R                    # @import data.table (required for := in package)
@@ -73,6 +79,7 @@ inst/shiny/
   evaluation_widget.R      # Module 8: forecasting
   combine_widget.R         # Module 9: dataset combiner
   climate_widget.R         # Module 10: CHIRPS rainfall (dev) — uses metadata geoFeatures
+  output_widget.R          # Module 10: write results to local DHIS2 instance (Steps 1–3 done, Step 4 WIP)
   chat_widget.R            # Module 11: AI assistant
   regions_widget.R         # Auxiliary: regional filter + map
   map_widget.R             # Auxiliary: geographic viz
@@ -176,7 +183,14 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
 download + combine) → DQA (incl. Consistency + Reporting Map + Facilities + Heatmap) →
-Reporting → Outliers → Evaluation → Climate (dev) → Burden Estimate (dev) → AI Assistant (dev)
+Reporting → Outliers → Evaluation → Climate (dev) → Output (dev, Steps 1–3) →
+Burden Estimate (dev) → AI Assistant (dev)
+
+**Output tab (dev):** Steps 1–3 functional — source info display, spin up local DHIS2 via
+`d2 cluster up` (matching source version, processx, polls for readiness), import org units +
+dynamically-inferred source data elements + 4 fixed MG2 output UIDs (`MG2trendEst`,
+`MG2adjEstim`, `MG2forecast`, `MG2wpeEffct`). Step 4 (model output writing) is a placeholder.
+Data elements are inferred from the loaded formula — nothing is hardcoded.
 
 **Map tab:** widget file exists (`map_widget.R`), not yet integrated.
 

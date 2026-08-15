@@ -1,0 +1,508 @@
+---
+title: "Beyond Raw Data"
+subtitle: "Where Analysis Happens, and Where Do the Results Go?"
+author: "John Painter"
+date: "2026"
+format:
+  revealjs:
+    theme: [default, custom.scss]
+    slide-number: true
+    progress: true
+    transition: fade
+    transition-speed: fast
+    footer: "MG2 / MagicGlasses2 · DHIS2 Developer Community"
+    logo: ""
+    width: 1280
+    height: 720
+    margin: 0.08
+    highlight-style: github
+    code-block-bg: true
+    pdf-separate-fragments: false
+execute:
+  echo: false
+  warning: false
+---
+
+## {.title-slide-custom background-color="#1a4f7a"}
+
+::: {style="color: white; text-align: center; padding-top: 60px;"}
+
+### A Follow-up to the DHIS2 Annual Conference
+
+::: {style="font-size: 1.1em; margin-top: 1.5em; color: #a8d0f0;"}
+Last time: a demo of what MG2 does.
+
+This time: a developer conversation about a hard problem.
+:::
+
+::: {style="font-size: 1.3em; margin-top: 2em; font-style: italic; color: #ffffff;"}
+"DHIS2 is where the data lives —
+but what if the analysis it needs
+can't be done inside DHIS2?"
+:::
+
+:::
+
+::: notes
+Welcome and thank everyone for joining. Brief context: MG2 was presented at the annual conference with a demo and overview of what the app does. The videos from that are available. Today is a deeper conversation — specifically about one design challenge we haven't solved yet, and we want the group's input. This is not a product pitch, it's a genuine design discussion.
+:::
+
+
+## Why Build Outside DHIS2? {background-color="#f8f9fa"}
+
+::: columns
+::: {.column width="48%"}
+**What DHIS2 analytics can do**
+
+- Calculated indicators (ratios, rates)
+- Predictors (moving averages, regression)
+- Validation rules
+- Built-in visualizations and dashboards
+
+:::
+::: {.column width="4%"}
+:::
+::: {.column width="48%"}
+**What epidemiologists actually need**
+
+- Time-series decomposition (trend + seasonal)
+- Multiple outlier detection algorithms
+- Reporting-bias adjustment
+- Ensemble forecast models (ETS, ARIMA, MASE)
+- Burden estimation with statistical uncertainty
+- Climate covariates
+
+:::
+:::
+
+::: {style="margin-top: 1.5em; padding: 0.8em 1.2em; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;"}
+R's `fable` / `feasts` ecosystem — and Python's `statsmodels`, `prophet`, `scikit-learn` — provide these. They are not replicable in JavaScript or Java analytics engines.
+:::
+
+::: {style="margin-top: 1em; color: #555; font-style: italic;"}
+**The tension:** the richer the analysis, the further you are from where data lives and where users expect to see results.
+:::
+
+::: notes
+This isn't a criticism of DHIS2 — DHIS2 does what it's designed for very well. But there's a class of epidemiological analysis that requires a full statistical computing environment. R and Python exist for exactly this reason. The question isn't whether to use them — it's what happens to the results once the analysis is done.
+:::
+
+
+## What MG2 Produces {background-color="#f8f9fa"}
+
+A typical analysis session generates outputs across multiple domains:
+
+::: columns
+::: {.column width="50%"}
+
+**Data quality**
+
+- Reporting completeness rates (facility × month)
+- Outlier flags — 6 sequential algorithms
+- MASE stability scores
+
+**Adjusted estimates**
+
+- Reporting-bias-adjusted case counts
+- Trend estimates (time-series decomposition)
+
+:::
+::: {.column width="50%"}
+
+**Modeling**
+
+- Forecast medians + prediction intervals
+- WPE intervention effect estimates
+
+**Burden**
+
+- Subnational burden estimates (5 methods)
+- Statistical uncertainty ranges
+
+**Climate**
+
+- Monthly rainfall by org unit (CHIRPS)
+
+:::
+:::
+
+::: {style="margin-top: 1.2em; padding: 0.7em 1em; background: #e8f4fd; border-left: 4px solid #1a4f7a; border-radius: 4px;"}
+**~10 output types, some with multiple parameter variants.** Keep this inventory in mind — we will return to it.
+:::
+
+::: notes
+Walk through the output types briefly. The key point is diversity — these are not all the same kind of thing. Reporting completeness is a percentage. An outlier flag is a boolean with a reason. A forecast is a distribution. A WPE effect is a unitless ratio. A burden estimate has 5 methodological variants. This diversity matters for what comes next.
+:::
+
+
+## The Gap: Results Trapped in the Session {background-color="#f8f9fa"}
+
+```{=html}
+<div style="display: flex; justify-content: space-around; align-items: flex-start; margin-top: 1em; gap: 2em;">
+
+  <!-- Current state -->
+  <div style="flex: 1; text-align: center;">
+    <div style="font-size: 0.9em; font-weight: bold; color: #555; margin-bottom: 0.8em;">TODAY</div>
+    <div style="background: #e8f4fd; border: 2px solid #1a4f7a; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      DHIS2 Instance
+    </div>
+    <div style="font-size: 1.5em; margin: 0.2em;">↓</div>
+    <div style="background: #e9ecef; border: 2px solid #6c757d; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      MG2 (R / Shiny)
+    </div>
+    <div style="font-size: 1.5em; margin: 0.2em;">↓</div>
+    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      Analyst's session<br><span style="font-size: 0.85em; color: #666;">local files, charts, tables</span>
+    </div>
+    <div style="font-size: 1.5em; margin: 0.2em; color: #dc3545;">✗</div>
+    <div style="background: #f8d7da; border: 2px solid #dc3545; border-radius: 8px; padding: 0.8em; display: inline-block; color: #666;">
+      Program managers<br>District health officers<br><em>can't see results</em>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div style="width: 2px; background: #dee2e6; align-self: stretch; margin-top: 2em;"></div>
+
+  <!-- Desired state -->
+  <div style="flex: 1; text-align: center;">
+    <div style="font-size: 0.9em; font-weight: bold; color: #555; margin-bottom: 0.8em;">WHAT WE WANT</div>
+    <div style="background: #e8f4fd; border: 2px solid #1a4f7a; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      DHIS2 Instance
+    </div>
+    <div style="font-size: 1.5em; margin: 0.2em;">↓</div>
+    <div style="background: #e9ecef; border: 2px solid #6c757d; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      MG2 (R / Shiny)
+    </div>
+    <div style="font-size: 1.5em; margin: 0.2em;">↓</div>
+    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      Analysis + results
+    </div>
+    <div style="font-size: 1.5em; margin: 0.2em; color: #198754;">↓  ???</div>
+    <div style="background: #d1e7dd; border: 2px solid #198754; border-radius: 8px; padding: 0.8em; display: inline-block;">
+      Program managers<br>District health officers<br><em>see results in dashboards</em>
+    </div>
+  </div>
+
+</div>
+```
+
+::: {style="margin-top: 1.2em; text-align: center; font-style: italic; color: #555;"}
+"The person who needs the output is not the person running the analysis."
+:::
+
+::: notes
+This is the core problem. The analyst does sophisticated work — runs models, explores parameters, compares methods. But the people who should act on those results — district health officers, program managers — have no window into the analysis. Results live in the analyst's R session and local files. Fine for exploration; unworkable for routine programmatic use.
+:::
+
+
+## Where Do Tools Sit Today? {background-color="#f8f9fa"}
+
+```{=html}
+<div style="display: grid; grid-template-columns: 80px 1fr 1fr; grid-template-rows: 40px 1fr 1fr; gap: 2px; height: 480px; margin-top: 0.5em; font-size: 0.9em;">
+
+  <!-- Corner -->
+  <div></div>
+  <!-- Column headers -->
+  <div style="text-align: center; font-weight: bold; color: #1a4f7a; border-bottom: 2px solid #1a4f7a; padding-bottom: 6px;">
+    Fixed / few outputs
+  </div>
+  <div style="text-align: center; font-weight: bold; color: #1a4f7a; border-bottom: 2px solid #1a4f7a; padding-bottom: 6px;">
+    Many / diverse outputs
+  </div>
+
+  <!-- Row 1 label + cells -->
+  <div style="display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; font-weight: bold; color: #1a4f7a; border-right: 2px solid #1a4f7a; writing-mode: horizontal-tb;">
+    <span style="writing-mode: vertical-rl; transform: rotate(180deg);">Analyst only</span>
+  </div>
+  <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.2em; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5em;">
+    <div style="font-size: 1.1em; font-weight: bold; color: #6c757d;">SNT</div>
+    <div style="font-size: 0.8em; color: #888; text-align: center;">Excel / PDF outputs<br>Episodic, analyst-driven</div>
+  </div>
+  <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 1.2em; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5em;">
+    <div style="font-size: 1.1em; font-weight: bold; color: #856404;">MG2 today</div>
+    <div style="font-size: 0.8em; color: #888; text-align: center;">Rich outputs<br>Trapped in session</div>
+  </div>
+
+  <!-- Row 2 label + cells -->
+  <div style="display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; font-weight: bold; color: #1a4f7a; border-right: 2px solid #1a4f7a;">
+    <span style="writing-mode: vertical-rl; transform: rotate(180deg);">DHIS2 visible</span>
+  </div>
+  <div style="background: #d1e7dd; border: 2px solid #198754; border-radius: 8px; padding: 1.2em; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5em;">
+    <div style="font-size: 1.1em; font-weight: bold; color: #155724;">CHAP</div>
+    <div style="font-size: 0.8em; color: #888; text-align: center;">5 quantile bands<br>Forecasts only</div>
+  </div>
+  <div style="background: #f8d7da; border: 2px dashed #dc3545; border-radius: 8px; padding: 1.2em; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5em;">
+    <div style="font-size: 1.3em; font-weight: bold; color: #dc3545;">???</div>
+    <div style="font-size: 0.8em; color: #888; text-align: center;">Rich outputs<br>Visible in DHIS2<br><strong>Unsolved</strong></div>
+  </div>
+
+</div>
+```
+
+::: notes
+This 2x2 frames the entire conversation. SNT (Sub-National Tailoring — the MACEPA/PATH workflow) is analyst-only and outputs documents. CHAP elegantly solves the bottom-left quadrant: small number of well-defined forecasts pushed back to DHIS2. The bottom-right — rich, diverse analytical outputs visible in DHIS2 — nobody has solved this yet. That's what we're working toward.
+:::
+
+
+## Architectural Options {background-color="#f8f9fa"}
+
+::: {style="font-size: 0.87em;"}
+
+| | Option | Results live in | Pro | Con |
+|---|---|---|---|---|
+| **A** | Keep in app | External session / files | No DHIS2 config needed; fast iteration | Invisible to standard users |
+| **B** | Push to source instance | Original production DHIS2 | Users already have access; existing dashboards | Namespace risk; data element governance burden |
+| **B+** | Aggregate Data Exchange API | Source or separate *(v2.39+)* | Reusable configs; scheduled jobs; cross-instance auth | Pre-created data elements still required |
+| **C** | Separate output instance | New DHIS2 (local or hosted) | Clean separation; full DHIS2 API | Second system to maintain |
+| **D** | Non-DHIS2 store | PostgreSQL + Superset / Grafana | Maximum flexibility | Leaves the DHIS2 ecosystem |
+
+:::
+
+::: {style="margin-top: 1em; padding: 0.7em 1em; background: #e8f4fd; border-left: 4px solid #1a4f7a; border-radius: 4px; font-size: 0.9em;"}
+**No single right answer** — context determines the choice. MG2 is currently prototyping **Option C**.
+
+The **Aggregate Data Exchange API** (`/api/aggregateDataExchanges`, v2.39+) is worth knowing — a higher-level primitive than raw `dataValueSets` for systematic cross-instance pushes.
+:::
+
+::: notes
+Walk through each option. Emphasize B+ — the Aggregate Data Exchange API is relatively new and the audience may not all know it. It defines reusable exchange configurations with scheduled jobs and cross-instance PAT authentication — better infrastructure than calling dataValueSets directly if you're going to do this repeatedly. But it still requires pre-creating data elements, which is the fundamental governance challenge.
+:::
+
+
+## CHAP: A Reference Model {background-color="#f8f9fa"}
+
+::: columns
+::: {.column width="52%"}
+
+**Architecture**
+
+```{=html}
+<div style="font-size: 0.82em; line-height: 1.7; font-family: monospace; background: #f8f9fa; padding: 0.8em; border-radius: 6px; border: 1px solid #dee2e6;">
+DHIS2 instance<br>
+&nbsp;&nbsp;└── Modeling App (React)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↕ Route API<br>
+CHAP Core (Docker Compose)<br>
+&nbsp;&nbsp;├── FastAPI (port 8000)<br>
+&nbsp;&nbsp;├── PostgreSQL (models, predictions)<br>
+&nbsp;&nbsp;├── Redis + Celery (async jobs)<br>
+&nbsp;&nbsp;└── Model sidecars (MLproject)
+</div>
+```
+
+**Fixed output schema**
+
+5 quantile bands: 10th · 25th · **50th** · 75th · 90th
+\+ optional outbreak alert flag
+
+:::
+::: {.column width="48%"}
+
+**How the push back works**
+
+1. User runs prediction
+2. Opens "Import prediction" form
+3. Selects 5 **pre-existing** DHIS2 data elements — one per quantile band *(CHAP does not create them)*
+4. Dry-run validation
+5. Optional clear of **±12-month window**
+6. `POST /api/dataValueSets`
+
+::: {style="margin-top: 1em; padding: 0.7em; background: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px; font-size: 0.88em;"}
+**Gotcha:** the ±12-month clear can silently overwrite legitimate data if data elements are shared for other purposes.
+:::
+
+:::
+:::
+
+::: {style="margin-top: 0.8em; padding: 0.7em 1em; background: #d1e7dd; border-left: 4px solid #198754; border-radius: 4px; font-size: 0.9em;"}
+**Within its scope, this is elegant.** For forecasting one disease with one model shape, 5 quantile bands is exactly right. The simplicity is a deliberate feature, not a limitation.
+:::
+
+::: notes
+CHAP is a genuine success story in this space — University of Oslo / HISP, Wellcome funded, AGPL-3 licensed. The key architectural insight is that they constrained the output schema aggressively. By deciding that "a forecast" always means 5 quantile bands, they made the DHIS2 integration tractable. The admin creates 5 data elements once and the system runs from there. This is the right design for climate-informed disease forecasting. The question is whether it generalizes.
+:::
+
+
+## The "Many Outputs" Problem {background-color="#f8f9fa"}
+
+**Does CHAP's fixed-schema approach scale to richer analysis?**
+
+::: {style="font-size: 0.88em; margin-top: 0.5em;"}
+
+| Output type | DHIS2 representation | The problem |
+|---|---|---|
+| Adjusted case count | NUMBER, SUM | Straightforward — the easy case |
+| Forecast median | NUMBER, AVERAGE | Which model? Which parameters? |
+| Outlier flag | BOOLEAN or NUMBER | Loses the *reason*: algorithm, threshold |
+| WPE effect size | NUMBER, AVERAGE | Unitless — meaningless without model context |
+| Reporting rate | Two data elements + indicator | Numerator and denominator must travel together |
+| Burden estimate | NUMBER × 5 methods | Which estimate does the health officer look at? |
+
+:::
+
+::: {style="margin-top: 0.8em;"}
+::: columns
+::: {.column width="49%"}
+::: {style="padding: 0.7em; background: #f8d7da; border-left: 3px solid #dc3545; border-radius: 4px; font-size: 0.88em;"}
+**Root cause:** DHIS2 data elements are optimized for data *entry*, not model *metadata*. No concept of provenance, version, or parameter set.
+:::
+:::
+::: {.column width="2%"}
+:::
+::: {.column width="49%"}
+::: {style="padding: 0.7em; background: #e8f4fd; border-left: 3px solid #1a4f7a; border-radius: 4px; font-size: 0.88em;"}
+**Open question for this group:** Is there a DHIS2 metadata pattern — attribute option combos, data store API, custom attributes — that could carry provenance alongside values?
+:::
+:::
+:::
+:::
+
+::: notes
+This is the hardest slide intellectually, and the one where the audience's expertise is most valuable. Outlier flags are not measurements — they are analyst judgments with associated reasons. A WPE effect size without knowing which model was run and over what period is ambiguous. Burden estimates exist in 5 methodologically distinct variants. If you push all of this to DHIS2 you end up with dozens or hundreds of data elements and a governance problem. The DHIS2 data store API is one possible escape hatch — it can store arbitrary JSON per org unit / period — but it's not queryable via the analytics engine. I want to know if the developers in the room have seen this problem before.
+:::
+
+
+## What We Built: The Output Tab {background-color="#f8f9fa"}
+
+A four-step pipeline — Steps 1–3 functional today, Step 4 in progress:
+
+::: columns
+::: {.column width="56%"}
+
+```{=html}
+<div style="display: flex; flex-direction: column; gap: 0.5em; font-size: 0.9em; margin-top: 0.3em;">
+
+  <div style="display: flex; align-items: center; gap: 0.8em; padding: 0.6em 0.9em; background: #d1e7dd; border: 1px solid #198754; border-radius: 6px; border-left: 5px solid #198754;">
+    <span style="font-size: 1.1em; font-weight: bold; color: #155724; min-width: 1.5em;">1</span>
+    <div>
+      <strong>Source info</strong><br>
+      <span style="color: #555; font-size: 0.9em;">Read from metadata — system name, version, org unit count, data elements. No connection to source needed.</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 0.8em; padding: 0.6em 0.9em; background: #d1e7dd; border: 1px solid #198754; border-radius: 6px; border-left: 5px solid #198754;">
+    <span style="font-size: 1.1em; font-weight: bold; color: #155724; min-width: 1.5em;">2</span>
+    <div>
+      <strong>Spin up local DHIS2</strong><br>
+      <span style="color: #555; font-size: 0.9em;"><code>d2 cluster up</code> at matching source version; polls until ready; structured error UI for missing docker-compose, d2 CLI, Docker daemon.</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 0.8em; padding: 0.6em 0.9em; background: #d1e7dd; border: 1px solid #198754; border-radius: 6px; border-left: 5px solid #198754;">
+    <span style="font-size: 1.1em; font-weight: bold; color: #155724; min-width: 1.5em;">3</span>
+    <div>
+      <strong>Import metadata</strong><br>
+      <span style="color: #555; font-size: 0.9em;">Org units (batched) + data elements <em>derived from loaded formula</em> (nothing hardcoded) + 4 fixed MG2 output elements.</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 0.8em; padding: 0.6em 0.9em; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; border-left: 5px solid #ffc107;">
+    <span style="font-size: 1.1em; font-weight: bold; color: #856404; min-width: 1.5em;">4</span>
+    <div>
+      <strong>Write values</strong><br>
+      <span style="color: #555; font-size: 0.9em;">Raw data via <code>dataValueSets</code> API (batches of 2000) ✓ &nbsp;|&nbsp; Model outputs — <em>in progress</em> ⚙</span>
+    </div>
+  </div>
+
+</div>
+```
+
+:::
+::: {.column width="44%"}
+
+::: {style="margin-top: 0.3em; font-size: 0.88em;"}
+
+**Key design choice**
+
+Data elements in Step 3 are derived entirely from whatever formula the analyst loaded — nothing is hardcoded. The output instance mirrors the current dataset.
+
+*Contrast with CHAP: admin pre-creates a fixed mapping before first import.*
+
+---
+
+**The 4 fixed MG2 output elements**
+
+`MG2trendEst` · `MG2adjEstim`
+`MG2forecast` · `MG2wpeEffct`
+
+Analogous to CHAP's 5 quantile slots — a curated small set. Step 4 is a placeholder.
+
+::: {style="margin-top: 0.7em; padding: 0.6em; background: #e8f4fd; border-left: 3px solid #1a4f7a; border-radius: 4px;"}
+**Discussion point:** What should Step 4 actually write? This is an open design question.
+:::
+
+:::
+
+:::
+:::
+
+::: notes
+Walk through the four steps. Emphasize the contrast on data element creation: CHAP requires admin pre-configuration; MG2 infers everything from the loaded formula. That means it works immediately for any dataset but raises a different question — if you create data elements dynamically, how does anyone else know what they mean? The 4 fixed output UIDs are the one concession to pre-configuration. Step 4 being a placeholder is honest — we built the infrastructure but we haven't decided what model outputs to write and at what granularity. That's partly why we're having this conversation.
+:::
+
+
+## Open Questions — We Want Your Input {background-color="#f8f9fa"}
+
+::: columns
+::: {.column width="49%"}
+
+**Technical**
+
+- **Step 4 granularity:** facility-level or district-level? All months or forecast horizon only? One value per type or full quantile bands?
+
+- **Push to source instance:** is there a safe path? Custom namespace? Attribute option combo to separate model outputs from program data?
+
+- **Provenance:** if the analyst re-runs with different parameters, old values are overwritten silently. Acceptable?
+
+- **Production hosting:** a separate output DHIS2 instance needs infrastructure — what is the right companion deployment pattern?
+
+:::
+::: {.column width="2%"}
+:::
+::: {.column width="49%"}
+
+**Design philosophy**
+
+- Should external analytics tools standardize on a small curated output set (CHAP style) — or is that the wrong constraint for health data modeling?
+
+- Is there a DHIS2 metadata pattern for **provenance** — who ran what model with what parameters, and when?
+
+- Is a shared standard for external-analytics-to-DHIS2 output routing worth proposing to the community?
+
+:::
+:::
+
+::: {style="margin-top: 1.2em; padding: 0.8em 1.2em; background: #e8f4fd; border-left: 4px solid #1a4f7a; border-radius: 4px;"}
+**Has anyone solved the bottom-right quadrant?**
+Rich, diverse model outputs — visible in DHIS2 dashboards — at scale.
+If so, we want to learn from you. If not, let's design it together.
+:::
+
+::: notes
+This is the invitation. Read out the questions. Give the audience space to respond — this slide should take 10-15 minutes. The goal is to find out (1) whether anyone has a pattern we haven't thought of, particularly around provenance and attribute option combos, and (2) whether there is appetite for a community standard or working group.
+:::
+
+
+---
+
+::: {style="text-align: center; padding-top: 80px;"}
+
+## Thank You {style="color: #1a4f7a;"}
+
+::: {style="font-size: 1.1em; margin-top: 1em; color: #555;"}
+MG2 / MagicGlasses2
+R package for routine health data analysis
+:::
+
+::: {style="margin-top: 1.5em; font-size: 1em;"}
+[github.com/jpainter/MG2](https://github.com/jpainter/MG2) · GPL-3
+:::
+
+::: {style="margin-top: 2em; font-size: 0.9em; color: #777;"}
+Slides and demo videos available in the GitHub repository
+:::
+
+:::
+
+::: notes
+Leave this slide up during open Q&A. Have the GitHub URL ready to paste into the Zoom chat.
+:::
