@@ -253,10 +253,15 @@ evaluation_widget_ui = function(id) {
                   ),
 
                   fluidRow(
-                    style = "height:60vh;",
+                    style = "height:auto;",
                     column(
                       12,
-                      chartModuleUI(ns("wpeHistogram"), "WPE Histogram")
+                      # Must pass height explicitly: chartModuleUI() defaults to a
+                      # fixed 400px, which left the histogram filling only part of
+                      # the panel. Matches the Time-Series Chart tab so both scale
+                      # with the viewport.
+                      chartModuleUI(ns("wpeHistogram"), "WPE Histogram",
+                                    height = "calc(70vh - 50px)")
                     )
                   )
                 )

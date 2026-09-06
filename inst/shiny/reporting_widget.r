@@ -2671,10 +2671,18 @@ reporting_widget_server <- function(
 
         cat('\n - factpal')
 
+        # Leaflet passes colour strings straight through to CSS/SVG, so they must
+        # be valid CSS colours. R palette names like "red4"/"grey20" are NOT — the
+        # browser silently ignores them and falls back to the SVG default (black),
+        # which is why individual champion markers rendered black while the cluster
+        # icons (which build their own rgba() strings) were correctly red. Use hex.
+        champ_col    <- "#8B0000"   # red4
+        nonchamp_col <- "#333333"   # grey20
+
         # Specify levels explicitly so colorFactor works even when facilities
         # is an empty sf (no GPS coordinates matched for this facility).
         factpal <- colorFactor(
-          palette = c("red4", "grey20"),
+          palette = c(champ_col, nonchamp_col),
           levels  = c("Consistent Reporting (Champion)", "Inconsistent Reporting")
         )
 
@@ -2713,7 +2721,7 @@ reporting_widget_server <- function(
         )
         nonchampion_cluster_opts <- markerClusterOptions(
           maxClusterRadius = 40,
-          iconCreateFunction = cluster_icon_js(32, 32, 32)  # grey20 = #202020
+          iconCreateFunction = cluster_icon_js(51, 51, 51)  # grey20 = #333333
         )
 
         # Split into champion / non-champion for separate coloured cluster layers
@@ -2846,8 +2854,8 @@ reporting_widget_server <- function(
               lat            = sf::st_coordinates(champ)[, 2],
               group          = "Champions",
               radius         = mk_radius(champ),
-              fillColor      = "red4",
-              color          = "red4",
+              fillColor      = champ_col,
+              color          = champ_col,
               stroke         = TRUE,
               weight         = 1,
               fillOpacity    = 0.8,
@@ -2864,8 +2872,8 @@ reporting_widget_server <- function(
               lat            = sf::st_coordinates(nonchamp)[, 2],
               group          = "Non-Champions",
               radius         = mk_radius(nonchamp),
-              fillColor      = "grey20",
-              color          = "grey20",
+              fillColor      = nonchamp_col,
+              color          = nonchamp_col,
               stroke         = TRUE,
               weight         = 1,
               fillOpacity    = 0.8,
@@ -2887,7 +2895,7 @@ reporting_widget_server <- function(
         gf.map = gf.map %>%
           addLegend(
             "bottomright",
-            colors  = c("#8B0000", "#333333"),
+            colors  = c(champ_col, nonchamp_col),
             labels  = c("Consistent Reporting (Champion)", "Inconsistent Reporting"),
             title   = 'Reporting Consistency',
             opacity = 0.8

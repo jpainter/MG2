@@ -516,6 +516,16 @@ dqa_widget_server <- function(
       # Reporting Map ####
 
       dqa_region_reporting = reactive({
+        # Only compute when the Reporting → Map sub-tab is actually showing.
+        # The map output itself has suspendWhenHidden = FALSE (it has to — see the
+        # outputOptions note below), so this guard is what keeps the expensive
+        # per-region/per-year reporting aggregation from running while the user is
+        # on the Chart or Facility Heatmap sub-tab.
+        # Both levels are checked: bslib keeps the pill's last-selected value even
+        # while its parent panel is hidden, so the outer tab must be tested too.
+        req(identical(input$dqa_tab, "Reporting"))
+        req(identical(input$dqa_reporting_subtab, "Map"))
+
         # Snapshot each reactive ONCE — calling levelNames()/geoFeatures() again
         # later in this expression is not guaranteed to return the same value
         # (geoFeatures() does file I/O and can be invalidated/re-triggered by
@@ -686,6 +696,12 @@ dqa_widget_server <- function(
           )
       })
 
+      # suspendWhenHidden MUST stay FALSE for the map: it sits two tab levels deep
+      # (navset_tab "Reporting" → navset_pill "Map") and never reliably receives
+      # Shiny's visibility-based render trigger, so with the TRUE default it simply
+      # never renders. The cost of FALSE — recomputing on large datasets while the
+      # map is hidden — is handled instead by the sub-tab guard in
+      # dqa_region_reporting(), which is the expensive part.
       outputOptions(output, "dqaReportingMap", suspendWhenHidden = FALSE)
       outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = FALSE)
 

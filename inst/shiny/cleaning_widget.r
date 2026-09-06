@@ -1142,7 +1142,7 @@ cleaning_widget_server <- function(
           plotly::add_lines(
             data       = d_series,
             x          = ~t, y = ~original,
-            line       = list(color = "grey70", width = 1),
+            line       = list(color = "#B3B3B3", width = 1),  # grey70; plotly needs CSS hex
             showlegend = FALSE,
             hoverinfo  = "skip"
           ) %>%
