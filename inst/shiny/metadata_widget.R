@@ -2153,6 +2153,25 @@ metadata_widget_server <- function(
           }
         }
 
+        # Normalise `level` to integer before handing geoFeatures to any consumer.
+        # geojsonsf::geojson_sf() returns every GeoJSON property as a string, and
+        # metadata saved to disk preserves that, so `level` arrives as character.
+        # Comparisons like `level == 2` or `level > 1L` still work by accident
+        # (R coerces to character, and lexicographic order matches numeric order
+        # for single digits), which is why this went unnoticed. What does NOT work
+        # is using it as a numeric index: levelNames[["2"]] is a *name* lookup on
+        # an unnamed vector and silently returns NA. That blanked the DQA
+        # reporting map for months (see 98d9cce). Coerce once, here, so no
+        # downstream widget has to remember.
+        if ("level" %in% names(geosf.)) {
+          lvl <- suppressWarnings(as.integer(as.character(geosf.$level)))
+          if (all(is.na(lvl) == is.na(geosf.$level))) {
+            geosf.$level <- lvl
+          } else {
+            cat('\n- WARNING: geoFeatures$level has non-numeric values; left as-is')
+          }
+        }
+
         return(geosf.)
       })
 

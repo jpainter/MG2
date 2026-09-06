@@ -532,7 +532,28 @@ dqa_widget_server <- function(
       # the reactive with no console error and no UI message).
       dqa_map_diag <- reactiveVal(NULL)
 
+      # Sub-tab gate for the expensive per-region/per-year aggregation.
+      #
+      # Deliberately FAIL-OPEN: it skips only when the active panel is *positively
+      # known* to be one that does not show the map. Any unexpected or missing
+      # input value falls through and computes, so a wrong assumption about
+      # bslib's reported values costs a little CPU rather than silently blanking
+      # the map — which is exactly what an earlier
+      # req(identical(input$dqa_tab, "Reporting")) version did.
+      .dqa_map_hidden <- function() {
+        outer <- input$dqa_tab
+        inner <- input$dqa_reporting_subtab
+        (!is.null(outer) &&
+           outer %in% c("Outliers", "Consistency", "MASE", "Facilities")) ||
+          (!is.null(inner) && inner %in% c("Chart", "Facility Heatmap"))
+      }
+
       dqa_region_reporting = reactive({
+        if (.dqa_map_hidden()) {
+          cat('\n* dqa_region_reporting: skipped (map sub-tab not active)')
+          return(NULL)
+        }
+
         # Snapshot each reactive ONCE — calling levelNames()/geoFeatures() again
         # later in this expression is not guaranteed to return the same value
         # (geoFeatures() does file I/O and can be invalidated/re-triggered by

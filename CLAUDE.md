@@ -114,6 +114,39 @@ observeEvent(reportingSelectedOUs(), ignoreNULL = FALSE, {
 
 Same pattern applied to `selected_data()` via `cached_selected_data`.
 
+### Critical pattern: `geoFeatures$level` is integer-normalised on read
+
+`geojsonsf::geojson_sf()` returns every GeoJSON property as a **string**, and metadata
+saved to disk preserves that, so `geoFeatures$level` arrives as character (`"2"`, `"3"`).
+The `geoFeatures()` reactive in `metadata_widget.R` now coerces it to integer before
+returning, so **consumers can rely on `level` being integer**. Do not undo that, and do
+not reintroduce string levels from a new source.
+
+Why it matters: character levels survive comparison unnoticed but break indexing.
+
+```r
+lv <- c("2", "3", "4")          # what geojson_sf gives you
+min(lv[lv > 1L])                # "2"  — string compare, "works"
+levelNames[["2"]]               # NA   — NAME lookup on an unnamed vector!
+req(NA %in% names(data))        # req(FALSE) → silent abort, blank output
+```
+
+`level == 2`, `level > 1L` and `sort()`/`max()` all appear to work because R coerces to
+character and lexicographic order matches numeric order **for single digits**. What fails
+is using the value as a *numeric index*: `levelNames[map_level]` with a character
+`map_level` is a name lookup, silently yielding `NA`. This blanked the DQA reporting map
+(and its year slider, which shares the reactive) for months — see `98d9cce`.
+
+Two lessons, both of which cost real debugging time here:
+
+- **A bare `req()` on a derived condition is a silent blank.** Prefer returning `NULL`
+  plus a diagnostic the renderer can display (`dqa_map_diag` in `dqa_widget.R`) over
+  `req(x %in% names(y))`, which aborts with no console error and no UI message.
+- **Tab-visibility guards must fail open.** `req(identical(input$dqa_tab, "Reporting"))`
+  blanks the panel outright if the input value is ever not what you assumed. Gate on the
+  panels you *positively know* are hidden instead, so a wrong guess costs CPU rather than
+  the whole output — see `.dqa_map_hidden()` in `dqa_widget.R`.
+
 ### Other design rules
 
 - `R/` functions load via package namespace — no `source()` calls for functions.
