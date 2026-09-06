@@ -515,17 +515,24 @@ dqa_widget_server <- function(
 
       # Reporting Map ####
 
-      dqa_region_reporting = reactive({
-        # Only compute when the Reporting → Map sub-tab is actually showing.
-        # The map output itself has suspendWhenHidden = FALSE (it has to — see the
-        # outputOptions note below), so this guard is what keeps the expensive
-        # per-region/per-year reporting aggregation from running while the user is
-        # on the Chart or Facility Heatmap sub-tab.
-        # Both levels are checked: bslib keeps the pill's last-selected value even
-        # while its parent panel is hidden, so the outer tab must be tested too.
-        req(identical(input$dqa_tab, "Reporting"))
-        req(identical(input$dqa_reporting_subtab, "Map"))
+      # geoFeatures$level is CHARACTER, not integer — geojsonsf::geojson_sf()
+      # returns every GeoJSON property as a string, and stored metadata keeps it
+      # that way. Using it as a numeric index silently yields NA (ln[["2"]] is a
+      # *name* lookup on an unnamed vector), so always coerce first.
+      .dqa_map_level <- function(gf) {
+        if (is.null(gf) || !"level" %in% names(gf)) return(2L)
+        lv <- suppressWarnings(as.integer(gf$level))
+        lv <- lv[!is.na(lv)]
+        if (!any(lv > 1L)) return(2L)
+        min(lv[lv > 1L])
+      }
 
+      # Set when the map cannot be drawn, so the renderer can explain why instead
+      # of leaving a blank panel (this was previously a bare req(), which aborts
+      # the reactive with no console error and no UI message).
+      dqa_map_diag <- reactiveVal(NULL)
+
+      dqa_region_reporting = reactive({
         # Snapshot each reactive ONCE — calling levelNames()/geoFeatures() again
         # later in this expression is not guaranteed to return the same value
         # (geoFeatures() does file I/O and can be invalidated/re-triggered by
@@ -543,19 +550,25 @@ dqa_widget_server <- function(
         # Note: geoFeatures is NOT required here — reporting aggregation runs even
         # without geo data; the map renderer checks geoFeatures separately.
 
-        # Default to level 2 when geoFeatures is unavailable
-        if (!is.null(gf)) {
-          gf_levels <- sort(unique(gf$level))
-          map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
-        } else {
-          map_level <- 2L
-        }
+        # Defaults to level 2 when geoFeatures is unavailable
+        map_level <- .dqa_map_level(gf)
         # ln[1]=National, [2]=level2, [3]=level3, ...
-        level_col  <- if (length(ln) >= map_level) ln[map_level] else ln[2L]
+        level_col <- if (length(ln) >= map_level) ln[map_level] else ln[2L]
+        if (is.na(level_col)) level_col <- ln[2L]
         cat('\n* dqa_region_reporting: map_level=', map_level, '| level_col=', level_col,
             '| in dqa_data names?', level_col %in% names(dd))
         cat('\n* dqa_region_reporting: dqa_data names=', paste(names(dd), collapse=', '))
-        req(level_col %in% names(dd))
+
+        if (is.na(level_col) || !level_col %in% names(dd)) {
+          dqa_map_diag(sprintf(
+            "No org unit column for map level %s.<br>Looking for <b>%s</b>; data has: %s",
+            map_level,
+            if (is.na(level_col)) "&lt;none&gt;" else level_col,
+            paste(utils::head(names(dd), 12), collapse = ", ")
+          ))
+          return(NULL)
+        }
+        dqa_map_diag(NULL)
 
         notif_id <- showNotification("DQA map: computing per-region reporting…",
                                      duration = NULL, type = "message", closeButton = FALSE)
@@ -592,12 +605,16 @@ dqa_widget_server <- function(
         cat('\n* dqaReportingMap: dqa_region_reporting rows=',
             if (is.null(res)) 'NULL' else nrow(res))
         if (is.null(res)) {
+          diag <- dqa_map_diag()
           return(leaflet::leaflet() |> leaflet::addTiles() |> leaflet::addControl(
             html = paste0(
-              "<div style='padding:10px;background:white;border-radius:4px;max-width:300px;'>",
-              "<b>Reporting data not ready.</b><br>",
-              "Select data elements and press Update, then check the Chart tab renders,",
-              " before opening this map.</div>"
+              "<div style='padding:10px;background:white;border-radius:4px;max-width:340px;'>",
+              if (!is.null(diag)) paste0("<b>Cannot draw map.</b><br>", diag) else paste0(
+                "<b>Reporting data not ready.</b><br>",
+                "Select data elements and press Update, then check the Chart tab renders,",
+                " before opening this map."
+              ),
+              "</div>"
             ),
             position = "topright"
           ))
@@ -625,9 +642,27 @@ dqa_widget_server <- function(
         # gf_chk once — see dqa_region_reporting for why re-calling
         # geoFeatures() isn't safe here).
         # Some demo datasets only have chiefdom (level 3) shapes, not district (level 2).
-        gf_levels <- sort(unique(gf_chk$level))
-        map_level <- min(gf_levels[gf_levels > 1L], na.rm = TRUE)
-        gf_filtered <- gf_chk |> dplyr::filter(level == map_level)
+        # Must match the level chosen in dqa_region_reporting() — same character-
+        # to-integer coercion, hence the shared .dqa_map_level() helper.
+        map_level   <- .dqa_map_level(gf_chk)
+        gf_filtered <- gf_chk[
+          which(suppressWarnings(as.integer(gf_chk$level)) == map_level), , drop = FALSE
+        ]
+        cat('\n* dqaReportingMap: map_level=', map_level,
+            '| polygons at that level=', nrow(gf_filtered))
+        if (nrow(gf_filtered) == 0) {
+          return(
+            leaflet::leaflet() |> leaflet::addTiles() |> leaflet::addControl(
+              html = sprintf(
+                "<div style='padding:10px;background:white;border-radius:4px;max-width:320px;'>
+                  <b>No boundaries at level %s.</b><br>
+                  geoFeatures has levels: %s</div>",
+                map_level, paste(sort(unique(gf_chk$level)), collapse = ", ")
+              ),
+              position = "topright"
+            )
+          )
+        }
         # Normalize names on BOTH sides before joining: strip 2-3 char lowercase
         # prefix (e.g. "eb Ebonyi State" → "Ebonyi State") AND common admin
         # suffixes (e.g. "Ebonyi State" → "Ebonyi") so data names match
@@ -696,14 +731,36 @@ dqa_widget_server <- function(
           )
       })
 
-      # suspendWhenHidden MUST stay FALSE for the map: it sits two tab levels deep
-      # (navset_tab "Reporting" → navset_pill "Map") and never reliably receives
-      # Shiny's visibility-based render trigger, so with the TRUE default it simply
-      # never renders. The cost of FALSE — recomputing on large datasets while the
-      # map is hidden — is handled instead by the sub-tab guard in
-      # dqa_region_reporting(), which is the expensive part.
+      # suspendWhenHidden = FALSE so the render is guaranteed to fire: the map sits
+      # two tab levels deep (navset_tab "Reporting" → navset_pill "Map") and does
+      # not reliably receive Shiny's visibility-based render trigger there.
+      #
+      # The trade-off is that leaflet then initialises inside a display:none
+      # container, measures itself as 0x0 and stays blank even after the pill is
+      # shown. Leaflet only recovers on invalidateSize(), which its Shiny binding
+      # runs in response to a window resize — hence the nudge below.
       outputOptions(output, "dqaReportingMap", suspendWhenHidden = FALSE)
       outputOptions(output, "dqa_map_year_ui", suspendWhenHidden = FALSE)
+
+      # Force leaflet to re-measure once the sub-tab is visible and laid out.
+      # A global resize event is not always enough, so also call invalidateSize()
+      # on this specific widget; both are no-ops if the map has not rendered yet.
+      observeEvent(input$dqa_reporting_subtab, {
+        cat('\n* dqa_reporting_subtab =', input$dqa_reporting_subtab)
+        shinyjs::delay(300, shinyjs::runjs(sprintf(
+          "(function(){
+             try {
+               var w = (typeof HTMLWidgets !== 'undefined')
+                 ? HTMLWidgets.find('#%s') : null;
+               var m = w && (typeof w.invalidateSize === 'function')
+                 ? w : (w && w.getMap ? w.getMap() : null);
+               if (m && m.invalidateSize) m.invalidateSize(true);
+             } catch (e) { console.log('MG2 invalidateSize:', e); }
+             window.dispatchEvent(new Event('resize'));
+           })();",
+          session$ns("dqaReportingMap")
+        )))
+      }, ignoreInit = TRUE)
 
       # Consistency tab ####
 
