@@ -1,3 +1,51 @@
+# MG2 0.2.0
+
+* **Cloud workspace — Google Drive support** — MG2 can now read and write its data
+  directory on Google Drive instead of a local folder. File I/O goes through a new
+  `mg2_workspace()` S3 abstraction (`ws_read_*()` / `ws_save_*()` / `ws_list()`), so
+  every widget works unchanged against either backend. Connect from the Setup tab; the
+  chosen Drive folder is remembered across sessions.
+* **Google sign-in without console prompts** — authentication uses a browser redirect
+  flow: a link sends you to Google, Google returns you to the app, and the token is held
+  in your session only and never written to disk. This replaces
+  `googledrive::drive_auth()`, whose default flow assumes the R process and the browser
+  are on the same machine and breaks on hosted deployments.
+* **Load data from shared links** — paste Google Drive, Google Sheets, Dropbox or
+  OneDrive share URLs on the Login tab to load a dataset, formula and metadata without
+  a local copy. Read-only and single-session.
+* **Output tab (dev preview)** — write MG2 results back to a DHIS2 instance. Spins up a
+  local instance matching the source version via `d2 cluster up`, then imports org units,
+  the data elements inferred from the loaded formula, and four MG2 output elements
+  (`MG2trendEst`, `MG2adjEstim`, `MG2forecast`, `MG2wpeEffct`). Writing model output
+  (Step 4) is still a placeholder.
+* **`manage_clusters()`** — new Shiny gadget for managing local DHIS2 `d2` clusters
+  (create, start/stop, restore from a SQL dump, destroy), with version matching against
+  a live source instance.
+
+## Fixes
+
+* **DQA reporting map was always blank** — `geoFeatures$level` arrives as character
+  (`geojsonsf` stringifies GeoJSON properties), and using it as a numeric index silently
+  produced `NA`, aborting the reactive with no error message. `level` is now normalised
+  to integer when metadata is read, and the map reports *why* it cannot draw instead of
+  rendering an empty panel. The year slider, which shares that reactive, was affected too.
+* **Champion facilities were not red on the Reporting map** — marker colours were passed
+  as R palette names (`"red4"`, `"grey20"`), which are not valid CSS, so the browser fell
+  back to black. Cluster bubbles were unaffected, which is why only the individual points
+  looked wrong.
+* **Posterior Distribution of Change chart was half-height** — the WPE histogram was the
+  one chart not given an explicit height, so it stayed at the module's fixed 400 px
+  default. It now scales with the window like the Time-Series chart.
+* **Champion selection with a single final period** — `mostFrequentReportingOUs()` no
+  longer errors when the evaluation window collapses (a caller subtracting one month from
+  `endingMonth` could push it before `startingMonth`).
+* **Out-of-memory on large datasets** — the Reporting element-category builder was handed
+  the entire dataset when it only needed unique `(data, data.id)` pairs.
+* **Outlier scan save used the wrong writer** — results were serialised with `saveRDS()`
+  under a `.qs` filename; they now go through the format-aware writer.
+* **Silent blank charts on other tabs** — several reactives called tab-guarded reactives
+  directly (`reportingSelectedOUs()`, `caption.text()`), aborting with no message when
+  viewed from a different tab.
 # MG2 0.1.9
 
 * **DQA: Active/Inactive Facility tab** — new "Facilities" top-level tab within DQA shows

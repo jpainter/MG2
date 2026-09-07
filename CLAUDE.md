@@ -6,7 +6,7 @@
 epidemiological analysis of routine health data from DHIS2 systems. Functions are also
 usable in standalone R scripts.
 
-**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.1.9
+**Author:** John Painter (painter.ja@gmail.com) | **License:** GPL-3 | **Version:** 0.2.0
 **Reference:** [R Packages (2e)](https://r-pkgs.org)
 
 ---
@@ -209,9 +209,15 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 
 ---
 
-## Current State (as of 2026-07-20)
+## Current State (as of 2026-09-07)
 
-**Version:** 0.1.9 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
+**Version:** 0.2.0 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
+
+**Note on running `check()`:** the repo lives in iCloud Drive, so `R CMD build`
+spends many minutes hydrating evicted files before it does any work (0.2% CPU, no
+progress output). Export the tree to local disk first:
+`mkdir -p /tmp/mg2check/MG2 && git archive HEAD | tar -x -C /tmp/mg2check/MG2`,
+then run `devtools::check()` there — seconds instead of minutes.
 
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
@@ -219,7 +225,9 @@ download + combine) → DQA (incl. Consistency + Reporting Map + Facilities + He
 Reporting → Outliers → Evaluation → Climate (dev) → Output (dev, Steps 1–3) →
 Burden Estimate (dev) → AI Assistant (dev)
 
-**Output tab (dev):** Steps 1–3 functional — source info display, spin up local DHIS2 via
+**Output tab (dev):** wired into the navbar as of 0.2.0 (`84b726d` — `output_widget.R`
+was added in `98e822b` but never sourced or served, so the tab was unreachable).
+Steps 1–3 functional — source info display, spin up local DHIS2 via
 `d2 cluster up` (matching source version, processx, polls for readiness), import org units +
 dynamically-inferred source data elements + 4 fixed MG2 output UIDs (`MG2trendEst`,
 `MG2adjEstim`, `MG2forecast`, `MG2wpeEffct`). Step 4 (model output writing) is a placeholder.
