@@ -8,6 +8,7 @@ dqa_reporting(
   dqa_data,
   missing_reports = 0,
   count.any = TRUE,
+  strict = TRUE,
   .cat = FALSE,
   .progress = NULL,
   ...

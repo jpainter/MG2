@@ -13,6 +13,7 @@ mostFrequentReportingOUs(
   count.any = NULL,
   reporting_rule = NULL,
   data_categories = NULL,
+  strict = TRUE,
   testing = FALSE,
   .cat = FALSE
 )

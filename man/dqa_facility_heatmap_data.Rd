@@ -4,7 +4,7 @@
 \alias{dqa_facility_heatmap_data}
 \title{Build the facility x month reporting matrix}
 \usage{
-dqa_facility_heatmap_data(data, level_col)
+dqa_facility_heatmap_data(data, level_col, min_month = NULL, max_month = NULL)
 }
 \arguments{
 \item{data}{data.frame / data.table from \code{region_filtered_data1()}.}
