@@ -62,6 +62,9 @@ Imports:
     zoo
 Suggests:
     ellmer,
+    httr2,
+    processx,
+    rappdirs,
     shinychat,
     fable.prophet,
     flextable,

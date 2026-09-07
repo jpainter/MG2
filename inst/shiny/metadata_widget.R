@@ -2580,7 +2580,8 @@ metadata_widget_server <- function(
         # uploaded_Categories = uploaded_Categories ,
         # uploaded_DataSets = uploaded_DataSets ,
         indicators = indicatorDictionary,
-        validationRules = validationRules
+        validationRules = validationRules,
+        systemInfo = systemInfo
         # uploaded_dataDictionary = uploaded_dataDictionary
       ))
     }
