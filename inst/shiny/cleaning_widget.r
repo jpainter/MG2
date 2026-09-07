@@ -709,7 +709,7 @@ cleaning_widget_server <- function(
           cat('\n - saving data1.seasonal to replace dataset')
           cat('\n - names(data1.seasonal):', names(data1.seasonal))
 
-          ws_save_rds(ws(), data1.seasonal, dataset.file())
+          ws_save_file(ws(), data1.seasonal, basename(dataset.file()))
 
           showNotification(
             "Outlier scan complete — data saved.",

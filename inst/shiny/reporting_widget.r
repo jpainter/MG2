@@ -755,10 +755,20 @@ reporting_widget_server <- function(
         }
       }
 
+      # Pre-extract the tiny lookup table (.reporting_element_map only needs unique
+      # (data, data.id) pairs — passing the full dataset causes OOM on large files)
+      data1_lookup <- reactive({
+        d <- data1()
+        req("data" %in% names(d))
+        cols <- intersect(c("data", "data.id"), names(d))
+        if (length(cols) == 0L) return(d)
+        unique(data.table::as.data.table(d)[, ..cols])
+      })
+
       observeEvent('data' %in% names(data1()), {
         req(data1()$data)
         cat('\n* updating data_categories with primary/secondary distinction')
-        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1())
+        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1_lookup())
         cat('\n - done')
       })
 
@@ -766,12 +776,12 @@ reporting_widget_server <- function(
         req(data1()$data)
         req(formula_elements())
         cat('\n* reporting_widget: formula_elements changed, refreshing data_categories')
-        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1())
+        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1_lookup())
       }, ignoreInit = TRUE, ignoreNULL = TRUE)
 
       observeEvent(input$collapse_reporting, {
         req(data1()$data)
-        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1())
+        .update_data_categories(stringr::str_sort(unique(data1()$data), numeric = TRUE), formula_elements(), data1_lookup())
       }, ignoreInit = TRUE)
 
       observeEvent(input$update_data_categories, {

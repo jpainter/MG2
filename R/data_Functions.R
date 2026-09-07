@@ -337,6 +337,11 @@ mostFrequentReportingOUs <- function(
   #   A system-wide gap month is invisible to the algorithm; a facility that reported
   #   whenever any other facility did is a champion, even if that was only 2 months.
   if (strict) {
+    # Guard: endingMonth - 1 (applied by caller for current-month exclusion) can
+    # flip before startingMonth when an element has only one period in the final
+    # year (e.g. Jan 2026 − 1 = Dec 2025 < Jan 2026). Return empty if so.
+    if (as.Date(startingMonth) > as.Date(endingMonth))
+      return(character(0))
     if (period == "Month") {
       all_dates <- seq(as.Date(startingMonth), as.Date(endingMonth), by = "month")
       all_ints  <- unclass(tsibble::yearmonth(all_dates))
