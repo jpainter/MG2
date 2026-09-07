@@ -22,6 +22,10 @@ dqa_reporting(
 \item{count.any}{Logical. Count facilities reporting any data element
 (default: \code{TRUE}).}
 
+\item{strict}{Logical. Passed to \code{mostFrequentReportingOUs()}. \code{TRUE}
+(default) requires a facility to report in every calendar month of the
+year; \code{FALSE} requires only the months in which some facility reported.}
+
 \item{.cat}{Logical. Print progress messages (default: \code{FALSE}).}
 
 \item{.progress}{Optional function \verb{(i, n)} called after processing each

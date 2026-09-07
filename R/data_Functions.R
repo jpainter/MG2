@@ -184,6 +184,10 @@ cleanedData = function(
 #'   `"any_selected"`, or `"any_data"` — controls which facilities are counted
 #'   as consistently reporting.
 #' @param data_categories character vector; data element categories to consider
+#' @param strict logical; how the champion denominator is built. `TRUE`
+#'   (default) counts every calendar period in `[startingMonth, endingMonth]`,
+#'   so a system-wide gap month penalises any facility that missed it. `FALSE`
+#'   counts only periods that appear somewhere in the data for that year.
 #' @param testing logical; save intermediate objects for debugging
 #' @param .cat logical; print progress messages to the console
 #' @export
@@ -839,6 +843,7 @@ groupByCols = function(
 #' @param level3 character; optional level-3 org unit filter value
 #' @param level4 character; optional level-4 org unit filter value
 #' @param level5 character; optional level-5 org unit filter value
+#' @param level6 character; optional level-6 org unit filter value
 #' @param .cat logical; print progress messages to the console
 #' @param ... additional arguments
 #' @export

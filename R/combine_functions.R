@@ -393,6 +393,9 @@ execute_ratio_step <- function(step, data_folder = NULL, period_col, verbose = F
 #' @param ousTree data.frame with org unit hierarchy (from `metadata_widget`).
 #' @param formula_name Character; stored as `Formula.Name` in the output.
 #' @param verbose Logical; print progress messages (always prints to console).
+#' @param ws Optional `mg2_workspace()` object; when supplied it overrides
+#'   `data_folder` and routes all file I/O through the workspace backend (local
+#'   or Google Drive). If `NULL`, one is constructed from `data_folder`.
 #' @param .progress Optional function `(value, message, detail = "")` called at
 #'   key stages.  `value` is 0-1.  Pass `shiny::setProgress` (or a wrapper)
 #'   when calling from a Shiny `withProgress()` context.

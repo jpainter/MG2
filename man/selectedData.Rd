@@ -50,6 +50,8 @@ selectedData(
 
 \item{level5}{character; optional level-5 org unit filter value}
 
+\item{level6}{character; optional level-6 org unit filter value}
+
 \item{.cat}{logical; print progress messages to the console}
 
 \item{...}{additional arguments}

@@ -28,6 +28,10 @@ build_combined_dataset(
 \item{.progress}{Optional function \verb{(value, message, detail = "")} called at
 key stages.  \code{value} is 0-1.  Pass \code{shiny::setProgress} (or a wrapper)
 when calling from a Shiny \code{withProgress()} context.}
+
+\item{ws}{Optional \code{mg2_workspace()} object; when supplied it overrides
+\code{data_folder} and routes all file I/O through the workspace backend (local
+or Google Drive). If \code{NULL}, one is constructed from \code{data_folder}.}
 }
 \value{
 data.table in standard processed-dataset format.

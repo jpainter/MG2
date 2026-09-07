@@ -10,6 +10,11 @@ dqa_facility_heatmap_data(data, level_col, min_month = NULL, max_month = NULL)
 \item{data}{data.frame / data.table from \code{region_filtered_data1()}.}
 
 \item{level_col}{Character; column for region faceting (\code{levelNames()[2]}).}
+
+\item{min_month, max_month}{Optional integer months (days-since-epoch, i.e.
+\code{unclass(yearmonth(x))}) used to widen the grid beyond the range present in
+\code{data}, so a facility with no reports at all still gets a full row of
+blanks. Default \code{NULL} uses the min/max month found in \code{data}.}
 }
 \value{
 A data.frame with columns \code{orgUnit}, \code{orgUnitName}, \code{region},

@@ -211,7 +211,19 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 
 ## Current State (as of 2026-09-07)
 
-**Version:** 0.2.0 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 1 NOTE
+**Version:** 0.2.0 | **check() baseline:** 0 ERRORs · 1 WARNING · 2 NOTEs
+
+The previously recorded 0E · 0W · 1N was stale. Actual, verified 2026-09-07:
+
+- **WARNING — non-ASCII characters** in `climate_functions.R`,
+  `fct_cluster_manager.R`, `fct_output_dhis2.R`. 64 lines, of which only 4 are
+  code (em-dashes inside user-facing strings); the other 60 are em-dashes, `±`,
+  `≈`, `→` and `──────` box rules in comments. `Encoding: UTF-8` is already
+  declared and does not suppress it. Clearing it fully means rewriting 60 lines
+  of comments for no behaviour change, so it is accepted for now.
+- **NOTE — unable to verify current time.** Environmental, not a code issue.
+- **NOTE — no visible binding for global variable.** The deferred Phase D item:
+  bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::`.
 
 **Note on running `check()`:** the repo lives in iCloud Drive, so `R CMD build`
 spends many minutes hydrating evicted files before it does any work (0.2% CPU, no

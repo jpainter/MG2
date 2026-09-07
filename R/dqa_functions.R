@@ -429,6 +429,9 @@ dqa_years <- function(dqa_data) {
 #' @param missing_reports Integer. Allowed missing months (default: `0`).
 #' @param count.any Logical. Count facilities reporting any data element
 #'   (default: `TRUE`).
+#' @param strict Logical. Passed to `mostFrequentReportingOUs()`. `TRUE`
+#'   (default) requires a facility to report in every calendar month of the
+#'   year; `FALSE` requires only the months in which some facility reported.
 #' @param .cat Logical. Print progress messages (default: `FALSE`).
 #' @param .progress Optional function `(i, n)` called after processing each
 #'   year, for Shiny progress feedback.
@@ -918,6 +921,10 @@ dqa_facility_status_table <- function(status_data) {
 #'
 #' @param data data.frame / data.table from `region_filtered_data1()`.
 #' @param level_col Character; column for region faceting (`levelNames()[2]`).
+#' @param min_month,max_month Optional integer months (days-since-epoch, i.e.
+#'   `unclass(yearmonth(x))`) used to widen the grid beyond the range present in
+#'   `data`, so a facility with no reports at all still gets a full row of
+#'   blanks. Default `NULL` uses the min/max month found in `data`.
 #' @return A data.frame with columns `orgUnit`, `orgUnitName`, `region`,
 #'   `Month`, `reported` (0/1), `total_reported` (integer, for row ordering).
 #' @export

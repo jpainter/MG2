@@ -132,15 +132,23 @@ export(loginDHIS2)
 export(mable_data)
 export(mad_outliers)
 export(manage_clusters)
+export(mg2_build_org_units_payload)
+export(mg2_build_output_de_payload)
+export(mg2_build_source_de_payload)
+export(mg2_check_instance_metadata)
 export(mg2_data_ext)
 export(mg2_demo_dir)
 export(mg2_demo_setup)
+export(mg2_format_raw_data_values)
 export(mg2_gdrive_auth_url)
 export(mg2_gdrive_exchange_code)
 export(mg2_gdrive_new_state)
 export(mg2_gdrive_verify_state)
 export(mg2_load_from_urls)
 export(mg2_pdrlao_setup)
+export(mg2_post_data_values)
+export(mg2_post_metadata)
+export(mg2_test_dhis2_connection)
 export(mg2_workspace)
 export(modelSelection)
 export(model_formula)
@@ -195,38 +203,46 @@ import(data.table)
 importFrom(DT,datatable)
 importFrom(assertthat,assert_that)
 importFrom(bslib,page_navbar)
-importFrom(ggplot2,aes)
-importFrom(ggplot2,element_blank)
-importFrom(ggplot2,element_text)
-importFrom(ggplot2,facet_wrap)
-importFrom(ggplot2,geom_col)
-importFrom(ggplot2,geom_errorbar)
-importFrom(ggplot2,geom_sf)
-importFrom(ggplot2,ggplot)
-importFrom(ggplot2,labs)
-importFrom(ggplot2,position_dodge)
-importFrom(ggplot2,scale_fill_brewer)
-importFrom(ggplot2,scale_fill_distiller)
-importFrom(ggplot2,scale_fill_manual)
-importFrom(ggplot2,scale_fill_viridis_c)
-importFrom(ggplot2,theme)
-importFrom(ggplot2,theme_minimal)
-importFrom(ggplot2,theme_void)
-importFrom(httr,GET)
-importFrom(httr,content)
-importFrom(httr,status_code)
-importFrom(httr,timeout)
+importFrom(ggplot2,
+  aes,
+  element_blank,
+  element_text,
+  facet_wrap,
+  geom_col,
+  geom_errorbar,
+  geom_sf,
+  ggplot,
+  labs,
+  position_dodge,
+  scale_fill_brewer,
+  scale_fill_distiller,
+  scale_fill_manual,
+  scale_fill_viridis_c,
+  theme,
+  theme_minimal,
+  theme_void
+)
+importFrom(httr,
+  GET,
+  content,
+  status_code,
+  timeout
+)
 importFrom(magrittr,"%>%")
-importFrom(openxlsx,addWorksheet)
-importFrom(openxlsx,createWorkbook)
-importFrom(openxlsx,saveWorkbook)
-importFrom(openxlsx,writeData)
-importFrom(sf,"st_crs<-")
-importFrom(sf,st_bbox)
-importFrom(sf,st_geometry_type)
-importFrom(sf,st_is_empty)
-importFrom(sf,st_read)
-importFrom(sf,st_transform)
+importFrom(openxlsx,
+  addWorksheet,
+  createWorkbook,
+  saveWorkbook,
+  writeData
+)
+importFrom(sf,
+  "st_crs<-",
+  st_bbox,
+  st_geometry_type,
+  st_is_empty,
+  st_read,
+  st_transform
+)
 importFrom(shinyFiles,shinyDirButton)
 importFrom(shinyWidgets,pickerInput)
 importFrom(shinybusy,add_busy_spinner)

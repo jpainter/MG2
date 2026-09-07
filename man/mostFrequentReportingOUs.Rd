@@ -37,6 +37,11 @@ as consistently reporting.}
 
 \item{data_categories}{character vector; data element categories to consider}
 
+\item{strict}{logical; how the champion denominator is built. \code{TRUE}
+(default) counts every calendar period in \verb{[startingMonth, endingMonth]},
+so a system-wide gap month penalises any facility that missed it. \code{FALSE}
+counts only periods that appear somewhere in the data for that year.}
+
 \item{testing}{logical; save intermediate objects for debugging}
 
 \item{.cat}{logical; print progress messages to the console}
