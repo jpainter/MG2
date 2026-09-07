@@ -538,7 +538,7 @@ chirps_make_map <- function(results_list, title_prefix = "", year,
     ggplot2::facet_wrap(~ month_label) +
     ggplot2::labs(
       title = if (nzchar(title_prefix))
-                paste0(title_prefix, " ", year, " — Monthly Rainfall (CHIRPS)")
+                paste0(title_prefix, " ", year, " \u2014 Monthly Rainfall (CHIRPS)")
               else
                 paste0(year, " Monthly Rainfall (CHIRPS)"),
       fill  = "Rainfall\n(mm)"

@@ -83,7 +83,7 @@ mg2_infer_aggregationtype <- function(x, role = "unknown") {
 #' @export
 mg2_build_org_units_payload <- function(org_units) {
   if (is.null(org_units) || !nrow(org_units))
-    stop("org_units is empty — load metadata first.")
+    stop("org_units is empty \u2014 load metadata first.")
 
   org_units <- org_units[order(org_units$level), ]
 
@@ -122,7 +122,7 @@ mg2_build_org_units_payload <- function(org_units) {
 #' @export
 mg2_build_source_de_payload <- function(data_df) {
   if (is.null(data_df) || !nrow(data_df))
-    stop("No data loaded — select a formula and load data first.")
+    stop("No data loaded \u2014 select a formula and load data first.")
 
   required <- c("data.id", "dataElement", "original")
   missing  <- setdiff(required, names(data_df))

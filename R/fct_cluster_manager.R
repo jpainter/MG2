@@ -635,7 +635,7 @@
   # Start
   shiny::observeEvent(input$btn_start, {
     row <- selected_row(); if (is.null(row)) return()
-    ts_log("Starting cluster:", row$name, "(d2 cluster up) — may take several minutes on first run (image pull).")
+    ts_log("Starting cluster:", row$name, "(d2 cluster up) \u2014 may take several minutes on first run (image pull).")
     id <- paste0("up_", row$name)
     .cm_start_proc(id, "d2", c("cluster", "up", row$name))
     rv$active_proc_id <- id
