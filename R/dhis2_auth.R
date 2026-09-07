@@ -4,17 +4,25 @@
 #' Login to a DHIS2 Server
 #'
 #' Authenticates with a DHIS2 server using HTTP Basic Authentication by
-#' sending a GET request to the `/api/me` endpoint. Returns `TRUE` invisibly
-#' on success; stops with an error if authentication fails.
+#' sending a GET request to the `/api/me` endpoint.
 #'
-#' @param baseurl Character. Base URL of the DHIS2 server, including trailing
-#'   slash (e.g., `"https://play.dhis2.org/2.39/"`).
+#' A `200` status alone is *not* treated as success. DHIS2 redirects
+#' unauthenticated API requests to its HTML login form, which also answers
+#' `200`, so a wrong password against a reachable server would otherwise look
+#' like a successful login and only fail later on every subsequent API call.
+#' The response must therefore be JSON *and* contain a user `id`.
+#'
+#' @param baseurl Character. Base URL of the DHIS2 server (e.g.
+#'   `"https://play.dhis2.org/40/"`). A trailing slash is added if missing.
+#'   Must include an `http://` or `https://` scheme and a host.
 #' @param username Character. DHIS2 username.
 #' @param password Character. DHIS2 password.
 #' @param timeout Numeric. Connection timeout in seconds (default: `30`).
 #' @param ... Additional arguments (currently ignored).
 #'
-#' @return Invisible `TRUE` on success.
+#' @return Invisible `TRUE` on success, `FALSE` if the server rejected the
+#'   credentials or did not answer with a DHIS2 user object. Errors if
+#'   `baseurl` is empty or malformed.
 #' @export
 #'
 #' @examples
@@ -26,13 +34,33 @@
 #'   )
 #' }
 loginDHIS2 <- function(baseurl, username, password, timeout = 30, ...) {
+  # Validate up front. Previously an empty baseurl fell through to
+  # httr::GET("api/me"), which fails with an opaque curl error.
+  if (!is.character(baseurl) || length(baseurl) != 1L || is.na(baseurl) ||
+      !nzchar(trimws(baseurl))) {
+    stop(
+      "baseurl must be a single non-empty string, e.g. ",
+      "\"https://play.dhis2.org/40/\".",
+      call. = FALSE
+    )
+  }
+  baseurl <- trimws(baseurl)
+  if (!grepl("^https?://[^/]+", baseurl)) {
+    stop(
+      "baseurl must start with http:// or https:// followed by a host; got: ",
+      baseurl,
+      call. = FALSE
+    )
+  }
   if (!grepl("^https://", baseurl)) {
     warning(
       "Connecting over http:// - credentials will be sent in plain text.",
       call. = FALSE
     )
   }
-  url <- paste0(baseurl, "api/me")
+
+  # Tolerate a missing trailing slash rather than building ".../40api/me".
+  url <- paste0(sub("/?$", "/", baseurl), "api/me")
 
   r <- httr::GET(
     url,
@@ -40,8 +68,33 @@ loginDHIS2 <- function(baseurl, username, password, timeout = 30, ...) {
     config = httr::config(connecttimeout = timeout)
   )
 
-  if (r$status_code != 200L) {
-    message("Login failed. HTTP status code: ", r$status_code)
+  status <- httr::status_code(r)
+  if (status != 200L) {
+    message("Login failed. HTTP status code: ", status)
+    return(FALSE)
+  }
+
+  # A 200 does not mean authenticated: DHIS2 redirects unauthenticated API
+  # requests to dhis-web-commons/security/login.action, which returns 200 with
+  # an HTML body. Require JSON before believing it.
+  ctype <- httr::headers(r)[["content-type"]]
+  if (is.null(ctype)) ctype <- ""
+  if (!grepl("application/json", tolower(ctype), fixed = TRUE)) {
+    message(
+      "Login failed: ", url, " returned '", ctype,
+      "' instead of JSON (ended at ", r$url,
+      "). Check the base URL and credentials."
+    )
+    return(FALSE)
+  }
+
+  # ...and that the JSON is actually an /api/me user object.
+  me <- tryCatch(
+    httr::content(r, as = "parsed", type = "application/json"),
+    error = function(e) NULL
+  )
+  if (!is.list(me) || is.null(me[["id"]])) {
+    message("Login failed: ", url, " did not return a DHIS2 user object.")
     return(FALSE)
   }
 

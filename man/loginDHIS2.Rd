@@ -7,8 +7,9 @@
 loginDHIS2(baseurl, username, password, timeout = 30, ...)
 }
 \arguments{
-\item{baseurl}{Character. Base URL of the DHIS2 server, including trailing
-slash (e.g., \code{"https://play.dhis2.org/2.39/"}).}
+\item{baseurl}{Character. Base URL of the DHIS2 server (e.g.
+\code{"https://play.dhis2.org/40/"}). A trailing slash is added if missing.
+Must include an \verb{http://} or \verb{https://} scheme and a host.}
 
 \item{username}{Character. DHIS2 username.}
 
@@ -19,12 +20,20 @@ slash (e.g., \code{"https://play.dhis2.org/2.39/"}).}
 \item{...}{Additional arguments (currently ignored).}
 }
 \value{
-Invisible \code{TRUE} on success.
+Invisible \code{TRUE} on success, \code{FALSE} if the server rejected the
+credentials or did not answer with a DHIS2 user object. Errors if
+\code{baseurl} is empty or malformed.
 }
 \description{
 Authenticates with a DHIS2 server using HTTP Basic Authentication by
-sending a GET request to the \verb{/api/me} endpoint. Returns \code{TRUE} invisibly
-on success; stops with an error if authentication fails.
+sending a GET request to the \verb{/api/me} endpoint.
+}
+\details{
+A \code{200} status alone is \emph{not} treated as success. DHIS2 redirects
+unauthenticated API requests to its HTML login form, which also answers
+\code{200}, so a wrong password against a reachable server would otherwise look
+like a successful login and only fail later on every subsequent API call.
+The response must therefore be JSON \emph{and} contain a user \code{id}.
 }
 \examples{
 \dontrun{
