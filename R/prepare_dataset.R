@@ -423,6 +423,17 @@ data_1 <- function(data,
   if (is.function(.progress))
     .progress(0L, n_elements, "", sprintf("Starting scan (%d chunks)...", n_elements))
 
+  # Open one parallel worker pool for every scan below, instead of letting each
+  # of the 2 x n_elements scans build and tear down its own. This is a no-op
+  # when forking is available (cheap already); it matters on multisession, where
+  # the churn measured 18.0s vs 1.3s over 18 elements. Sized for the seasonal
+  # scan's 400 MB/worker so the single pool safely serves the MAD scan too.
+  #
+  # NOTHING inside this loop may call future::plan() — that would evict the pool
+  # and silently restore the per-scan churn.
+  .scan_pool <- .mg2_open_scan_pool(per_worker_mb = 400L)
+  on.exit(.mg2_close_scan_pool(.scan_pool), add = TRUE)
+
   combined_dt <- NULL   # accumulated result; grown one chunk at a time
 
   for (i in seq_len(n_elements)) {

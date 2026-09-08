@@ -45,6 +45,65 @@
   if (.mg2_supports_fork()) "multicore (fork)" else "multisession (new processes)"
 }
 
+#' Open one worker pool for a whole batch of outlier scans
+#'
+#' `data_1()` scans many data elements, each running a MAD scan and a seasonal
+#' scan. Left alone, each scan sets its own `future` plan and restores it
+#' afterwards, so the pool is torn down and rebuilt twice per element.
+#'
+#' Under fork that is nearly free. Under `multisession` it dominates: measured
+#' over 18 elements x 2 scans, pool churn cost 18.0s versus 1.3s when the pool
+#' is opened once — a 93% saving. Two separate things caused it, and both had
+#' to go: the alternating worker count (MAD asks for 200 MB/worker, seasonal
+#' 400 MB, and changing `workers` rebuilds the pool) and the per-scan restore.
+#'
+#' So this pools **only when forking is unavailable**:
+#'   * fork saves ~9%, not worth overriding the per-element worker scaling that
+#'     `seasonal_outliers()` uses to survive copy-on-write memory pressure;
+#'   * a shared pool has to hold one fixed worker count, which is incompatible
+#'     with that scaling anyway.
+#'
+#' Returns a handle to pass to [.mg2_close_scan_pool()], or `NULL` if no pool
+#' was opened (in which case each scan manages its own plan, as before).
+#'
+#' @param per_worker_mb Budget per worker. Must be the largest requirement of
+#'   any scan in the batch — seasonal needs 400 MB, MAD only 200 MB — so that
+#'   one pool safely serves both.
+#' @noRd
+.mg2_open_scan_pool <- function(per_worker_mb = 400L) {
+  if (.mg2_supports_fork()) return(NULL)          # fork: not worth pooling
+  if (!(requireNamespace("furrr",  quietly = TRUE) &&
+        requireNamespace("future", quietly = TRUE))) return(NULL)
+  n_workers <- .mg2_n_workers(per_worker_mb = per_worker_mb)
+  if (n_workers <= 1L) return(NULL)
+
+  handle <- list(old_plan     = future::plan(),
+                 old_max_size = getOption("future.globals.maxSize"),
+                 n_workers    = n_workers)
+  options(future.globals.maxSize = 2 * 1024^3)    # 2 GB  -  large bucket data.tables
+  future::plan(.mg2_plan_type(), workers = n_workers)
+  options(mg2.scan_pool_workers = n_workers)
+  message(sprintf("data_1: opened %d %s workers for the outlier scans",
+                  n_workers, .mg2_backend_name()))
+  handle
+}
+
+#' @noRd
+.mg2_close_scan_pool <- function(handle) {
+  if (is.null(handle)) return(invisible(NULL))
+  options(mg2.scan_pool_workers = NULL)
+  future::plan(handle$old_plan)
+  options(future.globals.maxSize = handle$old_max_size)
+  invisible(NULL)
+}
+
+#' Worker count of the caller-provided pool, or NULL when there is none.
+#' @noRd
+.mg2_scan_pool_workers <- function() {
+  n <- getOption("mg2.scan_pool_workers")
+  if (is.null(n) || !is.numeric(n) || n <= 1L) NULL else as.integer(n)
+}
+
 .mg2_n_workers <- function(per_worker_mb = 400L) {
   n_cores <- max(1L, parallelly::availableCores() - 2L)
   # Forked workers share the parent heap, so they cost no extra memory.
@@ -295,9 +354,13 @@ mad_outliers <- function(d,
     use_parallel <- .total >= 5000L &&   # sequential is faster for tiny series counts
       requireNamespace("furrr",  quietly = TRUE) &&
       requireNamespace("future", quietly = TRUE)
-    # MAD workers only need data.table (~200 MB on multisession Windows).
-    # On macOS/Linux multicore is used, so no per-worker memory cost.
-    n_workers <- if (use_parallel) .mg2_n_workers(per_worker_mb = 200L) else 1L
+    # Reuse the caller's pool when data_1() has opened one; otherwise size and
+    # manage our own. MAD workers only need data.table (~200 MB); a shared pool
+    # is sized for the seasonal scan's larger requirement instead.
+    .pooled  <- .mg2_scan_pool_workers()
+    n_workers <- if (!is.null(.pooled)) .pooled
+                 else if (use_parallel) .mg2_n_workers(per_worker_mb = 200L)
+                 else 1L
     use_parallel <- use_parallel && n_workers > 1L
 
     if (is.function(.progress_fn))
@@ -306,19 +369,23 @@ mad_outliers <- function(d,
 
     if (use_parallel) {
       # -- Bucket-parallel path (same pattern as seasonal_outliers) ---------
-      cat(sprintf("    starting %d %s workers...\n",
-                  n_workers, .mg2_backend_name())); flush.console()
-      gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
-      old_plan <- future::plan()
-      on.exit(future::plan(old_plan), add = TRUE)
-      old_max_size <- getOption("future.globals.maxSize")
-      on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
-      options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
-      # Fork where available: workers inherit parent memory, so no package
-      # reload and no data serialisation. Otherwise fresh processes, which is
-      # the only option on Windows and inside RStudio/Positron.
-      .plan_type <- .mg2_plan_type()
-      future::plan(.plan_type, workers = n_workers)
+      if (is.null(.pooled)) {
+        cat(sprintf("    starting %d %s workers...\n",
+                    n_workers, .mg2_backend_name())); flush.console()
+        gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
+        old_plan <- future::plan()
+        on.exit(future::plan(old_plan), add = TRUE)
+        old_max_size <- getOption("future.globals.maxSize")
+        on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
+        options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
+        # Fork where available: workers inherit parent memory, so no package
+        # reload and no data serialisation. Otherwise fresh processes, which is
+        # the only option on Windows and inside RStudio/Positron.
+        future::plan(.mg2_plan_type(), workers = n_workers)
+      } else {
+        cat(sprintf("    reusing %d pooled workers...\n", n_workers))
+        flush.console()
+      }
 
       # Compute n_steps_target first: n_buckets = n_workers x n_steps_target so
       # step_sz == n_workers  -  every step dispatches exactly n_workers buckets in
@@ -567,8 +634,17 @@ seasonal_outliers <- function(d,
   # CoW.  As successive elements are loaded the parent grows, and CoW overhead
   # per worker increases.  Scale workers down for large elements so the OS does
   # not kill forked workers under memory pressure.
-  n_workers <- if (use_parallel) .mg2_n_workers(per_worker_mb = 400L) else 1L
-  if (use_parallel && .Platform$OS.type == "unix" && .total > 50000L) {
+  .pooled <- .mg2_scan_pool_workers()
+  n_workers <- if (!is.null(.pooled)) .pooled
+               else if (use_parallel) .mg2_n_workers(per_worker_mb = 400L)
+               else 1L
+  # Scale workers down for large elements, but ONLY when forking: the pressure
+  # being managed is copy-on-write growth of the inherited parent heap. Separate
+  # processes receive just the slim bucket sent to them, so the heuristic does
+  # not apply — and a shared pool holds one fixed worker count anyway.
+  # (Previously gated on .Platform$OS.type == "unix", which is not the same
+  # question: macOS is unix but cannot fork under RStudio/Positron.)
+  if (use_parallel && is.null(.pooled) && .mg2_supports_fork() && .total > 50000L) {
     scale <- if      (.total > 400000L) 0.40
               else if (.total > 200000L) 0.55
               else if (.total > 100000L) 0.70
@@ -600,19 +676,23 @@ seasonal_outliers <- function(d,
     # Final rbindlist over n_buckets objects is instant vs. the old approach of
     # splitting into .total individual series.
 
-    cat(sprintf("    starting %d %s workers...\n",
-                n_workers, .mg2_backend_name())); flush.console()
-    gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
-    old_plan <- future::plan()
-    on.exit(future::plan(old_plan), add = TRUE)
-    old_max_size <- getOption("future.globals.maxSize")
-    on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
-    options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
-    # Fork where available: workers inherit parent memory, so forecast is not
-    # reloaded and bucket data is not serialised. Otherwise fresh processes —
-    # .opts below declares the packages those workers need.
-    .plan_type <- .mg2_plan_type()
-    future::plan(.plan_type, workers = n_workers)
+    if (is.null(.pooled)) {
+      cat(sprintf("    starting %d %s workers...\n",
+                  n_workers, .mg2_backend_name())); flush.console()
+      gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
+      old_plan <- future::plan()
+      on.exit(future::plan(old_plan), add = TRUE)
+      old_max_size <- getOption("future.globals.maxSize")
+      on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
+      options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
+      # Fork where available: workers inherit parent memory, so forecast is not
+      # reloaded and bucket data is not serialised. Otherwise fresh processes —
+      # .opts below declares the packages those workers need.
+      future::plan(.mg2_plan_type(), workers = n_workers)
+    } else {
+      cat(sprintf("    reusing %d pooled workers...\n", n_workers))
+      flush.console()
+    }
 
     # Compute n_steps_target first: n_buckets = n_workers x n_steps_target so
     # step_sz == n_workers  -  every step dispatches exactly n_workers buckets in
