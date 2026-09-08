@@ -21,7 +21,13 @@ dqa_widget_ui = function(id) {
 
           checkboxInput(ns("collapse_dqa"), "One row per data element", value = TRUE),
 
-          checkboxInput(ns("select_all_dqa"), "Select / deselect all", value = TRUE),
+          # Starts unchecked to match the actual state. The observer that acts on
+          # this box is ignoreInit = TRUE, so a TRUE default rendered a ticked
+          # "select all" over an empty list until the user toggled it. Nothing is
+          # selected at startup anyway whenever the element count exceeds
+          # .dqa_max_auto_select (see .update_dqa_checkbox). Matches the identical
+          # control on the Reporting tab.
+          checkboxInput(ns("select_all_dqa"), "Select / deselect all", value = FALSE),
 
           div(
             style = paste0(
