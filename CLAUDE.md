@@ -149,6 +149,15 @@ Two lessons, both of which cost real debugging time here:
 
 ### Other design rules
 
+- **Never pick a `future` backend from `.Platform$OS.type`.** macOS reports `"unix"`
+  but cannot fork inside RStudio or Positron, and `plan(multicore)` there dies with
+  *"Can't fork the R session in Positron"*. Ask `parallelly::supportsMulticore()`
+  instead — see `.mg2_supports_fork()` / `.mg2_plan_type()` in `R/outliers.R`. The
+  same distinction governs worker counts: forked workers share the parent heap, so
+  separate processes need the free-memory cap that forks do not.
+  Any `furrr_options()` on a non-fork backend must also declare `packages =` —
+  fresh processes do not inherit the parent's attached packages.
+
 - `R/` functions load via package namespace — no `source()` calls for functions.
 - `inst/shiny/` modules use `::` to call package functions.
 - `R/originals/` excluded from build via `.Rbuildignore`.

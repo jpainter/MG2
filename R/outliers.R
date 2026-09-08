@@ -22,9 +22,35 @@
 # We reserve 2 GB for the main session and cap by free memory.
 #
 # @noRd
+#' Choose a future backend that actually works in this session
+#'
+#' `multicore` (fork) is much cheaper than `multisession` — workers inherit the
+#' parent heap copy-on-write, so there is no package reload and no data
+#' serialisation. But forking is unavailable inside RStudio and Positron *even
+#' on unix*, and attempting it there fails with "Can't fork the R session".
+#' So ask `parallelly` whether forking is supported rather than testing
+#' `.Platform$OS.type`, which only answers a different question.
+#' @noRd
+.mg2_supports_fork <- function() {
+  isTRUE(tryCatch(parallelly::supportsMulticore(), error = function(e) FALSE))
+}
+
+#' @noRd
+.mg2_plan_type <- function() {
+  if (.mg2_supports_fork()) future::multicore else future::multisession
+}
+
+#' @noRd
+.mg2_backend_name <- function() {
+  if (.mg2_supports_fork()) "multicore (fork)" else "multisession (new processes)"
+}
+
 .mg2_n_workers <- function(per_worker_mb = 400L) {
   n_cores <- max(1L, parallelly::availableCores() - 2L)
-  if (.Platform$OS.type == "unix") return(n_cores)   # fork: no per-worker memory cost
+  # Forked workers share the parent heap, so they cost no extra memory.
+  # Separate processes each hold their own copy, so cap by free memory. Keyed
+  # on fork availability, not on OS — see .mg2_supports_fork().
+  if (.mg2_supports_fork()) return(n_cores)   # fork: no per-worker memory cost
   free_mb <- tryCatch({
     mem_fn <- getExportedValue("parallelly", "freeMemory")
     as.integer(mem_fn() / 1024^2)
@@ -280,17 +306,18 @@ mad_outliers <- function(d,
 
     if (use_parallel) {
       # -- Bucket-parallel path (same pattern as seasonal_outliers) ---------
-      cat("    gc before MAD fork...\n"); flush.console()
+      cat(sprintf("    starting %d %s workers...\n",
+                  n_workers, .mg2_backend_name())); flush.console()
       gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
       old_plan <- future::plan()
       on.exit(future::plan(old_plan), add = TRUE)
       old_max_size <- getOption("future.globals.maxSize")
       on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
       options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
-      # multicore (fork) on macOS/Linux: workers inherit parent memory  -  no
-      # package reload, no data serialization, copy-on-write overhead only.
-      # multisession on Windows (fork unavailable).
-      .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
+      # Fork where available: workers inherit parent memory, so no package
+      # reload and no data serialisation. Otherwise fresh processes, which is
+      # the only option on Windows and inside RStudio/Positron.
+      .plan_type <- .mg2_plan_type()
       future::plan(.plan_type, workers = n_workers)
 
       # Compute n_steps_target first: n_buckets = n_workers x n_steps_target so
@@ -573,17 +600,18 @@ seasonal_outliers <- function(d,
     # Final rbindlist over n_buckets objects is instant vs. the old approach of
     # splitting into .total individual series.
 
-    cat("    gc before seasonal fork...\n"); flush.console()
+    cat(sprintf("    starting %d %s workers...\n",
+                n_workers, .mg2_backend_name())); flush.console()
     gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
     old_plan <- future::plan()
     on.exit(future::plan(old_plan), add = TRUE)
     old_max_size <- getOption("future.globals.maxSize")
     on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
     options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
-    # multicore (fork) on macOS/Linux: workers inherit parent memory  -  forecast
-    # is not reloaded, bucket data is not serialized, copy-on-write only.
-    # multisession on Windows (fork unavailable).
-    .plan_type <- if (.Platform$OS.type == "unix") future::multicore else future::multisession
+    # Fork where available: workers inherit parent memory, so forecast is not
+    # reloaded and bucket data is not serialised. Otherwise fresh processes —
+    # .opts below declares the packages those workers need.
+    .plan_type <- .mg2_plan_type()
     future::plan(.plan_type, workers = n_workers)
 
     # Compute n_steps_target first: n_buckets = n_workers x n_steps_target so
