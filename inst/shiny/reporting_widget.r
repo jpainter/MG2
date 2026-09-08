@@ -101,10 +101,18 @@ reporting_widget_ui = function(id) {
                 selected = 0
               ),
 
+              # Checked by default. Maps to strict = !exclude_gaps (see the
+              # mostFrequentReportingOUs() call below), so TRUE here means
+              # strict = FALSE: only months in which some facility reported
+              # count toward the champion denominator. A system-wide gap — a
+              # strike, a form change, a national stockout — no longer
+              # disqualifies facilities that were never given the chance to
+              # report. Note the function's own default is still strict = TRUE
+              # for programmatic use; this is the app default only.
               checkboxInput(
                 ns("exclude_gaps"),
                 label = 'Exclude system-wide gaps (months where no facility reported are not required of champion facilities)',
-                value = FALSE
+                value = TRUE
               )
             )
           ),
