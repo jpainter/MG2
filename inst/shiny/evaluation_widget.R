@@ -70,11 +70,27 @@ evaluation_widget_ui = function(id) {
                       choices = NULL, selected = NULL, width = "100%"
                     ),
 
-                    selectInput(
+                    # Keeps the common presets but lets the user type any whole
+                    # number of months (e.g. 9). createFilter restricts what
+                    # selectize will accept as a new option to digits only; the
+                    # range is then checked server-side. Every consumer already
+                    # does as.integer(input$horizon), so nothing downstream
+                    # changes.
+                    selectizeInput(
                       ns("horizon"),
-                      label = "Months of Evaluation:",
-                      choices = c(3, 6, 12, 18, 24, 36),
-                      selected = 6, width = "100%"
+                      label    = "Months of Evaluation:",
+                      choices  = c(3, 6, 12, 18, 24, 36),
+                      selected = 6, width = "100%",
+                      options  = list(
+                        create       = TRUE,
+                        # Bare pattern, no delimiters: selectize wraps a string
+                        # in new RegExp(), so "/.../" would match literal slashes
+                        # and nothing could be created. Advisory only — the
+                        # server-side check below is what actually guarantees a
+                        # usable value.
+                        createFilter = "^[0-9]+$",
+                        placeholder  = "choose or type a number of months"
+                      )
                     ),
 
                     checkboxInput(ns("ensemble"), 'Include ensemble models', TRUE),
@@ -306,6 +322,30 @@ evaluation_widget_server <- function(
           # first paint and never recover. Force a resize once layout settles.
           shinyjs::delay(300, shinyjs::runjs("window.dispatchEvent(new Event('resize'));"))
         }
+      }, ignoreInit = TRUE)
+
+      # "Months of Evaluation" accepts free text, so a typed value has to be
+      # validated before the forecast code calls as.integer() on it. Keeps the
+      # last usable value so an unusable one can be reverted rather than
+      # silently becoming NA in fabletools::forecast(h = ...).
+      .horizon_max <- 120L
+      .horizon_ok  <- reactiveVal("6")
+      observeEvent(input$horizon, {
+        h <- suppressWarnings(as.integer(input$horizon))
+        if (length(h) != 1L || is.na(h) || h < 1L || h > .horizon_max) {
+          showNotification(
+            sprintf("Months of Evaluation must be a whole number from 1 to %d.",
+                    .horizon_max),
+            type = "warning", duration = 5
+          )
+          # Revert to the last usable value. Deliberately not "normalising"
+          # oddities like "09": as.integer() already reads that as 9 at every
+          # call site, and re-selecting a string that is not a known selectize
+          # option would blank the control instead.
+          updateSelectizeInput(session, "horizon", selected = .horizon_ok())
+          return()
+        }
+        .horizon_ok(as.character(input$horizon))
       }, ignoreInit = TRUE)
 
       options(shiny.trace = FALSE)
