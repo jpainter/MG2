@@ -358,10 +358,19 @@ mostFrequentReportingOUs <- function(
       by = .(year = data.table::year(as.IDate(int, origin = "1970-01-01")))
     ]
   } else {
-    dt_periods <- if (has_cats && reporting_rule != "any_data")
-      dt[get("data") %chin% data_categories]
-    else
-      dt
+    # The denominator window must come from the SELECTED elements for every
+    # rule, including "any_data". Exempting any_data (as this did) let the
+    # unchecked elements extend the window backwards: on PDR Lao the selected
+    # element starts in 2022 but some element somewhere has 2021 data, so
+    # any_data got a 6-year denominator while any_selected got 5. Champion
+    # selection requires years == max_years, and only 96 of ~1500 facilities
+    # have any 2021 data at all, so the *more inclusive* rule produced 5
+    # champions where the narrower one produced 450 — the opposite of what
+    # widening the definition should do.
+    #
+    # "any_data" is about what counts as evidence that a facility was active,
+    # not about which periods are under analysis.
+    dt_periods <- if (has_cats) dt[get("data") %chin% data_categories] else dt
     ppy <- unique(dt_periods[, period, with = FALSE])
     setnames(ppy, period, "period_val")
     ppy[, year := data.table::year(as.IDate(unclass(period_val), origin = "1970-01-01"))]
