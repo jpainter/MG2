@@ -70,7 +70,36 @@ options(dplyr.summarise.inform = FALSE)
 # and the fitting closure captures the Shiny reactive env. No data is actually
 # transferred (sequential plan), so the check is a false positive.
 options(future.globals.maxSize = Inf)
-future::plan(future::multisession, workers = 1L)
+
+# Set the baseline plan defensively. future's registry can still hold futures
+# from an earlier run in this same R session — in particular MulticoreFutures
+# that never launched because forking is blocked in RStudio/Positron. The next
+# plan() change tries to collect them and aborts with
+#     'inherits(job, "parallelJob")' is not TRUE
+# which blocks app startup for a reason that has nothing to do with the app,
+# and gives no hint that restarting R is the cure. Clear and retry instead.
+local({
+  set_plan <- function() future::plan(future::multisession, workers = 1L)
+  ok <- tryCatch({ set_plan(); TRUE }, error = function(e) {
+    cat("\n! Stale future state in this R session:", conditionMessage(e),
+        "\n  Clearing future's registry and retrying...\n")
+    FALSE
+  })
+  if (!ok) {
+    for (w in c("multicore", "multisession", "cluster")) {
+      try(suppressWarnings(
+        future:::FutureRegistry(w, action = "reset")), silent = TRUE)
+    }
+    try(suppressWarnings(future::plan(future::sequential)), silent = TRUE)
+    ok <- tryCatch({ set_plan(); TRUE }, error = function(e) FALSE)
+    if (ok) {
+      cat("  Recovered.\n")
+    } else {
+      cat("  Could not recover. Restart R and try again",
+          "(Positron/RStudio: Session > Restart R).\n")
+    }
+  }
+})
 cat("\n=== MG2", as.character(utils::packageVersion("MG2")), "starting ===\n")
 
 # Source Shiny modules ------------------------------------------------------
