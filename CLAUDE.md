@@ -149,14 +149,26 @@ Two lessons, both of which cost real debugging time here:
 
 ### Other design rules
 
-- **Never pick a `future` backend from `.Platform$OS.type`.** macOS reports `"unix"`
-  but cannot fork inside RStudio or Positron, and `plan(multicore)` there dies with
-  *"Can't fork the R session in Positron"*. Ask `parallelly::supportsMulticore()`
-  instead — see `.mg2_supports_fork()` / `.mg2_plan_type()` in `R/outliers.R`. The
+- **Never pick a `future` backend from `.Platform$OS.type`, and don't trust
+  `parallelly::supportsMulticore()` either.** macOS reports `"unix"` but cannot fork
+  inside RStudio or Positron, and `plan(multicore)` there dies with *"Can't fork the
+  R session in Positron"*. `supportsMulticore()` recognises RStudio but (as of
+  parallelly 1.48.0) knows nothing about Positron, so it returns `TRUE` there.
+  `.mg2_supports_fork()` in `R/outliers.R` therefore *probes* `parallel::mcparallel()`
+  once per session and caches the answer — deliberately the raw primitive, not a test
+  future, because a failed multicore future stays in future's registry and the next
+  `future::plan()` trips over it. The
   same distinction governs worker counts: forked workers share the parent heap, so
   separate processes need the free-memory cap that forks do not.
   Any `furrr_options()` on a non-fork backend must also declare `packages =` —
   fresh processes do not inherit the parent's attached packages.
+- **`'inherits(job, "parallelJob")' is not TRUE` never means what it says.** It comes
+  from `future:::resolved.MulticoreFuture()` finding no job on a future that never
+  launched, and it is usually raised by `plan_cleanup()` from inside an `on.exit`
+  plan restore — where it *replaces* the real error (typically "Can't fork"). Restore
+  plans via `.mg2_restore_plan()`, which resets the registry and never throws, so the
+  original error survives. If it appears at app startup, the session is polluted from
+  an earlier crash: restart R.
 
 - `R/` functions load via package namespace — no `source()` calls for functions.
 - `inst/shiny/` modules use `::` to call package functions.

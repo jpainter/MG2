@@ -31,9 +31,44 @@
 #' So ask `parallelly` whether forking is supported rather than testing
 #' `.Platform$OS.type`, which only answers a different question.
 #' @noRd
-.mg2_supports_fork <- function() {
-  isTRUE(tryCatch(parallelly::supportsMulticore(), error = function(e) FALSE))
-}
+.mg2_supports_fork <- local({
+  cached <- NULL
+  function() {
+    if (!is.null(cached)) return(cached)
+
+    ok <- isTRUE(tryCatch(parallelly::supportsMulticore(), error = function(e) FALSE))
+
+    # parallelly (1.48.0) recognises RStudio but knows nothing about Positron,
+    # so supportsMulticore() returns TRUE there while Positron blocks fork
+    # further down with "Can't fork the R session in Positron". Env-var
+    # sniffing for each new IDE is a losing game, so probe the primitive that
+    # future::multicore is built on and believe the answer.
+    #
+    # Deliberately parallel::mcparallel() rather than a test future: a failed
+    # multicore *future* is left in future's registry, and the next
+    # future::plan() call trips over it inside plan_cleanup() with
+    # 'inherits(job, "parallelJob")' is not TRUE — which is how this bug
+    # disguised itself in the first place. mcparallel touches no registry.
+    if (ok) {
+      ok <- isTRUE(tryCatch(
+        suppressWarnings({
+          job <- parallel::mcparallel(TRUE, detached = FALSE)
+          res <- parallel::mccollect(job, wait = TRUE, timeout = 10)
+          isTRUE(res[[1L]])
+        }),
+        error = function(e) FALSE
+      ))
+      if (!ok) {
+        message("MG2: forking is unavailable in this session ",
+                "(parallelly said it was supported, but a test fork failed); ",
+                "using separate R processes instead.")
+      }
+    }
+
+    cached <<- ok
+    ok
+  }
+})
 
 #' @noRd
 .mg2_plan_type <- function() {
@@ -43,6 +78,30 @@
 #' @noRd
 .mg2_backend_name <- function() {
   if (.mg2_supports_fork()) "multicore (fork)" else "multisession (new processes)"
+}
+
+#' Restore a previous future plan without masking a live error
+#'
+#' `future::plan()` runs `plan_cleanup()` on the backend it replaces. If that
+#' backend holds futures that never launched — e.g. a fork that Positron
+#' refused — cleanup dies inside `resolved.MulticoreFuture()` with
+#' `'inherits(job, "parallelJob")' is not TRUE`. Raised from an `on.exit`
+#' handler, that assertion *replaces* the real error, so the user sees a
+#' cryptic complaint about parallelJob instead of "Can't fork the R session".
+#'
+#' Reset the offending registries and retry, and never throw: this runs during
+#' unwinding, where the interesting error is the one already in flight.
+#' @noRd
+.mg2_restore_plan <- function(old_plan) {
+  ok <- tryCatch({ future::plan(old_plan); TRUE }, error = function(e) FALSE)
+  if (!ok) {
+    for (w in c("multicore", "multisession", "cluster")) {
+      try(suppressWarnings(
+        future:::FutureRegistry(w, action = "reset")), silent = TRUE)
+    }
+    try(suppressWarnings(future::plan(old_plan)), silent = TRUE)
+  }
+  invisible(NULL)
 }
 
 #' Open one worker pool for a whole batch of outlier scans
@@ -92,7 +151,7 @@
 .mg2_close_scan_pool <- function(handle) {
   if (is.null(handle)) return(invisible(NULL))
   options(mg2.scan_pool_workers = NULL)
-  future::plan(handle$old_plan)
+  .mg2_restore_plan(handle$old_plan)
   options(future.globals.maxSize = handle$old_max_size)
   invisible(NULL)
 }
@@ -374,7 +433,7 @@ mad_outliers <- function(d,
                     n_workers, .mg2_backend_name())); flush.console()
         gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
         old_plan <- future::plan()
-        on.exit(future::plan(old_plan), add = TRUE)
+        on.exit(.mg2_restore_plan(old_plan), add = TRUE)
         old_max_size <- getOption("future.globals.maxSize")
         on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
         options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
@@ -681,7 +740,7 @@ seasonal_outliers <- function(d,
                   n_workers, .mg2_backend_name())); flush.console()
       gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
       old_plan <- future::plan()
-      on.exit(future::plan(old_plan), add = TRUE)
+      on.exit(.mg2_restore_plan(old_plan), add = TRUE)
       old_max_size <- getOption("future.globals.maxSize")
       on.exit(options(future.globals.maxSize = old_max_size), add = TRUE)
       options(future.globals.maxSize = 2 * 1024^3)   # 2 GB  -  for large bucket data.tables
