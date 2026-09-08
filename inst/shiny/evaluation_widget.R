@@ -83,13 +83,22 @@ evaluation_widget_ui = function(id) {
                       selected = 6, width = "100%",
                       options  = list(
                         create       = TRUE,
-                        # Bare pattern, no delimiters: selectize wraps a string
-                        # in new RegExp(), so "/.../" would match literal slashes
-                        # and nothing could be created. Advisory only — the
-                        # server-side check below is what actually guarantees a
-                        # usable value.
+                        # createOnBlur is FALSE by default in selectize, so a
+                        # typed value was only committed by pressing Enter —
+                        # type "9", click away, and it silently reverted to the
+                        # previous pick. TRUE makes clicking away commit it too.
+                        createOnBlur = TRUE,
+                        # Keep the "Add 9…" row visible while typing (this is
+                        # selectize's default; stated explicitly because the
+                        # whole point of this control is discoverable free text).
+                        showAddOptionOnCreate = TRUE,
+                        # Bare pattern, no delimiters: selectize's canCreate()
+                        # does new RegExp(filter).test(input) for a string
+                        # filter, so "/.../" would match literal slashes and
+                        # block every entry. Advisory only — the server-side
+                        # check below is what guarantees a usable value.
                         createFilter = "^[0-9]+$",
-                        placeholder  = "choose or type a number of months"
+                        placeholder  = "pick one, or type any number of months"
                       )
                     ),
 
