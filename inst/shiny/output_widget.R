@@ -278,6 +278,49 @@ output_widget_server <- function(id,
         return()
       }
 
+      # Pre-flight Docker. `d2 cluster up` shells out to docker-compose, so
+      # without a running daemon it emits ~20 lines of compose output ending in
+      # "exit code: 1" and never names the actual problem. Diagnose it here.
+      dchk <- MG2::mg2_check_docker()
+      .no_docker_fix <- paste(
+        "Or skip Step 2 entirely: use \"Already have a running instance?\"",
+        "below to point at an existing DHIS2."
+      )
+      if (!isTRUE(dchk$installed) || !isTRUE(dchk$running) ||
+          !isTRUE(dchk$compose_v1)) {
+        rv$s2          <- "error"
+        rv$cluster_log <- character(0)
+        rv$target_url  <- NULL
+        rv$cluster_error <-
+          if (!isTRUE(dchk$installed)) list(
+            title = "Docker is not available",
+            body  = .nullish(dchk$msg, "No docker binary was found on PATH."),
+            fix   = paste(
+              "Install Docker Desktop:",
+              "  https://www.docker.com/products/docker-desktop/",
+              "Then also install the v1 compose binary, which d2 requires:",
+              "  brew install docker-compose",
+              .no_docker_fix, sep = "\n")
+          ) else if (!isTRUE(dchk$running)) list(
+            title = "Docker is installed but not running",
+            body  = .nullish(dchk$msg, "The Docker daemon did not respond."),
+            fix   = paste(
+              "Start Docker Desktop, wait for it to report Running, then retry.",
+              .no_docker_fix, sep = "\n")
+          ) else list(
+            title = "docker-compose (v1) not found",
+            body  = .nullish(
+              dchk$msg,
+              paste("Docker is running, but d2 cluster calls the standalone",
+                    "docker-compose binary, not Docker Desktop's built-in",
+                    "`docker compose` plugin.")),
+            fix   = paste("  brew install docker-compose", .no_docker_fix, sep = "\n")
+          )
+        cat("\n[Output tab] Docker pre-flight failed \u2014",
+            rv$cluster_error$title, "\n")
+        return()
+      }
+
       rv$s2            <- "running"
       rv$cluster_log   <- character(0)
       rv$cluster_error <- NULL

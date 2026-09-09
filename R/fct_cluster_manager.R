@@ -47,11 +47,34 @@
 
 # ---- Environment checks -----------------------------------------------------
 
-.cm_check_docker <- function() {
+#' Report whether Docker is usable by `d2 cluster`
+#'
+#' `d2 cluster up` drives docker-compose, so a missing or stopped Docker
+#' surfaces as a wall of compose output ending in `exit code: 1`. Call this
+#' first to get a usable diagnosis instead.
+#'
+#' Note the `compose_v1` field: `d2 cluster` invokes the standalone
+#' `docker-compose` binary, **not** Docker Desktop's built-in `docker compose`
+#' plugin, so Docker can be installed and running and Step 2 still fail.
+#'
+#' @return A list with `installed`, `running`, `compose_v1`, `compose_v2`
+#'   (all logical), `version` (character) and `msg` (a human-readable reason,
+#'   or `NULL` when everything needed is present).
+#' @export
+mg2_check_docker <- function() {
+  # .cm_run() needs processx, which is a Suggests. Say so rather than erroring.
+  if (!requireNamespace("processx", quietly = TRUE)) {
+    return(list(
+      installed = FALSE, running = FALSE, version = NA_character_,
+      compose_v1 = FALSE, compose_v2 = FALSE,
+      msg = paste("The 'processx' package is required to check Docker.",
+                  'Install with: install.packages("processx")')
+    ))
+  }
   if (is.null(.cm_which("docker"))) {
     return(list(
       installed = FALSE, running = FALSE,
-      version = NA_character_, compose_v2 = FALSE,
+      version = NA_character_, compose_v1 = FALSE, compose_v2 = FALSE,
       msg = paste(
         "Docker not found in PATH.",
         "Install Docker Desktop from https://www.docker.com/products/docker-desktop/"
@@ -62,7 +85,7 @@
   if (info$status != 0L) {
     return(list(
       installed = TRUE, running = FALSE,
-      version = NA_character_, compose_v2 = FALSE,
+      version = NA_character_, compose_v1 = FALSE, compose_v2 = FALSE,
       msg = paste("Docker daemon not running:", trimws(info$stderr))
     ))
   }
@@ -461,7 +484,7 @@
   # ---- Environment ----------------------------------------------------------
   do_env_check <- function() {
     ts_log("Running environment checks...")
-    docker <- .cm_check_docker()
+    docker <- mg2_check_docker()
     d2     <- .cm_check_d2()
     disk_r <- .cm_run("df", c("-h", "."), timeout = 5L)
     disk   <- if (disk_r$status == 0L) trimws(disk_r$stdout) else "unavailable"
