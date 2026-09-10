@@ -182,6 +182,9 @@ ui <- bslib::page_navbar(
     p(tags$span("→", style = "color:#888; margin-right:4px;"),
       span("Evaluation", style = "color:blue; font-weight:bold"),
       " — model trends and estimate intervention effectiveness"),
+    p(tags$span("→", style = "color:#888; margin-right:4px;"),
+      span("Climate", style = "color:blue; font-weight:bold"),
+      " — monthly CHIRPS rainfall by org unit, as a covariate"),
     br(),
     p(tags$em("Under development:"),
       span(" Output", style = "color:#e67e00; font-weight:bold"),
@@ -246,28 +249,6 @@ ui <- bslib::page_navbar(
   bslib::nav_panel("Evaluation", evaluation_widget_ui("evaluation1")),
   bslib::nav_panel(
     tagList(
-      "Output",
-      tags$span("dev", style = paste0(
-        "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
-        " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:5px;"
-      ))
-    ),
-    value = "Output",
-    output_widget_ui("output1")
-  ),
-  bslib::nav_panel(
-    tagList(
-      "Climate",
-      tags$span("dev", style = paste0(
-        "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
-        " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:5px;"
-      ))
-    ),
-    value = "Climate",
-    climate_widget_ui("climate1")
-  ),
-  bslib::nav_panel(
-    tagList(
       "Burden Estimate",
       tags$span("dev", style = paste0(
         "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
@@ -276,6 +257,18 @@ ui <- bslib::page_navbar(
     ),
     value = "Burden",
     burden_widget_ui("burden1")
+  ),
+  bslib::nav_panel("Climate",    value = "Climate", climate_widget_ui("climate1")),
+  bslib::nav_panel(
+    tagList(
+      "Output",
+      tags$span("dev", style = paste0(
+        "background:#ffc107; color:#000; font-size:0.55em; font-weight:600;",
+        " padding:2px 6px; border-radius:3px; vertical-align:middle; margin-left:5px;"
+      ))
+    ),
+    value = "Output",
+    output_widget_ui("output1")
   ),
   bslib::nav_panel(
     tagList(

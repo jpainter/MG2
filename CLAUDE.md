@@ -259,8 +259,12 @@ then run `devtools::check()` there — seconds instead of minutes.
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
 download + combine) → DQA (incl. Consistency + Reporting Map + Facilities + Heatmap) →
-Reporting → Outliers → Evaluation → Climate (dev) → Output (dev, Steps 1–3) →
-Burden Estimate (dev) → AI Assistant (dev)
+Reporting → Outliers → Evaluation → Burden Estimate (dev) → Climate →
+Output (dev, Steps 1–3) → AI Assistant (dev)
+
+Navbar order as of 0.2.0: the four dev-ish tabs follow Evaluation as
+Burden Estimate → Climate → Output → Assistant. Climate no longer carries the
+`dev` badge and is listed among the working tabs on the Welcome page.
 
 **Output tab (dev):** wired into the navbar as of 0.2.0 (`84b726d` — `output_widget.R`
 was added in `98e822b` but never sourced or served, so the tab was unreachable).
