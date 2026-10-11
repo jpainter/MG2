@@ -1,0 +1,85 @@
+---
+title: "Design note: faster data downloads, and keeping entry dates"
+date: 2026-10-11
+format:
+  html:
+    toc: true
+    page-layout: full
+    fontsize: 0.95em
+    include-in-header:
+      text: |
+        <style>
+          table { font-size: 0.85em; }
+          td, th { padding: 0.2rem 0.5rem !important; }
+        </style>
+engine: knitr
+execute:
+  eval: false
+---
+
+Status: proposal, not implemented. Prompted by the CHAP bootstrap
+(`CHAP/bootstrap/bootstrap-formula.qmd`, section 3.4), which re-downloads raw values to
+recover entry dates.
+
+## Findings
+
+Measured on the local Nigeria test instance (DHIS2 2.41, Tomcat, no proxy): one state,
+2024, two data elements, `api/dataValueSets` with `children=true`, 124,077 values.
+
+| Request | Transfer | `created` included | Parse in R |
+|---|---|---|---|
+| `dataValueSets.json` (what MG2 uses) | 36.6 MB | yes | `jsonlite` |
+| `dataValueSets.json?compression=gzip` | **0.90 MB** (40× smaller) | yes | 0.87 s (`jsonlite`) |
+| `dataValueSets.csv` | 13.1 MB | **no** | |
+| `dataValueSets.csv?compression=gzip` | 0.68 MB | **no** | 0.06 s (`fread`) |
+
+- `Accept-Encoding: gzip` alone did nothing on this server; the explicit
+  `compression=gzip` parameter is what compresses. A production server behind nginx may
+  already gzip JSON in transit, so measure there before claiming the full 40×.
+- DHIS2's CSV format omits `created`, so CSV is only an option where the original entry
+  date is not wanted.
+
+## What MG2 does now
+
+- `api_url()` / `fetch_get()` (`R/dhis2_api.R`) request `api/dataValueSets.json` for raw
+  values (`childOnly = TRUE`) and the analytics `dataValueSet` endpoint otherwise.
+- `api_data()` (`R/api_data_function_revision.R`) makes **one request per org unit ×
+  period × element** (`expand.grid` → `future_pmap`), in parallel.
+- `fetch_get()` **downloads `created`, `lastUpdated` and `storedBy` and then drops them**
+  (lines 163-167).
+
+## Proposals
+
+1. **Keep the entry dates.** They are already downloaded; dropping them throws away the
+   only record of when a value was entered (backfills, late corrections, retrospective
+   entry when an element moves between forms). Keep `created` and `lastUpdated` in the
+   downloaded data; drop only `comment`. Needed by the reporting-change diagnostics
+   (`docs/design-disaggregation-changes.qmd`).
+2. **Ask for `compression=gzip`** on `dataValueSets` and decompress in memory, so nothing
+   touches disk:
+
+   ```{r}
+   resp <- httr::GET(paste0(url, "&compression=gzip"), httr::authenticate(user, pass))
+   raw  <- httr::content(resp, "raw")
+   txt  <- rawToChar(memDecompress(raw, type = "gzip"))
+   dv   <- jsonlite::fromJSON(txt)$dataValues
+   ```
+
+   If a temp file is easier (e.g. to stream very large responses), use
+   `tempfile()` and `on.exit(unlink(f))`; do not keep the download.
+3. **Fewer, larger requests.** With one request per org unit × period × element, most
+   time is latency and per-request server work, which compression does not reduce.
+   `dataValueSets` accepts several `dataElement` parameters and a `startDate`/`endDate`
+   range, so one request per org unit (or state, with `children=true`) per year with all
+   elements is far fewer requests. Compression matters more once responses are large.
+4. **Analytics path** (`childOnly = FALSE`): check whether
+   `api/analytics/dataValueSet` honours `compression`; if not, rely on `Accept-Encoding`.
+
+## Before implementing
+
+- Measure 2 and 3 against a production server (latency and proxy compression differ
+  from a local Tomcat).
+- Check memory: a decompressed state-year JSON can be tens of MB; parsing many in
+  parallel under `future` multiplies that.
+- Keep `created`/`lastUpdated` through the formula/data file format so existing saved
+  downloads still load (columns simply absent in old files).
