@@ -1,0 +1,176 @@
+---
+title: "Design note: detecting disaggregation changes"
+subtitle: "When a data element's category breakdown changes over time"
+date: 2026-10-11
+format:
+  html:
+    toc: true
+    page-layout: full
+    fontsize: 0.95em
+    include-in-header:
+      text: |
+        <style>
+          table { font-size: 0.85em; }
+          td, th { padding: 0.2rem 0.5rem !important; }
+        </style>
+engine: knitr
+execute:
+  eval: false
+---
+
+Status: design, not implemented. Companion note for Chap:
+`CHAP/docs/design-disaggregation-changes.qmd`.
+
+## The problem
+
+A data element keeps its UID while the **category breakdown** it is collected with
+changes, usually because a new version of a reporting form replaces the old one. The raw
+values remain, but under two sets of category option combos (COCs) whose meaning differs.
+
+Worked example (Nigeria test instance, `Persons with confirmed uncomplicated Malaria`,
+`HdtaLx63988`):
+
+| | NHMIS 2013 form | NHMIS 2019 form |
+|---|---|---|
+| Effective category combo | `Age(Malaria)`: `<5yrs`, `>=5years` | `NH19_Malaria Testing`: `<5yrs`, `≥5yrs (excl PW)`, `Preg Women (PW)` |
+| In use | to January 2021 | from July 2020 |
+
+- The switch was **gradual**: the old split carried ~40k records/month through June 2020,
+  fell to 9k by January 2021, and is stray single digits from February 2021.
+- Two COCs are **named `<5yrs`** with different UIDs (`W50DgZrPrUk` old, `Bl7e1tsRGoZ`
+  new). Anything that aggregates by name merges them silently.
+- `>=5years` (old) included pregnant women; the new split counts them separately. Age
+  series are not comparable across the change without a mapping.
+- Of 208,153 facility-months between 2020-06 and 2021-03, **1,299 (0.6%) report both
+  splits**; 1,275 facilities have overlapping old/new periods. Summing all COCs is right
+  for totals except there, where it may double count.
+
+Consequences for MG2: totals are usable, age series are not without a mapping, a
+per-COC reporting rule makes switching facilities look like they stopped reporting,
+and the facility count per COC roughly doubles 2020→2021 as an artefact.
+
+## Can metadata alone diagnose it?
+
+Partly. It shows **that** an element has been collected with more than one breakdown, but
+not **when** or **by which facilities**.
+
+| Signal | Source | Found in Nigeria |
+|---|---|---|
+| Element's effective category combo differs between data sets (`dataSetElements[categoryCombo]` override) | metadata | yes: 2013 form and Community form override to `Age(Malaria)` |
+| COCs with the same name but different UIDs across those combos | metadata | yes: `<5yrs` |
+| Category combos referenced only through data set overrides (no element uses them directly) | metadata | yes: `Age(Malaria)` |
+| Category option start/end dates bounding the old split | metadata | **no**: blank |
+| Transition window, per facility | data | July 2020 to January 2021 |
+| Facility-months reporting both splits | data | 1,299 |
+| Whether an old-split data set is still legitimately in use | data | Community form still overrides to `Age(Malaria)` |
+
+DHIS2 records no effective dates for form versions, so timing must come from the data.
+
+## Proposed routine
+
+Two functions, matching MG2's existing flow (metadata review before download, DQA after).
+
+### 1. `disagg_metadata_screen(elements, datasets)`: before download
+
+Inputs are what `R/metadata.R` already fetches: data sets with `dataSetElements` including
+the per-data-set `categoryCombo` override.
+
+For each selected element:
+
+- list `(data set, effective category combo)` pairs; effective = override if present,
+  else the element's own combo;
+- flag **disaggregation change candidate** if more than one distinct effective combo;
+- flag **name collisions**: COC names occurring under more than one UID across those combos.
+
+Returns one row per element: `element, n_effective_combos, combos, datasets,
+name_collisions, flag`. Cheap (seconds), so it can run when the user selects elements.
+
+### 2. `disagg_diagnose(data, coc_meta, min_share = 0.01)`: after download
+
+Input: MG2's facility download (`dataElement, categoryOptionCombo, orgUnit, period, COUNT,
+SUM`) plus COC to category combo membership.
+
+Per element:
+
+- **COC lifespan**: monthly records and facilities per COC; first/last month where the COC
+  holds at least `min_share` of the element's records (ignores stray entries);
+- **old/new grouping**: COCs grouped by effective category combo (from step 1);
+- **transition window**: last month of material old-combo use, first month of new; also
+  per facility (last old, first new);
+- **overlap**: facility-months with values under both combos; facilities whose periods
+  overlap;
+- **one-sided facilities**: only ever old (stopped reporting?) or only ever new.
+
+Returns a summary row per element plus the monthly COC series for plotting.
+
+### 3. Verdict text
+
+Generated from the summary, e.g.
+
+> **Persons with confirmed uncomplicated Malaria**: age breakdown changed July 2020 to
+> January 2021 (`Age(Malaria)` → `NH19_Malaria Testing`).
+>
+> - **Totals:** comparable across the change; 1,299 facility-months (0.6%) report both
+>   breakdowns, so summing may double count there.
+> - **Age groups:** not comparable before February 2021 without a mapping. Over-5
+>   included pregnant women before the change and excludes them after.
+
+## How the user is advised
+
+- **Selection (Metadata/Data step):** show the metadata flag beside the element as soon
+  as it is selected.
+- **DQA step: new "Disaggregation changes" panel**:
+  - stacked-area chart of monthly records by COC, coloured by category combo;
+  - the verdict text;
+  - a required choice for each flagged element, saved with the dataset settings:
+    1. **use totals** (sum all COCs), with overlap facility-months *kept* or *dropped*;
+    2. **restrict the window** to after the transition;
+    3. **apply a COC mapping** (old → new), e.g. `<5yrs` → `<5yrs`,
+       `>=5years` → `≥5yrs (excl PW)` + `Preg Women (PW)`. Needs human confirmation;
+       store and reuse per instance.
+- **Reporting rule:** for flagged elements, default `dqa_reporting(count.any = TRUE)` so a
+  facility switching combos is not counted as non-reporting.
+
+## Open questions
+
+- Where to store confirmed COC mappings: per instance, in the MG2 data folder beside formulas?
+- `min_share` default: 1% of the element's records suppresses Nigeria's stray entries;
+  check on pdrlao and DRC.
+- Should overlap facility-months be dropped by default, or only flagged?
+- The same machinery may catch a related anomaly: an element **moving to a different
+  form** (different reporting population or frequency). See the companion investigation.
+
+## Reproducing the Nigeria figures
+
+Against the Nigeria test instance (`CHAP/infra/dhis2-nigeria`, Postgres container
+`dhis2-nigeria-db-1`).
+
+```{sql}
+-- Effective category combo per data set (override, else element's own)
+SELECT ds.name AS dataset, de.name AS element,
+       coalesce(ov.name, own.name) AS effective_catcombo
+FROM datasetelement dse
+JOIN dataset ds USING (datasetid)
+JOIN dataelement de USING (dataelementid)
+JOIN categorycombo own ON own.categorycomboid = de.categorycomboid
+LEFT JOIN categorycombo ov ON ov.categorycomboid = dse.categorycomboid
+WHERE de.uid = 'HdtaLx63988';
+```
+
+```{sql}
+-- Facility-months reporting both the old and new split, 2020-06 to 2021-03
+WITH fm AS (
+  SELECT dv.sourceid, dv.periodid,
+         bool_or(coc.uid IN ('W50DgZrPrUk','ItGQGDRFD4t'))     AS has_old,
+         bool_or(coc.uid NOT IN ('W50DgZrPrUk','ItGQGDRFD4t')) AS has_new
+  FROM datavalue dv
+  JOIN dataelement de USING (dataelementid)
+  JOIN categoryoptioncombo coc ON coc.categoryoptioncomboid = dv.categoryoptioncomboid
+  JOIN period pe USING (periodid)
+  WHERE de.uid = 'HdtaLx63988'
+    AND pe.startdate BETWEEN '2020-06-01' AND '2021-03-01' AND NOT dv.deleted
+  GROUP BY 1, 2)
+SELECT count(*) AS facility_months,
+       count(*) FILTER (WHERE has_old AND has_new) AS both_in_same_month
+FROM fm;
+```
