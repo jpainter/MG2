@@ -1,6 +1,6 @@
 ---
 title: "Design note: detecting disaggregation changes"
-subtitle: "When a data element's category breakdown changes over time"
+subtitle: "When a data element's category breakdown changes over time, and retrospective backfill"
 date: 2026-10-11
 format:
   html:
@@ -131,6 +131,62 @@ Generated from the summary, e.g.
 - **Reporting rule:** for flagged elements, default `dqa_reporting(count.any = TRUE)` so a
   facility switching combos is not counted as non-reporting.
 
+## Related anomaly: retrospective backfill
+
+A second reporting change the same DQA stage should catch: an element's history is
+**entered long after the fact**, typically when a new form is introduced, and only by
+some facilities and only so far back. The values are real, but the series' early
+coverage reflects who backfilled and how far, not what happened.
+
+Worked example (Nigeria, `Severe malaria Death`, `KI4l1k7mytY`). Its only data set,
+*Malaria Supplementary Monthly Summary Form*, was **created 2022-03-30**, yet the element
+has values from 2020-01. With the source's original entry dates restored:
+
+| Period year | Values | Entered ≤ 60 days after period | Entered > 1 year after | Median entry delay | First entry |
+|---|---|---|---|---|---|
+| 2020 | 1,468 | 0 | 100% | 807 days | 2022-04-19 |
+| 2021 | 5,206 | 0 | 85% | 677 days | 2022-04-19 |
+| 2022 | 9,843 | 12% | 26% | 259 days | 2022-11-12 |
+| 2023 | 9,880 | 65% | 2% | 20 days | 2023-02-01 |
+| 2024 | 9,364 | 67% | 4% | 25 days | 2024-02-01 |
+| 2025 | 8,521 | 71% | 6% | 14 days | 2025-02-01 |
+
+- Backfill came in waves of a few facilities, one user each: April-October 2022, the
+  largest in December 2022 - January 2023 (up to 161 facilities a month), October 2023,
+  February 2024.
+- How far back each facility went produces apparent **steps** in reporting facilities
+  (January 2021, January 2022) and an apparent rise in deaths per severe case; both are
+  artefacts.
+- Completeness registrations agree: Supplementary-form completions for 2020 periods were
+  recorded a median 972 days late. The same facilities complete the NHMIS 2019 form on
+  time, so they are regular reporters whose deaths reached DHIS2 only with the new form.
+- Prompt reporting starts in 2023; even then only ~300 of 48,359 assigned org units report.
+
+### Detection
+
+Both checks need the source's `created` dates, which `dataValueSets` returns and
+`fetch_get()` currently drops (see `docs/design-download-speedups.qmd`, proposal 1).
+
+1. **Data before the form existed** (metadata + data, cheap): values for periods earlier
+   than the `created` date of every data set containing the element.
+2. **Entry delay by period** (data): per element and period year, the median of
+   `created - period end`, and the share entered within 60 days. A drop from hundreds of
+   days to weeks marks where real-time reporting begins; earlier periods are backfill.
+3. **Per facility** (data): first entry date vs first period reported. A facility whose
+   first entry is long after its first period is a backfiller; its backfilled periods can
+   be excluded or the facility held out of champion selection for those years.
+
+### Advice to the user
+
+> **Severe malaria Death**: values before 2023 were entered retrospectively (median
+> delay 677-807 days; first entry 2022-04-19, after its only form was created
+> 2022-03-30). Trends before 2023 reflect backfilling, not deaths. Use 2023 onwards, or
+> champion facilities with complete prompt histories.
+
+Champion facility selection addresses this directly when the window starts at real-time
+reporting; the routine should suggest that start date (first year with median delay
+under, say, 60 days).
+
 ## Open questions
 
 - Where to store confirmed COC mappings: per instance, in the MG2 data folder beside formulas?
@@ -138,7 +194,9 @@ Generated from the summary, e.g.
   check on pdrlao and DRC.
 - Should overlap facility-months be dropped by default, or only flagged?
 - The same machinery may catch a related anomaly: an element **moving to a different
-  form** (different reporting population or frequency). See the companion investigation.
+  form** (different reporting population or frequency), as reported for malaria deaths in
+  DRC. Not seen in Nigeria; test on DRC data.
+- Threshold for "real-time": 60 days fits Nigeria's monthly forms; check elsewhere.
 
 ## Reproducing the Nigeria figures
 
@@ -173,4 +231,19 @@ WITH fm AS (
 SELECT count(*) AS facility_months,
        count(*) FILTER (WHERE has_old AND has_new) AS both_in_same_month
 FROM fm;
+```
+
+```{sql}
+-- Entry delay by period year (needs original created dates)
+SELECT extract(year FROM pe.startdate)::int AS period_year, count(*) AS values,
+       count(*) FILTER (WHERE dv.created::date - pe.enddate::date <= 60) AS within_60d,
+       count(*) FILTER (WHERE dv.created::date - pe.enddate::date > 365) AS over_1yr_late,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY dv.created::date - pe.enddate::date)::int
+         AS median_lag_days,
+       min(dv.created)::date AS first_entered
+FROM datavalue dv
+JOIN dataelement de USING (dataelementid)
+JOIN period pe USING (periodid)
+WHERE de.uid = 'KI4l1k7mytY' AND NOT dv.deleted
+GROUP BY 1 ORDER BY 1;
 ```
