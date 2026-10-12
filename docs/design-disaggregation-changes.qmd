@@ -1,6 +1,6 @@
 ---
 title: "Design note: detecting disaggregation changes"
-subtitle: "When a data element's category breakdown changes over time, and retrospective backfill"
+subtitle: "When a data element's category breakdown changes over time; retrospective backfill; implicit zeros"
 date: 2026-10-11
 format:
   html:
@@ -186,6 +186,60 @@ Both checks need the source's `created` dates, which `dataValueSets` returns and
 Champion facility selection addresses this directly when the window starts at real-time
 reporting; the routine should suggest that start date (first year with median delay
 under, say, 60 days).
+
+## Related anomaly: implicit zeros
+
+Whether a blank means "none" or "not reported" depends on `zeroIsSignificant`, and that
+setting changes over time. In Nigeria, `Deaths < 5` (under-5 deaths by cause) stored
+1.08M zeros in 2018-2020 (about 21,000 facilities a month entering zeros for every cause)
+and **none from 2021**: the national setting was evidently switched off. A blank after
+2020 is ambiguous.
+
+The surrounding fields often resolve it. **Rule:** a cell is an *implicit zero* when
+
+1. the facility reported the **related total** for that period (all-cause deaths by age >
+   0 for the under-5 ages), and
+2. it filled **other cells of the same breakdown** (other causes of under-5 death), and
+3. the target cell (`Malaria - U5`) is blank.
+
+If the whole breakdown is blank, nothing can be inferred: unknown, not zero. If the target
+sits on a **different form** from the total (e.g. `Severe malaria Death` on the Malaria
+Supplementary form vs all-cause deaths on NHMIS), a blank is mostly non-use of that form,
+not an implicit zero.
+
+Nigeria, 2021-2025, facility-months with under-5 deaths > 0 (32,982):
+
+| `Malaria - U5` | Facility-months | Under-5 deaths, all causes |
+|---|---|---|
+| > 0 | 9,418 (29%) | 62,087 |
+| blank, other causes filled: **implicit zero** | 3,958 (12%) | 21,650 |
+| whole cause breakdown blank: **unknown** | 19,606 (59%) | 93,649 |
+| 0 entered | 0 | |
+
+For `Severe malaria Death` (other form), 41,007 of 46,977 facility-months with deaths
+(87%) are blank, from 7,821 facilities, while only ~300 facilities complete that form.
+
+Where both breakdowns exist, check they agree: by-cause and by-age under-5 totals match in
+only 48% of Nigeria's facility-months.
+
+### Detection and use
+
+- **Metadata:** for each selected element, find the related total and the sibling cells:
+  the other option combos of its category combo (same breakdown), and an element giving
+  the total (often named in an indicator formula, e.g. *% of Under 5 deaths attributable to
+  Malaria* = `Deaths < 5` [Malaria - U5] / `Deaths < 5`). Record `zeroIsSignificant`.
+- **Data:** per element and year, the share of stored zeros (a drop to 0 marks the setting
+  being switched off); per facility-month, classify as reported > 0 / zero entered /
+  implicit zero / unknown.
+- **Output to the user:** the share of each class over time, and a choice: treat implicit
+  zeros as 0 (default when the rule holds), and handle unknowns by exclusion or by
+  allocation from comparable facilities. Record the choice in the dataset settings.
+- **Reporting rule:** "any category reported" (`dqa_reporting(count.any = TRUE)`) already
+  counts a facility with only other causes filled as reporting; implicit-zero filling
+  makes its value for the target 0 rather than missing.
+
+Detail and queries: `CHAP/docs/nigeria-data.qmd`, "Facilities reporting deaths but not
+malaria deaths".
 
 ## Open questions
 
