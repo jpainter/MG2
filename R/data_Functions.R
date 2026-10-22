@@ -270,48 +270,10 @@ mostFrequentReportingOUs <- function(
 
   if (.cat) cat('\n - reporting_rule:', reporting_rule)
 
-  # ── Determine "complete" (orgUnit, period) tuples per reporting rule ────────
-  #
-  # Rule 1 — "all_categories":
-  #   Every selected data value (element + category) must be non-NA in the period.
-  #
-  # Rule 2 — "all_elements":
-  #   Every selected base data element must have at least one non-NA category.
-  #
-  # Rule 3 — "any_selected":
-  #   At least one selected data value is non-NA in the period.
-  #
-  # Rule 4 — "any_data":
-  #   Any non-NA value in the period (ignores selection; legacy default).
-
+  # "Complete" (orgUnit, period) tuples per reporting rule: facility_reports() holds
+  # the rule, shared with the reporting widget's charts (R/fct_reporting.R)
   has_cats <- !is.null(data_categories) && length(data_categories) > 0
-
-  if (reporting_rule == "any_data" || !has_cats) {
-    # All (orgUnit, period) tuples with any non-NA data
-    dt_rep <- unique(dt[, c('orgUnit', period), with = FALSE])
-
-  } else if (reporting_rule == "any_selected") {
-    dt_rep <- unique(
-      dt[get("data") %chin% data_categories, c('orgUnit', period), with = FALSE]
-    )
-
-  } else if (reporting_rule == "all_elements") {
-    # Base element = text before last underscore (strips category suffix)
-    dt_sel <- dt[get("data") %chin% data_categories]
-    dt_sel[, .base_elem := sub("_[^_]*$", "", get("data"))]
-    n_elems <- uniqueN(dt_sel$.base_elem)
-    presence <- dt_sel[, .(n_elems_present = uniqueN(.base_elem)),
-                       by = c('orgUnit', period)]
-    dt_rep <- presence[n_elems_present >= n_elems, c('orgUnit', period), with = FALSE]
-
-  } else {
-    # "all_categories": ALL selected data values must be present
-    n_cats <- length(unique(data_categories))
-    dt_sel <- dt[get("data") %chin% data_categories]
-    presence <- dt_sel[, .(n_cats_present = uniqueN(get("data"))),
-                       by = c('orgUnit', period)]
-    dt_rep <- presence[n_cats_present >= n_cats, c('orgUnit', period), with = FALSE]
-  }
+  dt_rep <- facility_reports(dt, period, reporting_rule, data_categories)
 
   if (testing) saveRDS(dt_rep, "mostFrequentReportingOUs.data.rds")
 

@@ -1,20 +1,25 @@
 # Outlier summary functions for MG2.
 # Migrated from R/originals/cleaning_functions.R and R/originals/Cleaning.R
 
-#' Summarise Outlier Flags as a Formatted Tibble
+#' Summarise Outlier Flags (numbers)
 #'
-#' Builds a display table showing counts, totals, and percentages for each
-#' outlier flag column.  Columns absent from `data` are silently dropped from
-#' `cols`.
+#' The values behind [outlier.summary.tibble()]: counts, totals, and smallest /
+#' median / largest value for each outlier flag column, and for values with no flag.
+#' Columns absent from `data` are silently dropped from `cols`.
+#'
+#' Flag rows are computed from groups of identical flag combinations, so `Median` is
+#' the median of the groups' medians, and for the no-flag row the largest of them.
 #'
 #' @param data A data frame / tsibble containing an `original` value column and
 #'   logical outlier-flag columns (e.g. `mad15`, `seasonal5`).
 #' @param cols Character vector of flag column names to include.
-#' @param .print Logical. Print a progress message (default: `FALSE`).
 #'
-#' @return A character tibble with one row per flag, formatted for display.
+#' @return A tibble with one row per flag plus `"No Error Flags"`: `err` (flag
+#'   name), `n`, `total`, `Min`, `Median`, `Max`, and the denominators `N`, `Total`,
+#'   `N.notSmall`, `Total.notSmall`. A flag with no values has `n = 0` and
+#'   non-finite `Min` / `Max`.
 #' @export
-outlier.summary.tibble <- function(
+outlier_summary_values <- function(
   data = NULL,
   cols = c(
     "AllSmall",
@@ -27,11 +32,8 @@ outlier.summary.tibble <- function(
     "mad5",
     "seasonal5",
     "seasonal3"
-  ),
-  .print = FALSE
+  )
 ) {
-  if (.print) cat("\n * outlier.summary.tibble")
-
   warn <- options(warn = -1)  # suppress divide-by-zero warnings
   on.exit(options(warn))
 
@@ -105,8 +107,43 @@ outlier.summary.tibble <- function(
       .groups = "drop"
     )
 
-  out <- dplyr::bind_rows(os.errs, os.no.err) |>
-    dplyr::bind_cols(os.total, os.notSmall) |>
+  dplyr::bind_rows(os.errs, os.no.err) |>
+    dplyr::bind_cols(os.total, os.notSmall)
+}
+
+#' Summarise Outlier Flags as a Formatted Tibble
+#'
+#' Builds a display table showing counts, totals, and percentages for each
+#' outlier flag column, from [outlier_summary_values()].  Columns absent from
+#' `data` are silently dropped from `cols`.
+#'
+#' @inheritParams outlier_summary_values
+#' @param .print Logical. Print a progress message (default: `FALSE`).
+#'
+#' @return A character tibble with one row per flag, formatted for display.
+#' @export
+outlier.summary.tibble <- function(
+  data = NULL,
+  cols = c(
+    "AllSmall",
+    "key_entry_error",
+    "over_max",
+    "missing_numerator",
+    "missing_denominator",
+    "mad15",
+    "mad10",
+    "mad5",
+    "seasonal5",
+    "seasonal3"
+  ),
+  .print = FALSE
+) {
+  if (.print) cat("\n * outlier.summary.tibble")
+
+  warn <- options(warn = -1)  # suppress divide-by-zero warnings
+  on.exit(options(warn))
+
+  out <- outlier_summary_values(data, cols) |>
     dplyr::mutate(
       `%N` = ifelse(
         n > 0,

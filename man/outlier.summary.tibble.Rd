@@ -24,6 +24,6 @@ A character tibble with one row per flag, formatted for display.
 }
 \description{
 Builds a display table showing counts, totals, and percentages for each
-outlier flag column.  Columns absent from \code{data} are silently dropped from
-\code{cols}.
+outlier flag column, from \code{\link[=outlier_summary_values]{outlier_summary_values()}}.  Columns absent from
+\code{data} are silently dropped from \code{cols}.
 }

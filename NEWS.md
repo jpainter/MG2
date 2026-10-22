@@ -22,7 +22,21 @@
   (create, start/stop, restore from a SQL dump, destroy), with version matching against
   a live source instance.
 
+* **Champion selection as functions** — `facility_reports()` (which facility-periods count
+  as reported under a reporting rule; `mostFrequentReportingOUs()` now uses it),
+  `reports_by_period()` and `reports_by_year()` (the reporting page's two charts),
+  `aggregate_champions()` (champion totals per modelling unit and period, censored values
+  dropped) and `outlier_summary_values()` (the numbers behind `outlier.summary.tibble()`).
+  The mg2-dqa service for Chap calls these instead of copying the method.
+
 ## Fixes
+
+* **Reporting charts counted reports differently from champion selection** — the
+  facilities-per-month and months-per-year charts counted a period as reported when any
+  selected category had a row, whatever the reporting rule, and included rows with a
+  missing value. They now use `facility_reports()`, the same definition
+  `mostFrequentReportingOUs()` applies, so under `all_categories` and `all_elements` the
+  charts show fewer reports than before and match the champions drawn on them.
 
 * **DQA reporting map was always blank** — `geoFeatures$level` arrives as character
   (`geojsonsf` stringifies GeoJSON properties), and using it as a numeric index silently

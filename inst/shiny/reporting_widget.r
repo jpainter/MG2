@@ -1144,29 +1144,11 @@ reporting_widget_server <- function(
 
         year_var = 'calendar_year' # ifelse( input$calendar_year , 'calendar_year' , 'months12' )
 
-        data = d()
-
-        if (input$reporting_rule != "any_data") {
-          data = setDT(data)[data %chin% selected_data_categories$elements, , ]
-        }
-
         .period = period()
 
-        # Fast path: add year column, take unique (year, orgUnit, period) triples,
-        # then count .N per (year, orgUnit).  Avoids creating per-group .SD objects
-        # (which takes ~10s for 191K groups on 5.2M rows).
-        # Add year in-place on d()'s cached data.table — avoids a ~530ms full copy.
-        # The year column persists in the cache across calls, which is safe and saves
-        # recomputation when both orgunit.reports and orgunit.monthly.reports run.
-        if (!'year' %in% names(data)) data[,
-          year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
-          .SDcols = .period]
-        o.r. = data
-
-        # Use integer key for period to bypass vctrs dispatch in unique() —
-        # yearmonth/yearweek stored as integers but unique.data.table falls
-        # back to R-level comparison on vctrs objects (~10x slower).
-        o.r. = unique(o.r.[, .(year, orgUnit, .period_int = unclass(get(.period)))])[
+        # Reports as mostFrequentReportingOUs() counts them (same rule, same
+        # categories), so the charts describe the reports champions were chosen from
+        o.r. = orgunit.monthly.reports()[
           , .(n_periods = .N), by = c('year', 'orgUnit')
         ][,
           `:=`(n_periods = factor(n_periods), year = factor(year))
@@ -1209,15 +1191,12 @@ reporting_widget_server <- function(
         data = d()
         cat('\n - o.m.r data has', nrow(data), 'rows')
 
-        if (input$reporting_rule != "any_data") {
-          data = data[data %chin% selected_data_categories$elements]
-        }
-
-        # Add year in-place — avoids ~530ms copy (same pattern as orgunit.reports).
-        if (!'year' %in% names(data)) data[,
-          year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
-          .SDcols = .period]
-        o.m.r = data
+        # Distinct reported (orgUnit, period) pairs under the reporting rule, as
+        # mostFrequentReportingOUs() counts them
+        o.m.r = MG2::facility_reports(setDT(data), .period, input$reporting_rule,
+                                      selected_data_categories$elements)
+        o.m.r[, year := data.table::year(as.IDate(unclass(.SD[[1L]]), origin = "1970-01-01")),
+              .SDcols = .period]
         # %>%
         # mutate( year = factor( year ) )
 
