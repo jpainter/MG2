@@ -315,14 +315,12 @@ then run `devtools::check()` there — seconds instead of minutes. Run it with
 `_R_CHECK_EXCESSIVE_IMPORTS_=20` set to match CRAN (the 31 Imports then show as
 INFO, not a NOTE).
 
-**Plain `R CMD build` from a terminal fails on this machine** with "Failed to
-locate 'weave' output file 'burden-standalone.html'". Not a package problem: the
-library path is set in `~/.Rprofile` (`.libPaths(c("~/Rlibrary", ...))`), which
-`R CMD build`'s vignette step does not read, so it cannot find `rmarkdown` and
-silently produces nothing. `devtools::build()` / `check()` / `submit_cran()` pass
-`.libPaths()` through and work. From a terminal use
-`R_LIBS_USER="$HOME/Rlibrary" R CMD build MG2` (or move the setting to
-`~/.Renviron` as `R_LIBS_USER=~/Rlibrary`).
+**Library path lives in `~/.Renviron`** (`R_LIBS_USER=~/Rlibrary`, moved from
+`~/.Rprofile` on 2026-11-16). While it was in `.Rprofile`, plain `R CMD build` from a
+terminal failed with "Failed to locate 'weave' output file
+'burden-standalone.html'": the vignette step does not read `.Rprofile`, could not
+find `rmarkdown`, and silently produced nothing. If that error reappears, check
+`R --no-init-file -e '.libPaths()'` before suspecting the package.
 
 **Linux check:** `docker run --rm --platform linux/amd64 -v <dir>:/work
 rocker/geospatial:latest <script>` with `remotes::install_deps(dependencies = TRUE)`
