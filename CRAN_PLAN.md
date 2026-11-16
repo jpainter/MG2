@@ -24,7 +24,7 @@ builds of units/anytime/etc. segfault on load and kill the check at "lazy loadin
 
 | # | Item | Status |
 |---|---|---|
-| 1 | **Tarball size.** `mg2_pdrlao_*` is 4.1 MB of the 8.6. Remove from package; serve as a download for `mg2_pdrlao_setup()`. Then consider whether `inst/extdata/demo` (2.2 MB) duplicates the Sierra Leone data in `data/`. | decision pending: where to host PDR Lao |
+| 1 | **Tarball size.** 8.6 → **4.1 MB** (built without vignettes). `mg2_pdrlao_meta`/`_processed` moved to the GitHub release `demo-data`; `mg2_pdrlao_setup()` downloads them once (MD5-checked, cached in `R_user_dir("MG2","cache")`). `inst/extdata/demo` is *not* a duplicate: it is Lao data read by the vignettes. Remaining big items (`malaria_demo.rds` 1.4 MB, `metadata_demo.rds` 0.6 MB) are used by 3 vignettes — candidates if headroom is needed later. | ✅ |
 | 2 | **No writes to home dir.** `~/.mg2_config.rds` → `tools::R_user_dir("MG2","config")`; legacy file still read once. | ✅ `.mg2_config_path()` / `.mg2_load_config()` / `.mg2_save_config()` in `utils.R` |
 | 3 | **No writes to `.GlobalEnv`.** App session count / pending-stop handle. | ✅ `MG2:::.mg2_app_state` (in `run_app.R`) |
 | 4 | **Restore options and future plans.** `tsmodels()`, `pre_impact_fit()`, `impact_fit()`, `api_data()`. | ✅ `on.exit()` added |
