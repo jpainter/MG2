@@ -24,8 +24,8 @@ builds of units/anytime/etc. segfault on load and kill the check at "lazy loadin
 
 `devtools::check(cran = TRUE)` on a local-disk copy: **0 errors · 0 warnings · 1 NOTE** —
 the global-variable NOTE (#7, 744 lines). Vignettes build; examples and tests pass.
-Note that a local check does not set `_R_CHECK_EXCESSIVE_IMPORTS_`, so the "Imports
-includes 43 non-default packages" NOTE CRAN will raise (#12) does not appear here.
+Run with `_R_CHECK_EXCESSIVE_IMPORTS_=20` to match CRAN: the Imports count (31) is
+reported as INFO, not a NOTE.
 
 ## 1. Blockers — CRAN rejects without these
 
@@ -47,7 +47,7 @@ includes 43 non-default packages" NOTE CRAN will raise (#12) does not appear her
 | 9 | **`\value`** — all exported functions have one (3 were missing: `dataTotal`, `mostFrequentReportingOUs`, `selectedData`). | ✅ |
 | 10 | **`\dontrun{}`** — only `loginDHIS2`, `dhis2_get`, `api_data` keep it (need a live DHIS2 server). Dataset, `read_file`, `ous_tree`, `mg2_demo_setup` examples now run (write only to `tempdir()`); `run_mg2` uses `if (interactive())`. | ✅ |
 | 11 | **162 exports → 67.** App-only functions are `@noRd` internals. Prerequisite done first: `inst/shiny/app.R` now evaluates `app_main.R` in `MG2:::.mg2_app_env()` (all namespace functions, parent = globalenv), so widgets see internals by bare name and nothing is sourced into `.GlobalEnv`. | ✅ |
-| 12 | **41 Imports** (NOTE threshold 20). Move to Suggests + `requireNamespace()`: googledrive, terra, sf, data.tree, tictoc, rstudioapi, shinybusy, httpuv, … | medium |
+| 12 | **Imports 42 → 31 non-base.** Dropped: assertthat, data.tree (`ous_tree()` → base R `.ous_paths()`, identical output), stringi (base regex), tictoc (`.mg2_elapsed()`). To Suggests: terra, googledrive, ggiraph (static-plot fallback), rstudioapi, plus httpuv / parallelly / distributional (always installed via shiny / future / fabletools; guarded anyway). With `_R_CHECK_EXCESSIVE_IMPORTS_=20`, R 4.6 reports the count as **INFO**, not a NOTE — still worth one line in cran-comments. | ✅ |
 | 13 | **`later`, `readxl` → Imports** (both used only in `inst/shiny`; declared via `@importFrom` in `zzz.R` so check counts them as used). | ✅ |
 | 14 | **DESCRIPTION wording** — `'DHIS2'`/`'Shiny'` quoted in Title and Description, `<https://dhis2.org>` added. | ✅ |
 | 15 | Examples, tests and vignettes must not write outside `tempdir()` or hit the network (`skip_on_cran()`). | audit |

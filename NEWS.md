@@ -1,5 +1,12 @@
 # MG2 0.2.0
 
+* **Fewer required packages** — MG2 now requires 31 packages instead of 42.
+  `terra` (Climate tab), `googledrive` (Google Drive storage) and `ggiraph` (hover
+  maps on the Climate tab) are optional: install them to use those features. Without
+  `ggiraph` the multi-year and anomaly maps are drawn as static plots. `assertthat`,
+  `data.tree`, `stringi` and `tictoc` are no longer used; `ous_tree()` is rewritten in
+  base R (same output, ~15x faster).
+
 * **Smaller exported API** (breaking) — 96 functions that only the Shiny app uses are no
   longer exported (the workspace `ws_*()` layer, Google OAuth, the Output tab's DHIS2
   writers, AI-chat prompt builders, evaluation-model internals, chart helpers, and the

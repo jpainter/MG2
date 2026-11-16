@@ -88,6 +88,10 @@ print.mg2_workspace <- function(x, ...) {
 # temp file and dispatch to the existing local reader, writes do the reverse.
 
 .ws_gdrive_authorize <- function(ws) {
+  if (!requireNamespace("googledrive", quietly = TRUE)) {
+    stop("Google Drive workspaces need the 'googledrive' package: ",
+         "install.packages(\"googledrive\")", call. = FALSE)
+  }
   if (is.null(ws$token)) {
     stop("Google Drive workspace is not authenticated. Reconnect via the Setup tab.")
   }

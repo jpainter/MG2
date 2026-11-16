@@ -133,6 +133,15 @@ climate_widget_ui <- function(id) {
   )
 }
 
+# ggiraph is optional (Suggests): without it the multi-year and anomaly maps
+# are static ggplots instead of hover-able girafe widgets.
+.has_ggiraph <- requireNamespace("ggiraph", quietly = TRUE)
+.map_output <- function(id, height) {
+  if (.has_ggiraph) ggiraph::girafeOutput(id, width = "100%", height = height)
+  else plotOutput(id, height = height)
+}
+.render_map <- if (.has_ggiraph) ggiraph::renderGirafe else renderPlot
+
 # ── Server ────────────────────────────────────────────────────────────────────
 
 climate_widget_server <- function(id,
@@ -518,7 +527,7 @@ climate_widget_server <- function(id,
 
           tabPanel(
             "Annual Maps",
-            ggiraph::girafeOutput(session$ns("multi_map"), width = "100%", height = girafe_h)
+            .map_output(session$ns("multi_map"), girafe_h)
           ),
 
           tabPanel(
@@ -556,7 +565,7 @@ climate_widget_server <- function(id,
                     tags$strong(" Blue = wetter; red = drier.")
                   )
                 ),
-                ggiraph::girafeOutput(session$ns("anomaly_map"), width = "100%", height = girafe_h)
+                .map_output(session$ns("anomaly_map"), girafe_h)
               )
             } else {
               div(class = "alert alert-warning",
@@ -740,7 +749,7 @@ climate_widget_server <- function(id,
     })
 
     # ── Multi-year map ────────────────────────────────────────────────────────
-    output$multi_map <- ggiraph::renderGirafe({
+    output$multi_map <- .render_map({
       req(rv$multi_results)
       chirps_multi_year_map(
         rv$multi_results,
@@ -761,7 +770,7 @@ climate_widget_server <- function(id,
     })
 
     # ── Anomaly map ───────────────────────────────────────────────────────────
-    output$anomaly_map <- ggiraph::renderGirafe({
+    output$anomaly_map <- .render_map({
       req(rv$multi_results)
       req(length(rv$multi_results) >= 2)
       chirps_anomaly_map(

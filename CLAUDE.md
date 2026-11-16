@@ -171,6 +171,11 @@ Two lessons, both of which cost real debugging time here:
   an earlier crash: restart R.
 
 - `R/` functions load via package namespace — no `source()` calls for functions.
+- **Optional packages (Suggests) must be checked before use.** `terra`, `googledrive`,
+  `ggiraph`, `rstudioapi` and others are Suggests: call `requireNamespace()` first and
+  give an install hint or a fallback (see `.chirps_sf_layer()` / `.chirps_girafe()`,
+  `.ws_gdrive_authorize()`). Don't add a package to Imports without a reason it can't be
+  optional; the count is at 31.
 - **The app sees every MG2 function, exported or not.** `inst/shiny/app.R` evaluates
   `app_main.R` in `MG2:::.mg2_app_env()`: a child of an environment holding all namespace
   functions, whose parent is `globalenv()` (so the search path still resolves `dplyr`,

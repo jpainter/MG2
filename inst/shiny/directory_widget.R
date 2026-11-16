@@ -385,6 +385,17 @@ directory_widget_server <- function(id, demo_dir = NULL) {
         fnm <- gdrive_folder_nm()
         tok <- gdrive_token()
 
+        # googledrive is optional (Suggests)
+        if (!requireNamespace("googledrive", quietly = TRUE)) {
+          return(div(
+            style = "color: #555;",
+            icon("cloud"),
+            " Google Drive storage needs the 'googledrive' package: ",
+            tags$code('install.packages("googledrive")'),
+            ", then restart the app."
+          ))
+        }
+
         if (!is.null(fid) && !is.null(fnm) && !is.null(tok)) {
           # Fully connected (token + folder)
           tagList(

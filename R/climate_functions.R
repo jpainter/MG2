@@ -774,10 +774,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
   n_rows <- ceiling(length(unique(combined$year_lbl)) / 4)
 
   p <- ggplot2::ggplot(combined) +
-    ggiraph::geom_sf_interactive(
-      ggplot2::aes(fill = mean_rain, tooltip = tooltip, data_id = data_id),
-      color = "white", linewidth = 0.3
-    ) +
+    .chirps_sf_layer(mean_rain) +
     ggplot2::facet_wrap(~ year_lbl, ncol = 4) +
     ggplot2::labs(title = title_str, fill = "Rainfall\n(mm)", caption = caption_str) +
     ggplot2::theme_void(base_size = 12) +
@@ -798,17 +795,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
                                        limits = c(vmin, vmax), oob = scales::squish)
   }
 
-  ggiraph::girafe(
-    ggobj      = p,
-    width_svg  = 14,
-    height_svg = n_rows * 3.5 + 1.0,
-    options    = list(
-      ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
-      ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
-        padding:6px 8px; border-radius:4px; font-size:13px;"),
-      ggiraph::opts_sizing(rescale = TRUE, width = 1)
-    )
-  )
+  .chirps_girafe(p, n_rows)
 }
 
 #' Build a ggplot2 bar chart comparing rainfall across multiple years
@@ -1048,10 +1035,7 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
   n_rows <- ceiling(n_years / 4)
 
   p <- ggplot2::ggplot(combined) +
-    ggiraph::geom_sf_interactive(
-      ggplot2::aes(fill = fill_val, tooltip = tooltip, data_id = data_id),
-      color = "white", linewidth = 0.3
-    ) +
+    .chirps_sf_layer(fill_val) +
     ggplot2::facet_wrap(~ year_lbl, ncol = 4) +
     ggplot2::scale_fill_distiller(
       palette   = "RdBu",
@@ -1077,17 +1061,7 @@ chirps_anomaly_map <- function(multi_results, title_prefix = "",
       legend.position = "right"
     )
 
-  ggiraph::girafe(
-    ggobj      = p,
-    width_svg  = 14,
-    height_svg = n_rows * 3.5 + 1.0,
-    options    = list(
-      ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
-      ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
-        padding:6px 8px; border-radius:4px; font-size:13px;"),
-      ggiraph::opts_sizing(rescale = TRUE, width = 1)
-    )
-  )
+  .chirps_girafe(p, n_rows)
 }
 
 # ── Summary statistics ────────────────────────────────────────────────────────
@@ -1360,4 +1334,47 @@ chirps_load_rainfall <- function(data_dir = NULL, ws = NULL) {
   combined <- combined[!duplicated(dup_key), ]
   rownames(combined) <- NULL
   combined
+}
+
+
+# -- Optional interactivity (ggiraph is in Suggests) ---------------------------
+
+#' Polygon layer for the multi-year / anomaly maps
+#'
+#' Interactive (hover + tooltip) when ggiraph is installed, plain `geom_sf()`
+#' otherwise. Expects `tooltip` and `data_id` columns in the plot data.
+#' @param fill Bare column name for the fill aesthetic.
+#' @return A ggplot2 layer.
+#' @keywords internal
+#' @noRd
+.chirps_sf_layer <- function(fill) {
+  if (requireNamespace("ggiraph", quietly = TRUE)) {
+    ggiraph::geom_sf_interactive(
+      ggplot2::aes(fill = {{ fill }}, tooltip = tooltip, data_id = data_id),
+      color = "white", linewidth = 0.3
+    )
+  } else {
+    ggplot2::geom_sf(ggplot2::aes(fill = {{ fill }}), color = "white", linewidth = 0.3)
+  }
+}
+
+#' Wrap a map in a girafe widget when ggiraph is installed
+#' @param p A ggplot built with `.chirps_sf_layer()`.
+#' @param n_rows Facet rows, for the SVG height.
+#' @return A `girafe` htmlwidget, or `p` unchanged without ggiraph.
+#' @keywords internal
+#' @noRd
+.chirps_girafe <- function(p, n_rows) {
+  if (!requireNamespace("ggiraph", quietly = TRUE)) return(p)
+  ggiraph::girafe(
+    ggobj      = p,
+    width_svg  = 14,
+    height_svg = n_rows * 3.5 + 1.0,
+    options    = list(
+      ggiraph::opts_hover(css = "stroke:orange; stroke-width:1.5px;"),
+      ggiraph::opts_tooltip(css = "background:#fff; border:1px solid #ccc;
+        padding:6px 8px; border-radius:4px; font-size:13px;"),
+      ggiraph::opts_sizing(rescale = TRUE, width = 1)
+    )
+  )
 }

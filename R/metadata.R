@@ -78,11 +78,22 @@ geofeatures_raw_to_sf <- function(gf, orgUnitLevels = NULL) {
 
 # Regex matching control characters and zero-width/invisible Unicode that
 # cause problems in Excel exports.
-.invalid_regex <- paste0(
-  "(?:[\\p{Cc}&&[^\\t\\n\\r]]",
-  "|[\\x{007F}-\\x{009F}]",
-  "|\\u00AD|\\u200B|\\u200C|\\u200D|\\u2060|\\uFEFF)"
-)
+# Control characters (Unicode Cc) except tab / LF / CR, plus soft hyphen and
+# zero-width / BOM characters. Built from the code points themselves rather
+# than \x{...} escapes: a UTF-8 pattern makes R run PCRE in UTF mode even on
+# ASCII input, where escapes above \xFF would be an invalid regex. (PCRE also
+# lacks ICU's `&&` set subtraction, hence the explicit Cc ranges; U+0000
+# cannot occur in an R string.)
+.invalid_regex <- local({
+  rng <- function(from, to) paste0(intToUtf8(from), "-", intToUtf8(to))
+  paste0(
+    "[",
+    rng(0x01, 0x08), intToUtf8(0x0B), intToUtf8(0x0C), rng(0x0E, 0x1F),
+    rng(0x7F, 0x9F), intToUtf8(0xAD), rng(0x200B, 0x200D),
+    intToUtf8(0x2060), intToUtf8(0xFEFF),
+    "]"
+  )
+})
 
 #' Remove Invalid Unicode Characters from a Data Frame
 #'
@@ -110,10 +121,10 @@ clean_invalid_characters <- function(df) {
 
   for (col in char_cols) {
     x       <- DT[[col]]
-    bad     <- stringi::stri_detect_regex(x, .invalid_regex)
+    bad     <- grepl(.invalid_regex, x, perl = TRUE)
     bad_idx <- which(bad)   # which() drops NAs, giving integer indices only
     if (length(bad_idx) > 0) {
-      x[bad_idx] <- stringi::stri_replace_all_regex(x[bad_idx], .invalid_regex, "")
+      x[bad_idx] <- gsub(.invalid_regex, "", x[bad_idx], perl = TRUE)
       data.table::set(DT, i = bad_idx, j = col, value = x[bad_idx])
     }
   }
@@ -148,16 +159,16 @@ truncate_df_chars <- function(df, limit = 500L, suffix = " \u2026[TRUNC]") {
   }
 
   suffix     <- if (is.null(suffix)) "" else as.character(suffix[1L])
-  suffix_len <- stringi::stri_length(suffix)
+  suffix_len <- nchar(suffix, type = "chars")
   keep       <- max(0L, as.integer(limit) - suffix_len)
 
   for (col in char_cols) {
     x    <- DT[[col]]
-    n    <- stringi::stri_length(x)
+    n    <- nchar(x, type = "chars")   # NA for NA input
     over <- !is.na(n) & n > limit
 
     if (any(over)) {
-      head_part <- if (keep > 0L) stringi::stri_sub(x[over], 1L, keep) else rep("", sum(over))
+      head_part <- if (keep > 0L) substr(x[over], 1L, keep) else rep("", sum(over))
       truncated <- if (suffix_len > 0L) paste0(head_part, suffix) else head_part
       data.table::set(DT, i = which(over), j = col, value = as.character(truncated))
     }

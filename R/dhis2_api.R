@@ -268,30 +268,7 @@ ous_tree <- function(ous, ouLevels, .verbose = FALSE) {
   }
 
   if (.verbose) message("- building tree from ", nrow(ous_edges), " edges")
-  ous_tree_obj <- data.tree::FromDataFrameNetwork(ous_edges)
-  ids           <- ous_tree_obj$Get("name")
-
-  n_levels <- nrow(ouLevels)
-
-  # Build named list of path-extractor functions for ToDataFrameTree
-  path_fns <- lapply(seq_len(n_levels), function(i) {
-    force(i)
-    function(x) x$path[i]
-  })
-  names(path_fns) <- paste0("lvl", seq_len(n_levels))
-
-  all_args <- c(
-    list(ous_tree_obj, orgUnit = ids),
-    path_fns,
-    list(level = function(x) as.integer(x$level))
-  )
-
-  dft <- do.call(data.tree::ToDataFrameTree, all_args)
-
-  # Remove first column (tree-structure level indicator added by data.tree)
-  dft <- dft[, -1] |>
-    dplyr::as_tibble() |>
-    dplyr::select(orgUnit, dplyr::starts_with("lvl"), level)
+  dft <- .ous_paths(ous_edges$id, ous_edges$parent, n_levels = nrow(ouLevels))
 
   # Rename lvl1..lvlN to level names
   current_names <- names(dft)
@@ -322,4 +299,51 @@ ous_tree <- function(ous, ouLevels, .verbose = FALSE) {
 
   if (.verbose) message("- tree complete: ", nrow(dft_translated), " org units")
   return(dft_translated)
+}
+
+#' Ancestor path of every node in an org unit tree
+#'
+#' Base-R replacement for data.tree's FromDataFrameNetwork() +
+#' ToDataFrameTree(): for each node, the ids of its ancestors at depth
+#' 1..n_levels (`lvl1` = root), its depth (`level`, root = 1), with rows in
+#' pre-order (each node followed by its subtree, siblings in edge order).
+#' @param id,parent Character vectors: the edge list (child id, parent id).
+#' @param n_levels Number of `lvl` columns to return.
+#' @return A tibble: `orgUnit`, `lvl1`..`lvl<n_levels>`, `level`.
+#' @keywords internal
+#' @noRd
+.ous_paths <- function(id, parent, n_levels) {
+  roots  <- setdiff(unique(parent), id)
+  nodes  <- c(roots, id)
+  p_idx  <- match(c(rep(NA_character_, length(roots)), parent), nodes)
+  n      <- length(nodes)
+
+  # chain[[s + 1]][i] = index of the ancestor s steps above node i
+  chain <- list(seq_len(n))
+  cur   <- p_idx
+  while (any(!is.na(cur))) {
+    if (length(chain) > n) stop("ous_tree: org unit hierarchy contains a cycle", call. = FALSE)
+    chain[[length(chain) + 1L]] <- cur
+    cur <- p_idx[cur]
+  }
+  depth <- Reduce(`+`, lapply(chain, function(a) !is.na(a)))   # root = 1
+
+  anc_at <- function(j) {               # ancestor index at depth j (NA if deeper than node)
+    step <- depth - j
+    out  <- rep(NA_integer_, n)
+    for (s in unique(step[step >= 0L])) {
+      k <- which(step == s)
+      out[k] <- chain[[s + 1L]][k]
+    }
+    out
+  }
+  max_depth <- max(depth)
+  anc <- lapply(seq_len(max(n_levels, max_depth)), anc_at)
+
+  # Pre-order: sort by ancestor ranks, a parent (NA below it) before its children
+  ord <- do.call(order, c(anc[seq_len(max_depth)], list(na.last = FALSE)))
+
+  lvl <- lapply(anc[seq_len(n_levels)], function(a) nodes[a][ord])
+  names(lvl) <- paste0("lvl", seq_len(n_levels))
+  tibble::as_tibble(c(list(orgUnit = nodes[ord]), lvl, list(level = as.integer(depth[ord]))))
 }

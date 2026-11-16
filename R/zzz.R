@@ -7,7 +7,6 @@
 #'
 # Shiny ecosystem packages are used exclusively in inst/shiny/. One @importFrom
 # per package is needed so DESCRIPTION Imports are considered "used" by R CMD check.
-#' @importFrom assertthat assert_that
 #' @importFrom bslib page_navbar
 #' @importFrom DT datatable
 #' @importFrom later later

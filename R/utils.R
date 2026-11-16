@@ -501,3 +501,12 @@ check_mg2_dependencies <- function() {
   saveRDS(cfg, path)
   invisible(cfg)
 }
+
+#' Elapsed time since `t0`, formatted like tictoc's "1.23 sec elapsed"
+#' @param t0 A `POSIXct` from `Sys.time()`.
+#' @return A character string.
+#' @keywords internal
+#' @noRd
+.mg2_elapsed <- function(t0) {
+  sprintf("%.2f sec elapsed", as.numeric(difftime(Sys.time(), t0, units = "secs")))
+}

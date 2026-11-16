@@ -36,7 +36,7 @@
   function() {
     if (!is.null(cached)) return(cached)
 
-    ok <- isTRUE(tryCatch(parallelly::supportsMulticore(), error = function(e) FALSE))
+    ok <- isTRUE(tryCatch(future::supportsMulticore(), error = function(e) FALSE))
 
     # parallelly (1.48.0) recognises RStudio but knows nothing about Positron,
     # so supportsMulticore() returns TRUE there while Positron blocks fork
@@ -166,7 +166,7 @@
 }
 
 .mg2_n_workers <- function(per_worker_mb = 400L) {
-  n_cores <- max(1L, parallelly::availableCores() - 2L)
+  n_cores <- max(1L, future::availableCores() - 2L)
   # Forked workers share the parent heap, so they cost no extra memory.
   # Separate processes each hold their own copy, so cap by free memory. Keyed
   # on fork availability, not on OS — see .mg2_supports_fork().

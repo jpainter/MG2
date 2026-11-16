@@ -2988,6 +2988,10 @@ yearly_summary_table <- function(
 #' @return A fable object with all combination models appended.
 #' @noRd
 combination_forecasts = function(primary.forecasts, only.models = NULL) {
+  # distributional is in Suggests but always installed: fabletools imports it.
+  if (!requireNamespace("distributional", quietly = TRUE)) {
+    stop("Ensemble forecasts need the 'distributional' package.", call. = FALSE)
+  }
   split_f = primary.forecasts %>% dplyr::group_by(.model) %>% dplyr::group_split()
   model.names = unique(primary.forecasts$.model)
   names(split_f) = model.names
@@ -3181,8 +3185,8 @@ tsmodels = function(
   on.exit(.mg2_restore_plan(.old_plan), add = TRUE)
 
   if (msg) cat("\n - tsmodels: Fitting models")
-  tictoc::tic()
-  tictoc::tic()
+  .t_total <- Sys.time()
+  .t_stage <- Sys.time()
 
   if (is.na(type)) {
     if (.use_prophet) {
@@ -3330,33 +3334,28 @@ tsmodels = function(
     }
   }
 
-  t = tictoc::toc(quiet = TRUE)
-  if (msg) cat("\n - tsmodels: Primary models finished.", t$callback_msg,
+  if (msg) cat("\n - tsmodels: Primary models finished.", .mg2_elapsed(.t_stage),
                "\n - tsmodels: Preparing primary forecasts...")
 
-  tictoc::tic()
+  .t_stage <- Sys.time()
   if (.set.seed) set.seed(1432)
 
   primary_forecasts = primary_models %>%
     fabletools::forecast(h = numberForecastMonths, times = n_forecasts) %>%
     dplyr::mutate(samples = fabletools::generate(var, n_forecasts))
 
-  t = tictoc::toc(quiet = TRUE)
-  if (msg) cat("\n - tsmodels: Primary forecasts finished.", t$callback_msg)
+  if (msg) cat("\n - tsmodels: Primary forecasts finished.", .mg2_elapsed(.t_stage))
 
   if (ensemble) {
     cat("\n - tsmodels: Preparing ensemble forecasts...")
-    tictoc::tic()
+    .t_stage <- Sys.time()
     if (.set.seed) set.seed(1432)
     combo_forecasts = combination_forecasts(primary_forecasts)
-    t = tictoc::toc(quiet = TRUE)
-    if (msg) cat("\n - tsmodels: Ensemble forecasts finished.", t$callback_msg)
-    t = tictoc::toc(quiet = TRUE)
-    if (msg) cat("\n - tsmodels: Total time.", t$callback_msg)
+    if (msg) cat("\n - tsmodels: Ensemble forecasts finished.", .mg2_elapsed(.t_stage))
+    if (msg) cat("\n - tsmodels: Total time.", .mg2_elapsed(.t_total))
     return(combo_forecasts)
   } else {
-    t = tictoc::toc(quiet = TRUE)
-    if (msg) cat("\n - tsmodels: Total time.", t$callback_msg)
+    if (msg) cat("\n - tsmodels: Total time.", .mg2_elapsed(.t_total))
     return(primary_forecasts)
   }
 }
@@ -3727,9 +3726,7 @@ pre_impact_fit = function(
   #       file =  "pre_model_diagnostics.rda")
   # cat( "\n *** -done")
 
-  if (.cat) {
-    tictoc::tic()
-  }
+  .t0 <- Sys.time()
   preModel = tsPreModel(
     trend.data,
     evaluation_month = evaluation_month,
@@ -3740,9 +3737,7 @@ pre_impact_fit = function(
   )
 
   cat("\n\n")
-  if (.cat) {
-    tictoc::toc()
-  }
+  if (.cat) cat(.mg2_elapsed(.t0), "\n")
 
   # testing
   # cat("\n - saving preModel")
@@ -4274,9 +4269,7 @@ impact_fit = function(
   #       file =  "pre_model_diagnostics.rda")
   # cat( "\n *** -done")
 
-  if (.cat) {
-    tictoc::tic()
-  }
+  .t0 <- Sys.time()
   Model = tsModel(
     trend.data,
     evaluation_month = evaluation_month,
@@ -4287,9 +4280,7 @@ impact_fit = function(
   )
 
   cat("\n\n")
-  if (.cat) {
-    tictoc::toc()
-  }
+  if (.cat) cat(.mg2_elapsed(.t0), "\n")
 
   # data.orgUnit = data.tota %>% as_tsibble( index = "Month", key = c('orgUnit') )
   #

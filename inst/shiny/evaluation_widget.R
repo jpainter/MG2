@@ -2519,7 +2519,7 @@ evaluation_widget_server <- function(
           }
         }
 
-        tictoc::tic()
+        .t_plot <- Sys.time()
 
         ## Main plot ####
         cat("\n - main plot")
@@ -2564,8 +2564,7 @@ evaluation_widget_server <- function(
           )
         }
 
-        cat('\n - basic plot done')
-        tictoc::toc()
+        cat('\n - basic plot done', MG2:::.mg2_elapsed(.t_plot))
 
         if (!input$legend) {
           g = g +
