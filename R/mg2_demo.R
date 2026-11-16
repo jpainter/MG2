@@ -10,7 +10,7 @@
 #' | File | Description |
 #' |---|---|
 #' | `malaria_demo.rds` | 6-year Lao PDR malaria surveillance data (Aug 2021 – May 2026), 18 columns, ~867 k facility-month rows |
-#' | `metadata_demo.rds` | DHIS2 metadata: org unit tree, geographic features (sf), validation rules, data element dictionary |
+#' | `metadata_demo.rds` | DHIS2 metadata: org unit tree, geographic features (sf), and the data element dictionary, element groups, validation rules and indicators filtered to the 18 data elements in `malaria_demo.rds` |
 #' | `Formulas_demo.xlsx` | Formula file listing 67 malaria data elements across 18 categories |
 #'
 #' **Data source**

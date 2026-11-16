@@ -24,7 +24,8 @@
 #'     months); RDT negative increases ~15% (more in peak season), simulating
 #'     an intervention effect the Evaluation tab can detect.
 #' }
-#' The all-levels processed dataset is stored in `mg2_demo_alllevels`.
+#' The all-levels processed dataset is written by `mg2_demo_setup(all_levels = TRUE)`,
+#' which downloads it from the `demo-data` GitHub release.
 #'
 #' @format A data frame with columns:
 #' \describe{
@@ -59,28 +60,6 @@
 #' dplyr::n_distinct(mg2_demo$orgUnit)   # number of facilities
 #' dplyr::n_distinct(mg2_demo$period)    # number of months
 "mg2_demo"
-
-
-#' MG2 Demo All-Levels Dataset: Sierra Leone Malaria (3 years)
-#'
-#' Processed Sierra Leone malaria dataset covering all organisational unit
-#' levels (national, district, chiefdom, facility) for 50 data elements over
-#' approximately 3 years. Includes outlier flags and all columns produced by
-#' the MG2 processing pipeline. Written to disk by [mg2_demo_setup()].
-#'
-#' @format A data.table / data frame with columns including:
-#' `orgUnit`, `orgUnitName`, `level`, `National`, `District`, `Chiefdom`,
-#' `Facility`, `dataSet`, `dataElement`, `Month`, `data`, `data.id`,
-#' `original`, `value`, and outlier flag columns
-#' (`key_entry_error`, `over_max`, `mad15`, `mad10`, `mad5`,
-#' `seasonal5`, `seasonal3`, `expected`).
-#'
-#' @seealso `mg2_demo`, `mg2_demo_processed`, `mg2_demo_formula`, `mg2_demo_meta`
-#' @examples
-#' data(mg2_demo_alllevels)
-#' dplyr::n_distinct(mg2_demo_alllevels$orgUnit)   # all org unit levels
-#' dplyr::n_distinct(mg2_demo_alllevels$data.id)   # number of data elements
-"mg2_demo_alllevels"
 
 
 #' MG2 Demo Formula Elements
@@ -202,13 +181,13 @@
 #'
 #' Source: GADM level-2 polygons via \pkg{geodata}, with "Western Rural" and
 #' "Western Urban" merged into "Western Area" to match the DHIS2 district
-#' naming used in \code{mg2_demo_alllevels}.
+#' naming used in the all-levels demo dataset written by \code{mg2_demo_setup()}.
 #'
 #' @format An `sf` data frame with 13 rows (one per district) and columns:
 #' \describe{
 #'   \item{id}{Placeholder identifier (character).}
 #'   \item{name}{District name — matches the `District` column in
-#'     \code{mg2_demo_alllevels} and the `name` field used by map joins.}
+#'     the all-levels demo dataset and the `name` field used by map joins.}
 #'   \item{level}{Admin level — always \code{2L} (district).}
 #'   \item{levelName}{Human-readable level label: \code{"District"}.}
 #'   \item{parentName}{Parent admin unit: \code{"Sierra Leone"}.}

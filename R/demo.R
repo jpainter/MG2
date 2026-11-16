@@ -14,11 +14,17 @@
 #'   Pass an explicit path to skip the prompt, e.g. `dir = "~/mg2_demo"`.
 #' @param overwrite Logical. If `TRUE`, overwrites existing files in `dir`
 #'   (default `FALSE` — skips files that already exist).
+#' @param all_levels Logical. Also write the all-levels dataset (national,
+#'   district, chiefdom and facility rows; about 0.4 MB). It is downloaded from
+#'   the MG2 GitHub release `demo-data` on first use and cached in `cache_dir`;
+#'   if the download fails, the rest of the demo is still written.
+#' @param cache_dir Where downloaded files are kept between calls.
 #'
 #' @return The path to `dir`, invisibly.
 #'
 #' @examples
-#' dir <- mg2_demo_setup(file.path(tempdir(), "mg2_demo"))
+#' # Offline: facility-level demo only
+#' dir <- mg2_demo_setup(file.path(tempdir(), "mg2_demo"), all_levels = FALSE)
 #' list.files(dir)
 #'
 #' if (interactive()) {
@@ -26,7 +32,8 @@
 #'   run_mg2()          # open the app, paste the returned path
 #' }
 #' @export
-mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
+mg2_demo_setup <- function(dir = NULL, overwrite = FALSE, all_levels = TRUE,
+                           cache_dir = tools::R_user_dir("MG2", which = "cache")) {
 
   # --- resolve directory interactively if not supplied ----------------------
   if (is.null(dir)) {
@@ -135,18 +142,30 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
 
   # -------------------------------------------------------------------------
   # 4. All-levels processed dataset (national / district / chiefdom / facility)
+  #    Downloaded from the `demo-data` release (kept out of the package to
+  #    stay under CRAN's size limit). Optional: a failed download only skips it.
   # -------------------------------------------------------------------------
-  n_years_all <- round(length(unique(.mg2_dataset("mg2_demo_alllevels")$Month)) / 12)
-  alllevels_path <- file.path(
-    dir,
-    paste0(formula_name, "_All-levels_", n_years_all, "yrs_", today, ".rds")
-  )
-
-  if (!file.exists(alllevels_path) || overwrite) {
-    saveRDS(.mg2_dataset("mg2_demo_alllevels"), alllevels_path, compress = FALSE)
-    message("All-levels data saved: ", basename(alllevels_path))
-  } else {
-    message("All-levels data exists (skipped): ", basename(alllevels_path))
+  if (all_levels) {
+    existing <- list.files(dir, pattern = paste0("^", formula_name, "_All-levels_"))
+    if (length(existing) && !overwrite) {
+      message("All-levels data exists (skipped): ", existing[1])
+    } else {
+      alllevels <- tryCatch(
+        .mg2_demo_fetch("mg2_demo_alllevels", cache_dir),
+        error = function(e) {
+          message("All-levels data skipped: ", conditionMessage(e))
+          NULL
+        }
+      )
+      if (!is.null(alllevels)) {
+        n_years_all <- round(length(unique(alllevels$Month)) / 12)
+        alllevels_path <- file.path(
+          dir, paste0(formula_name, "_All-levels_", n_years_all, "yrs_", today, ".rds")
+        )
+        saveRDS(alllevels, alllevels_path, compress = FALSE)
+        message("All-levels data saved: ", basename(alllevels_path))
+      }
+    }
   }
 
   message(
@@ -244,14 +263,14 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE,
   # 2. Metadata rds
   meta_path <- file.path(dir, paste0("metadata_", today, ".rds"))
   if (!file.exists(meta_path) || overwrite) {
-    saveRDS(.mg2_pdrlao_fetch("mg2_pdrlao_meta", cache_dir), meta_path)
+    saveRDS(.mg2_demo_fetch("mg2_pdrlao_meta", cache_dir), meta_path)
     message("Metadata saved:        ", basename(meta_path))
   } else {
     message("Metadata exists (skipped): ", basename(meta_path))
   }
 
   # 3. Processed dataset (save_file() writes the default qs format)
-  processed <- .mg2_pdrlao_fetch("mg2_pdrlao_processed", cache_dir)
+  processed <- .mg2_demo_fetch("mg2_pdrlao_processed", cache_dir)
   n_months  <- length(unique(processed$Month))
   n_years   <- round(n_months / 12)
   ext       <- paste0(".", mg2_data_ext())   # e.g. ".rds"
@@ -272,32 +291,33 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE,
 }
 
 
-# -- PDR Lao demo data download ------------------------------------------------
-# mg2_pdrlao_meta and mg2_pdrlao_processed are hosted on the GitHub release
-# `demo-data` rather than shipped in data/ (CRAN tarball limit ~5 MB). The MD5
-# pins the exact file: never replace these assets in place -- upload new files
-# under new names and update this table instead.
+# -- Demo data download ---------------------------------------------------------
+# Large demo objects are hosted on the GitHub release `demo-data` rather than
+# shipped in data/ (CRAN tarball limit 5 MB). The MD5 pins the exact file:
+# never replace these assets in place -- upload new files under new names and
+# update this table instead.
 
-.mg2_pdrlao_assets <- c(
+.mg2_demo_assets <- c(
   mg2_pdrlao_meta      = "84c16967cd8cb7768903e1e6fff83300",
-  mg2_pdrlao_processed = "b6b51a539d220f65305f06775f05bf86"
+  mg2_pdrlao_processed = "b6b51a539d220f65305f06775f05bf86",
+  mg2_demo_alllevels   = "a0096881e8cdf39bc2d07a7a916344b9"
 )
 
-.mg2_pdrlao_url <- "https://github.com/jpainter/MG2/releases/download/demo-data"
+.mg2_demo_url <- "https://github.com/jpainter/MG2/releases/download/demo-data"
 
-#' Download (once) and read a PDR Lao demo object
-#' @param name One of `names(.mg2_pdrlao_assets)`.
+#' Download (once) and read a demo object from the `demo-data` release
+#' @param name One of `names(.mg2_demo_assets)`.
 #' @param dir Cache directory.
 #' @return The R object.
 #' @keywords internal
 #' @noRd
-.mg2_pdrlao_fetch <- function(name, dir = tools::R_user_dir("MG2", which = "cache")) {
-  md5  <- .mg2_pdrlao_assets[[name]]
+.mg2_demo_fetch <- function(name, dir = tools::R_user_dir("MG2", which = "cache")) {
+  md5  <- .mg2_demo_assets[[name]]
   path <- file.path(dir, paste0(name, ".rds"))
 
   if (!file.exists(path) || unname(tools::md5sum(path)) != md5) {
     dir.create(dir, recursive = TRUE, showWarnings = FALSE)
-    url <- paste0(.mg2_pdrlao_url, "/", name, ".rds")
+    url <- paste0(.mg2_demo_url, "/", name, ".rds")
     tmp <- tempfile(fileext = ".rds")
     on.exit(unlink(tmp), add = TRUE)
     message("Downloading ", name, " ...")
@@ -308,7 +328,7 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE,
       error = function(e) FALSE, warning = function(w) FALSE
     )
     if (!ok) {
-      stop("Could not download the PDR Lao demo data from\n  ", url,
+      stop("Could not download the demo data from\n  ", url,
            "\nCheck your internet connection and try again.", call. = FALSE)
     }
     if (unname(tools::md5sum(tmp)) != md5) {

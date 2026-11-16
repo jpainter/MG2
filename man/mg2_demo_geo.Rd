@@ -9,7 +9,7 @@ An \code{sf} data frame with 13 rows (one per district) and columns:
 \describe{
 \item{id}{Placeholder identifier (character).}
 \item{name}{District name — matches the \code{District} column in
-\code{mg2_demo_alllevels} and the \code{name} field used by map joins.}
+the all-levels demo dataset and the \code{name} field used by map joins.}
 \item{level}{Admin level — always \code{2L} (district).}
 \item{levelName}{Human-readable level label: \code{"District"}.}
 \item{parentName}{Parent admin unit: \code{"Sierra Leone"}.}
@@ -31,7 +31,7 @@ correctly when using the Sierra Leone demo data.
 \details{
 Source: GADM level-2 polygons via \pkg{geodata}, with "Western Rural" and
 "Western Urban" merged into "Western Area" to match the DHIS2 district
-naming used in \code{mg2_demo_alllevels}.
+naming used in the all-levels demo dataset written by \code{mg2_demo_setup()}.
 }
 \seealso{
 \code{\link[=mg2_demo_setup]{mg2_demo_setup()}}

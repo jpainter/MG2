@@ -4,7 +4,12 @@
 \alias{mg2_demo_setup}
 \title{Set Up Demo Data Directory}
 \usage{
-mg2_demo_setup(dir = NULL, overwrite = FALSE)
+mg2_demo_setup(
+  dir = NULL,
+  overwrite = FALSE,
+  all_levels = TRUE,
+  cache_dir = tools::R_user_dir("MG2", which = "cache")
+)
 }
 \arguments{
 \item{dir}{Path to the directory to create (or reuse). If \code{NULL} (default),
@@ -14,6 +19,13 @@ Pass an explicit path to skip the prompt, e.g. \code{dir = "~/mg2_demo"}.}
 
 \item{overwrite}{Logical. If \code{TRUE}, overwrites existing files in \code{dir}
 (default \code{FALSE} — skips files that already exist).}
+
+\item{all_levels}{Logical. Also write the all-levels dataset (national,
+district, chiefdom and facility rows; about 0.4 MB). It is downloaded from
+the MG2 GitHub release \code{demo-data} on first use and cached in \code{cache_dir};
+if the download fails, the rest of the demo is still written.}
+
+\item{cache_dir}{Where downloaded files are kept between calls.}
 }
 \value{
 The path to \code{dir}, invisibly.
@@ -29,7 +41,8 @@ directory to the path returned, and skip the Login step — the demo data
 is ready to explore from the Data tab onward.
 }
 \examples{
-dir <- mg2_demo_setup(file.path(tempdir(), "mg2_demo"))
+# Offline: facility-level demo only
+dir <- mg2_demo_setup(file.path(tempdir(), "mg2_demo"), all_levels = FALSE)
 list.files(dir)
 
 if (interactive()) {

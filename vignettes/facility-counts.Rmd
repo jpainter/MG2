@@ -9,6 +9,7 @@ vignette: >
 
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
+  dev      = "ragg_png",   # ~25% smaller PNGs than the default device
   collapse = TRUE,
   comment  = "#>"
 )

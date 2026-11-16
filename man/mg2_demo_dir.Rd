@@ -20,7 +20,7 @@ used in standalone R scripts via \code{\link[=read_file]{read_file()}}.
 \strong{Contents of the demo directory}\tabular{ll}{
    File \tab Description \cr
    \code{malaria_demo.rds} \tab 6-year Lao PDR malaria surveillance data (Aug 2021 – May 2026), 18 columns, ~867 k facility-month rows \cr
-   \code{metadata_demo.rds} \tab DHIS2 metadata: org unit tree, geographic features (sf), validation rules, data element dictionary \cr
+   \code{metadata_demo.rds} \tab DHIS2 metadata: org unit tree, geographic features (sf), and the data element dictionary, element groups, validation rules and indicators filtered to the 18 data elements in \code{malaria_demo.rds} \cr
    \code{Formulas_demo.xlsx} \tab Formula file listing 67 malaria data elements across 18 categories \cr
 }
 

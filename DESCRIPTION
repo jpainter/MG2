@@ -75,6 +75,7 @@ Suggests:
     progressr,
     prophet,
     rappdirs,
+    ragg,
     RColorBrewer,
     rmarkdown,
     rstudioapi,

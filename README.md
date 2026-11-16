@@ -371,7 +371,8 @@ In the app, click **Load Demo Data** on the Setup tab (right column) instead of 
 | `mg2_demo_formula` | Formula elements table — the 5 data elements below with UIDs and category option combos. |
 | `mg2_demo_meta` | Real metadata from the Sierra Leone DHIS2 demo instance: org units, hierarchy, data element dictionary, validation rules, dataset forms. |
 | `mg2_demo_processed` | Pre-processed tsibble from `data_1()` — org unit hierarchy joined, time index built, ready for DQA onward. |
-| `mg2_demo_alllevels` | Processed dataset covering all org unit levels (national → facility) for 50 data elements over ~3 years, with outlier flags. |
+
+`mg2_demo_setup()` also writes an all-levels dataset (national → facility, about 3 years). It is downloaded (~0.4 MB) from the [`demo-data` release](https://github.com/jpainter/MG2/releases/tag/demo-data) on first use and cached; use `all_levels = FALSE` to skip it.
 
 **Country:** Sierra Leone · **Org units:** 1,095 facilities across 19 districts (4-level hierarchy)
 

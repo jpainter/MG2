@@ -1,3 +1,12 @@
+# MG2 (development version)
+
+* **Smaller package** (source tarball 4.99 MB -> 3.71 MB). The all-levels Sierra
+  Leone demo dataset (`mg2_demo_alllevels`) is no longer bundled:
+  `mg2_demo_setup()` downloads it on first use from the `demo-data` GitHub release
+  (new `all_levels =` and `cache_dir =` arguments; `all_levels = FALSE` works
+  offline). The vignettes' `metadata_demo.rds` is filtered to the demo's 18 data
+  elements, bundled data files are recompressed, and vignette figures are smaller.
+
 # MG2 0.2.0
 
 * **Bug fixes found by the CRAN code check:**
