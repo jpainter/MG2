@@ -48,4 +48,5 @@ time-series evaluation.
 ## Test environments
 
 * local macOS (aarch64), R 4.6.2
+* Ubuntu 26.04 LTS (x86_64, Docker `rocker/geospatial`), R 4.6.2, `--as-cran --run-donttest`
 * win-builder (devel) -- PENDING
