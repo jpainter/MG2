@@ -27,8 +27,8 @@ used in standalone R scripts via \code{\link[=read_file]{read_file()}}.
 
 \strong{Data source}
 
-Data were downloaded from the public DHIS2 demonstration server at
-\url{https://demos.dhis2.org/hmis_data} (Lao PDR national malaria programme
+Data were downloaded from a public DHIS2 demonstration server
+(\url{https://demos.dhis2.org/}; Lao PDR national malaria programme
 configuration).  This is demonstration data intended for training and
 software testing; it is not the official data of the Lao Ministry of Health.
 

@@ -170,14 +170,20 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
 #'
 #' @param dir Path to the directory. If `NULL`, uses an interactive chooser.
 #' @param overwrite Logical. Overwrite existing files (default `FALSE`).
+#' @param cache_dir Where downloaded files are kept between calls.
 #' @return The path to `dir`, invisibly.
 #' @examples
 #' \donttest{
-#' # Downloads ~3 MB on first use
-#' mg2_pdrlao_setup(file.path(tempdir(), "mg2_pdrlao_demo"))
+#' # Downloads ~3 MB; needs an internet connection
+#' tmp <- tempdir()
+#' dir <- tryCatch(
+#'   mg2_pdrlao_setup(file.path(tmp, "mg2_pdrlao_demo"), cache_dir = tmp),
+#'   error = function(e) message(conditionMessage(e))
+#' )
 #' }
 #' @export
-mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
+mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE,
+                             cache_dir = tools::R_user_dir("MG2", which = "cache")) {
 
   if (is.null(dir)) {
     dir <- tryCatch(
@@ -238,14 +244,14 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   # 2. Metadata rds
   meta_path <- file.path(dir, paste0("metadata_", today, ".rds"))
   if (!file.exists(meta_path) || overwrite) {
-    saveRDS(.mg2_pdrlao_fetch("mg2_pdrlao_meta"), meta_path)
+    saveRDS(.mg2_pdrlao_fetch("mg2_pdrlao_meta", cache_dir), meta_path)
     message("Metadata saved:        ", basename(meta_path))
   } else {
     message("Metadata exists (skipped): ", basename(meta_path))
   }
 
   # 3. Processed dataset (save_file() writes the default qs format)
-  processed <- .mg2_pdrlao_fetch("mg2_pdrlao_processed")
+  processed <- .mg2_pdrlao_fetch("mg2_pdrlao_processed", cache_dir)
   n_months  <- length(unique(processed$Month))
   n_years   <- round(n_months / 12)
   ext       <- paste0(".", mg2_data_ext())   # e.g. ".rds"
@@ -281,12 +287,12 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
 
 #' Download (once) and read a PDR Lao demo object
 #' @param name One of `names(.mg2_pdrlao_assets)`.
+#' @param dir Cache directory.
 #' @return The R object.
 #' @keywords internal
 #' @noRd
-.mg2_pdrlao_fetch <- function(name) {
+.mg2_pdrlao_fetch <- function(name, dir = tools::R_user_dir("MG2", which = "cache")) {
   md5  <- .mg2_pdrlao_assets[[name]]
-  dir  <- tools::R_user_dir("MG2", which = "cache")
   path <- file.path(dir, paste0(name, ".rds"))
 
   if (!file.exists(path) || unname(tools::md5sum(path)) != md5) {

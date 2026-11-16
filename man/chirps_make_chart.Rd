@@ -30,6 +30,6 @@ A \code{ggplot} object.
 Produces a bar chart with mean rainfall per month (averaged across all
 polygons in \code{results_list}). Error bars show ±1 SD across polygons.
 When \code{group_by_parent} is \code{TRUE} and a \code{parentName} column is present with
-≤ 8 unique values, bars are coloured and dodged by parent unit — useful for
+<= 8 unique values, bars are coloured and dodged by parent unit — useful for
 showing regional rainfall variation within a country.
 }

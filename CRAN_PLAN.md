@@ -49,7 +49,7 @@ reported as INFO, not a NOTE.
 | 12 | **Imports 42 → 31 non-base.** Dropped: assertthat, data.tree (`ous_tree()` → base R `.ous_paths()`, identical output), stringi (base regex), tictoc (`.mg2_elapsed()`). To Suggests: terra, googledrive, ggiraph (static-plot fallback), rstudioapi, plus httpuv / parallelly / distributional (always installed via shiny / future / fabletools; guarded anyway). With `_R_CHECK_EXCESSIVE_IMPORTS_=20`, R 4.6 reports the count as **INFO**, not a NOTE — still worth one line in cran-comments. | ✅ |
 | 13 | **`later`, `readxl` → Imports** (both used only in `inst/shiny`; declared via `@importFrom` in `zzz.R` so check counts them as used). | ✅ |
 | 14 | **DESCRIPTION wording** — `'DHIS2'`/`'Shiny'` quoted in Title and Description, `<https://dhis2.org>` added. | ✅ |
-| 15 | Examples, tests and vignettes must not write outside `tempdir()` or hit the network (`skip_on_cran()`). | audit |
+| 15 | **Examples / tests / vignettes — audited.** Vignettes: network chunks are `eval = FALSE`, no file writes. Tests: the one test that contacts play.dhis2.org now has `skip_on_cran()`. `mg2_pdrlao_setup()` gained `cache_dir =`; its `\donttest` example caches to `tempdir()` and catches download failure. | ✅ |
 
 ## 3. Quality — not required, strongly advised
 
@@ -58,6 +58,16 @@ reported as INFO, not a NOTE.
 - `urlchecker::url_check()`, `spelling::spell_check_package()`.
 - `rhub::rhub_check()` / win-builder (`devtools::check_win_devel()`) for Linux/Windows.
 - `cran-comments.md`.
+
+## Section 3 — done 2026-11-16
+
+- `urlchecker::url_check()`: 5 dead/moved URLs fixed (README, `mg2_demo_dir`, `mg2_demo_geo`).
+- `spelling::spell_check_package()`: one typo fixed; 154 words in `inst/WORDLIST`.
+- Rd: `≤ ≈ →` replaced in roxygen — pdflatex could not typeset them (only seen with `manual = TRUE`).
+- `cran-comments.md` written. DESCRIPTION `Date:` updated.
+- `check(cran = TRUE, remote = TRUE, manual = TRUE, run_dont_test = TRUE)`:
+  **0 errors · 0 warnings · 2 NOTEs** — "New submission" and local HTML Tidy too old
+  (environmental; CRAN has a current Tidy).
 
 ## Final step
 

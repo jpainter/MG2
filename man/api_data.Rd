@@ -46,7 +46,7 @@ api_data(
 
 \item{formula}{formula with data elements}
 
-\item{parallel}{make prallel requests}
+\item{parallel}{make parallel requests}
 
 \item{print}{print messages}
 

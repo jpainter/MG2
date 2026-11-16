@@ -473,7 +473,7 @@ chirps_make_map <- function(results_list, title_prefix = "", year,
 #' Produces a bar chart with mean rainfall per month (averaged across all
 #' polygons in `results_list`). Error bars show ±1 SD across polygons.
 #' When `group_by_parent` is `TRUE` and a `parentName` column is present with
-#' ≤ 8 unique values, bars are coloured and dodged by parent unit — useful for
+#' <= 8 unique values, bars are coloured and dodged by parent unit — useful for
 #' showing regional rainfall variation within a country.
 #'
 #' @param results_list   Named list from `chirps_process_months()`.
@@ -609,7 +609,7 @@ chirps_annual_means_sf <- function(data_list) {
 #'
 #' One map panel per year, showing the per-polygon mean of the selected months.
 #'
-#' @param multi_results Named list (year → `data_list`) from the year-range run.
+#' @param multi_results Named list (year -> `data_list`) from the year-range run.
 #' @param title_prefix  Character prefix for the plot title.
 #' @param months        Integer vector of selected months (used in subtitle only).
 #' @param palette       Colour palette name (same options as `chirps_make_map()`).
@@ -706,7 +706,7 @@ chirps_multi_year_map <- function(multi_results, title_prefix = "",
 #'     the seasonal pattern compares across years.}
 #' }
 #'
-#' @param multi_results Named list (year → `data_list`).
+#' @param multi_results Named list (year -> `data_list`).
 #' @param title_prefix  Character prefix for the plot title.
 #' @param view          `"annual"` (default) or `"monthly"`.
 #' @return A `ggplot` object.
@@ -850,7 +850,7 @@ chirps_multi_year_chart <- function(multi_results, title_prefix = "",
 #' For each polygon, computes the mean rainfall across all years (the baseline),
 #' then maps each year's deviation from that baseline.  Requires at least 2 years.
 #'
-#' @param multi_results Named list (year → `data_list`).
+#' @param multi_results Named list (year -> `data_list`).
 #' @param title_prefix  Character prefix for the plot title.
 #' @param method        `"mm"` (deviation in millimetres, default) or `"zscore"`
 #'   (deviation divided by the multi-year SD — dimensionless).

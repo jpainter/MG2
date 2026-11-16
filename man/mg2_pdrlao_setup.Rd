@@ -4,12 +4,18 @@
 \alias{mg2_pdrlao_setup}
 \title{Set Up PDR Lao Demo Data Directory}
 \usage{
-mg2_pdrlao_setup(dir = NULL, overwrite = FALSE)
+mg2_pdrlao_setup(
+  dir = NULL,
+  overwrite = FALSE,
+  cache_dir = tools::R_user_dir("MG2", which = "cache")
+)
 }
 \arguments{
 \item{dir}{Path to the directory. If \code{NULL}, uses an interactive chooser.}
 
 \item{overwrite}{Logical. Overwrite existing files (default \code{FALSE}).}
+
+\item{cache_dir}{Where downloaded files are kept between calls.}
 }
 \value{
 The path to \code{dir}, invisibly.
@@ -26,7 +32,11 @@ ship inside the package. They are downloaded from the MG2 GitHub release
 }
 \examples{
 \donttest{
-# Downloads ~3 MB on first use
-mg2_pdrlao_setup(file.path(tempdir(), "mg2_pdrlao_demo"))
+# Downloads ~3 MB; needs an internet connection
+tmp <- tempdir()
+dir <- tryCatch(
+  mg2_pdrlao_setup(file.path(tmp, "mg2_pdrlao_demo"), cache_dir = tmp),
+  error = function(e) message(conditionMessage(e))
+)
 }
 }

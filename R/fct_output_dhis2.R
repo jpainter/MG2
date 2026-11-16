@@ -31,8 +31,8 @@ mg2_infer_valuetype <- function(x) {
 
 #' Infer DHIS2 aggregationType from observed values
 #'
-#' Integer data → `"SUM"` (routine counts: cases, tests, deaths).
-#' Data with decimal values → `"AVERAGE"`.
+#' Integer data -> `"SUM"` (routine counts: cases, tests, deaths).
+#' Data with decimal values -> `"AVERAGE"`.
 #' The formula `role` argument is reserved for future refinement (e.g. a
 #' denominator that is itself a rate).
 #'

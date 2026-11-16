@@ -17,7 +17,7 @@ An \code{sf} data frame with 13 rows (one per district) and columns:
 }
 }
 \source{
-\url{https://geodata.ucdavis.edu/gadm/} (GADM 4.1, CC BY 4.0)
+\url{https://gadm.org/} (GADM 4.1, CC BY 4.0)
 }
 \usage{
 mg2_demo_geo

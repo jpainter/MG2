@@ -34,7 +34,7 @@ mg2_demo_meta
 Metadata list for the Sierra Leone DHIS2 demo instance, structured to match
 the \code{metadata_YYYY-MM-DD.rds} files saved by the Metadata widget. Pass this
 object to MG2 functions that accept a \code{metadata} argument, or load it into
-the app via the Setup → Directory tab when running in standalone mode.
+the app via the Setup -> Directory tab when running in standalone mode.
 }
 \examples{
 data(mg2_demo_meta)

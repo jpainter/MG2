@@ -35,6 +35,7 @@ test_that("loginDHIS2 warns when connecting over http", {
 # instance reliably returns a clean 401 for bad credentials, which is why this
 # asserts on the HTML-body path rather than on a status code.
 test_that("loginDHIS2 returns FALSE when a 200 response is not JSON", {
+  skip_on_cran()      # depends on a third-party server
   skip_if_offline()
 
   expect_false(

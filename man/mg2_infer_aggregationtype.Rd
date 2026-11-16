@@ -15,8 +15,8 @@ mg2_infer_aggregationtype(x, role = "unknown")
 \code{"SUM"} or \code{"AVERAGE"}.
 }
 \description{
-Integer data → \code{"SUM"} (routine counts: cases, tests, deaths).
-Data with decimal values → \code{"AVERAGE"}.
+Integer data -> \code{"SUM"} (routine counts: cases, tests, deaths).
+Data with decimal values -> \code{"AVERAGE"}.
 The formula \code{role} argument is reserved for future refinement (e.g. a
 denominator that is itself a rate).
 }
