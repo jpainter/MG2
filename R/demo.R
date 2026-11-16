@@ -161,9 +161,19 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
 #' Writes the PDR Lao malaria demo datasets (82 data elements, ~5 years)
 #' to a local directory in the format the Shiny app expects.
 #'
+#' The metadata and processed dataset (about 3 MB together) are too large to
+#' ship inside the package. They are downloaded from the MG2 GitHub release
+#' `demo-data` the first time this function runs and cached under
+#' `tools::R_user_dir("MG2", "cache")`; later calls work offline.
+#'
 #' @param dir Path to the directory. If `NULL`, uses an interactive chooser.
 #' @param overwrite Logical. Overwrite existing files (default `FALSE`).
 #' @return The path to `dir`, invisibly.
+#' @examples
+#' \donttest{
+#' # Downloads ~3 MB on first use
+#' mg2_pdrlao_setup(file.path(tempdir(), "mg2_pdrlao_demo"))
+#' }
 #' @export
 mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
 
@@ -226,20 +236,20 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   # 2. Metadata rds
   meta_path <- file.path(dir, paste0("metadata_", today, ".rds"))
   if (!file.exists(meta_path) || overwrite) {
-    saveRDS(mg2_pdrlao_meta, meta_path)
+    saveRDS(.mg2_pdrlao_fetch("mg2_pdrlao_meta"), meta_path)
     message("Metadata saved:        ", basename(meta_path))
   } else {
     message("Metadata exists (skipped): ", basename(meta_path))
   }
 
-  # 3. Processed dataset — use save_file() so FST is used when available,
-  #    which is much faster and uses less peak memory than saveRDS().
-  n_months  <- length(unique(mg2_pdrlao_processed$Month))
+  # 3. Processed dataset (save_file() writes the default qs format)
+  processed <- .mg2_pdrlao_fetch("mg2_pdrlao_processed")
+  n_months  <- length(unique(processed$Month))
   n_years   <- round(n_months / 12)
   ext       <- paste0(".", mg2_data_ext())   # e.g. ".rds"
   data_path <- file.path(dir, paste0(formula_name, "_Facility_", n_years, "yrs_", today, ext))
   if (!file.exists(data_path) || overwrite) {
-    save_file(mg2_pdrlao_processed, data_path)
+    save_file(processed, data_path)
     message("Dataset saved:         ", basename(data_path))
   } else {
     message("Dataset exists (skipped): ", basename(data_path))
@@ -251,4 +261,53 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   )
 
   invisible(dir)
+}
+
+
+# -- PDR Lao demo data download ------------------------------------------------
+# mg2_pdrlao_meta and mg2_pdrlao_processed are hosted on the GitHub release
+# `demo-data` rather than shipped in data/ (CRAN tarball limit ~5 MB). The MD5
+# pins the exact file: never replace these assets in place -- upload new files
+# under new names and update this table instead.
+
+.mg2_pdrlao_assets <- c(
+  mg2_pdrlao_meta      = "84c16967cd8cb7768903e1e6fff83300",
+  mg2_pdrlao_processed = "b6b51a539d220f65305f06775f05bf86"
+)
+
+.mg2_pdrlao_url <- "https://github.com/jpainter/MG2/releases/download/demo-data"
+
+#' Download (once) and read a PDR Lao demo object
+#' @param name One of `names(.mg2_pdrlao_assets)`.
+#' @return The R object.
+#' @keywords internal
+#' @noRd
+.mg2_pdrlao_fetch <- function(name) {
+  md5  <- .mg2_pdrlao_assets[[name]]
+  dir  <- tools::R_user_dir("MG2", which = "cache")
+  path <- file.path(dir, paste0(name, ".rds"))
+
+  if (!file.exists(path) || unname(tools::md5sum(path)) != md5) {
+    dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+    url <- paste0(.mg2_pdrlao_url, "/", name, ".rds")
+    tmp <- tempfile(fileext = ".rds")
+    on.exit(unlink(tmp), add = TRUE)
+    message("Downloading ", name, " ...")
+    old_timeout <- options(timeout = max(300, getOption("timeout")))
+    on.exit(options(old_timeout), add = TRUE)
+    ok <- tryCatch(
+      utils::download.file(url, tmp, mode = "wb", quiet = TRUE) == 0,
+      error = function(e) FALSE, warning = function(w) FALSE
+    )
+    if (!ok) {
+      stop("Could not download the PDR Lao demo data from\n  ", url,
+           "\nCheck your internet connection and try again.", call. = FALSE)
+    }
+    if (unname(tools::md5sum(tmp)) != md5) {
+      stop("Downloaded ", name, " failed its checksum; please try again.",
+           call. = FALSE)
+    }
+    file.copy(tmp, path, overwrite = TRUE)
+  }
+  readRDS(path)
 }

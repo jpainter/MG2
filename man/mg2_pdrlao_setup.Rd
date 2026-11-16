@@ -18,3 +18,15 @@ The path to \code{dir}, invisibly.
 Writes the PDR Lao malaria demo datasets (82 data elements, ~5 years)
 to a local directory in the format the Shiny app expects.
 }
+\details{
+The metadata and processed dataset (about 3 MB together) are too large to
+ship inside the package. They are downloaded from the MG2 GitHub release
+\code{demo-data} the first time this function runs and cached under
+\code{tools::R_user_dir("MG2", "cache")}; later calls work offline.
+}
+\examples{
+\donttest{
+# Downloads ~3 MB on first use
+mg2_pdrlao_setup(file.path(tempdir(), "mg2_pdrlao_demo"))
+}
+}

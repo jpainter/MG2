@@ -1,5 +1,14 @@
 # MG2 0.2.0
 
+* **PDR Lao demo data is now downloaded, not bundled** (breaking) — the
+  `mg2_pdrlao_meta` and `mg2_pdrlao_processed` datasets are no longer in the package,
+  which kept it over CRAN's size limit. `mg2_pdrlao_setup()` downloads them (~3 MB)
+  from the `demo-data` GitHub release on first use, checks them, and caches them under
+  `tools::R_user_dir("MG2", "cache")`. `mg2_pdrlao_formula` still ships with the package.
+* **Settings moved out of the home directory** — directory history and the chosen Drive
+  folder are saved under `tools::R_user_dir("MG2", "config")` instead of
+  `~/.mg2_config.rds`. The old file is still read, so history carries over.
+
 * **Cloud workspace — Google Drive support** — MG2 can now read and write its data
   directory on Google Drive instead of a local folder. File I/O goes through a new
   `mg2_workspace()` S3 abstraction (`ws_read_*()` / `ws_save_*()` / `ws_list()`), so

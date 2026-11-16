@@ -389,18 +389,14 @@ In the app, click **Load Demo Data** on the Setup tab (right column) instead of 
 
 ### PDR Lao demo
 
-A second demo dataset covering Lao PDR malaria is also included, with 82 data elements and approximately 5 years of data.
+A second demo dataset covering Lao PDR malaria is also available, with 82 data elements and approximately 5 years of data (Aug 2021–May 2026). Its metadata and processed dataset (~3 MB) are not bundled in the package: `mg2_pdrlao_setup()` downloads them from the [`demo-data` release](https://github.com/jpainter/MG2/releases/tag/demo-data) on first use and caches them, so later runs work offline.
 
 ```r
 mg2_pdrlao_setup()   # writes demo files to ~/mg2_pdrlao_demo
 run_mg2()            # open the app → paste the returned path → skip Login
 ```
 
-| Object | Description |
-|---|---|
-| `mg2_pdrlao_processed` | Pre-processed facility-level tsibble, ~57 months (Aug 2021–May 2026). |
-| `mg2_pdrlao_formula` | Formula elements table — 82 data elements with UIDs and category combos. |
-| `mg2_pdrlao_meta` | Full metadata from the PDR Lao DHIS2 instance. |
+The formula elements table ships with the package as `mg2_pdrlao_formula`.
 
 ---
 

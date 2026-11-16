@@ -23,11 +23,10 @@ with human-readable names and UIDs.
 }
 \examples{
 data(mg2_pdrlao_formula)
-\dontrun{
-mg2_pdrlao_formula[, c("dataElement", "Categories")]
-}
+head(mg2_pdrlao_formula[, c("dataElement", "Categories")])
 }
 \seealso{
-\code{mg2_pdrlao_meta}, \code{mg2_pdrlao_processed}, \code{\link[=mg2_pdrlao_setup]{mg2_pdrlao_setup()}}
+\code{\link[=mg2_pdrlao_setup]{mg2_pdrlao_setup()}}, which downloads the matching metadata and
+processed dataset.
 }
 \keyword{datasets}
