@@ -16,7 +16,7 @@ dataset(
 )
 }
 \arguments{
-\item{data}{A tsibble aggregated by \code{\link[=mable_data]{mable_data()}}.}
+\item{data}{A tsibble aggregated by \code{mable_data()}.}
 
 \item{startMonth}{Start of analysis window (yearmonth).}
 

@@ -124,7 +124,7 @@
 #'   * a shared pool has to hold one fixed worker count, which is incompatible
 #'     with that scaling anyway.
 #'
-#' Returns a handle to pass to [.mg2_close_scan_pool()], or `NULL` if no pool
+#' Returns a handle to pass to `.mg2_close_scan_pool()`, or `NULL` if no pool
 #' was opened (in which case each scan manages its own plan, as before).
 #'
 #' @param per_worker_mb Budget per worker. Must be the largest requirement of

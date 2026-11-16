@@ -24,11 +24,11 @@ wpe_summary(
 
 \item{groups}{Character. Grouping variable name.}
 
-\item{...}{Passed to \code{\link[=forecast_diff]{forecast_diff()}}.}
+\item{...}{Passed to \code{forecast_diff()}.}
 }
 \value{
 A data frame with WPE summary statistics per model.
 }
 \description{
-Computes mean, SD, median, and HDI of WPE from \code{\link[=forecast_diff]{forecast_diff()}}.
+Computes mean, SD, median, and HDI of WPE from \code{forecast_diff()}.
 }

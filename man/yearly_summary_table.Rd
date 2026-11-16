@@ -15,7 +15,7 @@ yearly_summary_table(
 )
 }
 \arguments{
-\item{data}{A tsibble (output of \code{\link[=mable_data]{mable_data()}}).}
+\item{data}{A tsibble (output of \code{mable_data()}).}
 
 \item{date_col}{Character. Name of the date index column (default \code{"Month"}).}
 

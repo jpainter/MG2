@@ -2670,7 +2670,7 @@ mable_data = function(
 #' Creates a list of tsibble subsets used for pre/post intervention analysis
 #' and model training/testing.
 #'
-#' @param data A tsibble aggregated by [mable_data()].
+#' @param data A tsibble aggregated by `mable_data()`.
 #' @param startMonth Start of analysis window (yearmonth).
 #' @param startEvalMonth First month of the evaluation (intervention) period.
 #' @param numberTestMonths Number of months held out for model testing.
@@ -2755,7 +2755,7 @@ dataset = function(
 #' Creates a colour-coded flextable showing yearly totals and year-on-year
 #' percent change.  Increases are red, decreases are green.
 #'
-#' @param data A tsibble (output of [mable_data()]).
+#' @param data A tsibble (output of `mable_data()`).
 #' @param date_col Character. Name of the date index column (default `"Month"`).
 #' @param value_col Character. Name of the value column (default `"total"`).
 #' @param country_col Character. Name of the country/national column (default `"National"`).
@@ -3421,7 +3421,7 @@ model_metrics = function(
 #' Given a table of model accuracy metrics, returns the model name(s) that
 #' minimise the metric or that all series agree on (synchronize).
 #'
-#' @param modelMetrics Data frame output of [model_metrics()].
+#' @param modelMetrics Data frame output of `model_metrics()`.
 #' @param type Character. `"synchronize"` picks the model with the lowest mean;
 #'   `"optimize"` picks the single best row.
 #' @param table Logical. Print a formatted flextable (default `FALSE`).
@@ -3503,14 +3503,14 @@ forecast_diff = function(
 
 #' Summarise Weighted Percent Error Across Replicates
 #'
-#' Computes mean, SD, median, and HDI of WPE from [forecast_diff()].
+#' Computes mean, SD, median, and HDI of WPE from `forecast_diff()`.
 #'
 #' @param actual Tsibble of actual post-intervention values.
 #' @param predicted Fable object of post-intervention forecasts.
 #' @param .var Character. Variable name (default `"total"`).
 #' @param grouping Logical. Compute within grouping variable.
 #' @param groups Character. Grouping variable name.
-#' @param ... Passed to [forecast_diff()].
+#' @param ... Passed to `forecast_diff()`.
 #'
 #' @return A data frame with WPE summary statistics per model.
 #' @export
@@ -3542,13 +3542,13 @@ wpe_summary = function(
 
 #' Histogram of Weighted Percent Error Across Forecast Replicates
 #'
-#' Plots the distribution of WPE values from [forecast_diff()], with the
+#' Plots the distribution of WPE values from `forecast_diff()`, with the
 #' median bin highlighted in blue.
 #'
 #' @param actual Tsibble of actual post-intervention values.
 #' @param predicted Fable object of post-intervention forecasts.
 #' @param xlimits Numeric vector of length 2. x-axis limits (default `c(NA, NA)`).
-#' @param ... Passed to [forecast_diff()] and [wpe_summary()].
+#' @param ... Passed to `forecast_diff()` and [wpe_summary()].
 #'
 #' @return A ggplot object.
 #' @noRd

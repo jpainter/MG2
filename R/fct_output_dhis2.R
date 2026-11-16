@@ -207,7 +207,7 @@ mg2_build_output_de_payload <- function(prefix = "MG2") {
 #'
 #' @param base_url Base URL of the target instance, e.g. `"http://localhost:8090"`.
 #' @param username,password DHIS2 credentials (default `admin` / `district`).
-#' @param org_units List from [mg2_build_org_units_payload()].
+#' @param org_units List from `mg2_build_org_units_payload()`.
 #' @param data_elements Combined list from source + output payload builders.
 #' @return List: `ok` (logical), `status` (HTTP code), `message` (summary).
 #' @noRd
@@ -323,7 +323,7 @@ mg2_format_raw_data_values <- function(data_df, period_range = NULL) {
 #'
 #' @param base_url Target instance base URL.
 #' @param username,password DHIS2 credentials.
-#' @param data_values Data frame from [mg2_format_raw_data_values()] or
+#' @param data_values Data frame from `mg2_format_raw_data_values()` or
 #'   equivalent.
 #' @return List: `ok`, `status`, `message`, `n_written`.
 #' @noRd

@@ -31,7 +31,7 @@ period.
 \description{
 Totals per modelling unit and period over the facilities chosen by
 \code{\link[=mostFrequentReportingOUs]{mostFrequentReportingOUs()}}. Missing values are dropped, not imputed, so pass
-censored values as \code{NA} (e.g. \code{value} from \code{\link[=apply_combine_cleaning]{apply_combine_cleaning()}}): a unit-period
+censored values as \code{NA} (e.g. \code{value} from \code{apply_combine_cleaning()}): a unit-period
 is the sum of its champions' remaining values, and a unit-period with none has no
 row. Units with no champions have no rows.
 }

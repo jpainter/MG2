@@ -513,7 +513,7 @@ dqaPercentReporting <- function(dqa_data, .cat = FALSE, .progress = NULL) {
 
 #' Plot Percent of Facilities Consistently Reporting per Year
 #'
-#' @param data Output of [dqaPercentReporting()].
+#' @param data Output of `dqaPercentReporting()`.
 #' @param text_size Numeric. Base text size for the plot (default: `18`).
 #'
 #' @return A ggplot object.

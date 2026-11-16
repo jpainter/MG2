@@ -4,7 +4,7 @@
 #'
 #' Totals per modelling unit and period over the facilities chosen by
 #' [mostFrequentReportingOUs()]. Missing values are dropped, not imputed, so pass
-#' censored values as `NA` (e.g. `value` from [apply_combine_cleaning()]): a unit-period
+#' censored values as `NA` (e.g. `value` from `apply_combine_cleaning()`): a unit-period
 #' is the sum of its champions' remaining values, and a unit-period with none has no
 #' row. Units with no champions have no rows.
 #'

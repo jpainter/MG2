@@ -494,7 +494,7 @@ ws_path.mg2_ws_onedrive <- function(ws, filename = NULL)
 
 #' Return a real, readable local path to a workspace file (escape hatch)
 #'
-#' Unlike [ws_path()], this works for every backend: local workspaces return
+#' Unlike `ws_path()`, this works for every backend: local workspaces return
 #' the real path directly (no copy); non-local backends download the file to
 #' a session temp file first and return that path. Use this only where a
 #' function insists on a genuine on-disk path (e.g. `readxl::read_excel()`,
@@ -528,7 +528,7 @@ ws_local_copy.mg2_ws_onedrive <- function(ws, filename = NULL)
 
 #' Land an already-written local file in a workspace (escape hatch)
 #'
-#' Inverse of [ws_local_copy()]. Use this when a file was written with a
+#' Inverse of `ws_local_copy()`. Use this when a file was written with a
 #' function that doesn't go through `save_file()`/`ws_save_*()` (e.g.
 #' `write.csv()`, or a `downloadHandler`'s temp file) -- write it to a local
 #' path first, then hand that path here to land it in the connected

@@ -7,7 +7,7 @@
 dqa_reporting_plot(data, text_size = 18)
 }
 \arguments{
-\item{data}{Output of \code{\link[=dqaPercentReporting]{dqaPercentReporting()}}.}
+\item{data}{Output of \code{dqaPercentReporting()}.}
 
 \item{text_size}{Numeric. Base text size for the plot (default: \code{18}).}
 }

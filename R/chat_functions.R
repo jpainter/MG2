@@ -198,10 +198,10 @@ summarize_outliers_for_prompt <- function(data2) {
 #' @param starting_month yearmonth/character start of data period
 #' @param ending_month yearmonth/character end of data period
 #' @param validation_rules tibble from `metadata_widget_output$validationRules()`
-#' @param completeness_summary output of [summarize_completeness_for_prompt()]
+#' @param completeness_summary output of `summarize_completeness_for_prompt()`
 #' @param raw_totals_summary output of `summarize_data_for_prompt()`
-#' @param reporting_summary output of [summarize_reporting_for_prompt()]
-#' @param outlier_summary output of [summarize_outliers_for_prompt()]
+#' @param reporting_summary output of `summarize_reporting_for_prompt()`
+#' @param outlier_summary output of `summarize_outliers_for_prompt()`
 #' @return single character string suitable for an ellmer system prompt
 #' @noRd
 build_mg2_system_prompt <- function(
