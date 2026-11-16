@@ -125,8 +125,8 @@ source("chat_widget.R", local = TRUE)        # Tab: Assistant (AI chat, requires
 source("burden_widget.R", local = TRUE)      # Tab: Burden Estimate (under development)
 source("output_widget.R", local = TRUE)      # Tab: Output — write model output to DHIS2 (under development)
 source("climate_widget.R", local = TRUE)     # Tab: Climate — CHIRPS rainfall analysis
-# map_widget.R and facilities_widget.r are not standalone modules;
-# they are embedded within other widgets and sourced there when needed.
+# Unused widgets (map, facilities, levels, trend) were moved to
+# dev/unused_widgets/ -- nothing sourced them.
 
 # User Interface ------------------------------------------------------------
 ui <- bslib::page_navbar(

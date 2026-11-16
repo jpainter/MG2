@@ -83,7 +83,6 @@ inst/shiny/
   output_widget.R          # Module 10: write results to local DHIS2 instance (Steps 1–3 done, Step 4 WIP)
   chat_widget.R            # Module 11: AI assistant
   regions_widget.R         # Auxiliary: regional filter + map
-  map_widget.R             # Auxiliary: geographic viz
   about_widget.R           # About tab + environment check
   chart_module.R           # Reusable chart module
   DToptions.R              # DataTable styling helpers
@@ -283,7 +282,7 @@ dynamically-inferred source data elements + 4 fixed MG2 output UIDs (`MG2trendEs
 `MG2adjEstim`, `MG2forecast`, `MG2wpeEffct`). Step 4 (model output writing) is a placeholder.
 Data elements are inferred from the loaded formula — nothing is hardcoded.
 
-**Map tab:** widget file exists (`map_widget.R`), not yet integrated.
+**Map tab:** not integrated. `map_widget.R` (and the unused `facilities_widget.r`, `levels_widget.R`, `trend_widget.r`) moved to `dev/unused_widgets/` on 2026-11-16 — nothing sourced them, and `inst/shiny/` ships in the package.
 
 **Version history:** `NEWS.md` — documents user-facing changes for every release.
 
