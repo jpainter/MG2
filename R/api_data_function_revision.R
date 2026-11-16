@@ -28,7 +28,21 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' api_data()
+#' # Requires a reachable DHIS2 server and valid credentials.
+#' elements <- data.frame(
+#'   id   = c("enVf9I39FRZ", "vTRrNdOOT9g"),
+#'   name = c("MAL - Microscopy positive malaria cases",
+#'            "MAL - RDT positive malaria cases")
+#' )
+#' raw <- api_data(
+#'   YrsPrevious = 3,
+#'   orgUnits    = "LEVEL-4",
+#'   elements    = elements,
+#'   baseurl     = "https://play.dhis2.org/40/",
+#'   username    = "admin",
+#'   password    = "district"
+#' )
+#' head(raw)
 #' }
 api_data = function(
   periods = NA,

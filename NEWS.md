@@ -4,7 +4,7 @@
   longer exported (the workspace `ws_*()` layer, Google OAuth, the Output tab's DHIS2
   writers, AI-chat prompt builders, evaluation-model internals, chart helpers, and the
   `dqa_mase()` / `dqa_mase_plot()` aliases — use `dqa_swape()` / `dqa_swape_plot()`).
-  66 functions remain exported: the standalone workflow from login and download through
+  67 functions remain exported: the standalone workflow from login and download through
   DQA, reporting, outliers, burden, climate and combine. Internal functions are still
   reachable as `MG2:::name()`.
 * **The app no longer writes to the global environment** — widget code is evaluated in a

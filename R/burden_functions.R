@@ -1400,13 +1400,14 @@ burden_summary_table <- function(results_list, level = "national",
 #' Add "Total" rows that sum across all categories
 #'
 #' For each region, sums estimates across categories and combines uncertainty
-#' via SE_total = sqrtsum()SE_i^2 (assumes independence across categories).  A "Total"
-#' row is appended to both `$subnational` and `$national` when more than one
-#' category is present.
+#' via `SE_total = sqrt(sum(SE_i^2))` (assumes independence across categories).
+#' A "Total" row is appended to both `$subnational` and `$national` when more
+#' than one category is present.
 #'
-#' @param result list with `$subnational` and `$national` data.tables.
-#' @return Modified result with Total rows appended.
-#' @noRd
+#' @param result A burden result: a list with `$subnational` and `$national`
+#'   data.tables, as returned by [burden_a()], [burden_b()], [burden_c1()] etc.
+#' @return `result` with Total rows appended.
+#' @export
 add_category_totals <- function(result) {
   if (is.null(result)) return(NULL)
 

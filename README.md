@@ -281,17 +281,23 @@ All analysis functions are available outside the Shiny app:
 ```r
 library(MG2)
 
-# Authenticate with a DHIS2 server
-session <- loginDHIS2(url = "https://play.dhis2.org/40/",
-                      username = "admin",
-                      password = "district")
+base_url <- "https://play.dhis2.org/40/"
 
-# Retrieve data via the API
-df <- api_data(url = session$url,
-               username = session$username,
-               password = session$password,
-               formula = my_formula,
-               periods = c("202301", "202302", "202303"))
+# Check the credentials (returns TRUE / FALSE)
+loginDHIS2(baseurl = base_url, username = "admin", password = "district")
+
+# Download three years of district-level values for two data elements
+elements <- data.frame(
+  id   = c("enVf9I39FRZ", "vTRrNdOOT9g"),
+  name = c("MAL - Microscopy positive malaria cases",
+           "MAL - RDT positive malaria cases")
+)
+df <- api_data(YrsPrevious = 3,
+               orgUnits    = "LEVEL-4",
+               elements    = elements,
+               baseurl     = base_url,
+               username    = "admin",
+               password    = "district")
 ```
 
 ---

@@ -18,10 +18,12 @@
 #' @return The path to `dir`, invisibly.
 #'
 #' @examples
-#' \dontrun{
-#' mg2_demo_setup()              # interactive directory chooser
-#' mg2_demo_setup("~/mg2_demo")  # explicit path, no prompt
-#' run_mg2()                     # open the app, paste the returned path
+#' dir <- mg2_demo_setup(file.path(tempdir(), "mg2_demo"))
+#' list.files(dir)
+#'
+#' if (interactive()) {
+#'   mg2_demo_setup()   # choose a folder interactively
+#'   run_mg2()          # open the app, paste the returned path
 #' }
 #' @export
 mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {

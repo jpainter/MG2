@@ -55,11 +55,9 @@
 #' @seealso `mg2_demo_formula`, `mg2_demo_meta`
 #' @examples
 #' data(mg2_demo)
-#' \dontrun{
 #' head(mg2_demo)
 #' dplyr::n_distinct(mg2_demo$orgUnit)   # number of facilities
 #' dplyr::n_distinct(mg2_demo$period)    # number of months
-#' }
 "mg2_demo"
 
 
@@ -80,10 +78,8 @@
 #' @seealso `mg2_demo`, `mg2_demo_processed`, `mg2_demo_formula`, `mg2_demo_meta`
 #' @examples
 #' data(mg2_demo_alllevels)
-#' \dontrun{
 #' dplyr::n_distinct(mg2_demo_alllevels$orgUnit)   # all org unit levels
 #' dplyr::n_distinct(mg2_demo_alllevels$data.id)   # number of data elements
-#' }
 "mg2_demo_alllevels"
 
 
@@ -121,9 +117,7 @@
 #' @seealso `mg2_demo`, `mg2_demo_meta`
 #' @examples
 #' data(mg2_demo_formula)
-#' \dontrun{
 #' mg2_demo_formula[, c("dataElement", "Categories", "Formula.Name")]
-#' }
 "mg2_demo_formula"
 
 
@@ -195,9 +189,7 @@
 #'   [mg2_demo_setup()], [data_1()]
 #' @examples
 #' data(mg2_demo_processed)
-#' \dontrun{
 #' tsibble::n_keys(mg2_demo_processed)   # number of facility × element series
-#' }
 "mg2_demo_processed"
 
 

@@ -23,10 +23,8 @@ the MG2 processing pipeline. Written to disk by \code{\link[=mg2_demo_setup]{mg2
 }
 \examples{
 data(mg2_demo_alllevels)
-\dontrun{
 dplyr::n_distinct(mg2_demo_alllevels$orgUnit)   # all org unit levels
 dplyr::n_distinct(mg2_demo_alllevels$data.id)   # number of data elements
-}
 }
 \seealso{
 \code{mg2_demo}, \code{mg2_demo_processed}, \code{mg2_demo_formula}, \code{mg2_demo_meta}

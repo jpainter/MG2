@@ -56,6 +56,11 @@ selectedData(
 
 \item{...}{additional arguments}
 }
+\value{
+A \code{data.table} of \code{data1} filtered to the requested level, org
+units and categories, with a \code{Selected} column: \code{"Champion"} /
+\code{"Non-Champion"} when \code{alwaysReporting = TRUE}, otherwise \code{"All"}.
+}
 \description{
 Filter and select data by reporting level and categories
 }

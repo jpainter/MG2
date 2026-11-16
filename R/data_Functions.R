@@ -190,6 +190,8 @@ cleanedData = function(
 #'   counts only periods that appear somewhere in the data for that year.
 #' @param testing logical; save intermediate objects for debugging
 #' @param .cat logical; print progress messages to the console
+#' @return A character vector of `orgUnit` ids that reported consistently
+#'   (within `missing_reports` missed periods) in every year of the window.
 #' @export
 mostFrequentReportingOUs <- function(
   data,
@@ -817,6 +819,9 @@ groupByCols = function(
 #' @param level6 character; optional level-6 org unit filter value
 #' @param .cat logical; print progress messages to the console
 #' @param ... additional arguments
+#' @return A `data.table` of `data1` filtered to the requested level, org
+#'   units and categories, with a `Selected` column: `"Champion"` /
+#'   `"Non-Champion"` when `alwaysReporting = TRUE`, otherwise `"All"`.
 #' @export
 selectedData = function(
   data1,
@@ -1026,6 +1031,9 @@ selectedData = function(
 #' @param mean.merge logical; use mean instead of sum when merging (default FALSE)
 #' @param covariates character vector; covariate column names to retain
 #' @param .cat logical; print progress messages to the console
+#' @return A tibble with one row per combination of `group_by_cols`, an
+#'   aggregated `dataCol` column and a `total` column (`dataCol` with `NA`
+#'   replaced by 0), restricted to `startMonth`..`endMonth` when both are given.
 #' @export
 dataTotal = function(
   data = NULL,

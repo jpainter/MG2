@@ -124,9 +124,10 @@ Week_Year <- function(x) {
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   df <- read_file("data/malaria_2023-01-15.qs")
-#' }
+#' f <- tempfile(fileext = ".qs")
+#' save_file(mg2_demo, f)
+#' df <- read_file(f)
+#' identical(dim(df), dim(mg2_demo))
 read_file <- function(filename) {
   ext <- tools::file_ext(filename)
 

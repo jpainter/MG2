@@ -43,6 +43,7 @@ S3method(ws_save_rds,mg2_ws_onedrive)
 S3method(ws_save_xlsx,mg2_ws_gdrive)
 S3method(ws_save_xlsx,mg2_ws_local)
 S3method(ws_save_xlsx,mg2_ws_onedrive)
+export(add_category_totals)
 export(aggregate_champions)
 export(api_data)
 export(as.yearmonth)
@@ -138,6 +139,7 @@ importFrom(httr,
   status_code,
   timeout
 )
+importFrom(later,later)
 importFrom(magrittr,"%>%")
 importFrom(openxlsx,
   addWorksheet,
@@ -145,6 +147,7 @@ importFrom(openxlsx,
   saveWorkbook,
   writeData
 )
+importFrom(readxl,read_excel)
 importFrom(sf,
   "st_crs<-",
   st_bbox,

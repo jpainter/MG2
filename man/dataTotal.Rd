@@ -38,6 +38,11 @@ dataTotal(
 
 \item{.cat}{logical; print progress messages to the console}
 }
+\value{
+A tibble with one row per combination of \code{group_by_cols}, an
+aggregated \code{dataCol} column and a \code{total} column (\code{dataCol} with \code{NA}
+replaced by 0), restricted to \code{startMonth}..\code{endMonth} when both are given.
+}
 \description{
 Merge and aggregate datasets across org units and periods
 }

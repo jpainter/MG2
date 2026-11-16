@@ -215,9 +215,9 @@ fetch_get <- function(baseurl., username = NULL, password = NULL,
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#'   tree <- ous_tree(ous = org_units_df, ouLevels = levels_df)
-#' }
+#' tree <- ous_tree(ous = mg2_demo_meta$orgUnits,
+#'                  ouLevels = mg2_demo_meta$orgUnitLevels)
+#' head(tree)
 ous_tree <- function(ous, ouLevels, .verbose = FALSE) {
   if (.verbose) message("ous_tree: building org unit hierarchy")
 

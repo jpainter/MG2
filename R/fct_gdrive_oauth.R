@@ -16,6 +16,7 @@
 #' credentials.
 #'
 #' @name mg2_gdrive_oauth
+#' @noRd
 NULL
 
 ## drive.file only grants access to files the app created or that the user

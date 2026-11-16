@@ -21,10 +21,10 @@ data quality assessment, reporting bias analysis, outlier detection, and
 time-series trend evaluation.
 }
 \examples{
-\dontrun{
-  MG2::run_mg2()
+if (interactive()) {
+  run_mg2()
 
   # Run on a specific port without opening a browser
-  MG2::run_mg2(port = 4321, launch.browser = FALSE)
+  run_mg2(port = 4321, launch.browser = FALSE)
 }
 }

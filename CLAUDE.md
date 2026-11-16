@@ -178,7 +178,7 @@ Two lessons, both of which cost real debugging time here:
   (`@noRd`). Widget files must be sourced with `local = TRUE` — plain `source()` writes
   them into `.GlobalEnv`. Don't make the namespace itself the parent: its imports (all of
   `data.table`) would shadow `lubridate::month()`, `dplyr::first()` etc. in widget code.
-- **Exports are the standalone-script API only** (66 as of 2026-11-16). Export a new
+- **Exports are the standalone-script API only** (67 as of 2026-11-16). Export a new
   function only if a script user would call it; otherwise `@noRd`.
 - `R/originals/` excluded from build via `.Rbuildignore`.
 - `fable` model specials (`trend()`, `season()`) must NOT use `::` inside `model()` — they are resolved by fable's fitting environment.

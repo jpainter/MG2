@@ -19,7 +19,8 @@ format: fast I/O with ZSTD compression and full R object preservation
 (no class-stripping). \code{.fst} is supported for legacy files.
 }
 \examples{
-\dontrun{
-  df <- read_file("data/malaria_2023-01-15.qs")
-}
+f <- tempfile(fileext = ".qs")
+save_file(mg2_demo, f)
+df <- read_file(f)
+identical(dim(df), dim(mg2_demo))
 }

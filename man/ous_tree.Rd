@@ -28,7 +28,7 @@ give the names of its ancestors at each administrative level. Uses
 \code{data.tree} to traverse the parent-child network.
 }
 \examples{
-\dontrun{
-  tree <- ous_tree(ous = org_units_df, ouLevels = levels_df)
-}
+tree <- ous_tree(ous = mg2_demo_meta$orgUnits,
+                 ouLevels = mg2_demo_meta$orgUnitLevels)
+head(tree)
 }

@@ -46,6 +46,10 @@ counts only periods that appear somewhere in the data for that year.}
 
 \item{.cat}{logical; print progress messages to the console}
 }
+\value{
+A character vector of \code{orgUnit} ids that reported consistently
+(within \code{missing_reports} missed periods) in every year of the window.
+}
 \description{
 Find most frequently reporting org units
 }

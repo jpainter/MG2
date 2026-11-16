@@ -20,6 +20,13 @@ Running check locally: export the tree to local disk first (iCloud hydration is 
 slow — see CLAUDE.md). After an R minor upgrade, reinstall compiled packages: the 4.5
 builds of units/anytime/etc. segfault on load and kill the check at "lazy loading".
 
+## Check status (2026-11-16, after steps 1–4)
+
+`devtools::check(cran = TRUE)` on a local-disk copy: **0 errors · 0 warnings · 1 NOTE** —
+the global-variable NOTE (#7, 744 lines). Vignettes build; examples and tests pass.
+Note that a local check does not set `_R_CHECK_EXCESSIVE_IMPORTS_`, so the "Imports
+includes 43 non-default packages" NOTE CRAN will raise (#12) does not appear here.
+
 ## 1. Blockers — CRAN rejects without these
 
 | # | Item | Status |
@@ -37,12 +44,12 @@ builds of units/anytime/etc. segfault on load and kill the check at "lazy loadin
 |---|---|---|
 | 7 | **Global-variable NOTE** — 746 lines. `utils::globalVariables()` for data-mask column names + `pkg::` or `@importFrom` for bare functions (`select`, `tic`, `withProgress`, `plan`, …). Bulk is `data_Functions.R` and `api_data()`. | large, mechanical |
 | 8 | **Console output** — ~600 `cat()`/`print()` in `R/`. Exported functions: `message()` or a `verbose =` argument. Internal Shiny-only paths can stay `cat()` only if never reached from exported functions. | large |
-| 9 | **`\value` missing** in 20 Rd files; every exported function needs one. | small |
-| 10 | **`\dontrun{}`** in 13 Rd files — keep only where a live DHIS2 login is required; else `\donttest{}` or runnable with demo data. | small |
-| 11 | **162 exports → 66.** App-only functions are `@noRd` internals. Prerequisite done first: `inst/shiny/app.R` now evaluates `app_main.R` in `MG2:::.mg2_app_env()` (all namespace functions, parent = globalenv), so widgets see internals by bare name and nothing is sourced into `.GlobalEnv`. | ✅ |
+| 9 | **`\value`** — all exported functions have one (3 were missing: `dataTotal`, `mostFrequentReportingOUs`, `selectedData`). | ✅ |
+| 10 | **`\dontrun{}`** — only `loginDHIS2`, `dhis2_get`, `api_data` keep it (need a live DHIS2 server). Dataset, `read_file`, `ous_tree`, `mg2_demo_setup` examples now run (write only to `tempdir()`); `run_mg2` uses `if (interactive())`. | ✅ |
+| 11 | **162 exports → 67.** App-only functions are `@noRd` internals. Prerequisite done first: `inst/shiny/app.R` now evaluates `app_main.R` in `MG2:::.mg2_app_env()` (all namespace functions, parent = globalenv), so widgets see internals by bare name and nothing is sourced into `.GlobalEnv`. | ✅ |
 | 12 | **41 Imports** (NOTE threshold 20). Move to Suggests + `requireNamespace()`: googledrive, terra, sf, data.tree, tictoc, rstudioapi, shinybusy, httpuv, … | medium |
-| 13 | **Undeclared deps in the app:** `later` (used in `app.R`, not in DESCRIPTION); `readxl` is Suggests but `app.R` calls `library(readxl)` unconditionally. | small |
-| 14 | **DESCRIPTION wording:** quote software names (`'DHIS2'`, `'Shiny'`), add `<https://dhis2.org>`. | small |
+| 13 | **`later`, `readxl` → Imports** (both used only in `inst/shiny`; declared via `@importFrom` in `zzz.R` so check counts them as used). | ✅ |
+| 14 | **DESCRIPTION wording** — `'DHIS2'`/`'Shiny'` quoted in Title and Description, `<https://dhis2.org>` added. | ✅ |
 | 15 | Examples, tests and vignettes must not write outside `tempdir()` or hit the network (`skip_on_cran()`). | audit |
 
 ## 3. Quality — not required, strongly advised

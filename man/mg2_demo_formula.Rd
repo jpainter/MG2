@@ -40,9 +40,7 @@ combo, with human-readable names and UIDs.
 }
 \examples{
 data(mg2_demo_formula)
-\dontrun{
 mg2_demo_formula[, c("dataElement", "Categories", "Formula.Name")]
-}
 }
 \seealso{
 \code{mg2_demo}, \code{mg2_demo_meta}

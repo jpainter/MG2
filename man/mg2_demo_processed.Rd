@@ -38,9 +38,7 @@ instantly without re-running the pipeline.
 }
 \examples{
 data(mg2_demo_processed)
-\dontrun{
 tsibble::n_keys(mg2_demo_processed)   # number of facility × element series
-}
 }
 \seealso{
 \code{mg2_demo}, \code{mg2_demo_formula}, \code{mg2_demo_meta},
