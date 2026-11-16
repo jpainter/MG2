@@ -2,12 +2,9 @@
 % Please edit documentation in R/dqa_functions.R
 \name{dqa_swape}
 \alias{dqa_swape}
-\alias{dqa_mase}
 \title{Compute SWAPE Across All Years in DQA Data}
 \usage{
 dqa_swape(dqa_data)
-
-dqa_mase(dqa_data)
 }
 \arguments{
 \item{dqa_data}{tsibble of prepared data (must have \code{expected} column).}

@@ -8,7 +8,7 @@
 #' @param orgUnits data frame of org units with level and levelName columns
 #' @param .cat logical; if TRUE print progress messages
 #' @return character vector of level names in ascending order
-#' @export
+#' @noRd
 getLevelNames = function(orgUnits, .cat = FALSE) {
   if ('sf' %in% class(orgUnits)) {
     orgUnits = orgUnits %>% st_drop_geometry()
@@ -532,7 +532,7 @@ backtick <- function(x) paste0("`", x, "`")
 #' @param data1 data frame; dataset with a time column
 #' @param .cat logical; if TRUE print progress messages
 #' @return character; "Monthly" or "Weekly"
-#' @export
+#' @noRd
 dataPeriod = function(data1, .cat = FALSE) {
   if (.cat) {
     cat('\n* reporting_widget period():')
@@ -561,7 +561,7 @@ dataPeriod = function(data1, .cat = FALSE) {
 #' @param levelNames character vector; administrative level names
 #' @param split character; split variable name (or NULL)
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 groupByCols = function(
   selected = TRUE,
   dataset = TRUE,
@@ -1307,7 +1307,7 @@ dataTotal = function(
 #' @param num_datasets integer; number of datasets in the dataset
 #' @param split character; split variable ("None" or a column name)
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 htsFormula = function(
   hts = TRUE,
   levelNames = NULL,
@@ -1408,7 +1408,7 @@ htsFormula = function(
 #' @param .cat logical; print progress messages to the console
 #' @param timing logical; print timing information
 #' @param ... additional arguments
-#' @export
+#' @noRd
 htsData = function(
   data = NULL,
   hts = TRUE,
@@ -1678,7 +1678,7 @@ aggData = function(
 #' @param scale logical; allow y-axis to be free (do not force zero baseline)
 #' @param testing logical; save intermediate objects for debugging
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 trendData = function(
   .d = data.hts,
   reportingSelectedOUs = NULL,
@@ -1935,7 +1935,7 @@ trendData = function(
 #' @param period character; time index column name ("Month" or "Week")
 #' @param covariates character vector; covariate names to add as regressors
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 model_formula = function(
   model = "ARIMA",
   modelSpecs = NULL,
@@ -2067,7 +2067,7 @@ model_formula = function(
 #' @param period character; time index column name ("Month" or "Week")
 #' @param .cat logical; print progress messages to the console
 #' @param ... additional arguments passed to `model_formula()`
-#' @export
+#' @noRd
 tsPreModel = function(
   trend.data,
   evaluation_month,
@@ -2271,7 +2271,7 @@ tsPreModel = function(
 #' @param prob logical; return probabilistic (distribution) forecasts
 #' @param pi_levels numeric; prediction interval level(s) (e.g. 0.89)
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 tsPreForecast = function(
   trend.data,
   preModel,
@@ -2389,7 +2389,7 @@ tsPreForecast = function(
 #' @param period character; time index column name ("Month" or "Week")
 #' @param var character; name of the forecast point-estimate column (default ".mean")
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 MAPE = function(
   preForecast,
   trend.data,
@@ -2437,7 +2437,7 @@ MAPE = function(
 #' @param agg_level character; aggregation level name
 #' @param horizon integer; number of forecast periods
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 key.mape = function(
   preForecast,
   trend.data,
@@ -2548,7 +2548,7 @@ key.mape = function(
 #' @param ... Passed to sub-functions.
 #'
 #' @return A tsibble aggregated to the requested level, ready for modelling.
-#' @export
+#' @noRd
 mable_data = function(
   tibble.data = NULL,
   .orgUnit = TRUE,
@@ -2978,7 +2978,7 @@ yearly_summary_table <- function(
 #'   combinations are returned.
 #'
 #' @return A fable object with all combination models appended.
-#' @export
+#' @noRd
 combination_forecasts = function(primary.forecasts, only.models = NULL) {
   split_f = primary.forecasts %>% dplyr::group_by(.model) %>% dplyr::group_split()
   model.names = unique(primary.forecasts$.model)
@@ -3063,7 +3063,7 @@ combination_forecasts = function(primary.forecasts, only.models = NULL) {
 #' @param groups Character. Grouping variable column name.
 #'
 #' @return A data frame ranked by `metric`.
-#' @export
+#' @noRd
 best_fables_accuracy = function(
   fables_accuracy,
   metric   = "MAPE",
@@ -3367,7 +3367,7 @@ tsmodels = function(
 #' @param groups Character. Grouping variable name.
 #'
 #' @return A data frame of mean SWAPE per model.
-#' @export
+#' @noRd
 model_metrics = function(
   test.forecasts,
   test.data,
@@ -3429,7 +3429,7 @@ model_metrics = function(
 #' @param groups Character. Grouping variable name.
 #'
 #' @return A data frame with a `.model` column.
-#' @export
+#' @noRd
 modelSelection = function(
   modelMetrics,
   type     = c("synchronize", "optimize"),
@@ -3466,7 +3466,7 @@ modelSelection = function(
 #' @param ... Ignored.
 #'
 #' @return A data frame with columns `.model`, `.rep`, `WPE`.
-#' @export
+#' @noRd
 forecast_diff = function(
   actual,
   predicted,
@@ -3551,7 +3551,7 @@ wpe_summary = function(
 #' @param ... Passed to [forecast_diff()] and [wpe_summary()].
 #'
 #' @return A ggplot object.
-#' @export
+#' @noRd
 diffHistogram = function(actual, predicted, xlimits = c(NA, NA), ...) {
   diffPredictedActual = forecast_diff(actual, predicted, ...)
   n_forecasts = max(diffPredictedActual$.rep)
@@ -3811,7 +3811,7 @@ pre_impact_fit = function(
 #' @param period character; time index column name ("Month" or "Week")
 #' @param .cat logical; print progress messages to the console
 #' @param ... additional arguments passed to `model_formula()`
-#' @export
+#' @noRd
 tsModel = function(
   trend.data,
   evaluation_month,
@@ -4008,7 +4008,7 @@ tsModel = function(
 #' @param times integer; number of simulation/bootstrap replicates
 #' @param pi_levels numeric; prediction interval level(s) (e.g. 0.89)
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 tsForecast = function(
   trend.data,
   Model,
@@ -4374,7 +4374,7 @@ impact_fit = function(
 #' @param .period character; time index column name ("Month" or "Week")
 #' @param eval_date yearmonth; evaluation start date
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 getForecast = function(
   forecastData,
   model = NULL,
@@ -4549,7 +4549,7 @@ getForecast = function(
 #' @param horizon integer; number of forecast periods (used for mid-point split)
 #' @param var character; name of the forecast point-estimate column (default ".mean")
 #' @param .cat logical; print progress messages to the console
-#' @export
+#' @noRd
 key.mpe = function(
   Forecast_data,
   test_data,
@@ -4750,7 +4750,7 @@ key.mpe = function(
 #' @param pe logical; show percentage-error annotation
 #' @param .cat logical; print progress messages to the console
 #' @param ... additional arguments
-#' @export
+#' @noRd
 plotTrends = function(
   trend.data,
   scale = FALSE,

@@ -67,7 +67,7 @@
 #' @param lower Numeric. Lower bound of the confidence interval.
 #' @param upper Numeric. Upper bound of the confidence interval.
 #' @return Character string formatted as `"N [lower-upper]"`.
-#' @export
+#' @noRd
 format_burden_estimate <- function(estimate, lower, upper) {
   fmt <- function(x) formatC(as.integer(x), format = "d", big.mark = ",")
   paste0(fmt(estimate), " [", fmt(lower), "-", fmt(upper), "]")
@@ -776,7 +776,7 @@ burden_c2 <- function(data, target_elements, region_col,
 #' @param n_bootstrap integer; simulation draws.
 #' @return list with `$subnational`, `$national`, and `$not_modeled` (facilities
 #'   that used the A fallback).
-#' @export
+#' @noRd
 burden_ca <- function(data, target_elements, region_col,
                       period_start = NULL, period_end = NULL,
                       min_months = 12L, n_bootstrap = 1000L) {
@@ -1009,7 +1009,7 @@ burden_ca <- function(data, target_elements, region_col,
 #' @param n_bootstrap integer; samples for propagating care-seeking uncertainty.
 #' @return data.table with columns: base_method, region, category,
 #'   estimate, lower, upper, care_p (care-seeking-adjusted).
-#' @export
+#' @noRd
 burden_d_adjust <- function(results_list, care_seeking = c("default" = 0.80),
                              default_p = 0.80, n_bootstrap = 1000L) {
   rows <- list()
@@ -1295,7 +1295,7 @@ burden_aci <- function(data,
 #' @param pop_element character; the `data` column value for population.
 #' @param region_col character; region column name.
 #' @return Modified result list with rate columns added.
-#' @export
+#' @noRd
 add_population_rate <- function(result, pop_data, pop_element, region_col) {
   if (is.null(result) || is.null(pop_data)) return(result)
 
@@ -1406,7 +1406,7 @@ burden_summary_table <- function(results_list, level = "national",
 #'
 #' @param result list with `$subnational` and `$national` data.tables.
 #' @return Modified result with Total rows appended.
-#' @export
+#' @noRd
 add_category_totals <- function(result) {
   if (is.null(result)) return(NULL)
 

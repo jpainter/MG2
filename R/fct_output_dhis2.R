@@ -80,7 +80,7 @@ mg2_infer_aggregationtype <- function(x, role = "unknown") {
 #'   `openingDate`, `parent.id`.
 #' @return Named list suitable for `jsonlite::toJSON()` as
 #'   `payload$organisationUnits`.
-#' @export
+#' @noRd
 mg2_build_org_units_payload <- function(org_units) {
   if (is.null(org_units) || !nrow(org_units))
     stop("org_units is empty \u2014 load metadata first.")
@@ -119,7 +119,7 @@ mg2_build_org_units_payload <- function(org_units) {
 #'   name), `original`.  `dataElement.id` is dropped by `data_1()` —
 #'   the UID is recovered by stripping the category suffix from `data.id`.
 #' @return Named list of data element objects for `POST /api/metadata`.
-#' @export
+#' @noRd
 mg2_build_source_de_payload <- function(data_df) {
   if (is.null(data_df) || !nrow(data_df))
     stop("No data loaded \u2014 select a formula and load data first.")
@@ -179,7 +179,7 @@ mg2_build_source_de_payload <- function(data_df) {
 #'
 #' @param prefix Label prefix prepended to each element name (default `"MG2"`).
 #' @return List of four data element objects for `POST /api/metadata`.
-#' @export
+#' @noRd
 mg2_build_output_de_payload <- function(prefix = "MG2") {
   defs <- list(
     list(key = "trend",    label = "Trend estimate"),
@@ -210,7 +210,7 @@ mg2_build_output_de_payload <- function(prefix = "MG2") {
 #' @param org_units List from [mg2_build_org_units_payload()].
 #' @param data_elements Combined list from source + output payload builders.
 #' @return List: `ok` (logical), `status` (HTTP code), `message` (summary).
-#' @export
+#' @noRd
 mg2_post_metadata <- function(base_url,
                                username      = "admin",
                                password      = "district",
@@ -270,7 +270,7 @@ mg2_post_metadata <- function(base_url,
 #'   strings `c("202101", "202312")` to filter rows.
 #' @return Data frame with columns `dataElement`, `period`, `orgUnit`,
 #'   `categoryOptionCombo`, `value`.
-#' @export
+#' @noRd
 mg2_format_raw_data_values <- function(data_df, period_range = NULL) {
   if (is.null(data_df) || !nrow(data_df)) return(data.frame())
 
@@ -326,7 +326,7 @@ mg2_format_raw_data_values <- function(data_df, period_range = NULL) {
 #' @param data_values Data frame from [mg2_format_raw_data_values()] or
 #'   equivalent.
 #' @return List: `ok`, `status`, `message`, `n_written`.
-#' @export
+#' @noRd
 mg2_post_data_values <- function(base_url,
                                   username    = "admin",
                                   password    = "district",
@@ -374,7 +374,7 @@ mg2_post_data_values <- function(base_url,
 #' @return List: `ok` (logical), `n_org_units` (integer), `n_data_elements`
 #'   (integer), `mg2_installed` (logical — TRUE if all 4 MG2 output elements
 #'   exist), `message` (summary string).
-#' @export
+#' @noRd
 mg2_check_instance_metadata <- function(base_url,
                                          username = "admin",
                                          password = "district") {
@@ -421,7 +421,7 @@ mg2_check_instance_metadata <- function(base_url,
 #' @param base_url Target base URL.
 #' @param username,password Credentials.
 #' @return List: `ok` (logical), `version` (character or NA), `message`.
-#' @export
+#' @noRd
 mg2_test_dhis2_connection <- function(base_url,
                                        username = "admin",
                                        password = "district") {

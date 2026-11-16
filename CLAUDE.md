@@ -66,7 +66,8 @@ R/
   zzz.R                    # @import data.table (required for := in package)
 
 inst/shiny/
-  app.R                    # bslib::page_navbar() entry point
+  app.R                    # 1-line launcher: sources app_main.R in MG2:::.mg2_app_env()
+  app_main.R               # bslib::page_navbar() UI + server; sources widgets (local = TRUE)
   directory_widget.R       # Module 1: data directory (shinyFiles)
   login_widget.R           # Module 2: DHIS2 auth (live instance list)
   metadata_widget.R        # Module 3: metadata + validation rules + form viewer
@@ -171,7 +172,15 @@ Two lessons, both of which cost real debugging time here:
   an earlier crash: restart R.
 
 - `R/` functions load via package namespace — no `source()` calls for functions.
-- `inst/shiny/` modules use `::` to call package functions.
+- **The app sees every MG2 function, exported or not.** `inst/shiny/app.R` evaluates
+  `app_main.R` in `MG2:::.mg2_app_env()`: a child of an environment holding all namespace
+  functions, whose parent is `globalenv()` (so the search path still resolves `dplyr`,
+  `lubridate`, …). Widgets call MG2 helpers by bare name; app-only helpers stay unexported
+  (`@noRd`). Widget files must be sourced with `local = TRUE` — plain `source()` writes
+  them into `.GlobalEnv`. Don't make the namespace itself the parent: its imports (all of
+  `data.table`) would shadow `lubridate::month()`, `dplyr::first()` etc. in widget code.
+- **Exports are the standalone-script API only** (66 as of 2026-11-16). Export a new
+  function only if a script user would call it; otherwise `@noRd`.
 - `R/originals/` excluded from build via `.Rbuildignore`.
 - `fable` model specials (`trend()`, `season()`) must NOT use `::` inside `model()` — they are resolved by fable's fitting environment.
 - `stats::filter` vs `dplyr::filter` conflict resolved via `@import data.table` in `zzz.R` + explicit `dplyr::filter()` calls.

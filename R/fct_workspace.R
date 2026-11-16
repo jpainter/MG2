@@ -34,6 +34,7 @@
 #' * `ws_is_local(ws)`               — TRUE for local backend
 #'
 #' @name mg2_workspace
+#' @noRd
 NULL
 
 
@@ -46,7 +47,7 @@ NULL
 #' @param token For `"gdrive:"` paths: an `httr::Token2.0` from
 #'   `mg2_gdrive_exchange_code()`, scoped to the current Shiny session.
 #' @return An `mg2_workspace` S3 object.
-#' @export
+#' @noRd
 mg2_workspace <- function(path, token = NULL) {
   if (startsWith(path, "gdrive:")) {
     ws <- list(path = path, folder_id = sub("^gdrive:", "", path), token = token)
@@ -151,7 +152,7 @@ print.mg2_workspace <- function(x, ...) {
 #' @param ws An `mg2_workspace` object.
 #' @param pattern Optional regex pattern passed to `grep()`.
 #' @return Character vector of filenames (not full paths).
-#' @export
+#' @noRd
 ws_list <- function(ws, pattern = NULL) UseMethod("ws_list")
 
 #' @export
@@ -182,7 +183,7 @@ ws_list.mg2_ws_onedrive <- function(ws, pattern = NULL)
 #' @param type File extension pattern (default `"xlsx"`).
 #' @param other Additional substring filter (default `""`).
 #' @return Character vector of matching filenames.
-#' @export
+#' @noRd
 ws_list_files <- function(ws, search = "All", type = "xlsx", other = "")
   UseMethod("ws_list_files")
 
@@ -221,7 +222,7 @@ ws_list_files.mg2_ws_onedrive <- function(ws, search = "All", type = "xlsx",
 #' @param ws An `mg2_workspace` object.
 #' @param filename Filename (not a full path).
 #' @return R object.
-#' @export
+#' @noRd
 ws_read_file <- function(ws, filename) UseMethod("ws_read_file")
 
 #' @export
@@ -245,7 +246,7 @@ ws_read_file.mg2_ws_onedrive <- function(ws, filename)
 #' @param data R object to save.
 #' @param filename Filename (not a full path).
 #' @return `filename` invisibly.
-#' @export
+#' @noRd
 ws_save_file <- function(ws, data, filename) UseMethod("ws_save_file")
 
 #' @export
@@ -273,7 +274,7 @@ ws_save_file.mg2_ws_onedrive <- function(ws, data, filename)
 #' @param ws An `mg2_workspace` object.
 #' @param filename Filename (not a full path).
 #' @return R object.
-#' @export
+#' @noRd
 ws_read_rds <- function(ws, filename) UseMethod("ws_read_rds")
 
 #' @export
@@ -296,7 +297,7 @@ ws_read_rds.mg2_ws_onedrive <- function(ws, filename)
 #' @param obj R object to save.
 #' @param filename Filename (not a full path).
 #' @return `filename` invisibly.
-#' @export
+#' @noRd
 ws_save_rds <- function(ws, obj, filename) UseMethod("ws_save_rds")
 
 #' @export
@@ -324,7 +325,7 @@ ws_save_rds.mg2_ws_onedrive <- function(ws, obj, filename)
 #' @param ws An `mg2_workspace` object.
 #' @param filename Filename (not a full path).
 #' @return An `openxlsx` Workbook object.
-#' @export
+#' @noRd
 ws_read_xlsx <- function(ws, filename) UseMethod("ws_read_xlsx")
 
 #' @export
@@ -347,7 +348,7 @@ ws_read_xlsx.mg2_ws_onedrive <- function(ws, filename)
 #' @param wb An `openxlsx` Workbook object.
 #' @param filename Filename (not a full path).
 #' @return `filename` invisibly.
-#' @export
+#' @noRd
 ws_save_xlsx <- function(ws, wb, filename) UseMethod("ws_save_xlsx")
 
 #' @export
@@ -375,7 +376,7 @@ ws_save_xlsx.mg2_ws_onedrive <- function(ws, wb, filename)
 #' @param ws An `mg2_workspace` object.
 #' @param filename Filename (not a full path).
 #' @return Logical.
-#' @export
+#' @noRd
 ws_file_exists <- function(ws, filename) UseMethod("ws_file_exists")
 
 #' @export
@@ -402,7 +403,7 @@ ws_file_exists.mg2_ws_onedrive <- function(ws, filename)
 #' @param ws An `mg2_workspace` object.
 #' @param filename Filename or character vector of filenames.
 #' @return A `file.info()` data frame.
-#' @export
+#' @noRd
 ws_file_info <- function(ws, filename) UseMethod("ws_file_info")
 
 #' @export
@@ -438,7 +439,7 @@ ws_file_info.mg2_ws_onedrive <- function(ws, filename)
 #' @param from Old filename.
 #' @param to New filename.
 #' @return Logical (TRUE on success), invisibly.
-#' @export
+#' @noRd
 ws_file_rename <- function(ws, from, to) UseMethod("ws_file_rename")
 
 #' @export
@@ -468,7 +469,7 @@ ws_file_rename.mg2_ws_onedrive <- function(ws, from, to)
 #' @param ws An `mg2_workspace` object.
 #' @param filename Optional filename to append.
 #' @return Character path.
-#' @export
+#' @noRd
 ws_path <- function(ws, filename = NULL) UseMethod("ws_path")
 
 #' @export
@@ -505,7 +506,7 @@ ws_path.mg2_ws_onedrive <- function(ws, filename = NULL)
 #' @param filename Filename (not a full path). Required for non-local
 #'   backends.
 #' @return Character path to a real local file.
-#' @export
+#' @noRd
 ws_local_copy <- function(ws, filename = NULL) UseMethod("ws_local_copy")
 
 #' @export
@@ -537,7 +538,7 @@ ws_local_copy.mg2_ws_onedrive <- function(ws, filename = NULL)
 #' @param local_path Path to the already-written local file.
 #' @param filename Destination filename (not a full path).
 #' @return `filename`, invisibly.
-#' @export
+#' @noRd
 ws_save_local_copy <- function(ws, local_path, filename) UseMethod("ws_save_local_copy")
 
 #' @export
@@ -560,5 +561,5 @@ ws_save_local_copy.mg2_ws_onedrive <- function(ws, local_path, filename)
 #' Test whether a workspace uses local file storage
 #' @param ws An `mg2_workspace` object.
 #' @return Logical.
-#' @export
+#' @noRd
 ws_is_local <- function(ws) inherits(ws, "mg2_ws_local")

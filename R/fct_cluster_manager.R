@@ -60,7 +60,7 @@
 #' @return A list with `installed`, `running`, `compose_v1`, `compose_v2`
 #'   (all logical), `version` (character) and `msg` (a human-readable reason,
 #'   or `NULL` when everything needed is present).
-#' @export
+#' @noRd
 mg2_check_docker <- function() {
   # .cm_run() needs processx, which is a Suggests. Say so rather than erroring.
   if (!requireNamespace("processx", quietly = TRUE)) {
@@ -1036,7 +1036,7 @@ mg2_check_docker <- function() {
 #' @param launch.browser Passed to [shiny::runApp()].  `TRUE` opens a system
 #'   browser window; use `getOption("shiny.launch.browser")` default.
 #' @return Called for its side effect (launches a Shiny application).
-#' @export
+#' @noRd
 manage_clusters <- function(
     port           = 0L,
     launch.browser = getOption("shiny.launch.browser", interactive())) {

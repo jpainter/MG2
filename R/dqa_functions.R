@@ -324,7 +324,7 @@ dqa_consistency_table <- function(consistency_data) {
 #' @param max_rows Integer. Maximum rows returned (default `2000`).
 #'
 #' @return A tibble of failed facility-periods.
-#' @export
+#' @noRd
 dqa_consistency_detail_rule <- function(data, validation_rules, rule_id,
                                         max_rows = 2000L) {
   if (is.null(data) || is.null(validation_rules)) return(tibble::tibble())
@@ -484,7 +484,7 @@ dqa_reporting <- function(dqa_data, missing_reports = 0, count.any = TRUE,
 #'
 #' @return A tibble with columns `Year`, `n_frequently_reporting`,
 #'   `n_facilities`, `pr`, `label`.
-#' @export
+#' @noRd
 dqaPercentReporting <- function(dqa_data, .cat = FALSE, .progress = NULL) {
   if (.cat) cat('\n*  dqa_functions.R dqaPercentReporting')
 
@@ -558,7 +558,7 @@ dqa_reporting_plot <- function(data, text_size = 18) {
 #'
 #' @return A tibble with columns `Year`, `region_name`, `n_reporting`,
 #'   `n_total`, `pr` (proportion 0-1).
-#' @export
+#' @noRd
 dqa_reporting_by_region <- function(dqa_data, level_col,
                                     missing_reports = 0L,
                                     .progress = NULL) {
@@ -638,7 +638,7 @@ dqa_outliers <- function(yearly.outlier.summary) {
 #' @param label_size Numeric. Geom text size (default: `6`).
 #'
 #' @return A ggplot object.
-#' @export
+#' @noRd
 yearly.outlier.summary_plot <- function(data, text_size = 18, label_size = 6) {
   if (is.null(data) || nrow(data) == 0) {
     return(
@@ -741,7 +741,7 @@ dqa_swape <- function(dqa_data) {
 }
 
 #' @rdname dqa_swape
-#' @export
+#' @noRd
 dqa_mase <- dqa_swape   # backwards-compatible alias
 
 
@@ -790,7 +790,7 @@ dqa_swape_plot <- function(data) {
 }
 
 #' @rdname dqa_swape_plot
-#' @export
+#' @noRd
 dqa_mase_plot <- dqa_swape_plot   # backwards-compatible alias
 
 
@@ -882,7 +882,7 @@ dqa_facility_status_plot <- function(status_data, text_size = 16) {
 #'
 #' @param status_data Output of [dqa_facility_status()].
 #' @return A data.frame suitable for `DT::datatable()`.
-#' @export
+#' @noRd
 dqa_facility_status_table <- function(status_data) {
   df <- as.data.frame(status_data)
   if (nrow(df) == 0L) return(data.frame())

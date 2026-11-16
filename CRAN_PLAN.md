@@ -39,7 +39,7 @@ builds of units/anytime/etc. segfault on load and kill the check at "lazy loadin
 | 8 | **Console output** — ~600 `cat()`/`print()` in `R/`. Exported functions: `message()` or a `verbose =` argument. Internal Shiny-only paths can stay `cat()` only if never reached from exported functions. | large |
 | 9 | **`\value` missing** in 20 Rd files; every exported function needs one. | small |
 | 10 | **`\dontrun{}`** in 13 Rd files — keep only where a live DHIS2 login is required; else `\donttest{}` or runnable with demo data. | small |
-| 11 | **162 exports** — unexport internals to cut doc burden. | medium |
+| 11 | **162 exports → 66.** App-only functions are `@noRd` internals. Prerequisite done first: `inst/shiny/app.R` now evaluates `app_main.R` in `MG2:::.mg2_app_env()` (all namespace functions, parent = globalenv), so widgets see internals by bare name and nothing is sourced into `.GlobalEnv`. | ✅ |
 | 12 | **41 Imports** (NOTE threshold 20). Move to Suggests + `requireNamespace()`: googledrive, terra, sf, data.tree, tictoc, rstudioapi, shinybusy, httpuv, … | medium |
 | 13 | **Undeclared deps in the app:** `later` (used in `app.R`, not in DESCRIPTION); `readxl` is Suggests but `app.R` calls `library(readxl)` unconditionally. | small |
 | 14 | **DESCRIPTION wording:** quote software names (`'DHIS2'`, `'Shiny'`), add `<https://dhis2.org>`. | small |

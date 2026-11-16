@@ -290,7 +290,7 @@ yearly.outlier.summary <- function(grand.data.error.totals, .cat = TRUE) {
 #' @param grand.data.error.totals Output of [monthly.outlier.summary()].
 #'
 #' @return A ggplot object.
-#' @export
+#' @noRd
 outlier.summary.chart <- function(grand.data.error.totals) {
   yearly <- yearly.outlier.summary(grand.data.error.totals)
 

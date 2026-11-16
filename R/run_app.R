@@ -51,3 +51,29 @@ run_mg2 <- function(...) {
 .mg2_app_state <- new.env(parent = emptyenv())
 .mg2_app_state$pending_stop  <- NULL
 .mg2_app_state$session_count <- 0L
+
+#' Environment for evaluating the bundled Shiny app
+#'
+#' Returns a fresh environment whose parent holds every function in the MG2
+#' namespace (exported or not), and whose grandparent is the global
+#' environment. The app's widgets therefore resolve MG2 helpers by bare name
+#' without MG2 exporting them, while other packages still resolve through the
+#' search path exactly as before.
+#'
+#' The parent is deliberately *not* the namespace itself: that would put the
+#' namespace's imports (all of data.table) ahead of the packages app_main.R
+#' attaches, silently turning lubridate::month() / dplyr::first() etc. into
+#' their data.table namesakes inside the widgets.
+#' @return An environment.
+#' @keywords internal
+#' @noRd
+.mg2_app_env <- function() {
+  ns  <- asNamespace("MG2")
+  fns <- new.env(parent = globalenv())
+  for (nm in ls(ns, all.names = TRUE)) {
+    obj <- get(nm, envir = ns, inherits = FALSE)
+    if (is.function(obj)) assign(nm, obj, envir = fns)
+  }
+  fns$.mg2_app_state <- ns$.mg2_app_state
+  new.env(parent = fns)
+}

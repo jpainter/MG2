@@ -100,7 +100,7 @@
 #'
 #' @param file_path Full path to a processed `.rds` dataset file.
 #' @return Named list: `data_values`, `cleaning_levels`, `period_type`, `n_rows`.
-#' @export
+#' @noRd
 read_combine_meta <- function(file_path) {
   d <- read_file(file_path)
 
@@ -135,7 +135,7 @@ read_combine_meta <- function(file_path) {
 #' @param cleaning_level One of `"none"`, `"mad15"`, `"mad10"`, `"seasonal5"`,
 #'   `"seasonal3"`.
 #' @return Numeric vector of cleaned values, same length as `nrow(d)`.
-#' @export
+#' @noRd
 apply_combine_cleaning <- function(d, cleaning_level = "seasonal3") {
   original <- as.numeric(d$original)
 
@@ -580,7 +580,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
 #'   raw path -- required for this to work against a connected Google Drive
 #'   workspace rather than always going local.
 #' @return Invisible `TRUE` on success.
-#' @export
+#' @noRd
 register_combined_formula <- function(formula_name, formula_file, ws = NULL) {
   if (!requireNamespace("openxlsx", quietly = TRUE))
     stop("Package 'openxlsx' is required to update the formula file.")
@@ -630,7 +630,7 @@ register_combined_formula <- function(formula_name, formula_file, ws = NULL) {
 #'
 #' @param combo_name User-supplied combination name (e.g. `"TPR"`).
 #' @return Suggested base filename (no directory prefix).
-#' @export
+#' @noRd
 suggest_combine_filename <- function(combo_name) {
   # Only replace characters that are illegal in macOS/Windows filenames.
   # Keep spaces, >=, accented chars, etc. so data_widget can match the file
@@ -646,7 +646,7 @@ suggest_combine_filename <- function(combo_name) {
 #' @param file_path Full path for the companion file (legacy).
 #' @param ws An `mg2_workspace` object (preferred over `file_path`).
 #' @param filename Filename within the workspace (used with `ws`).
-#' @export
+#' @noRd
 save_combine_definition <- function(definition, file_path = NULL, ws = NULL,
                                     filename = NULL) {
   definition$modified <- Sys.time()
@@ -665,7 +665,7 @@ save_combine_definition <- function(definition, file_path = NULL, ws = NULL,
 #' @param ws An `mg2_workspace` object (preferred over `file_path`).
 #' @param filename Filename within the workspace (used with `ws`).
 #' @return Definition list.
-#' @export
+#' @noRd
 load_combine_definition <- function(file_path = NULL, ws = NULL, filename = NULL) {
   if (!is.null(ws) && !is.null(filename)) return(ws_read_rds(ws, filename))
   readRDS(file_path)

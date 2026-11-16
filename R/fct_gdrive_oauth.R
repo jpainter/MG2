@@ -54,7 +54,7 @@ NULL
 #' ever being clicked.
 #'
 #' @return Character nonce to embed in the authorization URL.
-#' @export
+#' @noRd
 mg2_gdrive_new_state <- function() {
   now   <- Sys.time()
   stale <- ls(.mg2_gdrive_states)
@@ -77,7 +77,7 @@ mg2_gdrive_new_state <- function() {
 #' Verify (and consume) a CSRF state nonce from the OAuth redirect
 #' @param state The `state` query parameter Google sent back.
 #' @return `TRUE` if valid and unexpired (10 min), `FALSE` otherwise.
-#' @export
+#' @noRd
 mg2_gdrive_verify_state <- function(state) {
   if (is.null(state) || !nzchar(state) ||
       !exists(state, envir = .mg2_gdrive_states, inherits = FALSE)) {
@@ -101,7 +101,7 @@ mg2_gdrive_verify_state <- function(state) {
 #'   is computed at runtime).
 #' @param state CSRF nonce from `mg2_gdrive_new_state()`.
 #' @return Character URL.
-#' @export
+#' @noRd
 mg2_gdrive_auth_url <- function(redirect_uri, state) {
   app <- .mg2_gdrive_oauth_app()
   httr::modify_url(
@@ -127,7 +127,7 @@ mg2_gdrive_auth_url <- function(redirect_uri, state) {
 #' @param redirect_uri Must exactly match the one used to obtain `code`.
 #' @return An `httr::Token2.0` object, suitable for
 #'   `googledrive::drive_auth(token = )` and for `mg2_workspace(..., token = )`.
-#' @export
+#' @noRd
 mg2_gdrive_exchange_code <- function(code, redirect_uri) {
   app <- .mg2_gdrive_oauth_app()
 

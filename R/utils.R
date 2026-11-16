@@ -10,7 +10,7 @@
 #'
 #' @param text Character. The hint text to display.
 #' @return A `div` tag.
-#' @export
+#' @noRd
 .mg2_step_hint <- function(text) {
   shiny::div(
     style = paste0(
@@ -86,7 +86,7 @@ as.yearmonth <- function(date.string, fmt = NULL) {
 #' @param x Character vector of DHIS2 monthly period codes.
 #'
 #' @return A `tsibble::yearmonth` vector.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' Month_Year("201901")
@@ -101,7 +101,7 @@ Month_Year <- function(x) {
 #' @param x Character vector of DHIS2 weekly period codes.
 #'
 #' @return A `tsibble::yearweek` vector.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' Week_Year("2019W01")
@@ -265,7 +265,7 @@ save_file <- function(x, filename, compress = 100) {
 #'
 #' @return Character vector of matching filenames, sorted reverse
 #'   alphabetically. `character(0)` if none match or `dir` does not exist.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' list_dir_files(search = "Formulas_", type = "xlsx|rds", dir = tempdir())
@@ -306,7 +306,7 @@ list_dir_files <- function(search = "All", type = "xlsx", other = "", dir = NULL
 #' @param currentMonth Logical. Include the current month (default: `TRUE`).
 #'
 #' @return A single character string of period codes separated by `";"`.
-#' @export
+#' @noRd
 date_code <- function(years = NULL,
                       months = NULL,
                       startPeriod = NULL,
@@ -352,7 +352,7 @@ date_code <- function(years = NULL,
 #' @param currentWeek Logical. Include the current week (default: `TRUE`).
 #'
 #' @return A single character string of period codes separated by `";"`.
-#' @export
+#' @noRd
 date_code_weekly <- function(startPeriod = NULL,
                              YrsPrevious = 1,
                              monthsPrevious = NULL,

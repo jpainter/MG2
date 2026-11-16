@@ -65,7 +65,7 @@
 #'   Defaults to a `mg2_url_load/` subdirectory inside `tempdir()`.
 #' @param timeout Integer. Download timeout in seconds (default 120).
 #' @return The path to `destdir`, invisibly.
-#' @export
+#' @noRd
 mg2_load_from_urls <- function(data_url,
                                 formula_url = NULL,
                                 meta_url    = NULL,

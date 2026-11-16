@@ -20,7 +20,7 @@
 #' @param data1 tsibble/tibble from `data_widget_output$data1()`
 #' @param max_periods most-recent periods to include
 #' @return character string or NULL
-#' @export
+#' @noRd
 summarize_completeness_for_prompt <- function(data1, max_periods = 24L) {
   if (is.null(data1) || nrow(data1) == 0) return(NULL)
 
@@ -80,7 +80,7 @@ summarize_completeness_for_prompt <- function(data1, max_periods = 24L) {
 #' @param period_col "Month" or "Week"
 #' @param max_periods most-recent periods to include
 #' @return character string or NULL
-#' @export
+#' @noRd
 summarize_reporting_for_prompt <- function(data_total, period_col = "Month",
                                             max_periods = 36L) {
   if (is.null(data_total) || nrow(data_total) == 0) return(NULL)
@@ -127,7 +127,7 @@ summarize_reporting_for_prompt <- function(data_total, period_col = "Month",
 #'
 #' @param data2 tibble from `cleaning_widget_output$data2()`
 #' @return character string or NULL
-#' @export
+#' @noRd
 summarize_outliers_for_prompt <- function(data2) {
   if (is.null(data2) || nrow(data2) == 0) return(NULL)
   if (!"data" %in% names(data2)) return(NULL)
@@ -203,7 +203,7 @@ summarize_outliers_for_prompt <- function(data2) {
 #' @param reporting_summary output of [summarize_reporting_for_prompt()]
 #' @param outlier_summary output of [summarize_outliers_for_prompt()]
 #' @return single character string suitable for an ellmer system prompt
-#' @export
+#' @noRd
 build_mg2_system_prompt <- function(
     formula_elements    = NULL,
     num_facilities      = NULL,

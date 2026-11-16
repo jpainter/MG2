@@ -2,12 +2,9 @@
 % Please edit documentation in R/dqa_functions.R
 \name{dqa_swape_plot}
 \alias{dqa_swape_plot}
-\alias{dqa_mase_plot}
 \title{Plot SWAPE Summary (Minimum Detectable Change)}
 \usage{
 dqa_swape_plot(data)
-
-dqa_mase_plot(data)
 }
 \arguments{
 \item{data}{Output of \code{\link[=dqa_swape]{dqa_swape()}}.}

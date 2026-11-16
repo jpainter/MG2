@@ -1,5 +1,16 @@
 # MG2 0.2.0
 
+* **Smaller exported API** (breaking) — 96 functions that only the Shiny app uses are no
+  longer exported (the workspace `ws_*()` layer, Google OAuth, the Output tab's DHIS2
+  writers, AI-chat prompt builders, evaluation-model internals, chart helpers, and the
+  `dqa_mase()` / `dqa_mase_plot()` aliases — use `dqa_swape()` / `dqa_swape_plot()`).
+  66 functions remain exported: the standalone workflow from login and download through
+  DQA, reporting, outliers, burden, climate and combine. Internal functions are still
+  reachable as `MG2:::name()`.
+* **The app no longer writes to the global environment** — widget code is evaluated in a
+  private environment instead of being sourced into `.GlobalEnv`, and the app now works
+  whether or not MG2 is attached.
+
 * **PDR Lao demo data is now downloaded, not bundled** (breaking) — the
   `mg2_pdrlao_meta` and `mg2_pdrlao_processed` datasets are no longer in the package,
   which kept it over CRAN's size limit. `mg2_pdrlao_setup()` downloads them (~3 MB)
