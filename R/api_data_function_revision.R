@@ -66,7 +66,7 @@ api_data = function(
   childOnly = FALSE,
   ...
 ) {
-  cat('\n** api_data function...')
+  if (print) cat('\n** api_data function...')
   # tic()
   ##### cycle through each period, each data element...
 
@@ -78,7 +78,7 @@ api_data = function(
   # if ( periods %in% 'months_last_5_years' ) periods = date_code( YrsPrevious = 5 )
   # if ( periods %in% 'weeks_last_5_years' ) periods = date_code_weekly( YrsPrevious = 5 )
 
-  cat('\n - setting periods for - ', YrsPrevious, "YrsPrevious")
+  if (print) cat('\n - setting periods for - ', YrsPrevious, "YrsPrevious")
   # get months of previous years plus months of current year
   if (is.na(periodType)) {
     periodType <- 'Monthly'
@@ -91,7 +91,7 @@ api_data = function(
   }
 
   # periods = date_code( YrsPrevious = YrsPrevious )
-  cat('\n -  ', periods)
+  if (print) cat('\n -  ', periods)
 
   # if ( childOnly ){
   #   # for api/dataValueSets current month may be missing
@@ -111,7 +111,7 @@ api_data = function(
   }
 
   if (update & !file.exists(previous_dataset_file)) {
-    cat('\n - previous data file missing')
+    if (print) cat('\n - previous data file missing')
   }
 
   # if childOnly - i.e. using api/dataSets call to only entered data,
@@ -125,11 +125,11 @@ api_data = function(
   }
 
   ## UPDATE data options ####
-  cat('\n - testing for previous dataset if update is TRUE:', update)
+  if (print) cat('\n - testing for previous dataset if update is TRUE:', update)
   if (
     update && (file_test("-f", previous_dataset_file) | !is_empty(prev.data))
   ) {
-    cat('\n - retrieving details of previous dataset ')
+    if (print) cat('\n - retrieving details of previous dataset ')
 
     # # check for last x years only
     if (periodType == 'Monthly') {
@@ -146,12 +146,12 @@ api_data = function(
     #           filter( !is.na( dataElement  ) )
 
     if (is_empty(prev.data) && file_test("-f", previous_dataset_file)) {
-      cat('\n - reading previous dataset')
+      if (print) cat('\n - reading previous dataset')
       prev.data = readRDS(previous_dataset_file)
     }
 
     if (nrow(prev.data) == 0) {
-      cat('\n - previous data file empty')
+      if (print) cat('\n - previous data file empty')
       return()
     }
 
@@ -162,7 +162,7 @@ api_data = function(
       ('Month' %in% names(prev.data) || 'Week' %in% names(prev.data))
 
     if (is_processed) {
-      cat('\n - prev.data is a processed file  -  reconstructing raw format')
+      if (print) cat('\n - prev.data is a processed file  -  reconstructing raw format')
       idx_var <- if ('Month' %in% names(prev.data)) 'Month' else 'Week'
       idx_col <- prev.data[[idx_var]]
       prev.data <- prev.data %>%
@@ -205,10 +205,10 @@ api_data = function(
     #                      categoryOptionCombo.ids ) %>%
     #   unique
 
-    cat('\n - date range:', first.period, last.period)
+    if (print) cat('\n - date range:', first.period, last.period)
 
     #NB: use *.id if downloaded data was prepared and saved
-    cat('\n - reorganizing previous data')
+    if (print) cat('\n - reorganizing previous data')
 
     if ('dataElement.id' %in% names(prev.data)) {
       prev.data = prev.data %>%
@@ -254,7 +254,7 @@ api_data = function(
         mutate(categoryOptionCombo = dplyr::coalesce(categoryOptionCombo, "default"))
     }
 
-    cat('\n - extracting previously downloaded elements')
+    if (print) cat('\n - extracting previously downloaded elements')
 
     des = prev.data %>%
       select(dataElement, categoryOptionCombo) %>%
@@ -272,7 +272,7 @@ api_data = function(
       prev.elements = des$dataElement %>% unique()
     }
 
-    cat('\n - prev.elements:', prev.elements)
+    if (print) cat('\n - prev.elements:', prev.elements)
 
     # limit to those in this request (new.elements)
     # elements.vector = str_split( elements, ";") %>% unlist
@@ -281,7 +281,7 @@ api_data = function(
     #   paste0( ., collapse = ';')
 
     new.elements = paste(elements$id, collapse = ';')
-    cat('\n - new.elements:', new.elements)
+    if (print) cat('\n - new.elements:', new.elements)
 
     # Lookup national counts for last month, then get current counts ####
 
@@ -289,15 +289,15 @@ api_data = function(
       pull(period) %>%
       unique %>%
       paste(., collapse = ';')
-    cat('\n - previous periods:', prev.periods)
+    if (print) cat('\n - previous periods:', prev.periods)
 
     prev.periods.vector = str_split_1(prev.periods, ";")
     prev.periods.years = prev.periods.vector %>% str_sub(1, 4) %>% unique()
     prev.periods.years = prev.periods.years[order(prev.periods.years)]
-    cat('\n - previous periods years:', prev.periods.years)
+    if (print) cat('\n - previous periods years:', prev.periods.years)
 
     ## FETCH CURRENT VALUES of previous data
-    cat('\n - checking previous counts\n')
+    if (print) cat('\n - checking previous counts\n')
     # current.count = fetch(  baseurl , new.elements , prev.periods , orgUnits. = "LEVEL-1" , "COUNT" )  %>%
     #   mutate(current.count = as.integer( value ) ) %>%
     #   select( - value )
@@ -329,7 +329,7 @@ api_data = function(
           )] %>%
             paste(., collapse = ';')
 
-          cat('\n - for', prev.periods.in.year)
+          if (print) cat('\n - for', prev.periods.in.year)
 
           current.counts[[i]] = fetch_get(
             baseurl. = baseurl,
@@ -347,15 +347,15 @@ api_data = function(
       }
     )
 
-    cat('\n - combining previous counts \n')
+    if (print) cat('\n - combining previous counts \n')
     current.counts = bind_rows(current.counts)
     if ('categoryOptionCombo' %in% names(current.counts)) {
       current.counts = current.counts %>%
         mutate(categoryOptionCombo = dplyr::coalesce(categoryOptionCombo, "default"))
     }
-    cat('\n - rows =', nrow(current.counts), "\n")
+    if (print) cat('\n - rows =', nrow(current.counts), "\n")
 
-    cat('\n - checking previous values:')
+    if (print) cat('\n - checking previous values:')
 
     current.values = list(length(prev.periods.years))
 
@@ -396,7 +396,7 @@ api_data = function(
       }
     )
 
-    cat('\n - combining previous values \n')
+    if (print) cat('\n - combining previous values \n')
     # saveRDS( current.values, 'current.values.rds')
 
     current.values = bind_rows(current.values)
@@ -404,7 +404,7 @@ api_data = function(
       current.values = current.values %>%
         mutate(categoryOptionCombo = dplyr::coalesce(categoryOptionCombo, "default"))
     }
-    cat('\n - rows =', nrow(current.values), "\n")
+    if (print) cat('\n - rows =', nrow(current.values), "\n")
 
     #TESTING
     # saveRDS( current.counts, 'current.counts.rds')
@@ -475,7 +475,7 @@ api_data = function(
       group_by(across(all_of(by_cols))) %>%
       filter(all(same))
 
-    cat(
+    if (print) cat(
       '\n - prev.periods.same.data for ',
       paste(
         prev.periods.same.data %>%
@@ -493,7 +493,7 @@ api_data = function(
         unique
     )
 
-    cat(
+    if (print) cat(
       '\n - Need to update or get new data data for ',
       paste(update.periods, collapse = ';'),
       "\n"
@@ -561,7 +561,7 @@ api_data = function(
   # 12/2021 ipc package for asynchronous progress with future
   if (shinyApp == TRUE) {
     if (parallel) {
-      cat('\n starting the future package parallel requests\n')
+      if (print) cat('\n starting the future package parallel requests\n')
 
       # Create a progress bar
       # progress <- AsyncProgress$new( #session ,
@@ -575,7 +575,7 @@ api_data = function(
         furrr::future_pmap(
           pmap.df,
           .f = function(Var1, Var2, Var3) {
-            cat(Var1, Var2, Var3, "\n")
+            if (print) cat(Var1, Var2, Var3, "\n")
 
             # (no progress bar: futures cannot update a Shiny progress object)
             # progress$set( value = i , detail = paste( "SUM" , i ) )
@@ -612,7 +612,7 @@ api_data = function(
             if (any(str_detect(Var3, fixed(".")))) {
               .by = c("dataElement", "period", "orgUnit", "categoryOptionCombo")
 
-              cat("\n - joining sum and count downloads by", .by)
+              if (print) cat("\n - joining sum and count downloads by", .by)
 
               # Join d.sum and d.count
               d = d.count %>%
@@ -625,7 +625,7 @@ api_data = function(
             } else {
               .by = c("dataElement", "period", "orgUnit")
 
-              cat("\n - joining sum and count downloads by", .by)
+              if (print) cat("\n - joining sum and count downloads by", .by)
 
               d = d.count %>%
                 select(-categoryOptionCombo) %>%
@@ -639,7 +639,7 @@ api_data = function(
 
             d = d %>% select(-starts_with('aggreg'))
 
-            cat('\n', nrow(d), 'records with sum and count\n')
+            if (print) cat('\n', nrow(d), 'records with sum and count\n')
 
             # Save data up to this point
 
@@ -655,9 +655,9 @@ api_data = function(
       #   } )
 
       d = future::value(fut)
-      cat('\n the future is over')
-      cat('\n', nrow(d), 'records with sum and count')
-      cat(
+      if (print) cat('\n the future is over')
+      if (print) cat('\n', nrow(d), 'records with sum and count')
+      if (print) cat(
         '\n',
         'of these, there was no value for',
         sum(is.na(d$SUM)),
@@ -668,7 +668,7 @@ api_data = function(
     } else {
       ### SHINY - NOT PARALLEL ####
       future::plan(future::sequential)
-      cat('\n begining request for data')
+      if (print) cat('\n begining request for data')
       d = list()
       fetch_error <- NULL
 
@@ -699,14 +699,14 @@ api_data = function(
             ## If previous count was missing, null, or zero,
             ## and current level is not LEVEL-1,
             ## should go to next iteration
-            cat("\n - ", i)
+            if (print) cat("\n - ", i)
             if (
               i > 1 &&
                 pmap.df$Var2[i - 1] %in% "LEVEL-1" &&
                 (is.na(d[[i - 1]]$COUNT) || d[[i - 1]]$COUNT == 0) &&
                 !pmap.df$Var2[i] %in% "LEVEL-1"
             ) {
-              cat(
+              if (print) cat(
                 "\n - previous",
                 pmap.df[i - 1, 1],
                 "was empty so skipping next lower level,",
@@ -715,7 +715,7 @@ api_data = function(
               next
             }
 
-            cat('\n - api_data for:', baseurl, username)
+            if (print) cat('\n - api_data for:', baseurl, username)
 
             tryCatch({
               # Retry up to 3 times on transient network errors
@@ -739,7 +739,7 @@ api_data = function(
 
                 if (identical(result, "ok")) break
                 if (.fetch_attempt >= 3L) stop(result)
-                cat('\n - transient error on request', i, '(attempt', .fetch_attempt, ') -- retrying in 5s...')
+                if (print) cat('\n - transient error on request', i, '(attempt', .fetch_attempt, ') -- retrying in 5s...')
                 Sys.sleep(5)
               }
 
@@ -764,7 +764,7 @@ api_data = function(
 
                   if (identical(result, "ok")) break
                   if (.fetch_attempt >= 3L) stop(result)
-                  cat('\n - transient error on COUNT request', i, '(attempt', .fetch_attempt, ') -- retrying in 5s...')
+                  if (print) cat('\n - transient error on COUNT request', i, '(attempt', .fetch_attempt, ') -- retrying in 5s...')
                   Sys.sleep(5)
                 }
 
@@ -781,7 +781,7 @@ api_data = function(
                   .by = c("dataElement", "period", "orgUnit")
                 }
 
-                cat("\n - ", i, "-joining sum and count downloads by", .by, "...")
+                if (print) cat("\n - ", i, "-joining sum and count downloads by", .by, "...")
 
                 d[[i]] = d.count %>%
                   rename(COUNT = value) %>%
@@ -796,7 +796,7 @@ api_data = function(
               if (print && !all(is.na(d[[i]]$SUM))) cat(nrow(d[[i]]), 'records\n')
             }, error = function(e) {
               fetch_error <<- conditionMessage(e)
-              cat('\n - download error at request', i, 'of', nrow(pmap.df), ':', fetch_error)
+              if (print) cat('\n - download error at request', i, 'of', nrow(pmap.df), ':', fetch_error)
             })
 
             if (!is.null(fetch_error)) break
@@ -814,7 +814,7 @@ api_data = function(
       if (!is.null(fetch_error)) {
         d <- Filter(Negate(is.null), d)  # remove any NULL slots from skipped or errored iterations
         if (length(d) == 0) stop(fetch_error)
-        cat('\n - partial download: returning', length(d), 'completed requests of', nrow(pmap.df))
+        if (print) cat('\n - partial download: returning', length(d), 'completed requests of', nrow(pmap.df))
       }
     }
   } else {
@@ -881,7 +881,7 @@ api_data = function(
                 .by = c("dataElement", "period", "orgUnit")
               }
 
-              cat("\n - joining sum and count downloads by", .by, "\n")
+              if (print) cat("\n - joining sum and count downloads by", .by, "\n")
 
               # Join d.sum and d.count
               d = d.count %>%
@@ -923,7 +923,7 @@ api_data = function(
     message("binding downloads")
   }
 
-  cat('\n\n compiling requested data ')
+  if (print) cat('\n\n compiling requested data ')
   d = bind_rows(d)
 
   if (exists("fetch_error") && !is.null(fetch_error)) {
@@ -934,20 +934,20 @@ api_data = function(
   # Testing
   # saveRDS( d, 'data_download.rds')
 
-  cat('\n', nrow(d), 'records with sum and count')
-  cat('\n', 'of these, there was no value for', sum(is.na(d$SUM)), 'records \n')
+  if (print) cat('\n', nrow(d), 'records with sum and count')
+  if (print) cat('\n', 'of these, there was no value for', sum(is.na(d$SUM)), 'records \n')
 
   # update value in most_recent_data_file
   if (update && nrow(prev.data) > 0) {
-    cat('\n Updating data')
+    if (print) cat('\n Updating data')
 
     good.prev.data = prev.data %>%
       filter(!period %in% unique(d$period)) %>%
       mutate_all(as.character)
 
-    cat("\n - glimpse good.prev.data:\n")
+    if (print) cat("\n - glimpse good.prev.data:\n")
     glimpse(good.prev.data)
-    cat("\n - glimpse d:\n")
+    if (print) cat("\n - glimpse d:\n")
     glimpse(d)
 
     d = d %>% mutate_all(as.character)
@@ -956,7 +956,7 @@ api_data = function(
       filter(!is.na(COUNT) | !COUNT %in% "0.0") %>%
       arrange(period, orgUnit, dataElement, categoryOptionCombo)
 
-    cat("\n - glimpse updated.data:\n")
+    if (print) cat("\n - glimpse updated.data:\n")
     glimpse(updated.data)
 
     return(updated.data)

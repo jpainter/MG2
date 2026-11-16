@@ -10,6 +10,11 @@
   * `selectedData(level = )` with anything other than `"leaf"` referred to Shiny's
     `input` and an undefined table; it now accepts a level name from `levelNames` or
     a level number.
+* **Quieter functions** — console output from exported functions now follows each
+  function's existing switch (`api_data(print = )`, `build_combined_dataset(verbose = )`,
+  `tsmodels(msg = )`, `mad_outliers()` / `seasonal_outliers(progress = )`). Problems
+  that used to be printed — a failed combine step, Prophet falling back to the base
+  models — are now warnings.
 * **Unused code removed** — 38 functions that nothing in the package, app, vignettes
   or tests could reach (the superseded evaluation pipeline `impact_fit()` /
   `pre_impact_fit()` / `trendData()` and its helpers, the `manage_clusters()` dev

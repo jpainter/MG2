@@ -232,7 +232,7 @@ fetch_validation_rules <- function(baseurl, username, password, id_names = NULL)
     all_rules[[length(all_rules) + 1L]] <- rules_page
 
     total_pages <- resp$pager$pageCount
-    cat("\n - validation rules page", page, "of", total_pages)
+    message("validation rules page ", page, " of ", total_pages)
     if (is.null(total_pages) || page >= total_pages) break
     page <- page + 1L
   }

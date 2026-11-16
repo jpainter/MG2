@@ -179,7 +179,7 @@ apply_combine_cleaning <- function(d, cleaning_level = "seasonal3") {
 #' @noRd
 execute_include_step <- function(step, data_folder = NULL, period_col, verbose = FALSE,
                                   ws = NULL) {
-  cat("  [Include]", step$output_name, "<- file:", step$source_file,
+  if (verbose) cat("  [Include]", step$output_name, "<- file:", step$source_file,
       "| values:", paste(step$data_values, collapse = ", "),
       "| cleaning:", step$cleaning_level, "\n")
 
@@ -199,7 +199,7 @@ execute_include_step <- function(step, data_folder = NULL, period_col, verbose =
             paste(step$data_values, collapse = ", "))
     return(data.table())
   }
-  cat("  ", nrow(d), "rows after filter\n")
+  if (verbose) cat("  ", nrow(d), "rows after filter\n")
 
   cleaned <- apply_combine_cleaning(d, step$cleaning_level)
 
@@ -230,10 +230,10 @@ execute_ratio_step <- function(step, data_folder = NULL, period_col, verbose = F
   # selected categories are missing  -  facilities with partial data contribute.
   # FALSE: require all selected values to be present; any NA makes the sum NA.
   na_rm <- isTRUE(step$na_rm)
-  cat("  [Ratio] na.rm =", na_rm, "\n")
+  if (verbose) cat("  [Ratio] na.rm =", na_rm, "\n")
 
   load_side <- function(spec, label) {
-    cat("  [Ratio]", label, "<- file:", spec$source_file,
+    if (verbose) cat("  [Ratio]", label, "<- file:", spec$source_file,
         "| values:", paste(spec$data_values, collapse = ", "),
         "| cleaning:", spec$cleaning_level, "\n")
 
@@ -252,7 +252,7 @@ execute_ratio_step <- function(step, data_folder = NULL, period_col, verbose = F
               paste(spec$data_values, collapse = ", "))
       return(data.table())
     }
-    cat("  ", nrow(d), "rows after filter\n")
+    if (verbose) cat("  ", nrow(d), "rows after filter\n")
 
     cleaned <- apply_combine_cleaning(d, spec$cleaning_level)
 
@@ -298,12 +298,12 @@ execute_ratio_step <- function(step, data_folder = NULL, period_col, verbose = F
     den <- den[, .(val = sum(val, na.rm = na_rm)), by = by_cols]
   }
 
-  cat("  num rows:", nrow(num), " | den rows:", nrow(den), "\n")
+  if (verbose) cat("  num rows:", nrow(num), " | den rows:", nrow(den), "\n")
 
   # Full outer join: keeps rows where only numerator OR only denominator exists.
   # Those rows produce missing_numerator / missing_denominator flags.
   joined <- merge(num, den, by = by_cols, suffixes = c("_n", "_d"), all = TRUE)
-  cat("  joined rows:", nrow(joined), "\n")
+  if (verbose) cat("  joined rows:", nrow(joined), "\n")
 
   # Combine flag columns from numerator and denominator sides (OR)
   for (fc in .source_flag_cols) {
@@ -338,9 +338,9 @@ execute_ratio_step <- function(step, data_folder = NULL, period_col, verbose = F
             n_neg, " negative value(s) to 0.")
     joined[!is.na(original) & original < 0, original := 0]
   }
-  cat("  non-NA ratio values:", sum(!is.na(joined$original)), "\n")
-  cat("  missing_numerator:", sum(joined$missing_numerator), "\n")
-  cat("  missing_denominator:", sum(joined$missing_denominator), "\n")
+  if (verbose) cat("  non-NA ratio values:", sum(!is.na(joined$original)), "\n")
+  if (verbose) cat("  missing_numerator:", sum(joined$missing_numerator), "\n")
+  if (verbose) cat("  missing_denominator:", sum(joined$missing_denominator), "\n")
 
   joined[, data := step$output_name]
 
@@ -416,9 +416,9 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
     if (is.function(.progress)) .progress(value = value, message = message, detail = detail)
   }
 
-  cat("\n* build_combined_dataset:", formula_name, "\n")
-  cat("- workspace:", if (ws_is_local(ws)) ws_path(ws) else paste0("<", class(ws)[1], ">"), "\n")
-  cat("- steps:", length(steps), "\n")
+  if (verbose) cat("\n* build_combined_dataset:", formula_name, "\n")
+  if (verbose) cat("- workspace:", if (ws_is_local(ws)) ws_path(ws) else paste0("<", class(ws)[1], ">"), "\n")
+  if (verbose) cat("- steps:", length(steps), "\n")
 
   rp(0.02, "Detecting period type")
 
@@ -431,7 +431,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
         tmp        <- ws_read_file(ws, src)
         period_col <- if ("Week" %in% names(tmp)) "Week" else "Month"
         rm(tmp)
-        cat("- period type:", period_col, "\n")
+        if (verbose) cat("- period type:", period_col, "\n")
         break
       }
     }
@@ -442,7 +442,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
 
   for (i in seq_along(steps)) {
     s <- steps[[i]]
-    cat("\n- step", i, "[", s$operation, "] ->", s$output_name, "\n")
+    if (verbose) cat("\n- step", i, "[", s$operation, "] ->", s$output_name, "\n")
     rp(0.05 + (i - 1) / n_steps * 0.50,
        paste0("Step ", i, " of ", n_steps, ": ", s$output_name),
        s$operation)
@@ -458,14 +458,14 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
       r
     },
     error = function(e) {
-      cat("  ERROR:", conditionMessage(e), "\n"); NULL
+      warning("Step ", i, " (", s$output_name, ") failed: ", conditionMessage(e), call. = FALSE); NULL
     })
 
     if (!is.null(rows) && nrow(rows) > 0) {
-      cat("  step", i, "produced", nrow(rows), "rows\n")
+      if (verbose) cat("  step", i, "produced", nrow(rows), "rows\n")
       results[[i]] <- rows
     } else {
-      cat("  step", i, "produced NO rows\n")
+      if (verbose) cat("  step", i, "produced NO rows\n")
     }
   }
 
@@ -473,7 +473,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
   if (length(results) == 0) stop("build_combined_dataset: all steps produced empty output")
 
   rp(0.58, "Binding results", paste(length(results), "step(s)"))
-  cat("\n- binding", length(results), "result(s)\n")
+  if (verbose) cat("\n- binding", length(results), "result(s)\n")
   combined <- rbindlist(results, fill = TRUE)
 
   combined[, `:=`(
@@ -515,7 +515,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
       combined[data == s$output_name & !is.na(original) & as.numeric(original) > mv,
                over_max := TRUE]
       n_over <- sum(combined[data == s$output_name]$over_max, na.rm = TRUE)
-      cat("- over_max: '", s$output_name, "' max =", mv, "->", n_over, "flagged\n")
+      if (verbose) cat("- over_max: '", s$output_name, "' max =", mv, "->", n_over, "flagged\n")
     }
   }
 
@@ -525,8 +525,8 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
   # the default threshold of 50 used in mad_outliers()/seasonal_outliers().
   # New flags are OR-ed with Phase 1 inherited flags  -  once TRUE, stays TRUE.
   n_series <- nrow(unique(combined[, .(orgUnit, data)]))
-  cat("- Phase 2: scanning combined values for outliers (smallThreshold=0)\n")
-  cat("  ", n_series, "series to scan\n")
+  if (verbose) cat("- Phase 2: scanning combined values for outliers (smallThreshold=0)\n")
+  if (verbose) cat("  ", n_series, "series to scan\n")
   rp(0.65, "Scanning for outliers", paste(format(n_series, big.mark = ","), "series"))
 
   combined[, c("mad15", "mad10", "seasonal5", "seasonal3") :=
@@ -537,7 +537,7 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
   n_m10 <- sum(combined$mad10,     na.rm = TRUE)
   n_s5  <- sum(combined$seasonal5, na.rm = TRUE)
   n_s3  <- sum(combined$seasonal3, na.rm = TRUE)
-  cat("- Phase 2 complete: mad15=", n_m15, " mad10=", n_m10,
+  if (verbose) cat("- Phase 2 complete: mad15=", n_m15, " mad10=", n_m10,
       " seasonal5=", n_s5, " seasonal3=", n_s3, "\n")
   rp(0.90, "Outlier scan complete",
      paste0("mad15=", n_m15, "  mad10=", n_m10,
@@ -546,12 +546,12 @@ build_combined_dataset <- function(steps, data_folder = NULL, ousTree = NULL,
   if (!is.null(ousTree) && nrow(ousTree) > 0 && "orgUnit" %in% names(ousTree)) {
     rp(0.93, "Joining org unit hierarchy",
        paste(nrow(ousTree), "org units"))
-    cat("- joining ousTree (", nrow(ousTree), "org units)\n")
+    if (verbose) cat("- joining ousTree (", nrow(ousTree), "org units)\n")
     ou_dt    <- as.data.table(ousTree)
     combined <- merge(combined, ou_dt, by = "orgUnit", all.x = TRUE)
   }
 
-  cat("- done:", nrow(combined), "rows |",
+  if (verbose) cat("- done:", nrow(combined), "rows |",
       length(unique(combined$data)), "variable(s):",
       paste(sort(unique(combined$data)), collapse = ", "), "\n")
   rp(1.0, "Complete",

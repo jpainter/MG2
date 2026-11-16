@@ -431,7 +431,7 @@ mad_outliers <- function(d,
     if (use_parallel) {
       # -- Bucket-parallel path (same pattern as seasonal_outliers) ---------
       if (is.null(.pooled)) {
-        cat(sprintf("    starting %d %s workers...\n",
+        if (progress) cat(sprintf("    starting %d %s workers...\n",
                     n_workers, .mg2_backend_name())); flush.console()
         gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
         old_plan <- future::plan()
@@ -444,7 +444,7 @@ mad_outliers <- function(d,
         # the only option on Windows and inside RStudio/Positron.
         future::plan(.mg2_plan_type(), workers = n_workers)
       } else {
-        cat(sprintf("    reusing %d pooled workers...\n", n_workers))
+        if (progress) cat(sprintf("    reusing %d pooled workers...\n", n_workers))
         flush.console()
       }
 
@@ -524,12 +524,12 @@ mad_outliers <- function(d,
         )
         pct    <- min(.step / n_steps, 1)
         n_done <- round(pct * .total)
-        cat(sprintf("\r    MAD: %d/%d series (%.0f%%)", n_done, .total, pct * 100))
+        if (progress) cat(sprintf("\r    MAD: %d/%d series (%.0f%%)", n_done, .total, pct * 100))
         flush.console()
         if (is.function(.progress_fn))
           .progress_fn(sprintf("MAD: %d/%d (%.0f%%)", n_done, .total, pct * 100))
       }
-      cat("\n")
+      if (progress) cat("\n")
 
       # Free bucket_list before combining  -  no longer needed
       rm(bucket_list); gc(verbose = FALSE)
@@ -738,7 +738,7 @@ seasonal_outliers <- function(d,
     # splitting into .total individual series.
 
     if (is.null(.pooled)) {
-      cat(sprintf("    starting %d %s workers...\n",
+      if (progress) cat(sprintf("    starting %d %s workers...\n",
                   n_workers, .mg2_backend_name())); flush.console()
       gc(verbose = FALSE)   # release accumulated garbage before forking  -  workers inherit parent heap
       old_plan <- future::plan()
@@ -751,7 +751,7 @@ seasonal_outliers <- function(d,
       # .opts below declares the packages those workers need.
       future::plan(.mg2_plan_type(), workers = n_workers)
     } else {
-      cat(sprintf("    reusing %d pooled workers...\n", n_workers))
+      if (progress) cat(sprintf("    reusing %d pooled workers...\n", n_workers))
       flush.console()
     }
 
@@ -841,12 +841,12 @@ seasonal_outliers <- function(d,
 
       pct    <- min(.step / n_steps, 1)
       n_done <- round(pct * .total)
-      cat(sprintf("\r    seasonal: %d/%d series (%.0f%%)", n_done, .total, pct * 100))
+      if (progress) cat(sprintf("\r    seasonal: %d/%d series (%.0f%%)", n_done, .total, pct * 100))
       flush.console()
       if (is.function(.progress_fn))
         .progress_fn(sprintf("seasonal: %d/%d (%.0f%%)", n_done, .total, pct * 100))
     }
-    cat("\n")
+    if (progress) cat("\n")
 
     if (is.function(.progress_fn))
       .progress_fn(sprintf("seasonal: %d series  -  building tsibble", .total))
@@ -855,7 +855,7 @@ seasonal_outliers <- function(d,
     # sit alongside bucket_results and the rbindlist output (~18 GB peak total).
     rm(bucket_list); gc(verbose = FALSE)
 
-    cat(sprintf("  combining %d bucket results...\n", n_buckets))
+    if (progress) cat(sprintf("  combining %d bucket results...\n", n_buckets))
     flush.console()
 
     # Combine slim results (key + index + 3 seasonal cols only)
@@ -900,7 +900,7 @@ seasonal_outliers <- function(d,
   }
 
   # Reconstruct tsibble
-  cat("  rebuilding tsibble...\n")
+  if (progress) cat("  rebuilding tsibble...\n")
   flush.console()
   if (shiny_progress)
     shiny::setProgress(detail = "building result...")

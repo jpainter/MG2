@@ -850,7 +850,7 @@ selectedData = function(
   .t0_selectedData <- proc.time()["elapsed"]
 
   if (nrow(data1) == 0) {
-    cat('\n - data1() has zero rows')
+    if (.cat) cat('\n - data1() has zero rows')
     return()
   }
 
@@ -1892,15 +1892,11 @@ dataset = function(
   grouping        = FALSE,
   groups          = "agegrp"
 ) {
-  cat("\n * dataset")
-
   if (!"tbl_ts" %in% class(data)) {
-    cat("\n - converting to tsibble")
     data = tsibble::tsibble(data, index = "Month", key = groups)
   }
 
   if (grouping) {
-    cat("\n - grouping:", groups)
     groups = rlang::syms(groups)
     fable.data = data %>%
       dplyr::filter(Month >= startMonth) %>%
@@ -2336,7 +2332,7 @@ tsmodels = function(
 ) {
   valid_types = c("transform and covariate", "transform", "covariate")
   if (!is.na(type) && !type %in% valid_types) {
-    cat("\n Must select one of three types:", valid_types)
+    warning("tsmodels(): `type` must be one of: ", paste(valid_types, collapse = ", "), call. = FALSE)
     return(NULL)
   }
 
@@ -2394,7 +2390,7 @@ tsmodels = function(
           .safely = TRUE
         ),
         error = function(e) {
-          cat("\n - tsmodels: Prophet failed (", conditionMessage(e), "); base only")
+          warning("tsmodels(): Prophet failed (", conditionMessage(e), "); using base models only", call. = FALSE)
           train_data %>% fabletools::model(
             a = fable::ARIMA(var), e = fable::ETS(var),
             n = fable::NNETAR(var), t = fable::TSLM(var), .safely = TRUE
@@ -2425,7 +2421,7 @@ tsmodels = function(
           .safely = TRUE
         ),
         error = function(e) {
-          cat("\n - tsmodels: Prophet failed (", conditionMessage(e), "); base only")
+          warning("tsmodels(): Prophet failed (", conditionMessage(e), "); using base models only", call. = FALSE)
           train_data %>% fabletools::model(
             a = fable::ARIMA(log(var + 1)), e = fable::ETS(log(var + 1)),
             n = fable::NNETAR(log(var + 1)), t = fable::TSLM(log(var) ~ trend() + season()),
@@ -2461,7 +2457,7 @@ tsmodels = function(
           .safely = TRUE
         )),
         error = function(e) {
-          cat("\n - tsmodels: Prophet failed (", conditionMessage(e), "); base only")
+          warning("tsmodels(): Prophet failed (", conditionMessage(e), "); using base models only", call. = FALSE)
           rlang::inject(train_data %>% fabletools::model(
             a = fable::ARIMA(var ~ log(!!covariate)), e = fable::ETS(var),
             n = fable::NNETAR(var ~ !!covariate),
@@ -2494,7 +2490,7 @@ tsmodels = function(
           .safely = TRUE
         )),
         error = function(e) {
-          cat("\n - tsmodels: Prophet failed (", conditionMessage(e), "); base only")
+          warning("tsmodels(): Prophet failed (", conditionMessage(e), "); using base models only", call. = FALSE)
           rlang::inject(train_data %>% fabletools::model(
             a = fable::ARIMA(log(var) ~ log(!!covariate)), e = fable::ETS(log(var)),
             n = fable::NNETAR(log(var) ~ !!covariate),
@@ -2521,7 +2517,7 @@ tsmodels = function(
     if (length(keep) > 0) {
       primary_models <- dplyr::select(primary_models, dplyr::all_of(keep))
     } else {
-      cat("\n - tsmodels: base_models had no matches; keeping all models")
+      if (msg) cat("\n - tsmodels: base_models had no matches; keeping all models")
     }
   }
 
@@ -2538,7 +2534,7 @@ tsmodels = function(
   if (msg) cat("\n - tsmodels: Primary forecasts finished.", .mg2_elapsed(.t_stage))
 
   if (ensemble) {
-    cat("\n - tsmodels: Preparing ensemble forecasts...")
+    if (msg) cat("\n - tsmodels: Preparing ensemble forecasts...")
     .t_stage <- Sys.time()
     if (.set.seed) set.seed(1432)
     combo_forecasts = combination_forecasts(primary_forecasts)
