@@ -69,6 +69,11 @@ reported as INFO, not a NOTE.
   **0 errors · 0 warnings · 2 NOTEs** — "New submission" and local HTML Tidy too old
   (environmental; CRAN has a current Tidy).
 
+- win-builder R-devel (Windows x86_64): **Status: 1 NOTE** (New submission only).
+- Ubuntu 26.04 x86_64 (Docker, `--as-cran --run-donttest`): all substantive checks OK;
+  only container gaps (no LaTeX / HTML Tidy) and a borderline 5.04 s example timing
+  under emulation.
+
 ## Final step
 
 ```r
