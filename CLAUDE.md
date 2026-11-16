@@ -239,7 +239,7 @@ come from `DESCRIPTION`. Revisit only if multiple developers need reproducibilit
 devtools::document()   # regenerate NAMESPACE + man/
 devtools::load_all()   # load package
 run_mg2()              # launch app
-devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
+devtools::check()      # must pass before committing (baseline: 0E · 0W · 0N)
 ```
 
 **When bumping the version** (do all four together):
@@ -251,18 +251,53 @@ devtools::check()      # must pass before committing (baseline: 0E · 0W · 1N)
 
 ---
 
-## Current State (as of 2026-09-07)
+## Current State (as of 2026-11-16)
 
-**Version:** 0.2.0 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 2 NOTEs
+**Version:** 0.2.0 | **check() baseline:** 0 ERRORs · 0 WARNINGs · 0 NOTEs
+(`devtools::check(cran = TRUE)` on the `cran` / `size-reduction` branches; `main`
+is still 0.1.9 and has not had this work)
 
-Verified 2026-09-07. The previously recorded 0E · 0W · 1N was stale — the real
-state at the start of that session was 1 ERROR · 2 WARNINGs · 2 NOTEs. Both
-remaining NOTEs are expected:
+### CRAN submission (2026-11-16)
 
-- **NOTE — unable to verify current time.** Environmental, not a code issue.
-- **NOTE — no visible binding for global variable.** Cleared on the `cran` branch
-  (2026-11-16): `R/imports.R` (`@importFrom` for bare calls) + `R/globals.R`
-  (reviewed column names).
+**MG2 0.2.0 was submitted to CRAN on 2026-11-16 and confirmed by the maintainer.**
+Awaiting CRAN's automated incoming checks, then human review. Full history of the
+preparation is in `CRAN_PLAN.md`; the reviewer notes are in `cran-comments.md`.
+
+Pre-submission results:
+
+| Platform | Result |
+|---|---|
+| macOS arm64, R 4.6.2, `check(cran, remote, manual, run_dont_test)` | 0E · 0W · 2N (new submission; local HTML Tidy too old) |
+| Ubuntu 26.04 x86_64 (Docker `rocker/geospatial`, emulated), `--as-cran --run-donttest` | all substantive checks OK; only container gaps (no LaTeX/Tidy) + `mg2_pdrlao_setup` example at 5.04 s under emulation |
+| win-builder R-devel, Windows x86_64 | 1 NOTE (new submission) |
+
+**If CRAN asks for changes:** make them on `cran`, merge `size-reduction` in (it
+is ready), re-run the checks above, update `cran-comments.md` (add a "Resubmission"
+section answering each point), and resubmit with `devtools::submit_cran()` from a
+local-disk export. The maintainer runs `submit_cran()` themselves — it is
+interactive and CRAN emails a confirmation link.
+
+**After acceptance:** merge `cran` (and `size-reduction`) into `main`, tag
+`v0.2.0` (or `v0.2.1` if the size work goes out as an update), push the tag — that
+triggers `.github/workflows/release.yml`. `main` should then always equal the
+latest CRAN release.
+
+**Package size budget.** CRAN's limit is 5,000,000 bytes for the source tarball
+*including built vignettes*. The submitted 0.2.0 tarball was **4,993,850 bytes —
+6 KB under**. `size-reduction` brings it to **3.71 MB**. Check the size with the
+vignettes built (`devtools::build()`), not `--no-build-vignettes` — the vignettes
+add ~1.3 MB. Large demo objects go to the `demo-data` GitHub release, not `data/`
+(see Demo data below).
+
+### What the CRAN work changed (applies to all new code)
+
+These are rules now, not history — see the "Other design rules" section for the
+full list: exports are the standalone-script API only (67); the app sees internal
+functions via `MG2:::.mg2_app_env()`; optional packages are Suggests + 
+`requireNamespace()`; flagged globals go in `R/globals.R` only after review;
+bare calls in `R/imports.R`; lazy-loaded datasets via `.mg2_dataset()`; console
+output only behind a verbosity flag; no writes outside `tempdir()` in examples /
+tests; nothing written to `~` or `.GlobalEnv`.
 
 **Non-ASCII characters:** R CMD check inspects *parsed* code, so the
 "except perhaps in comments" line in that warning is literal — comments are
@@ -276,7 +311,24 @@ inside string literals and identifiers; use `\uXXXX` escapes there (see
 spends many minutes hydrating evicted files before it does any work (0.2% CPU, no
 progress output). Export the tree to local disk first:
 `mkdir -p /tmp/mg2check/MG2 && git archive HEAD | tar -x -C /tmp/mg2check/MG2`,
-then run `devtools::check()` there — seconds instead of minutes.
+then run `devtools::check()` there — seconds instead of minutes. Run it with
+`_R_CHECK_EXCESSIVE_IMPORTS_=20` set to match CRAN (the 31 Imports then show as
+INFO, not a NOTE).
+
+**Plain `R CMD build` from a terminal fails on this machine** with "Failed to
+locate 'weave' output file 'burden-standalone.html'". Not a package problem: the
+library path is set in `~/.Rprofile` (`.libPaths(c("~/Rlibrary", ...))`), which
+`R CMD build`'s vignette step does not read, so it cannot find `rmarkdown` and
+silently produces nothing. `devtools::build()` / `check()` / `submit_cran()` pass
+`.libPaths()` through and work. From a terminal use
+`R_LIBS_USER="$HOME/Rlibrary" R CMD build MG2` (or move the setting to
+`~/.Renviron` as `R_LIBS_USER=~/Rlibrary`).
+
+**Linux check:** `docker run --rm --platform linux/amd64 -v <dir>:/work
+rocker/geospatial:latest <script>` with `remotes::install_deps(dependencies = TRUE)`
+then `R CMD check --as-cran` (2026-11-16 run: ~30 min under emulation on Apple
+Silicon). `rocker/geospatial` has GDAL/GEOS/PROJ for `sf`/`terra` but no LaTeX —
+expect a PDF-manual error that is the container's, not the package's.
 
 **All tabs functional end-to-end:**
 Setup → Metadata (incl. validation rules + form viewer) → Regions → Data (formula +
@@ -300,13 +352,15 @@ Data elements are inferred from the loaded formula — nothing is hardcoded.
 
 **Version history:** `NEWS.md` — documents user-facing changes for every release.
 
-**Active branches (as of 2026-07-19):**
+**Active branches (as of 2026-11-16):**
 
 | Branch | Status | Purpose |
 |---|---|---|
-| `main` | stable | All 0.1.9 features; evaluation autoplot deprecation fix |
-| `feature/url-load` | ready to test | Load data from shared Google Drive / Dropbox / OneDrive URLs (Login tab); read-only, single-session stopgap |
-| `feature/cloud-workspace` | Phase 2 complete (Google Drive) | Cloud storage workspace abstraction (Option B); see below |
+| `main` | stable, 0.1.9 | What `install_github()` users get. Untouched until CRAN accepts. |
+| `cran` | **submitted to CRAN 2026-11-16** (pushed) | 0.2.0 as submitted. Cut from `feature/cloud-workspace`, so it contains all of that branch. Change only in response to CRAN. |
+| `size-reduction` | ready (pushed) | `cran` + tarball 4.99 -> 3.71 MB. Merge into `cran` if CRAN requests a resubmission; otherwise the start of 0.2.1. |
+| `feature/cloud-workspace` | merged into `cran` | Cloud storage workspace abstraction (Option B); see below |
+| `feature/url-load` | ready to test, **not** in `cran` | Load data from shared Google Drive / Dropbox / OneDrive URLs (Login tab); read-only, single-session stopgap |
 
 **`feature/url-load` — "Load from shared links":**
 - New section on Login tab: paste share URLs for data (.qs/.rds), formula (.xlsx or Google Sheets), metadata (.rds)
@@ -384,17 +438,34 @@ ws_is_local(ws)
   `as.Date(as.integer(unclass(x)), origin="1970-01-01")`
 
 **Demo data:**
-- `mg2_demo_*` — Sierra Leone malaria (5 elements, 72 months synthetic)
+- `mg2_demo_*` (in `data/`) — Sierra Leone malaria (5 elements, 72 months synthetic):
+  `mg2_demo`, `_processed`, `_meta`, `_formula`, `_geo`
 - `mg2_demo_geo` — Sierra Leone district polygons (GADM level-2; Western Rural+Urban merged to
   Western Area); injected into metadata at `mg2_demo_setup()` write time
-- `mg2_pdrlao_*` — PDR Lao malaria (82 elements, ~57 months, Aug 2021–May 2026)
+- `mg2_pdrlao_formula` (in `data/`) — PDR Lao malaria (82 elements, ~57 months, Aug 2021–May 2026)
+- `inst/extdata/demo/` — **Lao** data read by the vignettes via `mg2_demo_dir()`
+  (`malaria_demo.rds`, filtered `metadata_demo.rds`, `tpr_demo.rds`, ...). Not a duplicate
+  of the Sierra Leone data. Do not trim `malaria_demo.rds` to fewer elements: the
+  reporting-champions vignette's element timeline table and facility counts depend on all 67.
 - `mg2_demo_setup()` / `mg2_pdrlao_setup()` — write demo files to disk
 - Login tab has two demo buttons (Sierra Leone / PDR Lao) using `actionButton` not `shinyFiles`
+
+**`demo-data` GitHub release** (https://github.com/jpainter/MG2/releases/tag/demo-data)
+holds the demo objects too big for the package: `mg2_pdrlao_meta.rds`,
+`mg2_pdrlao_processed.rds` (since 0.2.0) and `mg2_demo_alllevels.rds` (on
+`size-reduction`). `.mg2_demo_fetch()` in `R/demo.R` downloads once, checks the MD5
+in `.mg2_demo_assets`, and caches under `tools::R_user_dir("MG2", "cache")`
+(`cache_dir =` argument on both setup functions; examples pass `tempdir()`).
+Rules: **never replace an asset in place** — installed MG2 versions pin its MD5;
+upload under a new name and update `.mg2_demo_assets`. The tag deliberately does not
+start with `v`, so it does not trigger the release workflow; after uploading, check
+that `v0.1.9` (or the newest `v*`) is still marked Latest (`gh release edit vX --latest`).
+`mg2_demo_setup(all_levels = TRUE)` skips only the all-levels file if the download fails.
 
 **Global-variable NOTE:** cleared on the `cran` branch (see CRAN_PLAN.md #7).
 
 **Deployments:**
-- GitHub releases: automated via `.github/workflows/release.yml` (push `git tag vX.Y.Z`)
+- GitHub releases: automated via `.github/workflows/release.yml` (push `git tag vX.Y.Z`; only `v*` tags trigger it — the `demo-data` release is separate)
 - shinyapps.io: `rsconnect::deployApp(appDir="deploy", appName="MG2-MagicGlasses2")`
 - Connect Cloud: republish via https://connect.posit.cloud/magicglasses (installs MG2 from `../` local clone)
 - Both deployments use `MG2_DEMO_MODE=1` env var; demo buttons replace shinyFiles picker
