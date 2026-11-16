@@ -538,9 +538,9 @@ api_data = function(
   .old_plan <- future::plan()
   on.exit(.mg2_restore_plan(.old_plan), add = TRUE)
   if (parallel) {
-    plan(multisession) # plan( multisession ) for windows
+    future::plan(future::multisession)
   } else {
-    plan(sequential)
+    future::plan(future::sequential)
   }
 
   # v2 <- expand_grid( period_vectors , orgUnits )
@@ -571,14 +571,13 @@ api_data = function(
       #
       # )
 
-      fut <- future({
-        future_pmap(
+      fut <- future::future({
+        furrr::future_pmap(
           pmap.df,
           .f = function(Var1, Var2, Var3) {
             cat(Var1, Var2, Var3, "\n")
 
-            # if ( !is.null( p ) ) p()
-            progress$inc(1 / nrow(pmap.df)) # Increment progress bar
+            # (no progress bar: futures cannot update a Shiny progress object)
             # progress$set( value = i , detail = paste( "SUM" , i ) )
 
             # if ( print ) message( paste( "" , formula , " : " , .x , .y ,
@@ -656,9 +655,6 @@ api_data = function(
       #   } )
 
       d = future::value(fut)
-      # d <- NULL
-      # fut %...>% { d <<- . }
-      progress$close()
       cat('\n the future is over')
       cat('\n', nrow(d), 'records with sum and count')
       cat(
@@ -671,7 +667,7 @@ api_data = function(
       return(d)
     } else {
       ### SHINY - NOT PARALLEL ####
-      plan(sequential)
+      future::plan(future::sequential)
       cat('\n begining request for data')
       d = list()
       fetch_error <- NULL
@@ -822,22 +818,11 @@ api_data = function(
       }
     }
   } else {
-    # Non shiny evalution:
-    handlers(list(
-      handler_progress(
-        format = ":spin :current/:total (:message) [:bar] :percent in :elapsed ETA: :eta",
-        width = 50,
-        complete = "+"
-      )
-    ))
-
-    with_progress({
-      # p <- progressor( steps = nrow( v2 ) )
-      p <- progressor(steps = nrow(pmap.df))
-
-      d =
-        # future_map2(
-        future_pmap(
+    # Non-shiny evaluation. progressr (Suggests) adds a progress bar when
+    # installed; without it the requests run silently.
+    p <- NULL
+    .fetch_all <- function() {
+        furrr::future_pmap(
           pmap.df,
           # v2$period_vectors,
           # v2$orgUnits
@@ -920,7 +905,18 @@ api_data = function(
             return(d)
           }
         )
-    })
+    }
+    if (requireNamespace("progressr", quietly = TRUE)) {
+      d <- progressr::with_progress(
+        {
+          p <- progressr::progressor(steps = nrow(pmap.df))
+          .fetch_all()
+        },
+        handlers = progressr::handler_txtprogressbar()
+      )
+    } else {
+      d <- .fetch_all()
+    }
   }
 
   if (print) {

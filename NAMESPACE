@@ -113,6 +113,36 @@ export(yearly_summary_table)
 import(data.table)
 importFrom(DT,datatable)
 importFrom(bslib,page_navbar)
+importFrom(dplyr,
+  across,
+  all_of,
+  arrange,
+  as_tibble,
+  bind_rows,
+  case_when,
+  count,
+  distinct,
+  filter,
+  full_join,
+  glimpse,
+  group_by,
+  group_by_at,
+  inner_join,
+  left_join,
+  mutate,
+  mutate_all,
+  n,
+  pull,
+  rename,
+  select,
+  starts_with,
+  summarise,
+  ungroup,
+  vars,
+  where
+)
+importFrom(fabletools,aggregate_key)
+importFrom(future,future)
 importFrom(ggplot2,
   aes,
   element_blank,
@@ -146,17 +176,54 @@ importFrom(openxlsx,
   saveWorkbook,
   writeData
 )
+importFrom(purrr,is_empty)
 importFrom(readxl,read_excel)
+importFrom(scales,percent)
 importFrom(sf,
   "st_crs<-",
   st_bbox,
+  st_drop_geometry,
   st_geometry_type,
   st_is_empty,
   st_read,
   st_transform
 )
+importFrom(shiny,
+  incProgress,
+  setProgress,
+  showNotification,
+  withProgress
+)
 importFrom(shinyFiles,shinyDirButton)
 importFrom(shinyWidgets,pickerInput)
 importFrom(shinybusy,add_busy_spinner)
 importFrom(shinyjs,useShinyjs)
-importFrom(utils,head)
+importFrom(stats,
+  aggregate,
+  fitted,
+  median,
+  setNames
+)
+importFrom(stringr,
+  fixed,
+  str_detect,
+  str_ends,
+  str_remove,
+  str_replace_all,
+  str_split_1,
+  str_sub,
+  str_trim
+)
+importFrom(tidyr,replace_na)
+importFrom(tsibble,
+  as_tsibble,
+  is_tsibble,
+  yearmonth,
+  yearweek
+)
+importFrom(utils,
+  file_test,
+  flush.console,
+  head,
+  tail
+)

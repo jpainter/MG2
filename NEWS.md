@@ -1,5 +1,20 @@
 # MG2 0.2.0
 
+* **Bug fixes found by the CRAN code check:**
+  * `MG2::mg2_demo_setup()` failed with "object 'mg2_demo_formula' not found" unless
+    MG2 was attached with `library(MG2)`.
+  * `api_data()` outside the app failed with "could not find function handlers"
+    unless `progressr` happened to be attached. `progressr` is now optional (a text
+    progress bar when installed). The `shinyApp = TRUE, parallel = TRUE` path no
+    longer calls a progress object that was never created.
+  * `selectedData(level = )` with anything other than `"leaf"` referred to Shiny's
+    `input` and an undefined table; it now accepts a level name from `levelNames` or
+    a level number.
+* **Unused code removed** — 38 functions that nothing in the package, app, vignettes
+  or tests could reach (the superseded evaluation pipeline `impact_fit()` /
+  `pre_impact_fit()` / `trendData()` and its helpers, the `manage_clusters()` dev
+  gadget, `dqa_mase()` aliases) moved to `dev/unused_R/` in the source repository.
+
 * **Fewer required packages** — MG2 now requires 31 packages instead of 42.
   `terra` (Climate tab), `googledrive` (Google Drive storage) and `ggiraph` (hover
   maps on the Climate tab) are optional: install them to use those features. Without

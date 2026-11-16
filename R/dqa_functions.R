@@ -394,15 +394,6 @@ dqa_consistency_detail_rule <- function(data, validation_rules, rule_id,
 
 # Reporting -------------------------------------------------------------------
 
-#' Extract Unique Org Units from DQA Data
-#' @noRd
-data_ous <- function(dqa_data) {
-  dqa_data |>
-    tibble::as_tibble() |>
-    dplyr::ungroup() |>
-    dplyr::count(orgUnit, orgUnitName, level) |>
-    dplyr::select(-n)
-}
 
 # Extract calendar year from a Month value regardless of encoding.
 # Handles both months-since-epoch (~360-840 for 2000-2040, correct yearmonth)
@@ -694,6 +685,8 @@ yearly.outlier.summary_plot <- function(data, text_size = 18, label_size = 6) {
 
 # SWAPE -----------------------------------------------------------------------
 
+
+
 #' Compute SWAPE for a Single Year
 #' @noRd
 swape_year <- function(dqa_data, .year) {
@@ -719,7 +712,6 @@ swape_year <- function(dqa_data, .year) {
   )
 }
 
-
 #' Compute SWAPE Across All Years in DQA Data
 #'
 #' Requires an `expected` column (from seasonal cleaning). Returns `NULL`
@@ -740,9 +732,6 @@ dqa_swape <- function(dqa_data) {
   return(result)
 }
 
-#' @rdname dqa_swape
-#' @noRd
-dqa_mase <- dqa_swape   # backwards-compatible alias
 
 
 #' Plot SWAPE Summary (Minimum Detectable Change)
@@ -789,9 +778,6 @@ dqa_swape_plot <- function(data) {
     ggplot2::theme_minimal(base_size = 18)
 }
 
-#' @rdname dqa_swape_plot
-#' @noRd
-dqa_mase_plot <- dqa_swape_plot   # backwards-compatible alias
 
 
 # Facility Status (Active / Inactive) -----------------------------------------

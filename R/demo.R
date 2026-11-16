@@ -70,7 +70,7 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   xlsx_path <- file.path(dir, paste0("Formulas_SierraLeone_", format(today, "%Y_%b%d"), ".xlsx"))
 
   if (!file.exists(xlsx_path) || overwrite) {
-    fe <- mg2_demo_formula
+    fe <- .mg2_dataset("mg2_demo_formula")
 
     # Build formula string (same logic as .formula_string_from_df in formula_widget)
     fe_rows <- tryCatch(
@@ -109,8 +109,8 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   if (!file.exists(meta_path) || overwrite) {
     # Inject district-level polygons into the metadata so the DQA map,
     # climate widget, and burden map all have geometry for Sierra Leone.
-    meta_out <- mg2_demo_meta
-    meta_out$geoFeatures <- mg2_demo_geo
+    meta_out <- .mg2_dataset("mg2_demo_meta")
+    meta_out$geoFeatures <- .mg2_dataset("mg2_demo_geo")
     saveRDS(meta_out, meta_path)
     message("Metadata saved:        ", basename(meta_path))
   } else {
@@ -120,14 +120,14 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   # -------------------------------------------------------------------------
   # 3. Processed dataset rds  (pre-built — no pipeline run needed)
   # -------------------------------------------------------------------------
-  n_years   <- round(length(unique(mg2_demo$period)) / 12)
+  n_years   <- round(length(unique(.mg2_dataset("mg2_demo")$period)) / 12)
   data_path <- file.path(
     dir,
     paste0(formula_name, "_Facility_", n_years, "yrs_", today, ".rds")
   )
 
   if (!file.exists(data_path) || overwrite) {
-    saveRDS(mg2_demo_processed, data_path, compress = TRUE)
+    saveRDS(.mg2_dataset("mg2_demo_processed"), data_path, compress = TRUE)
     message("Dataset saved:         ", basename(data_path))
   } else {
     message("Dataset exists (skipped): ", basename(data_path))
@@ -136,14 +136,14 @@ mg2_demo_setup <- function(dir = NULL, overwrite = FALSE) {
   # -------------------------------------------------------------------------
   # 4. All-levels processed dataset (national / district / chiefdom / facility)
   # -------------------------------------------------------------------------
-  n_years_all <- round(length(unique(mg2_demo_alllevels$Month)) / 12)
+  n_years_all <- round(length(unique(.mg2_dataset("mg2_demo_alllevels")$Month)) / 12)
   alllevels_path <- file.path(
     dir,
     paste0(formula_name, "_All-levels_", n_years_all, "yrs_", today, ".rds")
   )
 
   if (!file.exists(alllevels_path) || overwrite) {
-    saveRDS(mg2_demo_alllevels, alllevels_path, compress = FALSE)
+    saveRDS(.mg2_dataset("mg2_demo_alllevels"), alllevels_path, compress = FALSE)
     message("All-levels data saved: ", basename(alllevels_path))
   } else {
     message("All-levels data exists (skipped): ", basename(alllevels_path))
@@ -210,7 +210,7 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   # 1. Formula xlsx
   xlsx_path <- file.path(dir, paste0("Formulas_PDRLao_", format(today, "%Y_%b%d"), ".xlsx"))
   if (!file.exists(xlsx_path) || overwrite) {
-    fe <- mg2_pdrlao_formula
+    fe <- .mg2_dataset("mg2_pdrlao_formula")
     fe$Formula.Name <- formula_name   # rename from "malaria" to "PDR Lao Malaria Demo"
     fe_rows <- tryCatch(
       tidyr::separate_rows(fe, Categories, categoryOptionCombo.ids, sep = ";") |>
@@ -313,3 +313,15 @@ mg2_pdrlao_setup <- function(dir = NULL, overwrite = FALSE) {
   }
   readRDS(path)
 }
+
+
+#' Fetch one of MG2's bundled datasets
+#'
+#' Lazy-loaded datasets are not visible by bare name from package code unless
+#' MG2 is attached, so `MG2::mg2_demo_setup()` (without `library(MG2)`) used to
+#' fail with "object 'mg2_demo_formula' not found".
+#' @param name Dataset name, e.g. `"mg2_demo"`.
+#' @return The dataset.
+#' @keywords internal
+#' @noRd
+.mg2_dataset <- function(name) getExportedValue("MG2", name)

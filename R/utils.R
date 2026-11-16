@@ -78,36 +78,7 @@ as.yearmonth <- function(date.string, fmt = NULL) {
   tsibble::yearmonth(lubridate::ym(date.string))
 }
 
-#' Convert a DHIS2 Monthly Period Code to yearmonth
-#'
-#' Parses DHIS2 monthly period codes (format `"YYYYMM"`, e.g., `"201901"`)
-#' to [tsibble::yearmonth()] objects.
-#'
-#' @param x Character vector of DHIS2 monthly period codes.
-#'
-#' @return A `tsibble::yearmonth` vector.
-#' @noRd
-#'
-#' @examples
-#' Month_Year("201901")
-Month_Year <- function(x) {
-  tsibble::yearmonth(zoo::as.yearmon(x, "%Y%m"))
-}
 
-#' Convert a DHIS2 Weekly Period Code to yearweek
-#'
-#' Parses DHIS2 weekly period codes to [tsibble::yearweek()] objects.
-#'
-#' @param x Character vector of DHIS2 weekly period codes.
-#'
-#' @return A `tsibble::yearweek` vector.
-#' @noRd
-#'
-#' @examples
-#' Week_Year("2019W01")
-Week_Year <- function(x) {
-  tsibble::yearweek(x)
-}
 
 # File I/O ------------------------------------------------------------------
 
@@ -386,29 +357,7 @@ date_code_weekly <- function(startPeriod = NULL,
 
 # Internal helpers ----------------------------------------------------------
 
-#' Extract a Date from a Filename
-#'
-#' Parses a date embedded in filenames using the pattern `"_YYYYMMDD.ext"`.
-#'
-#' @param x Character. Filename (with or without directory path).
-#'
-#' @return A `Date` object.
-#' @noRd
-get_date_part <- function(x) {
-  x_parts <- stringr::str_split(x, "_", simplify = TRUE)
-  date_part <- x_parts[length(x_parts)]
-  date <- stringr::str_split(date_part, stringr::fixed("."), simplify = TRUE)[1]
-  lubridate::ymd(date)
-}
 
-#' Count the Length of the Intersection of Two Vectors
-#'
-#' @param x A vector.
-#' @param y A vector.
-#'
-#' @return Integer. Number of elements in common between `x` and `y`.
-#' @noRd
-intersect_length <- function(x, y) length(intersect(x, y))
 
 
 # Dependency checking ---------------------------------------------------------

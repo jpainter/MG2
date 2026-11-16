@@ -60,7 +60,7 @@ R/
                            #   mg2_build_output_de_payload(), mg2_post_metadata(),
                            #   mg2_format_raw_data_values(), mg2_post_data_values(),
                            #   mg2_check_instance_metadata(), mg2_test_dhis2_connection()
-  fct_cluster_manager.R    # manage_clusters() — dev Shiny gadget for local d2 instances
+  fct_cluster_manager.R    # mg2_check_docker() (manage_clusters() gadget moved to dev/unused_R/)
   chat_functions.R         # build_mg2_system_prompt(), summarize_*_for_prompt()
   run_app.R                # run_mg2()
   zzz.R                    # @import data.table (required for := in package)
@@ -183,6 +183,14 @@ Two lessons, both of which cost real debugging time here:
   (`@noRd`). Widget files must be sourced with `local = TRUE` — plain `source()` writes
   them into `.GlobalEnv`. Don't make the namespace itself the parent: its imports (all of
   `data.table`) would shadow `lubridate::month()`, `dplyr::first()` etc. in widget code.
+- **Global variables:** a name flagged "no visible binding" goes in `R/globals.R` only
+  after checking it is a column / NSE name. The 2026-11-16 review found five real
+  undefined-variable bugs hiding in that NOTE. Bare function calls go in
+  `R/imports.R`. Lazy-loaded datasets must be fetched with `.mg2_dataset("name")`
+  from package code — a bare `mg2_demo` only works when MG2 is attached.
+- **Dead code:** `codetools::findGlobals()` does not look inside formulas
+  (`purrr::map(x, ~ f(.x))`), so a call-graph "unreachable" list needs a text-search
+  confirmation before anything is moved (`swape_year()` was a false positive).
 - **Exports are the standalone-script API only** (67 as of 2026-11-16). Export a new
   function only if a script user would call it; otherwise `@noRd`.
 - `R/originals/` excluded from build via `.Rbuildignore`.
@@ -252,8 +260,9 @@ state at the start of that session was 1 ERROR · 2 WARNINGs · 2 NOTEs. Both
 remaining NOTEs are expected:
 
 - **NOTE — unable to verify current time.** Environmental, not a code issue.
-- **NOTE — no visible binding for global variable.** The deferred Phase D item:
-  bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::`.
+- **NOTE — no visible binding for global variable.** Cleared on the `cran` branch
+  (2026-11-16): `R/imports.R` (`@importFrom` for bare calls) + `R/globals.R`
+  (reviewed column names).
 
 **Non-ASCII characters:** R CMD check inspects *parsed* code, so the
 "except perhaps in comments" line in that warning is literal — comments are
@@ -382,8 +391,7 @@ ws_is_local(ws)
 - `mg2_demo_setup()` / `mg2_pdrlao_setup()` — write demo files to disk
 - Login tab has two demo buttons (Sierra Leone / PDR Lao) using `actionButton` not `shinyFiles`
 
-**Remaining NOTE (Phase D — deferred):**
-- Bare `dplyr`/`ggplot2` calls in `data_Functions.R` without `::` qualification
+**Global-variable NOTE:** cleared on the `cran` branch (see CRAN_PLAN.md #7).
 
 **Deployments:**
 - GitHub releases: automated via `.github/workflows/release.yml` (push `git tag vX.Y.Z`)

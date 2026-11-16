@@ -22,8 +22,7 @@ builds of units/anytime/etc. segfault on load and kill the check at "lazy loadin
 
 ## Check status (2026-11-16, after steps 1–4)
 
-`devtools::check(cran = TRUE)` on a local-disk copy: **0 errors · 0 warnings · 1 NOTE** —
-the global-variable NOTE (#7, 744 lines). Vignettes build; examples and tests pass.
+`devtools::check(cran = TRUE)` on a local-disk copy: **0 errors · 0 warnings · 0 NOTEs** (after #7). Vignettes build; examples and tests pass.
 Run with `_R_CHECK_EXCESSIVE_IMPORTS_=20` to match CRAN: the Imports count (31) is
 reported as INFO, not a NOTE.
 
@@ -42,7 +41,7 @@ reported as INFO, not a NOTE.
 
 | # | Item | Size of job |
 |---|---|---|
-| 7 | **Global-variable NOTE** — 746 lines. `utils::globalVariables()` for data-mask column names + `pkg::` or `@importFrom` for bare functions (`select`, `tic`, `withProgress`, `plan`, …). Bulk is `data_Functions.R` and `api_data()`. | large, mechanical |
+| 7 | **Global-variable NOTE — cleared (0 notes).** 742 entries → 0: (a) 38 unreachable functions (call-graph check from exports + app/vignette/test references) moved to `dev/unused_R/`; (b) bare calls pinned with `@importFrom` in `R/imports.R`; (c) reviewed column names in `R/globals.R`. Review found real bugs, fixed rather than declared: `mg2_demo_setup()` without `library(MG2)`, `api_data()` without progressr, `selectedData(level=)`, `htsFormula()`, `api_data` shiny+parallel `progress$`. | ✅ |
 | 8 | **Console output** — ~600 `cat()`/`print()` in `R/`. Exported functions: `message()` or a `verbose =` argument. Internal Shiny-only paths can stay `cat()` only if never reached from exported functions. | large |
 | 9 | **`\value`** — all exported functions have one (3 were missing: `dataTotal`, `mostFrequentReportingOUs`, `selectedData`). | ✅ |
 | 10 | **`\dontrun{}`** — only `loginDHIS2`, `dhis2_get`, `api_data` keep it (need a live DHIS2 server). Dataset, `read_file`, `ous_tree`, `mg2_demo_setup` examples now run (write only to `tempdir()`); `run_mg2` uses `if (interactive())`. | ✅ |

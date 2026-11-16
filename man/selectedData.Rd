@@ -40,7 +40,8 @@ selectedData(
 
 \item{endingMonth}{yearmonth; end of the analysis window}
 
-\item{level}{character; org unit level to filter to ("leaf" or a level name)}
+\item{level}{character or integer; \code{"leaf"} (default) for facility-level
+rows, otherwise a level name from \code{levelNames} or a level number}
 
 \item{level2}{character; optional level-2 org unit filter value}
 
