@@ -460,3 +460,43 @@ check_mg2_dependencies <- function() {
 
   list(info = info, warnings = warns)
 }
+
+# -- User config (directory history, Drive folder id) -------------------------
+# CRAN policy forbids writing to the user's home directory, so the config lives
+# under tools::R_user_dir(). Versions <= 0.2.0 wrote ~/.mg2_config.rds; that
+# file is still *read* as a fallback so existing users keep their history, but
+# it is never written.
+
+#' Path to the MG2 user config file
+#' @return A file path (the file may not exist yet).
+#' @keywords internal
+#' @noRd
+.mg2_config_path <- function() {
+  file.path(tools::R_user_dir("MG2", which = "config"), "config.rds")
+}
+
+#' Read the MG2 user config
+#' @return A list; empty if no config has been saved.
+#' @keywords internal
+#' @noRd
+.mg2_load_config <- function() {
+  path <- .mg2_config_path()
+  if (!file.exists(path)) {
+    legacy <- path.expand("~/.mg2_config.rds")
+    if (file.exists(legacy)) path <- legacy else return(list())
+  }
+  cfg <- tryCatch(readRDS(path), error = function(e) list())
+  if (is.list(cfg)) cfg else list()
+}
+
+#' Save the MG2 user config
+#' @param cfg A list.
+#' @return `cfg`, invisibly.
+#' @keywords internal
+#' @noRd
+.mg2_save_config <- function(cfg) {
+  path <- .mg2_config_path()
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  saveRDS(cfg, path)
+  invisible(cfg)
+}

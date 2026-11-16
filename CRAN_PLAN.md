@@ -1,146 +1,62 @@
 # MG2 CRAN Preparation Plan
 
-Created: 2026-03-19
-Updated: 2026-04-04
-Status: Phase A complete (0 ERRORs · 0 WARNINGs · 3 NOTEs). Next: demo data → vignettes → tests → polish.
+Created: 2026-03-19 · Rewritten: 2026-11-14 (replaces the April plan; Phases A–C
+of that plan are done or superseded — demo data, NEWS.md and four vignettes exist)
 
----
+## Branches
 
-## Phase A — Quick Blocking Fixes (~1 hour)
-*Do these first to establish a clean `devtools::check()` baseline.*
+- `main` — stays at 0.1.9 for `install_github()` users. Not touched until CRAN accepts.
+- `cran` — cut from `feature/cloud-workspace` (which already contains every fix on
+  main, cherry-picked). All CRAN work happens here.
+- After acceptance: bring `main` up to the released version, tag it, and resume normal
+  feature-branch work. `main` should then always equal the latest CRAN release.
 
-| # | Task | File | Detail |
-|---|---|---|---|
-| A1 | Fix `api_data` docs | `R/api_data_function_revision.R` | Replace `#' Title` placeholder; wrap `@examples api_data()` in `\dontrun{}`; change `dir = country.dir` default to `dir = NULL` |
-| A2 | Fix DESCRIPTION | `DESCRIPTION` | Remove `data.table`, `igraph`, `lubridate` from `Suggests` (all three are in `Imports` too); add `URL:` and `BugReports:` GitHub links |
-| A3 | Delete bundled `.rds` files | `inst/shiny/*.rds` | 11 leftover session data files; also delete `~$Instances.xlsx` and the old `MagicGlasses2_ShinyApp.R` |
-| A4 | `cat()` → `message()` in core functions | `R/prepare_dataset.R`, `R/dhis2_api.R` | Add `.verbose = FALSE` parameter to `df_pre_ts`, `df_ts`, `data_1`, `ous_tree`; wrap `cat()` calls — CRAN expects exported functions to be silent by default |
-| A5 | Run `devtools::check()` | — | Establish clean baseline before writing tests |
+## Baseline (2026-11-14, `devtools::check(cran = TRUE)`, R 4.6.2, macOS)
 
----
+0 ERRORs · 0 WARNINGs · 2 NOTEs, but the check misses several CRAN-policy problems
+(below). Source tarball was **8.6 MB**; CRAN's limit is ~5 MB.
 
-## Phase B — Tests (~4–5 hours)
-*Target: ~95 tests across 6 files. All testable without a live DHIS2 server.*
+Running check locally: export the tree to local disk first (iCloud hydration is very
+slow — see CLAUDE.md). After an R minor upgrade, reinstall compiled packages: the 4.5
+builds of units/anytime/etc. segfault on load and kill the check at "lazy loading".
 
-**Fixture strategy:** Build minimal synthetic tsibbles inline — no `.rds` fixtures needed.
+## 1. Blockers — CRAN rejects without these
 
-| File | Functions covered | ~Tests |
+| # | Item | Status |
 |---|---|---|
-| `tests/testthat/test-utils.R` | `as.yearmonth` (all 5 input formats), `Month_Year`, `Week_Year`, `date_code`, `date_code_weekly`, `list_dir_files` | 25 |
-| `tests/testthat/test-outliers.R` | `extremely_mad` (spike detection, all-NA, zero-MAD fallback), `unseasonal`, `mad_outliers`, `seasonal_outliers` | 20 |
-| `tests/testthat/test-prepare_dataset.R` | `df_pre_ts` (Month/Week columns, NA removal), `df_ts` (tsibble output, deduplication, gap-filling) | 15 |
-| `tests/testthat/test-dqa_functions.R` | `dqaPercentReporting` (pr between 0–1, all-reporting = 1.0), `dqa_mase` (missing `expected` col returns NULL) | 12 |
-| `tests/testthat/test-metadata.R` | Extend existing 8 tests with factor-column and wide-column edge cases | 13 |
-| `tests/testthat/test-dhis2_api.R` | `ous_tree` (synthetic tree, no network needed), `dhis2_get` (skip_if_offline), `api_url` | 10 |
+| 1 | **Tarball size.** `mg2_pdrlao_*` is 4.1 MB of the 8.6. Remove from package; serve as a download for `mg2_pdrlao_setup()`. Then consider whether `inst/extdata/demo` (2.2 MB) duplicates the Sierra Leone data in `data/`. | decision pending: where to host PDR Lao |
+| 2 | **No writes to home dir.** `~/.mg2_config.rds` → `tools::R_user_dir("MG2","config")`; legacy file still read once. | ✅ `.mg2_config_path()` / `.mg2_load_config()` / `.mg2_save_config()` in `utils.R` |
+| 3 | **No writes to `.GlobalEnv`.** App session count / pending-stop handle. | ✅ `MG2:::.mg2_app_state` (in `run_app.R`) |
+| 4 | **Restore options and future plans.** `tsmodels()`, `pre_impact_fit()`, `impact_fit()`, `api_data()`. | ✅ `on.exit()` added |
+| 5 | **No `:::` into other packages.** `future:::FutureRegistry` in `.mg2_restore_plan()`. | ✅ removed (was a no-op under future 1.82) |
+| 6 | `.Rbuildignore`: `MG2.Rcheck`, `*.tar.gz`, `vignettes/*.html`. | ✅ |
 
-### Key test cases by function
+## 2. Reviewer pushback — fix before submitting
 
-**`as.yearmonth`:** "January2020", "2025 Jan" (tsibble format), "201901" (DHIS2), "2019-01", already-yearmonth input, explicit `fmt` arg, vector input
-
-**`date_code`:** semicolon-separated string output, `YrsPrevious=1` starts at Jan last year, `startPeriod="202401"` starts at 2024-01, `currentMonth=FALSE` excludes current month
-
-**`extremely_mad`:** single spike flagged, all-NA returns NA, zero-MAD falls back to trimmed SD, `logical=FALSE` returns cleaned values
-
-**`df_pre_ts`:** adds `Month` column of class yearmonth, removes NA COUNT rows, `data` column = `dataElement_Category`, NA Category produces no trailing underscore
-
-**`df_ts`:** returns tsibble, correct key columns, gap-filling, deduplication
-
-**`dqaPercentReporting`:** pr between 0–1, all-reporting year = 1.0, label is a percent string
-
-**What to skip for now:** `data_1` (complex wrapper), `cleanedData`/`mostFrequentReportingOUs` (need namespace cleanup in Phase D first)
-
----
-
-## Phase C — Vignettes (~3–4 hours)
-*Two-track: one fully executable, two documentation-style.*
-
-### Demo data (prerequisite for all vignettes)
-
-Three objects shipped in `data/`, generated by `data-raw/generate_demo.R`:
-
-| Object | Description |
-|---|---|
-| `mg2_demo` | Raw API download — Sierra Leone national malaria data, 5 elements, 60 months (12 real + 48 simulated prior history via seasonal bootstrap). Format matches `api_data()` output. |
-| `mg2_demo_formula` | Formula elements data frame for the 5 data elements, with human-readable names and UIDs. Replaces the `.xlsx` formula file. |
-| `mg2_demo_meta` | Full metadata list (same structure as `metadata_YYYY-MM-DD.rds`) — includes `orgUnits`, `ousTree`, `dataElementDictionary`, `orgUnitLevels`, `categories`, etc. |
-
-**Source:** DHIS2 Sierra Leone demo instance (`https://play.im.dhis2.org/stable-2-41-8`, credentials `admin`/`district`)
-
-**6 data elements:**
-1. Malaria cases confirmed (`TV5zBFFkZLu`)
-2. Inpatient malaria cases (`p4K11MFEWtw`)
-3. Inpatient malaria deaths (`wWy5TE9cQ0V`)
-4. RDT positive (`wZwzzRnr9N4`)
-5. RDT negative / tested (`Qk9nnX0i7lZ`) — combined with #4 for positivity rate
-6. Malaria treated at PHU with ACT < 24 hrs new (`AFM5H0wNq3t`)
-
-**Org units:** All 1,167 Sierra Leone facilities (National → District → Chiefdom → Facility hierarchy, 19 districts)
-
-**History generation:** Seasonal bootstrap — tile the 12 real months with added noise to produce 48 months of prior history. Simple, reproducible, no circular dependency on `tsmodels()`.
-
-**Build script:** `data-raw/generate_demo.R` requires live internet + DHIS2 demo access. Outputs are committed to `data/` so users never need to re-run it.
-
-### Vignettes
-
-**Format:** Each vignette has two tracks — *In the Shiny App* (interactive exploration, screenshots) and *Standalone R code* (reproducible, uses demo data). The app section emphasises parameter exploration; the code section shows how those parameter choices are expressed in R.
-
-**Primary audience:** Epidemiologists and public health analysts working with DHIS2 routine health data. Vignettes are written as methods narratives, not function reference guides. Intended for use in manuscript supplementary materials and blog/website.
-
-| File | Title | Key analytical point |
+| # | Item | Size of job |
 |---|---|---|
-| `vignettes/reporting-completeness.Rmd` | "How Many Facilities Reported This Month?" | Naive aggregation is biased; filtering to a consistent-reporter panel gives an unbiased sample |
-| `vignettes/outlier-detection.Rmd` | "Identifying and Handling Anomalous Values" | Sequential outlier algorithms; why bad values mislead trend estimates |
-| `vignettes/model-validation.Rmd` | "Time-Series Model Validation and Prediction" | Out-of-sample accuracy; MASE/MAPE interpretation; choosing between models |
-| `vignettes/trend-analysis.Rmd` | "Decomposing and Interpreting Health Trends" | Trend decomposition; intervention impact; forecasting |
-| `vignettes/dhis2-connection.Rmd` | "Connecting to DHIS2 and Downloading Data" | Authentication, metadata, `date_code()`, `api_data()`; most code `eval=FALSE` |
+| 7 | **Global-variable NOTE** — 746 lines. `utils::globalVariables()` for data-mask column names + `pkg::` or `@importFrom` for bare functions (`select`, `tic`, `withProgress`, `plan`, …). Bulk is `data_Functions.R` and `api_data()`. | large, mechanical |
+| 8 | **Console output** — ~600 `cat()`/`print()` in `R/`. Exported functions: `message()` or a `verbose =` argument. Internal Shiny-only paths can stay `cat()` only if never reached from exported functions. | large |
+| 9 | **`\value` missing** in 20 Rd files; every exported function needs one. | small |
+| 10 | **`\dontrun{}`** in 13 Rd files — keep only where a live DHIS2 login is required; else `\donttest{}` or runnable with demo data. | small |
+| 11 | **162 exports** — unexport internals to cut doc burden. | medium |
+| 12 | **41 Imports** (NOTE threshold 20). Move to Suggests + `requireNamespace()`: googledrive, terra, sf, data.tree, tictoc, rstudioapi, shinybusy, httpuv, … | medium |
+| 13 | **Undeclared deps in the app:** `later` (used in `app.R`, not in DESCRIPTION); `readxl` is Suggests but `app.R` calls `library(readxl)` unconditionally. | small |
+| 14 | **DESCRIPTION wording:** quote software names (`'DHIS2'`, `'Shiny'`), add `<https://dhis2.org>`. | small |
+| 15 | Examples, tests and vignettes must not write outside `tempdir()` or hit the network (`skip_on_cran()`). | audit |
 
-### DESCRIPTION additions for vignettes
-Add to `Suggests`: `knitr`, `rmarkdown`, `withr`
+## 3. Quality — not required, strongly advised
 
----
+- Tests: 18 `test_that` blocks today. Priorities from the April plan still apply
+  (`as.yearmonth`, `date_code`, outlier functions, `df_pre_ts`/`df_ts`, DQA reporting).
+- `urlchecker::url_check()`, `spelling::spell_check_package()`.
+- `rhub::rhub_check()` / win-builder (`devtools::check_win_devel()`) for Linux/Windows.
+- `cran-comments.md`.
 
-## Phase D — Polish (~2 hours)
-*Not blocking, but required for a credible submission.*
-
-1. **`cat()` sweep in `R/data_Functions.R`** — `translate_dataset`, `getLevelNames` have unconditional `cat()` calls; add `.verbose` guards or convert to `message()`
-2. **Namespace hygiene in `data_Functions.R`** — bare `count()`, `arrange()`, `pull()`, `%>%` without `::` or `@importFrom` generate R CMD check NOTEs about "no visible binding for global variable". Use `dplyr::count()` etc. throughout, or add `@importFrom` tags.
-3. **Roxygen on undocumented internal functions** — `getLevelNames`, `error_factor`, `cleanedData` have no `@description`; add `@noRd` or proper docs
-4. **`NEWS.md`** — create with a standard 0.1.0 entry
-5. **Final `devtools::check(cran = TRUE)`** — target 0 ERRORs, 0 WARNINGs, ≤ 2 NOTEs
-
----
-
-## Recommended Session Order
-
-```
-✅ Phase A complete (2026-04-02)
-          ↓
-    Build data-raw/generate_demo.R
-    → download mg2_demo + mg2_demo_meta from SL demo instance
-    → seasonal bootstrap for 48 months of prior history
-    → build mg2_demo_formula
-    → save to data/, document in R/data-mg2_demo.R
-          ↓
-    Vignettes + Tests (can proceed in parallel)
-    → reporting-completeness.Rmd
-    → outlier-detection.Rmd
-    → model-validation.Rmd
-    → trend-analysis.Rmd
-    → dhis2-connection.Rmd
-    → test-utils.R, test-outliers.R, test-prepare_dataset.R, etc.
-          ↓
-    Phase D polish
-    → @importFrom sweep (dplyr, ggplot2, stats, utils)
-    → cat() → message() in exported functions
-    → final devtools::check(cran = TRUE)
-```
-
----
-
-## How to Run the Check
+## Final step
 
 ```r
-devtools::load_all()
-devtools::document()
-devtools::check(cran = TRUE, remote = TRUE, manual = TRUE)
+devtools::check(cran = TRUE, remote = TRUE, manual = TRUE)   # 0 E · 0 W · ≤1 NOTE ("New submission")
+devtools::check_win_devel()
+devtools::submit_cran()
 ```

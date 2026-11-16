@@ -24,3 +24,9 @@
 ^logo_icon\.png$
 ^logo_icon\.svg$
 ^MG2 logo slide\.key$
+^MG2\.Rcheck$
+^.*\.tar\.gz$
+^vignettes/.*\.html$
+^vignettes/.*_files$
+^CRAN-SUBMISSION$
+^cran-comments\.md$

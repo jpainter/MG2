@@ -42,3 +42,12 @@ run_mg2 <- function(...) {
     interrupt = function(e) message("App stopped.")
   )
 }
+
+# State that must survive across run_mg2() calls in one R session (the app's
+# pending-stop timer handle and live session count). Each run_mg2() sources
+# inst/shiny/app.R into a fresh environment, so this lives in the package
+# namespace instead -- CRAN policy forbids writing to .GlobalEnv. The
+# environment object is fixed at load time; only its contents change.
+.mg2_app_state <- new.env(parent = emptyenv())
+.mg2_app_state$pending_stop  <- NULL
+.mg2_app_state$session_count <- 0L

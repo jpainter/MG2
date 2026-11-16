@@ -166,7 +166,7 @@ Two lessons, both of which cost real debugging time here:
   from `future:::resolved.MulticoreFuture()` finding no job on a future that never
   launched, and it is usually raised by `plan_cleanup()` from inside an `on.exit`
   plan restore — where it *replaces* the real error (typically "Can't fork"). Restore
-  plans via `.mg2_restore_plan()`, which resets the registry and never throws, so the
+  plans via `.mg2_restore_plan()`, which retries and never throws, so the
   original error survives. If it appears at app startup, the session is polluted from
   an earlier crash: restart R.
 

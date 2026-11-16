@@ -521,6 +521,8 @@ api_data = function(
 
   ## Fetch requests ####
 
+  .old_plan <- future::plan()
+  on.exit(.mg2_restore_plan(.old_plan), add = TRUE)
   if (parallel) {
     plan(multisession) # plan( multisession ) for windows
   } else {

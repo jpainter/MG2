@@ -59,8 +59,6 @@ directory_widget_server <- function(id, demo_dir = NULL) {
     function(input, output, session) {
       ns <- session$ns
 
-      config_path <- path.expand("~/.mg2_config.rds")
-
       # Load directory history (up to 10); support both old single-dir and new list format
       .is_temp_dir <- function(path) {
         tryCatch(
@@ -71,7 +69,7 @@ directory_widget_server <- function(id, demo_dir = NULL) {
       }
 
       load_config <- function() {
-        tryCatch(readRDS(config_path), error = function(e) list())
+        MG2:::.mg2_load_config()
       }
 
       load_dir_history <- function() {
@@ -92,7 +90,7 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           tryCatch({
             cfg <- load_config()
             cfg$directories <- head(updated, 10)
-            saveRDS(cfg, config_path)
+            MG2:::.mg2_save_config(cfg)
           }, error = function(e) NULL)
         }
         head(updated, 10)
@@ -114,7 +112,7 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           cfg <- load_config()
           cfg$gdrive_folder_id   <- folder_id
           cfg$gdrive_folder_name <- folder_name
-          saveRDS(cfg, config_path)
+          MG2:::.mg2_save_config(cfg)
         }, error = function(e) NULL)
       }
 
@@ -124,7 +122,7 @@ directory_widget_server <- function(id, demo_dir = NULL) {
           cfg <- load_config()
           cfg$gdrive_folder_id   <- NULL
           cfg$gdrive_folder_name <- NULL
-          saveRDS(cfg, config_path)
+          MG2:::.mg2_save_config(cfg)
         }, error = function(e) NULL)
       }
 

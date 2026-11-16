@@ -296,16 +296,18 @@ ui <- bslib::page_navbar(
 # would kill the app before the redirect ever lands. Instead: wait a grace
 # period long enough to cover that round-trip, and cancel the pending stop
 # if a new session connects (the redirect coming back) in the meantime.
-# These two globals must live in .GlobalEnv so their values (and the
-# later() cancel handle) survive across run_mg2() calls.  Each new call
-# sources app.R into a fresh environment; without .GlobalEnv the cancel
-# handle is orphaned and the old timer fires on the newly-launched app.
-if (is.function(.GlobalEnv$.mg2_pending_stop)) {
+# The pending-stop handle and session count must survive across run_mg2()
+# calls. Each call sources app.R into a fresh environment, so they live in
+# MG2:::.mg2_app_state (package namespace; CRAN forbids writing .GlobalEnv).
+# Without that the cancel handle is orphaned and the old timer fires on the
+# newly-launched app.
+.app_state <- MG2:::.mg2_app_state
+if (is.function(.app_state$pending_stop)) {
   cat("* Canceling pending stopApp timer from previous app instance\n")
-  .GlobalEnv$.mg2_pending_stop()
+  .app_state$pending_stop()
 }
-.GlobalEnv$.mg2_pending_stop  <- NULL
-.GlobalEnv$.mg2_session_count <- 0L
+.app_state$pending_stop  <- NULL
+.app_state$session_count <- 0L
 .mg2_stop_grace_sec <- 90   # grace period duration; local to this app env is fine
 
 server <- function(input, output, session) {
@@ -327,13 +329,13 @@ server <- function(input, output, session) {
   #   3. onSessionEnded: Positron sessions are no-ops; real sessions decrement
   #      and trigger stopApp() when count reaches 0.
 
-  .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count + 1L
+  .app_state$session_count <- .app_state$session_count + 1L
   cat(sprintf("\n=== SESSION START (count now %d, id=%s) ===\n",
-              .GlobalEnv$.mg2_session_count, session$token))
-  if (!is.null(.GlobalEnv$.mg2_pending_stop)) {
+              .app_state$session_count, session$token))
+  if (!is.null(.app_state$pending_stop)) {
     cat("- canceling pending stopApp timer\n")
-    .GlobalEnv$.mg2_pending_stop()
-    .GlobalEnv$.mg2_pending_stop <- NULL
+    .app_state$pending_stop()
+    .app_state$pending_stop <- NULL
   }
 
   # Reactive flag: starts FALSE, flipped TRUE once we confirm Positron.
@@ -347,9 +349,9 @@ server <- function(input, output, session) {
                 session$token, if (nzchar(url_s)) url_s else "(empty)"))
     if (isTRUE(grepl("positron", url_s, ignore.case = TRUE))) {
       .is_positron_viewer(TRUE)
-      .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
+      .app_state$session_count <- .app_state$session_count - 1L
       cat(sprintf("=== POSITRON VIEWER DETECTED — count corrected to %d (id=%s) ===\n",
-                  .GlobalEnv$.mg2_session_count, session$token))
+                  .app_state$session_count, session$token))
     }
   })
 
@@ -365,15 +367,15 @@ server <- function(input, output, session) {
       cat(sprintf("\n=== POSITRON VIEWER END (not counted, id=%s) ===\n", session$token))
       return()
     }
-    .GlobalEnv$.mg2_session_count <- .GlobalEnv$.mg2_session_count - 1L
+    .app_state$session_count <- .app_state$session_count - 1L
     cat(sprintf("\n=== SESSION END (count now %d, id=%s) ===\n",
-                .GlobalEnv$.mg2_session_count, session$token))
-    if (.GlobalEnv$.mg2_session_count <= 0L) {
+                .app_state$session_count, session$token))
+    if (.app_state$session_count <= 0L) {
       if (.session_oauth_initiated) {
         # OAuth redirect may be in flight — wait for the new session
         cat(sprintf("- OAuth initiated; scheduling stopApp in %ds\n", .mg2_stop_grace_sec))
-        .GlobalEnv$.mg2_pending_stop <- later::later(function() {
-          if (.GlobalEnv$.mg2_session_count <= 0L) {
+        .app_state$pending_stop <- later::later(function() {
+          if (.app_state$session_count <= 0L) {
             cat("\n- grace period expired, stopping app\n")
             stopApp()
           }

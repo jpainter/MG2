@@ -89,16 +89,18 @@
 #' handler, that assertion *replaces* the real error, so the user sees a
 #' cryptic complaint about parallelJob instead of "Can't fork the R session".
 #'
-#' Reset the offending registries and retry, and never throw: this runs during
-#' unwinding, where the interesting error is the one already in flight.
+#' Retry once and never throw: this runs during unwinding, where the
+#' interesting error is the one already in flight.
+#'
+#' Earlier versions also reset `future:::FutureRegistry("multicore")` etc.
+#' between attempts. That was removed for CRAN (no `:::` into other packages)
+#' and was already a no-op: in future 1.82.0 the registries are keyed by
+#' backend/session (e.g. `"multicore-<uuid>"`), so the bare names matched
+#' nothing.
 #' @noRd
 .mg2_restore_plan <- function(old_plan) {
   ok <- tryCatch({ future::plan(old_plan); TRUE }, error = function(e) FALSE)
   if (!ok) {
-    for (w in c("multicore", "multisession", "cluster")) {
-      try(suppressWarnings(
-        future:::FutureRegistry(w, action = "reset")), silent = TRUE)
-    }
     try(suppressWarnings(future::plan(old_plan)), silent = TRUE)
   }
   invisible(NULL)

@@ -3169,7 +3169,8 @@ tsmodels = function(
   # not installed, causing an error even for base models. Since tsmodels() is
   # already called inside a future() worker, nested parallelism adds no value —
   # force sequential so fabletools runs single-threaded.
-  future::plan(future::sequential)
+  .old_plan <- future::plan(future::sequential)
+  on.exit(.mg2_restore_plan(.old_plan), add = TRUE)
 
   if (msg) cat("\n - tsmodels: Fitting models")
   tictoc::tic()
@@ -3709,7 +3710,8 @@ pre_impact_fit = function(
     .cat = .cat
   )
 
-  options(future.rng.onMisuse = "ignore")
+  .old_opts <- options(future.rng.onMisuse = "ignore")
+  on.exit(options(.old_opts), add = TRUE)
 
   # cat( "\n *** saving pre_model_diagnostics.rda")
   # save( data.total, data.hts, group_by_cols, dataSets , covariates,
@@ -4255,7 +4257,8 @@ impact_fit = function(
     .cat = .cat
   )
 
-  options(future.rng.onMisuse = "ignore")
+  .old_opts <- options(future.rng.onMisuse = "ignore")
+  on.exit(options(.old_opts), add = TRUE)
 
   # cat( "\n *** saving pre_model_diagnostics.rda")
   # save( data.total, data.hts, group_by_cols, dataSets , covariates,
