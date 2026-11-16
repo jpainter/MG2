@@ -404,6 +404,34 @@ issue where `data.table::set()` converts yearmonth days back to months was never
 
 ---
 
+## Pending changes
+
+### Default "Exclude most recent period" from the submission deadline (noted 2026-10-18)
+
+The Reporting page checkbox `exclude_recent_month` (`inst/shiny/reporting_widget.r`,
+`checkboxInput` ~L91, applied ~L885) defaults to `TRUE` always. Make the default follow
+the data set's submission deadline instead:
+
+- Deadline for the last month = end of that month + the data set's `timelyDays` (DHIS2's
+  "days after period end to qualify for timely submission"; varies by country and data
+  set). Use the latest deadline among the monthly data sets that contain the selected
+  elements; fall back to 15 (DHIS2's default) when none has a value.
+- Exclude if today is on or before the deadline (reports still arriving); include after.
+- Show why beside the checkbox, e.g. "Reports for 2026-08 were due 2026-09-15 (NHMIS
+  Monthly Summary, 15 days after the month ends); today is 2026-10-18, so included."
+  A user's own tick/untick wins over the default.
+- `timelyDays` is already fetched in the data set metadata (`metadata_widget.R` ~L526),
+  so this needs no new API call. Weekly data: same rule on the week's end date.
+
+Same change made in the Chap fork on 2026-10-18 (`chap-frontend`, branch
+`feat/mg2-champion-selection`, `features/mg2-selection/recipe.ts`:
+`submissionDeadline()`, `isBeforeDeadline()`, with tests). Nigeria's NHMIS data sets
+carry `timelyDays = 15`. Possible refinement for both: also compare the last month's
+facilities reporting with the median of the previous 12, for countries where reports
+routinely arrive after the deadline.
+
+---
+
 ## Nigeria DHIS2 Indicator Finding (cross-project)
 
 Nigeria's national DHIS2 instance contains two indicators nominally measuring RDT test
